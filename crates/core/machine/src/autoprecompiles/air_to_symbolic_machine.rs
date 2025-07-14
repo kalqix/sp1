@@ -24,8 +24,7 @@ use crate::riscv::RiscvAir;
 pub fn air_to_symbolic_machine<F: PrimeField32, P: FieldElement>(
     air: &RiscvAir<F>,
 ) -> Result<SymbolicMachine<P>, UnsupportedConstraintError> {
-    // TODO: Properly extract column names.
-    let column_names = (0..10000).map(|i| Arc::new(format!("var_{i}"))).collect::<Vec<_>>();
+    let column_names = air.column_names().into_iter().map(Arc::new).collect::<Vec<_>>();
 
     // Get constraints
     let constraints = get_symbolic_constraints(air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
