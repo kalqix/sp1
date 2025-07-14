@@ -9,6 +9,7 @@ use sp1_core_executor::{
     ByteOpcode,
 };
 use sp1_stark::{air::SP1AirBuilder, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
@@ -27,7 +28,7 @@ pub const fn get_msb(a: [u8; 8]) -> u8 {
 }
 
 /// A set of columns needed for the MUL operations.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MulOperation<T> {
     /// Trace.

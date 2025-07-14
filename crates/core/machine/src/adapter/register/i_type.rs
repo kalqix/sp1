@@ -6,6 +6,7 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 
 use sp1_stark::Word;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
@@ -15,7 +16,7 @@ use crate::{
 
 /// A set of columns to read operations with op_a and op_b being registers and op_c being an
 /// immediate.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ITypeReader<T> {
     pub op_a: T,

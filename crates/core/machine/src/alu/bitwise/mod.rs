@@ -15,6 +15,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 pub struct BitwiseChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct BitwiseCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -66,6 +67,10 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
 
     fn name(&self) -> String {
         "Bitwise".to_string()
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        BitwiseCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

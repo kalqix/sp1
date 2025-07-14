@@ -18,6 +18,7 @@ use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Word,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::r_type::RTypeReader, state::CPUState},
@@ -33,7 +34,7 @@ pub const NUM_SUBW_COLS: usize = size_of::<SubwCols<u8>>();
 pub struct SubwChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct SubwCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -56,6 +57,10 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
 
     fn name(&self) -> String {
         "Subw".to_string()
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SubwCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

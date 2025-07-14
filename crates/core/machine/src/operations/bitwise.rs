@@ -5,6 +5,7 @@ use sp1_core_executor::{
 };
 use sp1_primitives::consts::WORD_BYTE_SIZE;
 use sp1_stark::air::SP1AirBuilder;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_algebra::Field;
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
@@ -22,6 +23,7 @@ use crate::air::SP1Operation;
     Deserialize,
     IntoShape,
     SP1OperationBuilder,
+    StructReflection,
 )]
 #[repr(C)]
 pub struct BitwiseOperation<T> {
