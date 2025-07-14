@@ -1,5 +1,6 @@
 use powdr_number::BabyBearField;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
+use slop_air::BaseAir;
 use strum::IntoEnumIterator;
 
 use core::fmt;
@@ -313,18 +314,22 @@ impl<F: PrimeField32> RiscvAir<F> {
         ];
 
         for air in &airs {
-            match air_to_symbolic_machine::<_, BabyBearField>(air) {
-                Ok(machine) => {
-                    tracing::info!("== {} ==", air.name());
-                    tracing::info!("{machine}");
+            // For now, just print the constraints if the AIR is of a reasonable size.
+            tracing::info!("== {} ==", air.name());
+            if air.width() < 200 {
+                match air_to_symbolic_machine::<_, BabyBearField>(air) {
+                    Ok(machine) => {
+                        tracing::info!("{machine}");
+                    }
+                    Err(error) => {
+                        tracing::warn!("  Failed to convert to symbolic machine: {error}");
+                    }
                 }
-                Err(error) => {
-                    tracing::warn!(
-                        "Failed to convert {} to symbolic machine: {}",
-                        air.name(),
-                        error.0
-                    );
-                }
+            } else {
+                tracing::warn!(
+                    "  Skipping conversion to symbolic machine: too wide ({})",
+                    air.width()
+                );
             }
         }
 
