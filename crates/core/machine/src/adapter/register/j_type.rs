@@ -4,6 +4,7 @@ use sp1_core_executor::{
     JTypeRecord,
 };
 use sp1_derive::AlignedBorrow;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use sp1_stark::Word;
 
@@ -15,7 +16,7 @@ use crate::{
 
 /// A set of columns to read operations with op_a being a register and op_b and op_c being
 /// immediates.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct JTypeReader<T> {
     pub op_a: T,

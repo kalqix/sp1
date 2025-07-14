@@ -7,7 +7,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 use crate::operations::U16toU8Operation;
 
 /// Memory Access Timestamp
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessTimestamp<T> {
     /// The previous timestamp's high 24 bits that this memory access is being read from.
@@ -27,7 +27,7 @@ pub struct MemoryAccessTimestamp<T> {
 }
 
 /// Memory Access Columns
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub prev_value: Word<T>,

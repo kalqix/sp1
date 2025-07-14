@@ -4,6 +4,7 @@ use std::{
 };
 
 use sp1_derive::AlignedBorrow;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH},
@@ -39,7 +40,7 @@ const fn make_col_map_degree9() -> Poseidon2Degree9Cols<usize> {
 }
 
 /// A column layout for a poseidon2 permutation with degree 3 constraints.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Degree3Cols<T: Copy> {
     pub state: Poseidon2StateCols<T>,
@@ -47,7 +48,7 @@ pub struct Poseidon2Degree3Cols<T: Copy> {
 }
 
 /// A column layout for a poseidon2 permutation with degree 9 constraints.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Degree9Cols<T: Copy> {
     pub state: Poseidon2StateCols<T>,
@@ -56,7 +57,7 @@ pub struct Poseidon2Degree9Cols<T: Copy> {
 pub const GHOST: usize = NUM_INTERNAL_ROUNDS - 1;
 
 /// A column layout for the intermediate states of a Poseidon2 AIR across all rounds.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2StateCols<T> {
     pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
@@ -66,7 +67,7 @@ pub struct Poseidon2StateCols<T> {
 }
 
 /// A column layout for the intermediate S-box states of a Poseidon2 AIR across all rounds.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2SBoxCols<T: Copy> {
     pub external_rounds_sbox_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],

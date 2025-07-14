@@ -6,6 +6,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -35,7 +36,7 @@ pub struct LoadHalfChip;
 pub const NUM_LOAD_HALF_COLUMNS: usize = size_of::<LoadHalfColumns<u8>>();
 
 /// The column layout for memory load half instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadHalfColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -135,6 +136,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadHalfChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadHalfColumns::<F>::struct_reflection().unwrap()
     }
 }
 

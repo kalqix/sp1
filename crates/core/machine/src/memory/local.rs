@@ -22,11 +22,12 @@ use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     InteractionKind, Word,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SingleMemoryLocal<T: Copy> {
     /// The address of the memory access.
@@ -66,7 +67,7 @@ pub struct SingleMemoryLocal<T: Copy> {
     pub is_real: T,
 }
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MemoryLocalCols<T: Copy> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
@@ -236,6 +237,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Local
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        MemoryLocalCols::<F>::struct_reflection().unwrap()
     }
 }
 

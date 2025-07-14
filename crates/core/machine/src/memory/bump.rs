@@ -20,10 +20,11 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{InteractionScope, MachineAir};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub(crate) const NUM_MEMORY_BUMP_COLS: usize = size_of::<MemoryBumpCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MemoryBumpCols<T: Copy> {
     pub access: MemoryAccessCols<T>,
@@ -134,6 +135,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
 
     fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Local
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        MemoryBumpCols::<F>::struct_reflection().unwrap()
     }
 }
 

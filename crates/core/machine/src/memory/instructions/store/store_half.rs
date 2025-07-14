@@ -24,6 +24,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_stark::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreHalfChip;
@@ -31,7 +32,7 @@ pub struct StoreHalfChip;
 pub const NUM_STORE_HALF_COLUMNS: usize = size_of::<StoreHalfColumns<u8>>();
 
 /// The column layout for memory store half instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreHalfColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -125,6 +126,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreHalfChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreHalfColumns::<F>::struct_reflection().unwrap()
     }
 }
 

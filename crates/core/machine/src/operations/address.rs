@@ -5,13 +5,14 @@ use sp1_derive::AlignedBorrow;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode};
 use sp1_primitives::consts::u64_to_u16_limbs;
 use sp1_stark::Word;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::SP1CoreAirBuilder;
 
 use super::AddrAddOperation;
 
 /// A set of columns needed to validate the address and return the aligned address.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[repr(C)]
 pub struct AddressOperation<T> {
     /// Instance of `AddOperation` for addr_word.

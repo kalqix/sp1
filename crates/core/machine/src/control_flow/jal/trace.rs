@@ -10,6 +10,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_stark::air::MachineAir;
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::{next_multiple_of_32, zeroed_f_vec};
 
@@ -80,5 +81,9 @@ impl<F: PrimeField32> MachineAir<F> for JalChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        JalColumns::<F>::struct_reflection().unwrap()
     }
 }

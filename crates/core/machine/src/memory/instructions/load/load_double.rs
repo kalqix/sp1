@@ -24,6 +24,7 @@ use sp1_core_executor::{
 };
 
 use sp1_stark::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadDoubleChip;
@@ -31,7 +32,7 @@ pub struct LoadDoubleChip;
 pub const NUM_LOAD_DOUBLE_COLUMNS: usize = size_of::<LoadDoubleColumns<u8>>();
 
 /// The column layout for memory load double instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadDoubleColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -119,6 +120,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadDoubleChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadDoubleColumns::<F>::struct_reflection().unwrap()
     }
 }
 
