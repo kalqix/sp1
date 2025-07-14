@@ -13,8 +13,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use std::array::IntoIter;
 
-use struct_reflection::StructReflection;
-use struct_reflection::StructReflectionHelper;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// An array of four bytes to represent a 32-bit value.
 ///
