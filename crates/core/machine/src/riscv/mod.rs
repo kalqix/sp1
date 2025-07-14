@@ -1,3 +1,4 @@
+use powdr_number::BabyBearField;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
@@ -17,6 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
+    autoprecompiles::air_to_symbolic_machine::air_to_symbolic_machine,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -231,7 +233,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         use RiscvAirDiscriminants::*;
 
         // The order of the chips is used to determine the order of trace generation.
-        let chips: Vec<Chip<F, RiscvAir<F>>> = [
+        let airs = [
             RiscvAir::Program(ProgramChip::default()),
             RiscvAir::Sha256Extend(ShaExtendChip::default()),
             RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
@@ -308,10 +310,25 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-        ]
-        .into_iter()
-        .map(Chip::new)
-        .collect::<Vec<_>>();
+        ];
+
+        for air in &airs {
+            match air_to_symbolic_machine::<_, BabyBearField>(air) {
+                Ok(machine) => {
+                    tracing::info!("== {} ==", air.name());
+                    tracing::info!("{machine}");
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "Failed to convert {} to symbolic machine: {}",
+                        air.name(),
+                        error.0
+                    );
+                }
+            }
+        }
+
+        let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
 
         let chips_map = chips
             .iter()
