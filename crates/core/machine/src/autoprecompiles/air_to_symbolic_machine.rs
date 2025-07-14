@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use powdr_autoprecompiles::expression::AlgebraicReference;
-use powdr_autoprecompiles::{SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine};
+use powdr_autoprecompiles::{
+    expression::AlgebraicReference, SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
+};
 use powdr_expression::{
     AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicExpression,
     AlgebraicUnaryOperation, AlgebraicUnaryOperator,
@@ -11,8 +12,7 @@ use powdr_number::FieldElement;
 use slop_air::{Air, BaseAir, PairCol, VirtualPairCol};
 use slop_algebra::PrimeField32;
 use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
-use sp1_stark::air::MachineAir;
-use sp1_stark::{Interaction, InteractionBuilder, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::MachineAir, Interaction, InteractionBuilder, PROOF_MAX_NUM_PVS};
 
 use crate::riscv::RiscvAir;
 
