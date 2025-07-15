@@ -1,14 +1,13 @@
-use crate::autoprecompiles::bus_interaction_handler::Sp1BusInteractionHandler;
-use crate::autoprecompiles::candidate::Sp1Candidate;
-use crate::autoprecompiles::instruction::Sp1Instruction;
-use crate::autoprecompiles::instruction_machine_handler::Sp1InstructionMachineHandler;
-use crate::autoprecompiles::program::Sp1Program;
+use crate::autoprecompiles::{
+    bus_interaction_handler::Sp1BusInteractionHandler, candidate::Sp1Candidate,
+    instruction::Sp1Instruction, instruction_machine_handler::Sp1InstructionMachineHandler,
+    program::Sp1Program,
+};
 use powdr_autoprecompiles::adapter::Adapter;
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
-use sp1_core_executor::Instruction;
-use sp1_core_executor::Program;
+use sp1_core_executor::{Instruction, Program};
 
 struct Sp1ApcAdapter;
 
