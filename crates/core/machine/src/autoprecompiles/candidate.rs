@@ -4,6 +4,8 @@ use powdr_autoprecompiles::{
     Apc,
 };
 
+/// A candidate for the SP1 autoprecompiles.
+/// Currently does not use pgo data and instead is ranked by the start index of the block.
 pub struct Sp1Candidate<A: Adapter> {
     apc: AdapterApc<A>,
 }
@@ -14,7 +16,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     }
 
     fn value(&self) -> usize {
-        todo!()
+        self.apc.block.start_idx
     }
 
     fn tie_breaker(&self) -> usize {
@@ -24,7 +26,6 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 
 impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
     type JsonExport = ();
-
     type ApcStats = ();
 
     fn create(
@@ -32,17 +33,17 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
             <A as powdr_autoprecompiles::adapter::Adapter>::PowdrField,
             <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
         >,
-        pgo_program_idx_count: &std::collections::HashMap<u32, u32>,
-        vm_config: powdr_autoprecompiles::VmConfig<
+        _: &std::collections::HashMap<u32, u32>,
+        _: powdr_autoprecompiles::VmConfig<
             <A as powdr_autoprecompiles::adapter::Adapter>::InstructionMachineHandler,
             <A as powdr_autoprecompiles::adapter::Adapter>::BusInteractionHandler,
         >,
     ) -> Self {
-        todo!()
+        Sp1Candidate { apc }
     }
 
     fn to_json_export(&self, apc_candidates_dir_path: &std::path::Path) -> Self::JsonExport {
-        todo!()
+        ()
     }
 
     fn into_apc_and_stats(
@@ -54,6 +55,6 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
         >,
         Self::ApcStats,
     ) {
-        todo!()
+        (self.apc, ())
     }
 }
