@@ -4898,6 +4898,7 @@ dependencies = [
  "num",
  "num_cpus",
  "powdr-autoprecompiles",
+ "powdr-constraint-solver",
  "powdr-expression",
  "powdr-number",
  "rayon",

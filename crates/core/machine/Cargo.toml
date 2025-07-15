@@ -29,6 +29,7 @@ sp1-primitives = { workspace = true }
 powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "bd45df0", default-features = false }
 powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "bd45df0", default-features = false }
 powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "bd45df0", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "bd45df0", default-features = false }
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
 slop-futures = { workspace = true }
