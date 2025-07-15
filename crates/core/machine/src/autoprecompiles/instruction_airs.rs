@@ -12,7 +12,9 @@ use sp1_stark::air::MachineAir;
 
 #[derive(Default)]
 pub struct InstructionAirs<P> {
+    /// All instruction AIRs.
     airs: Vec<SymbolicMachine<P>>,
+    /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
     instruction_to_air_idx: HashMap<(usize, bool), usize>,
 }
 
