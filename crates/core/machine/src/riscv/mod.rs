@@ -20,7 +20,7 @@ use crate::{
     adapter::bump::StateBumpChip,
     autoprecompiles::{
         air_to_symbolic_machine::{air_to_symbolic_machine, has_pc_lookup},
-        instruction_machine_handler::InstructionAirs,
+        instruction_airs::InstructionAirs,
     },
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
