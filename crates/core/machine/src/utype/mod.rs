@@ -16,6 +16,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::j_type::JTypeReader, state::CPUState},
@@ -36,7 +37,7 @@ impl<F> BaseAir<F> for UTypeChip {
 }
 
 /// The column layout for UType instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct UTypeColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -213,6 +214,10 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        UTypeColumns::<F>::struct_reflection().unwrap()
     }
 }
 

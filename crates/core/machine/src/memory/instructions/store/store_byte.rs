@@ -25,6 +25,7 @@ use sp1_core_executor::{
 };
 use sp1_primitives::consts::u64_to_u16_limbs;
 use sp1_stark::air::{BaseAirBuilder, MachineAir};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreByteChip;
@@ -32,7 +33,7 @@ pub struct StoreByteChip;
 pub const NUM_STORE_BYTE_COLUMNS: usize = size_of::<StoreByteColumns<u8>>();
 
 /// The column layout for memory store byte instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreByteColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -138,6 +139,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreByteChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreByteColumns::<F>::struct_reflection().unwrap()
     }
 }
 

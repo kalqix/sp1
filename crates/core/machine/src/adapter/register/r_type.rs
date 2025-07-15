@@ -8,6 +8,8 @@ use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationB
 
 use sp1_stark::{air::SP1AirBuilder, Word};
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
     cpu::columns::InstructionCols,
@@ -17,6 +19,7 @@ use crate::{
 /// A set of columns to read operations with op_a, op_b, op_c being registers.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

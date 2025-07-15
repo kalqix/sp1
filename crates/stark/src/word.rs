@@ -13,12 +13,24 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use std::array::IntoIter;
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 /// An array of four bytes to represent a 32-bit value.
 ///
 /// We use the generic type `T` to represent the different representations of a byte, ranging from
 /// a `u8` to a `AB::Var` or `AB::Expr`.
 #[derive(
-    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
+    AlignedBorrow,
+    StructReflection,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
 )]
 #[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);

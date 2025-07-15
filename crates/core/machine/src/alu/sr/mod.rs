@@ -15,6 +15,7 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::{u32_to_u16_limbs, u64_to_u16_limbs, WORD_BYTE_SIZE, WORD_SIZE};
 use sp1_stark::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 pub struct ShiftRightChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -105,6 +106,10 @@ impl<F: PrimeField32> MachineAir<F> for ShiftRightChip {
 
     fn name(&self) -> String {
         "ShiftRight".to_string()
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        ShiftRightCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

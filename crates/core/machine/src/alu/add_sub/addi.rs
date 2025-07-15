@@ -15,6 +15,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::i_type::ITypeReader, state::CPUState},
@@ -31,7 +32,7 @@ pub const NUM_ADDI_COLS: usize = size_of::<AddiCols<u8>>();
 pub struct AddiChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddiCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -54,6 +55,10 @@ impl<F: PrimeField32> MachineAir<F> for AddiChip {
 
     fn name(&self) -> String {
         "Addi".to_string()
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        AddiCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

@@ -5,9 +5,12 @@ use slop_algebra::PrimeField32;
 use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
+use struct_reflection::StructReflectionHelper;
 
 use super::{
-    columns::{RangeMultCols, NUM_RANGE_MULT_COLS, NUM_RANGE_PREPROCESSED_COLS},
+    columns::{
+        RangeMultCols, RangePreprocessedCols, NUM_RANGE_MULT_COLS, NUM_RANGE_PREPROCESSED_COLS,
+    },
     RangeChip,
 };
 
@@ -81,5 +84,9 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
 
     fn included(&self, _shard: &Self::Record) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        RangePreprocessedCols::<F>::struct_reflection().unwrap()
     }
 }

@@ -7,13 +7,14 @@ use sp1_stark::{
     air::{BaseAirBuilder, SP1AirBuilder},
     Word,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::{SP1Operation, SP1OperationBuilder};
 
 use super::{U16CompareOperation, U16CompareOperationInput};
 
 /// A set of columns needed to range check a BabyBear word.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[repr(C)]
 pub struct BabyBearWordRangeChecker<T> {
     /// Most significant limb is less than 15 * 2^11 = 30720.

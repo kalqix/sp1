@@ -9,9 +9,12 @@ use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationB
 
 use crate::air::{SP1Operation, WordAirBuilder};
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 /// A set of columns needed to compute the add of two words.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

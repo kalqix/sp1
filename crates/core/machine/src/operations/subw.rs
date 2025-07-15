@@ -3,6 +3,7 @@ use std::num::Wrapping;
 use sp1_core_executor::events::ByteRecord;
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
 use sp1_stark::{air::SP1AirBuilder, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
@@ -11,7 +12,7 @@ use sp1_derive::AlignedBorrow;
 use crate::{air::WordAirBuilder, operations::U16MSBOperation};
 
 /// A set of columns needed to compute the sub of two words.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SubwOperation<T> {
     /// The result of `a - b`.

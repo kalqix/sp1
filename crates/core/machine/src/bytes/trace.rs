@@ -4,11 +4,12 @@ use slop_algebra::PrimeField32;
 use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::zeroed_f_vec;
 
 use super::{
-    columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
+    columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
 };
 
@@ -70,5 +71,9 @@ impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
 
     fn included(&self, _shard: &Self::Record) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        BytePreprocessedCols::<F>::struct_reflection().unwrap()
     }
 }

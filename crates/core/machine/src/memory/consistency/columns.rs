@@ -2,10 +2,12 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_stark::Word;
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 use crate::operations::U16toU8Operation;
 
 /// Memory Access Timestamp
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessTimestamp<T> {
     /// The previous timestamp's high 24 bits that this memory access is being read from.
@@ -25,7 +27,7 @@ pub struct MemoryAccessTimestamp<T> {
 }
 
 /// Memory Access Columns
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub prev_value: Word<T>,
@@ -41,7 +43,9 @@ pub struct MemoryAccessColsU8<T> {
 }
 
 /// Memory Access Timestamp, when the shard and previous shard are known to be equal
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
+)]
 #[repr(C)]
 pub struct MemoryAccessInShardTimestamp<T> {
     /// The previous timestamp that this memory access is being read from.
@@ -51,7 +55,9 @@ pub struct MemoryAccessInShardTimestamp<T> {
 }
 
 /// Memory Access Columns, when the shard and previous shard are known to be equal
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
+)]
 #[repr(C)]
 pub struct MemoryAccessInShardCols<T> {
     pub prev_value: Word<T>,

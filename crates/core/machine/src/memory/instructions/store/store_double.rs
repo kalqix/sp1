@@ -23,6 +23,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_stark::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreDoubleChip;
@@ -30,7 +31,7 @@ pub struct StoreDoubleChip;
 pub const NUM_STORE_DOUBLE_COLUMNS: usize = size_of::<StoreDoubleColumns<u8>>();
 
 /// The column layout for memory store double instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreDoubleColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -119,6 +120,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreDoubleColumns::<F>::struct_reflection().unwrap()
     }
 }
 
