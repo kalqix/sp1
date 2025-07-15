@@ -1,6 +1,5 @@
 use powdr_number::BabyBearField;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
-use slop_air::BaseAir;
 use strum::IntoEnumIterator;
 
 use core::fmt;
@@ -19,7 +18,10 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::air_to_symbolic_machine::air_to_symbolic_machine,
+    autoprecompiles::{
+        air_to_symbolic_machine::{air_to_symbolic_machine, has_pc_lookup},
+        instruction_machine_handler::InstructionAirs,
+    },
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -313,25 +315,29 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::RangeLookup(RangeChip::default()),
         ];
 
+        tracing::info!("Extracting instruction AIRs...");
+        let mut instruction_airs = InstructionAirs::default();
+        let mut total_instruction_airs = 0;
         for air in &airs {
-            // For now, just print the constraints if the AIR is of a reasonable size.
-            tracing::info!("== {} ==", air.name());
-            if air.width() < 200 {
+            if has_pc_lookup(air) {
+                total_instruction_airs += 1;
                 match air_to_symbolic_machine::<_, BabyBearField>(air) {
                     Ok(machine) => {
-                        tracing::info!("{machine}");
+                        instruction_airs.try_add(machine, air.name());
                     }
                     Err(error) => {
-                        tracing::warn!("  Failed to convert to symbolic machine: {error}");
+                        tracing::warn!(
+                            "Failed to convert {} to symbolic machine: {error}",
+                            air.name()
+                        );
                     }
                 }
-            } else {
-                tracing::warn!(
-                    "  Skipping conversion to symbolic machine: too wide ({})",
-                    air.width()
-                );
             }
         }
+        tracing::info!(
+            "Extracted {} / {total_instruction_airs} instruction AIRs.",
+            instruction_airs.len()
+        );
 
         let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
 
