@@ -18,10 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{
-        air_to_symbolic_machine::{air_to_symbolic_machine, has_pc_lookup},
-        instruction_airs::InstructionAirs,
-    },
+    autoprecompiles::instruction_airs::InstructionAirs,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -316,28 +313,12 @@ impl<F: PrimeField32> RiscvAir<F> {
         ];
 
         tracing::info!("Extracting instruction AIRs...");
-        let mut instruction_airs = InstructionAirs::default();
-        let mut total_instruction_airs = 0;
+        let mut instruction_airs = InstructionAirs::<BabyBearField>::default();
         for air in &airs {
-            if has_pc_lookup(air) {
-                total_instruction_airs += 1;
-                match air_to_symbolic_machine::<_, BabyBearField>(air) {
-                    Ok(machine) => {
-                        instruction_airs.try_add(machine, air.name());
-                    }
-                    Err(error) => {
-                        tracing::warn!(
-                            "Failed to convert {} to symbolic machine: {error}",
-                            air.name()
-                        );
-                    }
-                }
-            }
+            instruction_airs.add(air);
         }
-        tracing::info!(
-            "Extracted {} / {total_instruction_airs} instruction AIRs.",
-            instruction_airs.len()
-        );
+        let num_airs = instruction_airs.air_count();
+        tracing::info!("Extracted {num_airs} instruction AIRs");
 
         let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
 

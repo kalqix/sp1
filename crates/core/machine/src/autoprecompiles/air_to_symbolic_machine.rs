@@ -16,18 +16,10 @@ use slop_algebra::PrimeField32;
 use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Interaction, InteractionBuilder, InteractionKind, PROOF_MAX_NUM_PVS,
+    Interaction, InteractionBuilder, PROOF_MAX_NUM_PVS,
 };
 
 use crate::riscv::RiscvAir;
-
-/// Faster way to filter instruction AIRs.
-pub fn has_pc_lookup<F: PrimeField32>(air: &RiscvAir<F>) -> bool {
-    let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
-    air.eval(&mut builder);
-    let (sends, _receives) = builder.interactions();
-    sends.iter().any(|interaction| interaction.kind == InteractionKind::Program)
-}
 
 pub fn air_to_symbolic_machine<F: PrimeField32, P: FieldElement>(
     air: &RiscvAir<F>,
