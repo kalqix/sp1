@@ -25,6 +25,11 @@ slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
+# Use powdr main of 07-14
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "5806f36", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "5806f36", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "5806f36", default-features = false }
+
 
 slop-futures = { workspace = true }
 
