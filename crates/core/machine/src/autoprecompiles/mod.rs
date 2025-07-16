@@ -11,11 +11,13 @@ pub mod program;
 mod tests {
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, VmConfig};
     use sp1_core_executor::{Instruction, Opcode};
-    use test_log::test;
 
-    use crate::autoprecompiles::{
-        adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-        bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionMachineHandler,
+    use crate::{
+        autoprecompiles::{
+            adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
+            bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionMachineHandler,
+        },
+        utils::setup_logger,
     };
 
     fn compile(basic_block: Vec<Instruction>) -> String {
@@ -38,6 +40,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_add() {
+        setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         let rendered = compile(basic_block);
         tracing::info!("{rendered}");
