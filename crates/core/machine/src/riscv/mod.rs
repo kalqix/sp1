@@ -17,7 +17,6 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::instruction_machine_handler::Sp1InstructionMachineHandler,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -313,17 +312,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn machine() -> Machine<F, Self> {
         use RiscvAirDiscriminants::*;
 
-        let airs = Self::airs();
-
-        tracing::info!("Extracting instruction AIRs...");
-        let mut instruction_airs = Sp1InstructionMachineHandler::default();
-        for air in &airs {
-            instruction_airs.add(air);
-        }
-        let num_airs = instruction_airs.air_count();
-        tracing::info!("Extracted {num_airs} instruction AIRs");
-
-        let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
+        let chips = Self::airs().into_iter().map(Chip::new).collect::<Vec<_>>();
 
         let chips_map = chips
             .iter()
