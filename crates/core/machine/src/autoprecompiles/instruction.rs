@@ -21,6 +21,12 @@ impl Instruction<BabyBear> for Sp1Instruction {
     fn into_symbolic_instruction(
         self,
     ) -> powdr_autoprecompiles::SymbolicInstructionStatement<BabyBear> {
+        // TODO: This is wrong.
+        // Should be: (pc (3 elements!), instruction (13 elements), instruction_field_consts (3 elements))
+        // See: crates/core/machine/src/air/program.rs
+        // TODO: Also, powdr_autoprecompiles makes wrong assumptions about the
+        // structure of the PC lookup (e.g. assuming 1 element for the PC), see:
+        // autoprecompiles/src/lib.rs
         let mut instruction_cols = InstructionCols::<BabyBear>::default();
         instruction_cols.populate(&self.0);
         let mut columns = instruction_cols.into_iter();

@@ -9,7 +9,9 @@ pub mod program;
 
 #[cfg(test)]
 mod tests {
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, VmConfig};
+    use powdr_autoprecompiles::{
+        build, BasicBlock, DegreeBound, InstructionMachineHandler, VmConfig,
+    };
     use sp1_core_executor::{Instruction, Opcode};
 
     use crate::{
@@ -32,6 +34,14 @@ mod tests {
             start_idx: 0,
             statements: basic_block.into_iter().map(Into::into).collect(),
         };
+
+        let original_air = vm_config
+            .instruction_machine_handler
+            .get_instruction_air(&block.statements[0])
+            .expect("Failed to get instruction AIR")
+            // render() does not work, because not all buses are in the bus map yet.
+            .to_string();
+        tracing::info!("Original AIR:\n{original_air}");
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
         apc.machine.render(&sp1_bus_map())
