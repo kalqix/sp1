@@ -18,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::instruction_airs::InstructionAirs,
+    autoprecompiles::instruction_machine_handler::InstructionAirs,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{

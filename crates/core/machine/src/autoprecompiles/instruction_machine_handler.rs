@@ -10,7 +10,7 @@ use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InstructionAirs<P> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<P>>,
