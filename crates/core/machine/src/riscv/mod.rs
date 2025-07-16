@@ -1,4 +1,3 @@
-use powdr_number::BabyBearField;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
@@ -313,7 +312,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         ];
 
         tracing::info!("Extracting instruction AIRs...");
-        let mut instruction_airs = Sp1InstructionMachineHandler::<BabyBearField>::default();
+        let mut instruction_airs = Sp1InstructionMachineHandler::default();
         for air in &airs {
             instruction_airs.add(air);
         }
