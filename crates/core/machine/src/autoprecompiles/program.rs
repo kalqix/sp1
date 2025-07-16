@@ -15,6 +15,6 @@ impl Program<Sp1Instruction> for Sp1Program {
     }
 
     fn instructions(&self) -> Box<dyn Iterator<Item = Sp1Instruction> + '_> {
-        Box::new(self.0.instructions.iter().map(|inst| Sp1Instruction(inst.clone())))
+        Box::new(self.0.instructions.iter().map(|inst| Sp1Instruction(*inst)))
     }
 }

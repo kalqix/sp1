@@ -1,6 +1,5 @@
 use powdr_number::BabyBearField;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
-use slop_air::BaseAir;
 use strum::IntoEnumIterator;
 
 use core::fmt;
@@ -19,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::air_to_symbolic_machine::air_to_symbolic_machine,
+    autoprecompiles::instruction_machine_handler::Sp1InstructionMachineHandler,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -313,25 +312,13 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::RangeLookup(RangeChip::default()),
         ];
 
+        tracing::info!("Extracting instruction AIRs...");
+        let mut instruction_airs = Sp1InstructionMachineHandler::<BabyBearField>::default();
         for air in &airs {
-            // For now, just print the constraints if the AIR is of a reasonable size.
-            tracing::info!("== {} ==", air.name());
-            if air.width() < 200 {
-                match air_to_symbolic_machine::<_, BabyBearField>(air) {
-                    Ok(machine) => {
-                        tracing::info!("{machine}");
-                    }
-                    Err(error) => {
-                        tracing::warn!("  Failed to convert to symbolic machine: {error}");
-                    }
-                }
-            } else {
-                tracing::warn!(
-                    "  Skipping conversion to symbolic machine: too wide ({})",
-                    air.width()
-                );
-            }
+            instruction_airs.add(air);
         }
+        let num_airs = instruction_airs.air_count();
+        tracing::info!("Extracted {num_airs} instruction AIRs");
 
         let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
 
