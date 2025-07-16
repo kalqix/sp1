@@ -10,12 +10,22 @@ use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum InstructionType {
+    /// An instruction that is not a load, represented by its opcode.
+    NonLoad(usize),
+    /// A load instruction that is not a load to x0, represented by its opcode.
+    LoadNonX0(usize),
+    /// A load instruction that is a load to x0.
+    LoadX0,
+}
+
 #[derive(Default, Clone)]
 pub struct Sp1InstructionMachineHandler<P> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<P>>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
-    instruction_to_air_idx: HashMap<(usize, bool), usize>,
+    instruction_to_air_idx: HashMap<InstructionType, usize>,
 }
 
 impl<P: FieldElement> Sp1InstructionMachineHandler<P> {
@@ -34,19 +44,22 @@ impl<P: FieldElement> Sp1InstructionMachineHandler<P> {
             }
         };
 
-        let opcodes_and_is_x0 = if is_load_air(&riscv_air.id()) {
+        let instruction_types = if is_load_air(&riscv_air.id()) {
             // For loads, LoadX0 handles all loads if rd == x0.
             let is_load_x0 = riscv_air.id() == RiscvAirId::LoadX0;
-            opcodes.into_iter().map(|opcode| (opcode, is_load_x0)).collect_vec()
+            if is_load_x0 {
+                vec![InstructionType::LoadX0]
+            } else {
+                opcodes.into_iter().map(|op| InstructionType::LoadNonX0(op as usize)).collect_vec()
+            }
         } else {
-            // For all other instructions, the value of rd does not matter.
-            opcodes.into_iter().cartesian_product([false, true]).collect_vec()
+            opcodes.into_iter().map(|op| InstructionType::NonLoad(op as usize)).collect_vec()
         };
 
         let idx = self.airs.len();
         self.airs.push(machine);
-        for (opcode, is_x0) in opcodes_and_is_x0 {
-            self.instruction_to_air_idx.insert((opcode as usize, is_x0), idx);
+        for instruction_type in instruction_types {
+            self.instruction_to_air_idx.insert(instruction_type, idx);
         }
     }
 
@@ -119,6 +132,19 @@ fn is_load_air(air_id: &RiscvAirId) -> bool {
     )
 }
 
+fn is_load_opcode(opcode: usize) -> bool {
+    let load_opcodes = [
+        Opcode::LB as usize,
+        Opcode::LBU as usize,
+        Opcode::LH as usize,
+        Opcode::LHU as usize,
+        Opcode::LW as usize,
+        Opcode::LWU as usize,
+        Opcode::LD as usize,
+    ];
+    load_opcodes.contains(&opcode)
+}
+
 impl<P: FieldElement> InstructionMachineHandler<P> for Sp1InstructionMachineHandler<P> {
     fn get_instruction_air(
         &self,
@@ -128,12 +154,21 @@ impl<P: FieldElement> InstructionMachineHandler<P> for Sp1InstructionMachineHand
         // https://github.com/succinctlabs/sp1-wip/blob/1ec34e044ead850ed90deb1b66771eb0cfc8dc7e/crates/core/machine/src/cpu/columns/instruction.rs#L57
         // which is followed by 3 more fields:
         // https://github.com/succinctlabs/sp1-wip/blob/1ec34e044ead850ed90deb1b66771eb0cfc8dc7e/crates/core/machine/src/air/program.rs#L24
-
         let op_a_0 = instruction.args[instruction.args.len() - 6];
         assert!(op_a_0.is_zero() || op_a_0.is_one(), "Expected op_a_0 to be 0 or 1, got {op_a_0}");
         let op_a_0 = op_a_0.is_one();
-        let opcode = instruction.opcode as usize;
-        let idx = self.instruction_to_air_idx.get(&(opcode, op_a_0))?;
+
+        let instruction_type = if is_load_opcode(instruction.opcode) {
+            if op_a_0 {
+                InstructionType::LoadX0
+            } else {
+                InstructionType::LoadNonX0(instruction.opcode)
+            }
+        } else {
+            InstructionType::NonLoad(instruction.opcode)
+        };
+
+        let idx = self.instruction_to_air_idx.get(&instruction_type)?;
         Some(&self.airs[*idx])
     }
 }

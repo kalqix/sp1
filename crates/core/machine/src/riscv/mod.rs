@@ -18,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::instruction_machine_handler::InstructionMachineHandler,
+    autoprecompiles::instruction_machine_handler::Sp1InstructionMachineHandler,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -313,7 +313,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         ];
 
         tracing::info!("Extracting instruction AIRs...");
-        let mut instruction_airs = InstructionMachineHandler::<BabyBearField>::default();
+        let mut instruction_airs = Sp1InstructionMachineHandler::<BabyBearField>::default();
         for air in &airs {
             instruction_airs.add(air);
         }
