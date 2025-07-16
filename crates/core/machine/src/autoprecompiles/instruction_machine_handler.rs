@@ -12,10 +12,8 @@ use sp1_stark::air::MachineAir;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum InstructionType {
-    /// An instruction that is not a load, represented by its opcode.
-    NonLoad(usize),
-    /// A load instruction that is not a load to x0, represented by its opcode.
-    LoadNonX0(usize),
+    /// An instruction that is not a load to X0, represented by its opcode.
+    NonLoadX0(usize),
     /// A load instruction that is a load to x0.
     LoadX0,
 }
@@ -50,10 +48,10 @@ impl<P: FieldElement> Sp1InstructionMachineHandler<P> {
             if is_load_x0 {
                 vec![InstructionType::LoadX0]
             } else {
-                opcodes.into_iter().map(|op| InstructionType::LoadNonX0(op as usize)).collect_vec()
+                opcodes.into_iter().map(|op| InstructionType::NonLoadX0(op as usize)).collect_vec()
             }
         } else {
-            opcodes.into_iter().map(|op| InstructionType::NonLoad(op as usize)).collect_vec()
+            opcodes.into_iter().map(|op| InstructionType::NonLoadX0(op as usize)).collect_vec()
         };
 
         let idx = self.airs.len();
@@ -158,14 +156,10 @@ impl<P: FieldElement> InstructionMachineHandler<P> for Sp1InstructionMachineHand
         assert!(op_a_0.is_zero() || op_a_0.is_one(), "Expected op_a_0 to be 0 or 1, got {op_a_0}");
         let op_a_0 = op_a_0.is_one();
 
-        let instruction_type = if is_load_opcode(instruction.opcode) {
-            if op_a_0 {
-                InstructionType::LoadX0
-            } else {
-                InstructionType::LoadNonX0(instruction.opcode)
-            }
+        let instruction_type = if is_load_opcode(instruction.opcode) && op_a_0 {
+            InstructionType::LoadX0
         } else {
-            InstructionType::NonLoad(instruction.opcode)
+            InstructionType::NonLoadX0(instruction.opcode)
         };
 
         let idx = self.instruction_to_air_idx.get(&instruction_type)?;
