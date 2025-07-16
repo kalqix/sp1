@@ -7,6 +7,12 @@ use slop_baby_bear::BabyBear;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sp1Instruction(pub sp1_core_executor::Instruction);
 
+impl From<sp1_core_executor::Instruction> for Sp1Instruction {
+    fn from(instr: sp1_core_executor::Instruction) -> Self {
+        Self(instr)
+    }
+}
+
 impl Instruction<BabyBear> for Sp1Instruction {
     fn opcode(&self) -> usize {
         self.0.opcode as usize

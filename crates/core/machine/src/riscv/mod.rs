@@ -17,7 +17,6 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::instruction_machine_handler::Sp1InstructionMachineHandler,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -228,11 +227,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn machine() -> Machine<F, Self> {
-        use RiscvAirDiscriminants::*;
-
+    pub fn airs() -> [RiscvAir<F>; 64] {
         // The order of the chips is used to determine the order of trace generation.
-        let airs = [
+        [
             RiscvAir::Program(ProgramChip::default()),
             RiscvAir::Sha256Extend(ShaExtendChip::default()),
             RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
@@ -309,17 +306,13 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-        ];
+        ]
+    }
 
-        tracing::info!("Extracting instruction AIRs...");
-        let mut instruction_airs = Sp1InstructionMachineHandler::default();
-        for air in &airs {
-            instruction_airs.add(air);
-        }
-        let num_airs = instruction_airs.air_count();
-        tracing::info!("Extracted {num_airs} instruction AIRs");
+    pub fn machine() -> Machine<F, Self> {
+        use RiscvAirDiscriminants::*;
 
-        let chips = airs.into_iter().map(Chip::new).collect::<Vec<_>>();
+        let chips = Self::airs().into_iter().map(Chip::new).collect::<Vec<_>>();
 
         let chips_map = chips
             .iter()
