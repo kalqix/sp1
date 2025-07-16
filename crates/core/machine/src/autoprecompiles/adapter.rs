@@ -15,7 +15,7 @@ impl Adapter for Sp1ApcAdapter {
 
     type PowdrField = powdr_number::BabyBearField;
 
-    type InstructionMachineHandler = Sp1InstructionMachineHandler<powdr_number::BabyBearField>;
+    type InstructionMachineHandler = Sp1InstructionMachineHandler<Self::Field>;
 
     type BusInteractionHandler = Sp1BusInteractionHandler;
 

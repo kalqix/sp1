@@ -4,9 +4,8 @@ use powdr_autoprecompiles::blocks::Program;
 pub struct Sp1Program(sp1_core_executor::Program);
 
 impl Program<Sp1Instruction> for Sp1Program {
-    fn base_pc(&self) -> u32 {
-        // TODO: change the return type to u64 and avoid the cast
-        self.0.pc_base.try_into().unwrap()
+    fn base_pc(&self) -> u64 {
+        self.0.pc_base
     }
 
     fn pc_step(&self) -> u32 {

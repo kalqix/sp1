@@ -2,15 +2,13 @@ use core::fmt;
 use std::sync::Arc;
 
 use powdr_autoprecompiles::{
-    expression::AlgebraicReference, optimizer::simplify_expression, SymbolicBusInteraction,
-    SymbolicConstraint, SymbolicMachine,
+    expression::AlgebraicReference, SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
 };
 use powdr_expression::{
     AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicExpression,
     AlgebraicUnaryOperation, AlgebraicUnaryOperator,
 };
 
-use powdr_number::FieldElement;
 use slop_air::{Air, BaseAir, PairCol, VirtualPairCol};
 use slop_algebra::PrimeField32;
 use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
@@ -21,9 +19,9 @@ use sp1_stark::{
 
 use crate::riscv::RiscvAir;
 
-pub fn air_to_symbolic_machine<F: PrimeField32, P: FieldElement>(
+pub fn air_to_symbolic_machine<F: PrimeField32>(
     air: &RiscvAir<F>,
-) -> Result<SymbolicMachine<P>, UnsupportedConstraintError> {
+) -> Result<SymbolicMachine<F>, UnsupportedConstraintError> {
     let column_names = air.column_names().into_iter().map(Arc::new).collect::<Vec<_>>();
 
     // Get constraints
@@ -53,10 +51,10 @@ pub fn air_to_symbolic_machine<F: PrimeField32, P: FieldElement>(
     Ok(SymbolicMachine { constraints, bus_interactions })
 }
 
-fn sp1_bus_interaction_to_powdr<F: PrimeField32, P: FieldElement>(
+fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
     interaction: &Interaction<F>,
     columns: &[Arc<String>],
-) -> Result<SymbolicBusInteraction<P>, UnsupportedConstraintError> {
+) -> Result<SymbolicBusInteraction<F>, UnsupportedConstraintError> {
     match interaction.scope {
         InteractionScope::Global => {
             return Err(UnsupportedConstraintError("Global interaction".to_string()));
@@ -84,16 +82,14 @@ impl fmt::Display for UnsupportedConstraintError {
     }
 }
 
-fn number_to_algebraic<T: PrimeField32, P: FieldElement>(
-    value: &T,
-) -> AlgebraicExpression<P, AlgebraicReference> {
-    AlgebraicExpression::Number(P::from_bytes_le(&value.as_canonical_u32().to_le_bytes()))
+fn number_to_algebraic<F: PrimeField32>(value: &F) -> AlgebraicExpression<F, AlgebraicReference> {
+    AlgebraicExpression::Number(*value)
 }
 
-fn virtual_col_to_algebraic<F: PrimeField32, P: FieldElement>(
+fn virtual_col_to_algebraic<F: PrimeField32>(
     column: &VirtualPairCol<F>,
     columns: &[Arc<String>],
-) -> Result<AlgebraicExpression<P, AlgebraicReference>, UnsupportedConstraintError> {
+) -> Result<AlgebraicExpression<F, AlgebraicReference>, UnsupportedConstraintError> {
     // Convert columns and weights to algebraic expressions.
     let column_weights = column
         .column_weights
@@ -113,19 +109,17 @@ fn virtual_col_to_algebraic<F: PrimeField32, P: FieldElement>(
         .collect::<Result<Vec<_>, _>>()?;
     let constant = number_to_algebraic(&column.constant);
 
-    Ok(simplify_expression(
-        column_weights
-            .into_iter()
-            .map(|(column, weight)| weight * column)
-            .fold(AlgebraicExpression::Number(P::zero()), |acc, expr| acc + expr)
-            + constant,
-    ))
+    Ok(column_weights
+        .into_iter()
+        .map(|(column, weight)| weight * column)
+        .fold(AlgebraicExpression::Number(F::zero()), |acc, expr| acc + expr)
+        + constant)
 }
 
-fn symbolic_to_algebraic<T: PrimeField32, P: FieldElement>(
-    expr: &SymbolicExpression<T>,
+fn symbolic_to_algebraic<F: PrimeField32>(
+    expr: &SymbolicExpression<F>,
     columns: &[Arc<String>],
-) -> Result<AlgebraicExpression<P, AlgebraicReference>, UnsupportedConstraintError> {
+) -> Result<AlgebraicExpression<F, AlgebraicReference>, UnsupportedConstraintError> {
     Ok(match expr {
         SymbolicExpression::Constant(c) => number_to_algebraic(c),
         SymbolicExpression::Add { x, y, .. } => {

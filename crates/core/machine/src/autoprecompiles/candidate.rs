@@ -32,7 +32,7 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
 
     fn create(
         apc: Apc<
-            <A as powdr_autoprecompiles::adapter::Adapter>::PowdrField,
+            <A as powdr_autoprecompiles::adapter::Adapter>::Field,
             <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
         >,
         _: &std::collections::HashMap<u32, u32>,
@@ -50,7 +50,7 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
         self,
     ) -> (
         Apc<
-            <A as powdr_autoprecompiles::adapter::Adapter>::PowdrField,
+            <A as powdr_autoprecompiles::adapter::Adapter>::Field,
             <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
         >,
         Self::ApcStats,
