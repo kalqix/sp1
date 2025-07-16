@@ -44,9 +44,7 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
         Sp1Candidate { apc }
     }
 
-    fn to_json_export(&self, apc_candidates_dir_path: &std::path::Path) -> Self::JsonExport {
-        ()
-    }
+    fn to_json_export(&self, _apc_candidates_dir_path: &std::path::Path) -> Self::JsonExport {}
 
     fn into_apc_and_stats(
         self,

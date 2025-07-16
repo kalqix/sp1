@@ -9,7 +9,7 @@ use powdr_number::BabyBearField;
 pub struct Sp1BusInteractionHandler;
 
 impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
-    fn is_stateful(&self, bus_id: BabyBearField) -> bool {
+    fn is_stateful(&self, _bus_id: BabyBearField) -> bool {
         todo!()
     }
 }
@@ -17,7 +17,7 @@ impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
 impl BusInteractionHandler<BabyBearField> for Sp1BusInteractionHandler {
     fn handle_bus_interaction(
         &self,
-        bus_interaction: BusInteraction<RangeConstraint<BabyBearField>>,
+        _bus_interaction: BusInteraction<RangeConstraint<BabyBearField>>,
     ) -> BusInteraction<RangeConstraint<BabyBearField>> {
         todo!()
     }

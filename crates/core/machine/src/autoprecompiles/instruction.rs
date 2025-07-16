@@ -1,7 +1,7 @@
 use crate::cpu::columns::InstructionCols;
 use powdr_autoprecompiles::blocks::Instruction;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, PrimeField32};
+use slop_algebra::PrimeField32;
 use slop_baby_bear::BabyBear;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

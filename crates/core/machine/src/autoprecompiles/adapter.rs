@@ -6,7 +6,6 @@ use powdr_autoprecompiles::adapter::Adapter;
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
-use sp1_core_executor::{Instruction, Program};
 
 struct Sp1ApcAdapter;
 
