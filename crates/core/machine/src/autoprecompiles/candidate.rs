@@ -12,11 +12,13 @@ pub struct Sp1Candidate<A: Adapter> {
 
 impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     fn cost(&self) -> usize {
+        // TODO: use column count to rank candidates
         1
     }
 
     fn value(&self) -> usize {
-        self.apc.block.start_idx
+        // TODO: use trace cells and pgo data to rank candidates
+        1
     }
 
     fn tie_breaker(&self) -> usize {

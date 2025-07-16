@@ -5,8 +5,8 @@ pub struct Sp1Program(sp1_core_executor::Program);
 
 impl Program<Sp1Instruction> for Sp1Program {
     fn base_pc(&self) -> u32 {
-        // TODO: is casting to u32 safe here?
-        self.0.pc_base as u32
+        // TODO: change the return type to u64 and avoid the cast
+        self.0.pc_base.try_into().unwrap()
     }
 
     fn pc_step(&self) -> u32 {
