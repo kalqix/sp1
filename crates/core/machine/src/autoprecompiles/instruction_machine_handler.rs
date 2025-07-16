@@ -11,14 +11,14 @@ use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
 #[derive(Default, Clone)]
-pub struct InstructionAirs<P> {
+pub struct Sp1InstructionMachineHandler<P> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<P>>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
     instruction_to_air_idx: HashMap<(usize, bool), usize>,
 }
 
-impl<P: FieldElement> InstructionAirs<P> {
+impl<P: FieldElement> Sp1InstructionMachineHandler<P> {
     pub fn add<F: PrimeField32>(&mut self, riscv_air: &RiscvAir<F>) {
         let opcodes = air_id_to_opcodes(riscv_air.id());
 
@@ -119,7 +119,7 @@ fn is_load_air(air_id: &RiscvAirId) -> bool {
     )
 }
 
-impl<P: FieldElement> InstructionMachineHandler<P> for InstructionAirs<P> {
+impl<P: FieldElement> InstructionMachineHandler<P> for Sp1InstructionMachineHandler<P> {
     fn get_instruction_air(
         &self,
         instruction: &SymbolicInstructionStatement<P>,
