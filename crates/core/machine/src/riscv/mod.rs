@@ -228,11 +228,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn machine() -> Machine<F, Self> {
-        use RiscvAirDiscriminants::*;
-
+    pub fn airs() -> [RiscvAir<F>; 64] {
         // The order of the chips is used to determine the order of trace generation.
-        let airs = [
+        [
             RiscvAir::Program(ProgramChip::default()),
             RiscvAir::Sha256Extend(ShaExtendChip::default()),
             RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
@@ -309,7 +307,13 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-        ];
+        ]
+    }
+
+    pub fn machine() -> Machine<F, Self> {
+        use RiscvAirDiscriminants::*;
+
+        let airs = Self::airs();
 
         tracing::info!("Extracting instruction AIRs...");
         let mut instruction_airs = Sp1InstructionMachineHandler::default();

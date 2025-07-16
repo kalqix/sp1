@@ -5,7 +5,7 @@ use powdr_constraint_solver::{
 };
 use powdr_number::BabyBearField;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Sp1BusInteractionHandler;
 
 impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {

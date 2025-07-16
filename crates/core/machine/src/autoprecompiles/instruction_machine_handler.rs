@@ -29,6 +29,14 @@ pub struct Sp1InstructionMachineHandler<F> {
 }
 
 impl<F: PrimeField32> Sp1InstructionMachineHandler<F> {
+    pub fn new() -> Self {
+        let mut handler = Self::default();
+        for air in RiscvAir::airs() {
+            handler.add(&air);
+        }
+        handler
+    }
+
     pub fn add(&mut self, riscv_air: &RiscvAir<F>) {
         let opcodes = air_id_to_opcodes(riscv_air.id());
 
@@ -49,7 +57,7 @@ impl<F: PrimeField32> Sp1InstructionMachineHandler<F> {
                 // For loads, LoadX0 handles all loads if rd == x0.
                 vec![InstructionType::LoadX0]
             } else {
-                opcodes.into_iter().map(|op| InstructionType::NonLoadX0(op)).collect_vec()
+                opcodes.into_iter().map(InstructionType::NonLoadX0).collect_vec()
             };
 
         let idx = self.airs.len();

@@ -8,7 +8,7 @@ use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
 
-struct Sp1ApcAdapter;
+pub struct Sp1ApcAdapter;
 
 impl Adapter for Sp1ApcAdapter {
     type Field = BabyBear;
