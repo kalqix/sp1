@@ -9,16 +9,56 @@ pub mod program;
 
 #[cfg(test)]
 mod tests {
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, VmConfig};
-    use sp1_core_executor::{Instruction, Opcode};
+    use powdr_autoprecompiles::{
+        blocks::collect_basic_blocks, build, BasicBlock, DegreeBound, VmConfig,
+    };
+    use slop_baby_bear::BabyBear;
+    use sp1_core_executor::{Instruction, Opcode, Program};
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionMachineHandler,
+            adapter::Sp1ApcAdapter,
+            bus_interaction_handler::Sp1BusInteractionHandler,
+            bus_map::sp1_bus_map,
+            instruction::Sp1Instruction,
+            instruction_machine_handler::{air_id_to_opcodes, Sp1InstructionMachineHandler},
+            program::Sp1Program,
         },
+        riscv::RiscvAir,
         utils::setup_logger,
     };
+
+    fn detect_basic_blocks(program: Program) -> Vec<BasicBlock<Sp1Instruction>> {
+        let labels = unimplemented!();
+        // We allow all opcodes
+        let opcode_allowlist = RiscvAir::<BabyBear>::airs()
+            .into_iter()
+            .map(|air| air.id())
+            .map(air_id_to_opcodes)
+            .flatten()
+            .map(|opcode| opcode as usize)
+            .collect();
+        // We define the branch opcodes manually
+        let branch_opcodes = [
+            Opcode::BEQ,
+            Opcode::BNE,
+            Opcode::BLT,
+            Opcode::BGE,
+            Opcode::BLTU,
+            Opcode::BGEU,
+            Opcode::JAL,
+            Opcode::JALR,
+        ]
+        .into_iter()
+        .map(|opcode| opcode as usize)
+        .collect();
+        collect_basic_blocks::<Sp1ApcAdapter>(
+            &Sp1Program(program),
+            &labels,
+            &opcode_allowlist,
+            &branch_opcodes,
+        )
+    }
 
     fn compile(basic_block: Vec<Instruction>) -> String {
         let vm_config = VmConfig {

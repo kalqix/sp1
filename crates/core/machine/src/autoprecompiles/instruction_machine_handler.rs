@@ -72,7 +72,7 @@ impl<F: PrimeField32> Sp1InstructionMachineHandler<F> {
     }
 }
 
-fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
+pub fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
     // Instruction -> AIR mapping from:
     // https://github.com/succinctlabs/sp1-wip/blob/1ec34e044ead850ed90deb1b66771eb0cfc8dc7e/crates/core/executor/src/executor.rs#L2552
     match air_id {

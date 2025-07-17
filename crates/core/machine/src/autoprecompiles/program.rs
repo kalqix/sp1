@@ -1,7 +1,7 @@
 use crate::autoprecompiles::instruction::Sp1Instruction;
 use powdr_autoprecompiles::blocks::Program;
 
-pub struct Sp1Program(sp1_core_executor::Program);
+pub struct Sp1Program(pub sp1_core_executor::Program);
 
 impl Program<Sp1Instruction> for Sp1Program {
     fn base_pc(&self) -> u64 {
