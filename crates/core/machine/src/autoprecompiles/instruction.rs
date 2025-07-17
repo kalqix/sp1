@@ -1,7 +1,6 @@
 use crate::cpu::columns::InstructionCols;
 use powdr_autoprecompiles::blocks::Instruction;
 use serde::{Deserialize, Serialize};
-use slop_algebra::PrimeField32;
 use slop_baby_bear::BabyBear;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -18,21 +17,13 @@ impl Instruction<BabyBear> for Sp1Instruction {
         self.0.opcode as usize
     }
 
-    fn into_symbolic_instruction(
-        self,
-    ) -> powdr_autoprecompiles::SymbolicInstructionStatement<BabyBear> {
-        // TODO: This is wrong.
-        // Should be: (pc (3 elements!), instruction (13 elements), instruction_field_consts (3 elements))
-        // See: crates/core/machine/src/air/program.rs
-        // TODO: Also, powdr_autoprecompiles makes wrong assumptions about the
-        // structure of the PC lookup (e.g. assuming 1 element for the PC), see:
-        // autoprecompiles/src/lib.rs
+    fn pc_lookup_row(&self, _pc: Option<usize>) -> Vec<Option<BabyBear>> {
+        // The PC lookup row has the following structure:
+        // [pc_0, pc_1, pc_2, instruction_cols..., instruction_field_consts... (3 elements)]
         let mut instruction_cols = InstructionCols::<BabyBear>::default();
         instruction_cols.populate(&self.0);
-        let mut columns = instruction_cols.into_iter();
-        powdr_autoprecompiles::SymbolicInstructionStatement {
-            opcode: columns.next().unwrap().as_canonical_u32() as usize,
-            args: columns.collect(),
-        }
+        let instruction_cols = instruction_cols.into_iter().map(Some);
+        // TODO: Provide the initial PC if available.
+        [None, None, None].into_iter().chain(instruction_cols).chain([None, None, None]).collect()
     }
 }
