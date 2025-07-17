@@ -9,6 +9,8 @@ pub mod program;
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use powdr_autoprecompiles::{
         blocks::collect_basic_blocks, build, BasicBlock, DegreeBound, VmConfig,
     };
@@ -28,14 +30,15 @@ mod tests {
         utils::setup_logger,
     };
 
-    fn detect_basic_blocks(program: Program) -> Vec<BasicBlock<Sp1Instruction>> {
-        let labels = unimplemented!();
+    fn detect_basic_blocks(
+        program: Program,
+        jumpdest: BTreeSet<u64>,
+    ) -> Vec<BasicBlock<Sp1Instruction>> {
         // We allow all opcodes
         let opcode_allowlist = RiscvAir::<BabyBear>::airs()
             .into_iter()
             .map(|air| air.id())
-            .map(air_id_to_opcodes)
-            .flatten()
+            .flat_map(air_id_to_opcodes)
             .map(|opcode| opcode as usize)
             .collect();
         // We define the branch opcodes manually
@@ -54,7 +57,7 @@ mod tests {
         .collect();
         collect_basic_blocks::<Sp1ApcAdapter>(
             &Sp1Program(program),
-            &labels,
+            &jumpdest,
             &opcode_allowlist,
             &branch_opcodes,
         )
@@ -84,5 +87,15 @@ mod tests {
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         let rendered = compile(basic_block);
         tracing::info!("{rendered}");
+    }
+
+    #[test]
+    #[should_panic = "get labels"]
+    fn test_collect_basic_blocks() {
+        setup_logger();
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let basic_blocks = detect_basic_blocks(program, unimplemented!("pass jumpdest"));
+        assert!(basic_blocks.is_empty());
     }
 }
