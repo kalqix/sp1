@@ -12,7 +12,7 @@ impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
     fn is_stateful(&self, bus_id: BabyBearField) -> bool {
         // There are 15 buses, see: crates/stark/src/lookup/interaction.rs
         match bus_id.to_degree() {
-            1 => true, // Memory
+            1 => true,  // Memory
             2 => false, // Program
             3 => todo!(),
             4 => todo!(),
