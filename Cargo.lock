@@ -687,9 +687,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.29"
+version = "1.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
+checksum = "deec109607ca693028562ed836a5f1c4b8bd77755c4e132fc5ce11b0b6211ae7"
 dependencies = [
  "jobserver",
  "libc",
@@ -1425,6 +1425,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fallible-iterator"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1661,6 +1667,11 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
+dependencies = [
+ "fallible-iterator",
+ "indexmap 2.10.0",
+ "stable_deref_trait",
+]
 
 [[package]]
 name = "git2"
@@ -1689,6 +1700,17 @@ checksum = "c66d61197a68f6323b9afa616cf83d55d69191e1bf364d4eb7d35ae18defe776"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "goblin"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b363a30c165f666402fe6a3024d3bec7ebc898f96a4a23bd1c99f8dbf3f4f47"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
 ]
 
 [[package]]
@@ -3326,7 +3348,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
 dependencies = [
  "itertools 0.13.0",
  "log",
@@ -3344,7 +3366,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
 dependencies = [
  "auto_enums",
  "derive_more 0.99.20",
@@ -3357,7 +3379,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
 dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
@@ -3368,9 +3390,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "powdr-isa-utils"
+version = "0.1.4"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
+
+[[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -3389,6 +3416,35 @@ dependencies = [
  "serde_cbor",
  "serde_with",
 ]
+
+[[package]]
+name = "powdr-riscv-elf"
+version = "0.1.4"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
+dependencies = [
+ "gimli",
+ "goblin 0.8.2",
+ "itertools 0.13.0",
+ "log",
+ "powdr-isa-utils",
+ "powdr-riscv-types",
+ "powdr-syscalls",
+ "raki",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "powdr-riscv-types"
+version = "0.1.4"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
+dependencies = [
+ "powdr-isa-utils",
+]
+
+[[package]]
+name = "powdr-syscalls"
+version = "0.1.4"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=edcff82#edcff8227e941158bdbfe41fe44fb34dc15f2088"
 
 [[package]]
 name = "powerfmt"
@@ -3586,6 +3642,12 @@ name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
+
+[[package]]
+name = "raki"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0279959070dedfe40cbbf4e42d06168f2722841d366a6d29c029e2b2dcc989fb"
 
 [[package]]
 name = "rand"
@@ -3946,15 +4008,15 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c71e83d6afe7ff64890ec6b71d6a69bb8a610ab78ce364b3352876bb4c801266"
+checksum = "11181fbabf243db407ef8df94a6ce0b2f9a733bd8be4ad02b4eda9602296cac8"
 dependencies = [
  "bitflags",
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4145,9 +4207,9 @@ dependencies = [
 
 [[package]]
 name = "sdd"
-version = "3.0.9"
+version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62f5557d2bbddd5afd236ba7856b0e494f5acc7ce805bb0774cc5674b20a06b4"
+checksum = "490dcfcbfef26be6800d11870ff2df8774fa6e86d047e3e8c8a76b25655e41ca"
 
 [[package]]
 name = "sec1"
@@ -4855,7 +4917,7 @@ dependencies = [
  "enum-map",
  "eyre",
  "gecko_profile",
- "goblin",
+ "goblin 0.9.3",
  "hashbrown 0.14.5",
  "hex",
  "indicatif",
@@ -4901,6 +4963,7 @@ dependencies = [
  "powdr-constraint-solver",
  "powdr-expression",
  "powdr-number",
+ "powdr-riscv-elf",
  "rayon",
  "rayon-scan",
  "serde",
@@ -4916,9 +4979,11 @@ dependencies = [
  "slop-poseidon2",
  "slop-uni-stark",
  "snowbridge-amcl",
+ "sp1-build",
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
+ "sp1-helper",
  "sp1-primitives",
  "sp1-stark",
  "struct-reflection",
