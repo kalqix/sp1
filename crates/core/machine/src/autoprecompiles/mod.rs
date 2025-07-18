@@ -90,7 +90,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "get labels"]
+    #[should_panic = "pass jumpdest"]
     fn test_collect_basic_blocks() {
         setup_logger();
         let instructions = vec![];
