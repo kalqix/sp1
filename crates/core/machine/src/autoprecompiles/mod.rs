@@ -4,7 +4,8 @@ pub mod bus_interaction_handler;
 pub mod bus_map;
 pub mod candidate;
 pub mod instruction;
-pub mod instruction_machine_handler;
+pub mod instruction_handler;
+pub mod interaction_builder;
 pub mod program;
 
 #[cfg(test)]
@@ -15,7 +16,7 @@ mod tests {
     use crate::{
         autoprecompiles::{
             adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionHandler,
+            bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
