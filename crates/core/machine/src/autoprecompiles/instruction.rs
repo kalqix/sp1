@@ -13,11 +13,7 @@ impl From<sp1_core_executor::Instruction> for Sp1Instruction {
 }
 
 impl Instruction<BabyBear> for Sp1Instruction {
-    fn opcode(&self) -> usize {
-        self.0.opcode as usize
-    }
-
-    fn pc_lookup_row(&self, _pc: Option<usize>) -> Vec<Option<BabyBear>> {
+    fn pc_lookup_row(&self, _pc: Option<u64>) -> Vec<Option<BabyBear>> {
         // The PC lookup row has the following structure:
         // [pc_0, pc_1, pc_2, instruction_cols..., instruction_field_consts... (3 elements)]
         let mut instruction_cols = InstructionCols::<BabyBear>::default();

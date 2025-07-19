@@ -26,10 +26,10 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
 # Use powdr `generalize` branch
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "6fb36d7", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "6fb36d7", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "6fb36d7", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "6fb36d7", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "cc531cc", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "cc531cc", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "cc531cc", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "cc531cc", default-features = false }
 
 #powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles" }
 #powdr-number = { path = "../../../../powdr/number" }

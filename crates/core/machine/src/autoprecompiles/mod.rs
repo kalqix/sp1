@@ -9,34 +9,32 @@ pub mod program;
 
 #[cfg(test)]
 mod tests {
-    use powdr_autoprecompiles::{
-        build, BasicBlock, DegreeBound, InstructionMachineHandler, VmConfig,
-    };
+    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
     use sp1_core_executor::{Instruction, Opcode};
 
     use crate::{
         autoprecompiles::{
             adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionMachineHandler,
+            bus_map::sp1_bus_map, instruction_machine_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
 
     fn compile(basic_block: Vec<Instruction>) -> String {
         let vm_config = VmConfig {
-            instruction_machine_handler: &Sp1InstructionMachineHandler::new(),
+            instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
             bus_map: sp1_bus_map(),
         };
         // TODO: Is this correct?
         let degree_bound = DegreeBound { identities: 3, bus_interactions: 2 };
         let block = BasicBlock {
-            start_idx: 0,
+            start_pc: 0,
             statements: basic_block.into_iter().map(Into::into).collect(),
         };
 
         let original_air = vm_config
-            .instruction_machine_handler
+            .instruction_handler
             .get_instruction_air(&block.statements[0])
             .expect("Failed to get instruction AIR")
             // render() does not work, because not all buses are in the bus map yet.

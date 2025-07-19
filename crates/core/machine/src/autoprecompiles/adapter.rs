@@ -1,6 +1,6 @@
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, candidate::Sp1Candidate,
-    instruction::Sp1Instruction, instruction_machine_handler::Sp1InstructionMachineHandler,
+    instruction::Sp1Instruction, instruction_machine_handler::Sp1InstructionHandler,
     program::Sp1Program,
 };
 use powdr_autoprecompiles::adapter::Adapter;
@@ -15,7 +15,7 @@ impl Adapter for Sp1ApcAdapter {
 
     type PowdrField = powdr_number::BabyBearField;
 
-    type InstructionMachineHandler = Sp1InstructionMachineHandler<Self::Field>;
+    type InstructionHandler = Sp1InstructionHandler<Self::Field>;
 
     type BusInteractionHandler = Sp1BusInteractionHandler;
 
