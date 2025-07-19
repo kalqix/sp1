@@ -13,6 +13,7 @@ mod machine_extraction_tests {
     use std::{fs, io, path::Path};
 
     use itertools::Itertools;
+    use pretty_assertions::assert_eq;
     use slop_baby_bear::BabyBear;
 
     use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
@@ -12,7 +12,7 @@ use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstructionType {
     /// An instruction that is not a load to X0, represented by its opcode.
     NonLoadX0(Opcode),
@@ -25,7 +25,8 @@ pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<F>>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
-    instruction_to_air_idx: HashMap<InstructionType, usize>,
+    /// (Using BTreeMap for determinism of [Sp1InstructionHandler::airs].)
+    instruction_to_air_idx: BTreeMap<InstructionType, usize>,
 }
 
 impl<F: PrimeField32> Sp1InstructionHandler<F> {
