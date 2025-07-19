@@ -1,7 +1,6 @@
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, candidate::Sp1Candidate,
-    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
-    program::Sp1Program,
+    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler, program::Sp1Program,
 };
 use powdr_autoprecompiles::adapter::Adapter;
 use powdr_number::{FieldElement, LargeInt};
