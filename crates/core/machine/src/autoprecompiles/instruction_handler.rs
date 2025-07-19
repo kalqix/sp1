@@ -13,7 +13,7 @@ use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum InstructionType {
+pub enum InstructionType {
     /// An instruction that is not a load to X0, represented by its opcode.
     NonLoadX0(Opcode),
     /// A load instruction that is a load to x0.
@@ -69,6 +69,13 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
 
     pub fn air_count(&self) -> usize {
         self.airs.len()
+    }
+
+    #[cfg(test)]
+    pub fn airs(&self) -> impl Iterator<Item = (InstructionType, &SymbolicMachine<F>)> {
+        self.instruction_to_air_idx
+            .iter()
+            .map(|(instruction_type, idx)| (instruction_type.clone(), &self.airs[*idx]))
     }
 }
 

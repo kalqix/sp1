@@ -9,7 +9,48 @@ pub mod interaction_builder;
 pub mod program;
 
 #[cfg(test)]
-mod tests {
+mod machine_extraction_tests {
+    use std::{fs, io, path::Path};
+
+    use itertools::Itertools;
+    use slop_baby_bear::BabyBear;
+
+    use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};
+
+    #[test]
+    fn test_extract_machine() {
+        setup_logger();
+        let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
+        let airs = instruction_handler.airs();
+        // TODO: Use `render(bus_map)` instead of `to_string()`, once the bus map is complete.
+        let rendered = airs
+            .map(|(instruction_type, air)| format!("# {instruction_type:?}\n{air}"))
+            .join("\n\n\n");
+
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("extracted_constraints.txt");
+        match fs::read_to_string(&path) {
+            // Snapshot exists, compare it with the extracted constraints
+            Ok(expected) => {
+                assert_eq!(rendered, expected)
+            }
+
+            // Snapshot does not exist, create it
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                fs::write(&path, &rendered).unwrap();
+                panic!("Created new snapshot at {path:?}. Inspect it, then rerun the tests.");
+            }
+
+            Err(_) => panic!(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod apc_snapshot_tests {
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
     use sp1_core_executor::{Instruction, Opcode};
 
