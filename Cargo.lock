@@ -3332,7 +3332,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=cc531cc#cc531cca077903c7faf4b9016e2bb5bd41bc41a6"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "itertools 0.13.0",
  "log",
@@ -3350,7 +3350,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=cc531cc#cc531cca077903c7faf4b9016e2bb5bd41bc41a6"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "auto_enums",
  "derive_more 0.99.20",
@@ -3363,7 +3363,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=cc531cc#cc531cca077903c7faf4b9016e2bb5bd41bc41a6"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
@@ -3376,7 +3376,7 @@ dependencies = [
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=cc531cc#cc531cca077903c7faf4b9016e2bb5bd41bc41a6"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "ark-bn254",
  "ark-ff",
