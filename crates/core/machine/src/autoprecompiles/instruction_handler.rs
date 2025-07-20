@@ -20,7 +20,7 @@ pub enum InstructionType {
     LoadX0,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<F>>,
