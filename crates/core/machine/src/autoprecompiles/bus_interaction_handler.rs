@@ -10,25 +10,29 @@ pub struct Sp1BusInteractionHandler;
 
 impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
     fn is_stateful(&self, bus_id: BabyBearField) -> bool {
-        // There are 15 buses, see: crates/stark/src/lookup/interaction.rs
-        match bus_id.to_degree() {
-            1 => true,  // Memory
-            2 => false, // Program
-            3 => todo!(),
-            4 => todo!(),
-            5 => false, // Byte
-            6 => false, // Range
-            7 => true,  // State
-            8 => todo!(),
-            9 => todo!(),
-            10 => todo!(),
-            11 => todo!(),
-            12 => todo!(),
-            13 => todo!(),
-            14 => todo!(),
-            15 => todo!(),
-            _ => unreachable!(),
+        let kind = InteractionKind::all_kinds()
+            .into_iter()
+            .find(|kind| *kind as u64 == bus_id.to_degree())
+            .unwrap();
+
+        match kind {
+            InteractionKind::Memory => true,
+            InteractionKind::Program => false,
+            InteractionKind::Instruction => todo!(),
+            InteractionKind::Alu => todo!(),
+            InteractionKind::Byte => false,
+            InteractionKind::Range => false,
+            InteractionKind::State => true,
+            InteractionKind::Syscall => todo!(),
+            InteractionKind::Global => todo!(),
+            InteractionKind::ShaExtend => todo!(),
+            InteractionKind::ShaCompress => todo!(),
+            InteractionKind::Keccak => todo!(),
+            InteractionKind::GlobalAccumulation => todo!(),
+            InteractionKind::MemoryGlobalInitControl => todo!(),
+            InteractionKind::MemoryGlobalFinalizeControl => todo!(),
         }
+    }
     }
 }
 
