@@ -25,7 +25,6 @@ slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
-# Use powdr `generalize` branch
 powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
 powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
 powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
