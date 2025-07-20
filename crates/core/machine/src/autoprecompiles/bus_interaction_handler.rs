@@ -4,6 +4,7 @@ use powdr_constraint_solver::{
     range_constraint::RangeConstraint,
 };
 use powdr_number::{BabyBearField, FieldElement};
+use sp1_stark::InteractionKind;
 
 #[derive(Clone, Default)]
 pub struct Sp1BusInteractionHandler;
@@ -32,7 +33,6 @@ impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
             InteractionKind::MemoryGlobalInitControl => todo!(),
             InteractionKind::MemoryGlobalFinalizeControl => todo!(),
         }
-    }
     }
 }
 
