@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
@@ -7,28 +7,29 @@ use crate::{
     riscv::RiscvAir,
 };
 use itertools::Itertools;
-use powdr_autoprecompiles::{InstructionMachineHandler, SymbolicMachine};
+use powdr_autoprecompiles::{InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum InstructionType {
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InstructionType {
     /// An instruction that is not a load to X0, represented by its opcode.
     NonLoadX0(Opcode),
     /// A load instruction that is a load to x0.
     LoadX0,
 }
 
-#[derive(Default, Clone)]
-pub struct Sp1InstructionMachineHandler<F> {
+#[derive(Default)]
+pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<F>>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
-    instruction_to_air_idx: HashMap<InstructionType, usize>,
+    /// (Using BTreeMap for determinism of [Sp1InstructionHandler::airs].)
+    instruction_to_air_idx: BTreeMap<InstructionType, usize>,
 }
 
-impl<F: PrimeField32> Sp1InstructionMachineHandler<F> {
+impl<F: PrimeField32> Sp1InstructionHandler<F> {
     pub fn new() -> Self {
         let mut handler = Self::default();
         for air in RiscvAir::airs() {
@@ -69,6 +70,13 @@ impl<F: PrimeField32> Sp1InstructionMachineHandler<F> {
 
     pub fn air_count(&self) -> usize {
         self.airs.len()
+    }
+
+    #[cfg(test)]
+    pub fn airs(&self) -> impl Iterator<Item = (InstructionType, &SymbolicMachine<F>)> {
+        self.instruction_to_air_idx
+            .iter()
+            .map(|(instruction_type, idx)| (instruction_type.clone(), &self.airs[*idx]))
     }
 }
 
@@ -143,9 +151,7 @@ fn is_load_opcode(opcode: Opcode) -> bool {
     )
 }
 
-impl<F: PrimeField32> InstructionMachineHandler<F, Sp1Instruction>
-    for Sp1InstructionMachineHandler<F>
-{
+impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHandler<F> {
     fn get_instruction_air(&self, instruction: &Sp1Instruction) -> Option<&SymbolicMachine<F>> {
         let instruction_type = if is_load_opcode(instruction.0.opcode)
             && instruction.0.op_a == sp1_core_executor::Register::X0 as u8
@@ -157,5 +163,13 @@ impl<F: PrimeField32> InstructionMachineHandler<F, Sp1Instruction>
 
         let idx = self.instruction_to_air_idx.get(&instruction_type)?;
         Some(&self.airs[*idx])
+    }
+
+    fn is_allowed(&self, _instruction: &Sp1Instruction) -> bool {
+        todo!()
+    }
+
+    fn is_branching(&self, _instruction: &Sp1Instruction) -> bool {
+        todo!()
     }
 }

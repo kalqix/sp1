@@ -1224,6 +1224,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "diff"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3326,7 +3332,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "itertools 0.13.0",
  "log",
@@ -3344,7 +3350,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "auto_enums",
  "derive_more 0.99.20",
@@ -3357,7 +3363,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
@@ -3370,7 +3376,7 @@ dependencies = [
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=56acc3d#56acc3d858fb5fec59307e8dd41a5a4de351dc49"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=caf069e#caf069eb85631e0c72071563cb5a27c4c9a9b58d"
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -3403,6 +3409,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "pretty_assertions"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
+dependencies = [
+ "diff",
+ "yansi",
 ]
 
 [[package]]
@@ -4901,6 +4917,7 @@ dependencies = [
  "powdr-constraint-solver",
  "powdr-expression",
  "powdr-number",
+ "pretty_assertions",
  "rayon",
  "rayon-scan",
  "serde",

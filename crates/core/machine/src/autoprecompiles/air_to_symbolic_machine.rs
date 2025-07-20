@@ -9,15 +9,18 @@ use powdr_expression::{
     AlgebraicUnaryOperation, AlgebraicUnaryOperator,
 };
 
-use slop_air::{Air, BaseAir, PairCol, VirtualPairCol};
+use slop_air::{Air, BaseAir};
 use slop_algebra::PrimeField32;
 use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Interaction, InteractionBuilder, PROOF_MAX_NUM_PVS,
+    PROOF_MAX_NUM_PVS,
 };
 
-use crate::riscv::RiscvAir;
+use crate::{
+    autoprecompiles::interaction_builder::{Interaction, InteractionBuilder},
+    riscv::RiscvAir,
+};
 
 pub fn air_to_symbolic_machine<F: PrimeField32>(
     air: &RiscvAir<F>,
@@ -34,18 +37,10 @@ pub fn air_to_symbolic_machine<F: PrimeField32>(
     // Get interactions
     let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
     air.eval(&mut builder);
-    let (sends, receives) = builder.interactions();
-    let bus_interactions = sends
+    let interactions = builder.interactions();
+    let bus_interactions = interactions
         .into_iter()
         .map(|interaction| sp1_bus_interaction_to_powdr(&interaction, &column_names))
-        // TODO: Likely, chaining here is a problem, because we lose the information about the
-        // order of the interactions.
-        .chain(receives.into_iter().map(|interaction| {
-            let mut interaction = sp1_bus_interaction_to_powdr(&interaction, &column_names)?;
-            // Negate the multiplicity for receives.
-            interaction.mult = -interaction.mult;
-            Ok(interaction)
-        }))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(SymbolicMachine { constraints, bus_interactions })
@@ -62,12 +57,13 @@ fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
         InteractionScope::Local => {}
     }
 
-    let id = interaction.kind as u64;
-    let mult = virtual_col_to_algebraic(&interaction.multiplicity, columns)?;
+    let id = interaction.message.kind as u64;
+    let mult = symbolic_to_algebraic(&interaction.message.multiplicity, columns)?;
     let args = interaction
+        .message
         .values
         .iter()
-        .map(|e| virtual_col_to_algebraic(e, columns))
+        .map(|e| symbolic_to_algebraic(e, columns))
         .collect::<Result<_, _>>()?;
 
     Ok(SymbolicBusInteraction { id, mult, args })
@@ -84,36 +80,6 @@ impl fmt::Display for UnsupportedConstraintError {
 
 fn number_to_algebraic<F: PrimeField32>(value: &F) -> AlgebraicExpression<F, AlgebraicReference> {
     AlgebraicExpression::Number(*value)
-}
-
-fn virtual_col_to_algebraic<F: PrimeField32>(
-    column: &VirtualPairCol<F>,
-    columns: &[Arc<String>],
-) -> Result<AlgebraicExpression<F, AlgebraicReference>, UnsupportedConstraintError> {
-    // Convert columns and weights to algebraic expressions.
-    let column_weights = column
-        .column_weights
-        .iter()
-        .map(|(col, weight)| {
-            let ref_col = match col {
-                PairCol::Preprocessed(_i) => {
-                    return Err(UnsupportedConstraintError("Preprocessed column".to_string()))
-                }
-                PairCol::Main(i) => AlgebraicExpression::Reference(AlgebraicReference {
-                    name: columns[*i].clone(),
-                    id: *i as u64,
-                }),
-            };
-            Ok((ref_col, number_to_algebraic(weight)))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let constant = number_to_algebraic(&column.constant);
-
-    Ok(column_weights
-        .into_iter()
-        .map(|(column, weight)| weight * column)
-        .fold(AlgebraicExpression::Number(F::zero()), |acc, expr| acc + expr)
-        + constant)
 }
 
 fn symbolic_to_algebraic<F: PrimeField32>(

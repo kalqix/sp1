@@ -22,7 +22,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     }
 
     fn tie_breaker(&self) -> usize {
-        self.apc.block.start_idx
+        self.apc.block.start_pc.try_into().unwrap()
     }
 }
 
@@ -35,9 +35,9 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
             <A as powdr_autoprecompiles::adapter::Adapter>::Field,
             <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
         >,
-        _: &std::collections::HashMap<u32, u32>,
+        _: &std::collections::HashMap<u64, u32>,
         _: powdr_autoprecompiles::VmConfig<
-            <A as powdr_autoprecompiles::adapter::Adapter>::InstructionMachineHandler,
+            <A as powdr_autoprecompiles::adapter::Adapter>::InstructionHandler,
             <A as powdr_autoprecompiles::adapter::Adapter>::BusInteractionHandler,
         >,
     ) -> Self {
