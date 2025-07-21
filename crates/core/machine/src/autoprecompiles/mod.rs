@@ -53,6 +53,8 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
+    use std::{fs, path::Path};
+
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
@@ -65,7 +67,7 @@ mod apc_snapshot_tests {
         utils::setup_logger,
     };
 
-    fn compile(basic_block: Vec<Instruction>) -> String {
+    fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
         let vm_config = VmConfig {
             instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
@@ -87,38 +89,39 @@ mod apc_snapshot_tests {
         tracing::info!("Original AIR:\n{original_air}");
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
-        apc.machine.to_string()
+        let actual = apc.machine.to_string();
+
+        let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("apc_snapshots")
+            .join(format!("{test_name}.txt"));
+
+        match fs::read_to_string(&expected_path) {
+            Ok(expected) => {
+                assert_eq!(
+                    expected.trim(),
+                    actual.trim(),
+                    "The output of `{test_name}` does not match the expected output. \
+                 To re-generate the expected output, delete the file `{}` and re-run the test.",
+                    expected_path.display()
+                );
+            }
+            _ => {
+                // Write the new expected output to the file
+                fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
+                fs::write(&expected_path, actual).unwrap();
+
+                tracing::info!(
+                    "Expected output for `{test_name}` was updated. Re-run the test to confirm."
+                );
+            }
+        }
     }
 
     #[test]
     fn test_add() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
-        let rendered = compile(basic_block);
-        assert_eq!(
-            rendered,
-            r#"(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__0_0, 16, 0])
-(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__1_0, 16, 0])
-(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__2_0, 16, 0])
-(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__3_0, 16, 0])
-(id=7, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0])
-(id=5, mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0])
-(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0])
-(id=5, mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0])
-(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0])
-(id=1, mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 29, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0])
-(id=1, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 29, 0, 0, add_operation__value__0__0_0, add_operation__value__0__1_0, add_operation__value__0__2_0, add_operation__value__0__3_0])
-(id=5, mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0])
-(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0])
-(id=1, mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 0, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0])
-(id=1, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 2, 0, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0])
-(id=7, mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8, 4, 0, 0])
-(30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 153600 * is_valid)) * (30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 153601)) = 0
-(943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 + 692060158 * is_valid - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) * (943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 + 692060157 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) = 0
-(14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 + 72000 * is_valid - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) * (14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 + 71999 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) = 0
-(14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 198574079 * is_valid)) * (14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 198574080)) = 0
-is_valid * (is_valid - 1) = 0
-"#
-        );
+        assert_machine_output(basic_block, "addi")
     }
 }
