@@ -24,7 +24,7 @@ mod tests {
             bus_interaction_handler::Sp1BusInteractionHandler,
             bus_map::sp1_bus_map,
             instruction::Sp1Instruction,
-            instruction_machine_handler::{air_id_to_opcodes, Sp1InstructionMachineHandler},
+            instruction_machine_handler::{air_id_to_opcodes, Sp1InstructionHandler},
             program::Sp1Program,
         },
         riscv::RiscvAir,
@@ -35,38 +35,16 @@ mod tests {
         program: Program,
         jumpdest: BTreeSet<u64>,
     ) -> Vec<BasicBlock<Sp1Instruction>> {
-        // We allow all opcodes
-        let opcode_allowlist = RiscvAir::<BabyBear>::airs()
-            .into_iter()
-            .map(|air| air.id())
-            .flat_map(air_id_to_opcodes)
-            .map(|opcode| opcode as usize)
-            .collect();
-        // We define the branch opcodes manually
-        let branch_opcodes = [
-            Opcode::BEQ,
-            Opcode::BNE,
-            Opcode::BLT,
-            Opcode::BGE,
-            Opcode::BLTU,
-            Opcode::BGEU,
-            Opcode::JAL,
-            Opcode::JALR,
-        ]
-        .into_iter()
-        .map(|opcode| opcode as usize)
-        .collect();
         collect_basic_blocks::<Sp1ApcAdapter>(
             &Sp1Program(program),
             &jumpdest,
-            &opcode_allowlist,
-            &branch_opcodes,
+            &Sp1InstructionHandler::new(),
         )
     }
 
     fn compile(basic_block: Vec<Instruction>) -> String {
         let vm_config = VmConfig {
-            instruction_machine_handler: &Sp1InstructionMachineHandler::new(),
+            instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
             bus_map: sp1_bus_map(),
         };
@@ -91,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "get labels"]
+    // #[should_panic = "get labels"]
     fn test_collect_basic_blocks() {
         setup_logger();
         // let instructions = vec![];
@@ -110,10 +88,13 @@ mod tests {
         let sp1_elf = std::fs::read("../../test-artifacts/programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/fibonacci-program-tests").unwrap();
         println!("sp1_elf read successfully");
         
-        let powdr_elf = powdr_riscv_elf::load_elf_from_buffer(&sp1_elf);
-        let text_labels: BTreeSet<_> = powdr_elf.text_labels().iter().map(|&x| x as u64).collect();
+        let powdr_elf_labels = powdr_riscv_elf::rv64::load_elf_from_buffer_rv64(&sp1_elf);
+        // let text_labels: BTreeSet<_> = powdr_elf.text_labels().iter().map(|&x| x as u64).collect();
         let program = Program::from(&sp1_elf).unwrap();
-        let basic_blocks = detect_basic_blocks(program, text_labels);
+        let basic_blocks = detect_basic_blocks(program, powdr_elf_labels.text_labels);
+
+        basic_blocks.iter()
+            .for_each(|bb| println!("{:?}", bb));
 
         // assert!(basic_blocks.is_empty());
     }

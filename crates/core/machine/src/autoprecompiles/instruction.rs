@@ -14,10 +14,6 @@ impl From<sp1_core_executor::Instruction> for Sp1Instruction {
 }
 
 impl Instruction<BabyBear> for Sp1Instruction {
-    fn opcode(&self) -> usize {
-        self.0.opcode as usize
-    }
-
     fn into_symbolic_instruction(
         self,
     ) -> powdr_autoprecompiles::SymbolicInstructionStatement<BabyBear> {
@@ -25,7 +21,7 @@ impl Instruction<BabyBear> for Sp1Instruction {
         instruction_cols.populate(&self.0);
         let mut columns = instruction_cols.into_iter();
         powdr_autoprecompiles::SymbolicInstructionStatement {
-            opcode: columns.next().unwrap().as_canonical_u32() as usize,
+            opcode: columns.next().unwrap(),
             args: columns.collect(),
         }
     }
