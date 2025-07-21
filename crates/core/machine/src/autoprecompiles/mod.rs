@@ -16,6 +16,7 @@ mod tests {
     };
     use slop_baby_bear::BabyBear;
     use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_build::BuildArgs;
 
     use crate::{
         autoprecompiles::{
@@ -93,9 +94,27 @@ mod tests {
     #[should_panic = "pass jumpdest"]
     fn test_collect_basic_blocks() {
         setup_logger();
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let basic_blocks = detect_basic_blocks(program, unimplemented!("pass jumpdest"));
-        assert!(basic_blocks.is_empty());
+        // let instructions = vec![];
+        let fibo_path = "../../test-artifacts/programs/fibonacci";
+        // let output_directory = "../../test-artifacts/programs/fibonacci".to_string();
+        sp1_helper::build_program_with_args(
+            fibo_path,
+            BuildArgs {
+                rustflags: vec!["-C".to_string(), "link-arg=--emit-relocs".to_string()],
+                // ... set other fields as needed, or use ..Default::default()
+                // output_directory: Some(output_directory),
+                ..Default::default()
+            },
+        );
+        // let sp1_elf = test_artifacts::FIBONACCI_ELF;
+        let sp1_elf = std::fs::read("../../test-artifacts/programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/fibonacci-program-tests").unwrap();
+        println!("sp1_elf read successfully");
+        
+        let powdr_elf = powdr_riscv_elf::load_elf_from_buffer(&sp1_elf);
+        let text_labels: BTreeSet<_> = powdr_elf.text_labels().iter().map(|&x| x as u64).collect();
+        let program = Program::from(&sp1_elf).unwrap();
+        let basic_blocks = detect_basic_blocks(program, text_labels);
+
+        // assert!(basic_blocks.is_empty());
     }
 }

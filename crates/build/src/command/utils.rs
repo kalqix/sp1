@@ -50,7 +50,7 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
 /// Rust flags for compilation of C libraries.
 #[allow(clippy::uninlined_format_args)]
-pub(crate) fn get_rust_compiler_flags(_args: &BuildArgs, version: &semver::Version) -> String {
+pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Version) -> String {
     // Note: as of 1.81.0, the `-C passes=loweratomic` flag is deprecated, because of a change to
     // llvm.
     let atomic_lower_pass = if version > &semver::Version::new(1, 81, 0) {
@@ -61,14 +61,16 @@ pub(crate) fn get_rust_compiler_flags(_args: &BuildArgs, version: &semver::Versi
 
     // Start the section at the top of the stack for semantic purposes.
     // The stack will grow down to 0, never colliding with the start of the heap or static data.
-    let rust_flags = [
-        "-C",
-        atomic_lower_pass,
-        "-C",
-        &format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
-        "-C",
-        "panic=abort",
+    let mut rust_flags = vec![
+        "-C".to_string(),
+        atomic_lower_pass.to_string(),
+        "-C".to_string(),
+        format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
+        "-C".to_string(),
+        "panic=abort".to_string(),
     ];
+
+    rust_flags.extend(args.rustflags.clone());
 
     rust_flags.join("\x1f")
 }
