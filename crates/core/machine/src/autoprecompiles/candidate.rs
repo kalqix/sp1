@@ -37,7 +37,7 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
         >,
         _: &std::collections::HashMap<u32, u32>,
         _: powdr_autoprecompiles::VmConfig<
-            <A as powdr_autoprecompiles::adapter::Adapter>::InstructionMachineHandler,
+            <A as powdr_autoprecompiles::adapter::Adapter>::InstructionHandler,
             <A as powdr_autoprecompiles::adapter::Adapter>::BusInteractionHandler,
         >,
     ) -> Self {
