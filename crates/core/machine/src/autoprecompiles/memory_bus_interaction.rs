@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use powdr_autoprecompiles::{
     expression::AlgebraicReference,
-    memory_optimizer::{MemoryBusInteraction, MemoryOp},
+    memory_optimizer::{MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp},
 };
 use powdr_constraint_solver::{
     constraint_system::BusInteraction, grouped_expression::GroupedExpression,
@@ -32,27 +32,27 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
     fn try_from_bus_interaction(
         bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, AlgebraicReference>>,
         memory_bus_id: u64,
-    ) -> Result<Option<Self>, ()> {
+    ) -> Result<Option<Self>, MemoryBusInteractionConversionError> {
         // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
         // See: crates/core/machine/src/air/memory.rs
 
         match bus_interaction.bus_id.try_to_number() {
-            None => return Err(()),
+            None => return Err(MemoryBusInteractionConversionError),
             Some(id) if id == memory_bus_id.into() => {}
             Some(_) => return Ok(None),
         }
 
         let op = match bus_interaction.multiplicity.try_to_number() {
             // SP1 *sends* the previous values and *receives* the new values.
-            Some(n) if n == 1.into() => MemoryOp::ReceivePrevious,
-            Some(n) if n == (-1).into() => MemoryOp::SendNew,
-            _ => return Err(()),
+            Some(n) if n == 1.into() => MemoryOp::GetPrevious,
+            Some(n) if n == (-1).into() => MemoryOp::SetNew,
+            _ => return Err(MemoryBusInteractionConversionError),
         };
 
         let [_clk_high, _clk_low, addr0, addr1, addr2, data0, data1, data2, data3] =
             &bus_interaction.payload[..]
         else {
-            return Err(());
+            panic!()
         };
         let addr = MemoryAddress([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
