@@ -6,6 +6,7 @@ pub mod candidate;
 pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
+pub mod memory_bus_interaction;
 pub mod program;
 
 #[cfg(test)]
@@ -53,6 +54,7 @@ mod machine_extraction_tests {
 #[cfg(test)]
 mod apc_snapshot_tests {
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
+    use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
 
     use crate::{
@@ -85,15 +87,38 @@ mod apc_snapshot_tests {
         tracing::info!("Original AIR:\n{original_air}");
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
-        apc.machine.render(&sp1_bus_map())
+        apc.machine.to_string()
     }
 
     #[test]
-    #[should_panic]
     fn test_add() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         let rendered = compile(basic_block);
-        tracing::info!("{rendered}");
+        assert_eq!(
+            rendered,
+            r#"(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__0_0, 16, 0])
+(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__1_0, 16, 0])
+(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__2_0, 16, 0])
+(id=5, mult=is_valid * 1, args=[7, add_operation__value__0__3_0, 16, 0])
+(id=7, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0])
+(id=5, mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0])
+(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0])
+(id=5, mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0])
+(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0])
+(id=1, mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 29, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0])
+(id=1, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 29, 0, 0, add_operation__value__0__0_0, add_operation__value__0__1_0, add_operation__value__0__2_0, add_operation__value__0__3_0])
+(id=5, mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0])
+(id=5, mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0])
+(id=1, mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 0, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0])
+(id=1, mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 2, 0, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0])
+(id=7, mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8, 4, 0, 0])
+(30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 153600 * is_valid)) * (30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 153601)) = 0
+(943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 + 692060158 * is_valid - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) * (943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 + 692060157 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 + 72000 * is_valid - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) * (14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 + 71999 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 198574079 * is_valid)) * (14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 198574080)) = 0
+is_valid * (is_valid - 1) = 0
+"#
+        );
     }
 }

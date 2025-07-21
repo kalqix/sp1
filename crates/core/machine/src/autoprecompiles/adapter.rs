@@ -1,6 +1,7 @@
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, candidate::Sp1Candidate,
-    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler, program::Sp1Program,
+    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
+    memory_bus_interaction::Sp1MemoryBusInteraction, program::Sp1Program,
 };
 use powdr_autoprecompiles::adapter::Adapter;
 use powdr_number::{FieldElement, LargeInt};
@@ -23,6 +24,8 @@ impl Adapter for Sp1ApcAdapter {
     type Program = Sp1Program;
 
     type Instruction = Sp1Instruction;
+
+    type MemoryBusInteraction = Sp1MemoryBusInteraction;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
         BabyBear::from_canonical_u32(e.to_integer().try_into_u32().unwrap())
