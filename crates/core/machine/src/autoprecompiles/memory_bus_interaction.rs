@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use powdr_autoprecompiles::{
     expression::AlgebraicReference,
     memory_optimizer::{MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp},
@@ -15,14 +14,18 @@ pub struct Sp1MemoryBusInteraction {
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
+/// The memory address, represented as 3 16-Bit limbs in little-endian order.
+// TODO: It might make sense to add a artificial address space field, to make sure that the
+// memory optimizer does not redo register accesses if a RAM access happened.
+// Need to confirm with the Succinct team that this is fine.
 pub struct MemoryAddress([GroupedExpression<BabyBearField, AlgebraicReference>; 3]);
 
 impl IntoIterator for MemoryAddress {
     type Item = GroupedExpression<BabyBearField, AlgebraicReference>;
-    type IntoIter = std::vec::IntoIter<GroupedExpression<BabyBearField, AlgebraicReference>>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter().collect_vec().into_iter()
+        Vec::from(self.0).into_iter()
     }
 }
 
