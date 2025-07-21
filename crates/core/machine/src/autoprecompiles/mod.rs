@@ -7,6 +7,63 @@ pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
 pub mod program;
+pub mod customize_exe;
+
+use powdr_autoprecompiles::{BasicBlock, blocks::collect_basic_blocks};
+use sp1_build::{BuildArgs, generate_elf_paths, DEFAULT_TARGET_64};
+use sp1_core_executor::Program;
+
+use crate::autoprecompiles::{adapter::Sp1ApcAdapter, customize_exe::customize, instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler, program::Sp1Program};
+
+pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
+    sp1_helper::build_program_with_args(
+        guest_path,
+        build_args.clone(),
+    );
+    let program_dir = std::path::Path::new(guest_path);
+    let metadata_file = program_dir.join("Cargo.toml");
+    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
+    let target_elf_paths = generate_elf_paths(&metadata, Some(&build_args))
+        .expect("failed to collect target ELF paths");
+    // For now, take the first elf path
+    // TODO: add a filter input argument and assert only one elf is left after filtering
+    let out_path = target_elf_paths[0].1.clone();
+    
+    out_path.to_string()
+}
+
+pub fn compile_exe_with_elf(
+    elf: &[u8],
+) -> CompiledProgram {
+    let labels = powdr_riscv_elf::rv64::load_elf_from_buffer_rv64(elf);
+    
+    let original_program = Program::from(&elf).unwrap();
+
+    customize(original_program, &labels.text_labels)
+}
+
+pub fn compile_exe(
+    guest_path: &str,
+) -> CompiledProgram {
+    let build_args = powdr_default_build_args();
+    let elf_path = build_elf_path(guest_path, build_args);
+    let elf = std::fs::read(elf_path).unwrap();
+    
+    compile_exe_with_elf(&elf)
+}
+
+pub fn powdr_default_build_args() -> BuildArgs {
+    BuildArgs {
+        rustflags: vec!["-C".to_string(), "link-arg=--emit-relocs".to_string()],
+        build_target: DEFAULT_TARGET_64.to_string(),
+        ..Default::default()
+    }
+}
+
+pub struct CompiledProgram {
+    pub basic_blocks: Vec<BasicBlock<Sp1Instruction>>,
+}
 
 #[cfg(test)]
 mod machine_extraction_tests {
@@ -52,8 +109,11 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
-    use sp1_core_executor::{Instruction, Opcode};
+    use std::collections::BTreeSet;
+    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig, blocks::collect_basic_blocks};
+    use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_build::{BuildArgs, generate_elf_paths, DEFAULT_TARGET_64};
+    use super::*;
 
     use crate::{
         autoprecompiles::{
@@ -61,23 +121,13 @@ mod apc_snapshot_tests {
             bus_interaction_handler::Sp1BusInteractionHandler,
             bus_map::sp1_bus_map,
             instruction::Sp1Instruction,
-            instruction_machine_handler::{air_id_to_opcodes, Sp1InstructionHandler},
+            instruction_handler::Sp1InstructionHandler,
             program::Sp1Program,
         },
-        riscv::RiscvAir,
         utils::setup_logger,
     };
 
-    fn detect_basic_blocks(
-        program: Program,
-        jumpdest: BTreeSet<u64>,
-    ) -> Vec<BasicBlock<Sp1Instruction>> {
-        collect_basic_blocks::<Sp1ApcAdapter>(
-            &Sp1Program(program),
-            &jumpdest,
-            &Sp1InstructionHandler::new(),
-        )
-    }
+    const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 
     fn compile(basic_block: Vec<Instruction>) -> String {
         let vm_config = VmConfig {
@@ -117,30 +167,10 @@ mod apc_snapshot_tests {
     // #[should_panic = "get labels"]
     fn test_collect_basic_blocks() {
         setup_logger();
-        // let instructions = vec![];
-        let fibo_path = "../../test-artifacts/programs/fibonacci";
-        // let output_directory = "../../test-artifacts/programs/fibonacci".to_string();
-        sp1_helper::build_program_with_args(
-            fibo_path,
-            BuildArgs {
-                rustflags: vec!["-C".to_string(), "link-arg=--emit-relocs".to_string()],
-                // ... set other fields as needed, or use ..Default::default()
-                // output_directory: Some(output_directory),
-                ..Default::default()
-            },
-        );
-        // let sp1_elf = test_artifacts::FIBONACCI_ELF;
-        let sp1_elf = std::fs::read("../../test-artifacts/programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/fibonacci-program-tests").unwrap();
-        println!("sp1_elf read successfully");
         
-        let powdr_elf_labels = powdr_riscv_elf::rv64::load_elf_from_buffer_rv64(&sp1_elf);
-        // let text_labels: BTreeSet<_> = powdr_elf.text_labels().iter().map(|&x| x as u64).collect();
-        let program = Program::from(&sp1_elf).unwrap();
-        let basic_blocks = detect_basic_blocks(program, powdr_elf_labels.text_labels);
-
-        basic_blocks.iter()
-            .for_each(|bb| println!("{:?}", bb));
-
-        // assert!(basic_blocks.is_empty());
+        let compiled_program = compile_exe(GUEST_FIBONACCI);
+        
+        // print out the blocks
+        compiled_program.basic_blocks.iter().for_each(|bb| println!("{:?}", bb))
     }
 }

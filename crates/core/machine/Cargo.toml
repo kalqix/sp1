@@ -15,6 +15,7 @@ serde = { workspace = true, features = ["derive", "rc"] }
 serde_json = { workspace = true }
 itertools = { workspace = true }
 num = { version = "0.4.3" }
+cargo_metadata = "0.18.1"
 slop-air = { workspace = true }
 slop-baby-bear = { workspace = true }
 slop-algebra = { workspace = true }
@@ -28,18 +29,18 @@ sp1-helper = { workspace = true }
 sp1-build = { workspace = true }
 
 # Use powdr main of 07-15
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "875a9bc", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "875a9bc", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "875a9bc", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "875a9bc", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "875a9bc", default-features = false }
+# powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+# powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+# powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+# powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+# powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
 
 # Use local powdr
-# powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }
-# powdr-number = { path = "../../../../powdr/number/" }
-# powdr-expression = { path = "../../../../powdr/expression/" }
-# powdr-constraint-solver = { path = "../../../../powdr/constraint-solver/" }
-# powdr-riscv-elf = { path = "../../../../powdr/riscv-elf/" }
+powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }
+powdr-number = { path = "../../../../powdr/number/" }
+powdr-expression = { path = "../../../../powdr/expression/" }
+powdr-constraint-solver = { path = "../../../../powdr/constraint-solver/" }
+powdr-riscv-elf = { path = "../../../../powdr/riscv-elf/" }
 
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
