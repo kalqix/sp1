@@ -29,18 +29,18 @@ sp1-helper = { workspace = true }
 sp1-build = { workspace = true }
 
 # Use powdr main of 07-15
-# powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
-# powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
-# powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
-# powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
-# powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "ed4f64e", default-features = false }
 
 # Use local powdr
-powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }
-powdr-number = { path = "../../../../powdr/number/" }
-powdr-expression = { path = "../../../../powdr/expression/" }
-powdr-constraint-solver = { path = "../../../../powdr/constraint-solver/" }
-powdr-riscv-elf = { path = "../../../../powdr/riscv-elf/" }
+# powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }
+# powdr-number = { path = "../../../../powdr/number/" }
+# powdr-expression = { path = "../../../../powdr/expression/" }
+# powdr-constraint-solver = { path = "../../../../powdr/constraint-solver/" }
+# powdr-riscv-elf = { path = "../../../../powdr/riscv-elf/" }
 
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
