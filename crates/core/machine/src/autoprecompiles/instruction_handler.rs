@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
@@ -13,20 +13,21 @@ use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 use slop_baby_bear::BabyBear;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum InstructionType {
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InstructionType {
     /// An instruction that is not a load to X0, represented by its opcode.
     NonLoadX0(Opcode),
     /// A load instruction that is a load to x0.
     LoadX0,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
     airs: Vec<SymbolicMachine<F>>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
-    instruction_to_air_idx: HashMap<InstructionType, usize>,
+    /// (Using BTreeMap for determinism of [Sp1InstructionHandler::airs].)
+    instruction_to_air_idx: BTreeMap<InstructionType, usize>,
 }
 
 impl<F: PrimeField32> Sp1InstructionHandler<F> {
@@ -70,6 +71,13 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
 
     pub fn air_count(&self) -> usize {
         self.airs.len()
+    }
+
+    #[cfg(test)]
+    pub fn airs(&self) -> impl Iterator<Item = (InstructionType, &SymbolicMachine<F>)> {
+        self.instruction_to_air_idx
+            .iter()
+            .map(|(instruction_type, idx)| (instruction_type.clone(), &self.airs[*idx]))
     }
 }
 
