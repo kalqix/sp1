@@ -166,7 +166,6 @@ mod apc_snapshot_tests {
     }
 
     #[test]
-    // #[should_panic = "get labels"]
     fn test_collect_basic_blocks() {
         setup_logger();
 
