@@ -82,7 +82,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
         {
             // If the address is in the form of [addr, 0, 0], it is a register access.
             // The first limb is the register number.
-            Some(self.addr.0[0].try_to_number().unwrap().to_degree().try_into().unwrap())
+            Some(self.addr.0[0].try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
         } else {
             None
         }
