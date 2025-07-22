@@ -9,7 +9,6 @@ use crate::{
 use itertools::Itertools;
 use powdr_autoprecompiles::{InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
-use slop_baby_bear::BabyBear;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
 

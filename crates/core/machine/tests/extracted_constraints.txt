@@ -4123,6 +4123,89 @@ is_real * (is_real - 1) = 0
 
 
 
+# NonLoadX0(ADDW)
+(id=5, mult=is_real, args=[7, addw_operation__value__0, 16, 0])
+(id=5, mult=is_real, args=[7, addw_operation__value__1, 16, 0])
+(id=5, mult=is_real, args=[7, 2 * addw_operation__value__1 - addw_operation__msb__msb * 65536, 16, 0])
+(id=7, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, state__pc__0, state__pc__1, state__pc__2])
+(id=7, mult=is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 8, state__pc__0 + 4, state__pc__1, state__pc__2])
+(id=5, mult=is_real, args=[7, (state__clk_0_16 - 1) * 1761607681, 13, 0])
+(id=5, mult=is_real, args=[3, 0, state__clk_16_24, 0])
+(id=2, mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 39, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, 0, 0])
+(id=5, mult=is_real, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 3 - adapter__op_a_memory__access_timestamp__prev_low - 1 - adapter__op_a_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3])
+(id=1, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, addw_operation__value__0, addw_operation__value__1, addw_operation__msb__msb * 65535, addw_operation__msb__msb * 65535])
+(id=5, mult=is_real, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 2 - adapter__op_b_memory__access_timestamp__prev_low - 1 - adapter__op_b_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3])
+(id=1, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3])
+(id=5, mult=is_real - adapter__imm_c, args=[7, adapter__op_c_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real - adapter__imm_c, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 1 - adapter__op_c_memory__access_timestamp__prev_low - 1 - adapter__op_c_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3])
+(id=1, mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3])
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+is_real * ((adapter__op_b_memory__prev_value__0__0 + adapter__op_c_memory__prev_value__0__0 - addw_operation__value__0 + 0) * 2013235201 * ((adapter__op_b_memory__prev_value__0__0 + adapter__op_c_memory__prev_value__0__0 - addw_operation__value__0 + 0) * 2013235201 - 1)) = 0
+is_real * ((adapter__op_b_memory__prev_value__0__1 + adapter__op_c_memory__prev_value__0__1 - addw_operation__value__1 + (adapter__op_b_memory__prev_value__0__0 + adapter__op_c_memory__prev_value__0__0 - addw_operation__value__0 + 0) * 2013235201) * 2013235201 * ((adapter__op_b_memory__prev_value__0__1 + adapter__op_c_memory__prev_value__0__1 - addw_operation__value__1 + (adapter__op_b_memory__prev_value__0__0 + adapter__op_c_memory__prev_value__0__0 - addw_operation__value__0 + 0) * 2013235201) * 2013235201 - 1)) = 0
+is_real * (is_real - 1) = 0
+addw_operation__msb__msb * (addw_operation__msb__msb - 1) = 0
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+(is_real - 1) * (adapter__imm_c - 0) = 0
+adapter__op_a_0 * (addw_operation__value__0 - 0) = 0
+adapter__op_a_0 * (addw_operation__value__1 - 0) = 0
+adapter__op_a_0 * (addw_operation__msb__msb * 65535 - 0) = 0
+adapter__op_a_0 * (addw_operation__msb__msb * 65535 - 0) = 0
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+(is_real - adapter__imm_c) * (is_real - adapter__imm_c - 1) = 0
+adapter__imm_c * (adapter__op_c_memory__prev_value__0__0 - adapter__op_c__0__0) = 0
+adapter__imm_c * (adapter__op_c_memory__prev_value__0__1 - adapter__op_c__0__1) = 0
+adapter__imm_c * (adapter__op_c_memory__prev_value__0__2 - adapter__op_c__0__2) = 0
+adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) = 0
+
+
+
+# NonLoadX0(SUBW)
+(id=5, mult=is_real, args=[7, subw_operation__value__0, 16, 0])
+(id=5, mult=is_real, args=[7, subw_operation__value__1, 16, 0])
+(id=5, mult=is_real, args=[7, 2 * subw_operation__value__1 - subw_operation__msb__msb * 65536, 16, 0])
+(id=7, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, state__pc__0, state__pc__1, state__pc__2])
+(id=7, mult=is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 8, state__pc__0 + 4, state__pc__1, state__pc__2])
+(id=5, mult=is_real, args=[7, (state__clk_0_16 - 1) * 1761607681, 13, 0])
+(id=5, mult=is_real, args=[3, 0, state__clk_16_24, 0])
+(id=2, mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 40, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, 0 + adapter__op_c, 0, 0, 0, adapter__op_a_0, 0, 0, 59, 0, 32])
+(id=5, mult=is_real, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 3 - adapter__op_a_memory__access_timestamp__prev_low - 1 - adapter__op_a_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3])
+(id=1, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, subw_operation__value__0, subw_operation__value__1, subw_operation__msb__msb * 65535, subw_operation__msb__msb * 65535])
+(id=5, mult=is_real, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 2 - adapter__op_b_memory__access_timestamp__prev_low - 1 - adapter__op_b_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3])
+(id=1, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3])
+(id=5, mult=is_real, args=[7, adapter__op_c_memory__access_timestamp__diff_low_limb, 16, 0])
+(id=5, mult=is_real, args=[3, 0, (state__clk_0_16 + state__clk_16_24 * 65536 + 1 - adapter__op_c_memory__access_timestamp__prev_low - 1 - adapter__op_c_memory__access_timestamp__diff_low_limb) * 2013235201, 0])
+(id=1, mult=is_real, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3])
+(id=1, mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3])
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+is_real * ((adapter__op_b_memory__prev_value__0__0 + 65536 - 1 - adapter__op_c_memory__prev_value__0__0 - subw_operation__value__0 + 1) * 2013235201 * ((adapter__op_b_memory__prev_value__0__0 + 65536 - 1 - adapter__op_c_memory__prev_value__0__0 - subw_operation__value__0 + 1) * 2013235201 - 1)) = 0
+is_real * ((adapter__op_b_memory__prev_value__0__1 + 65536 - 1 - adapter__op_c_memory__prev_value__0__1 - subw_operation__value__1 + (adapter__op_b_memory__prev_value__0__0 + 65536 - 1 - adapter__op_c_memory__prev_value__0__0 - subw_operation__value__0 + 1) * 2013235201) * 2013235201 * ((adapter__op_b_memory__prev_value__0__1 + 65536 - 1 - adapter__op_c_memory__prev_value__0__1 - subw_operation__value__1 + (adapter__op_b_memory__prev_value__0__0 + 65536 - 1 - adapter__op_c_memory__prev_value__0__0 - subw_operation__value__0 + 1) * 2013235201) * 2013235201 - 1)) = 0
+is_real * (is_real - 1) = 0
+subw_operation__msb__msb * (subw_operation__msb__msb - 1) = 0
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+adapter__op_a_0 * (subw_operation__value__0 - 0) = 0
+adapter__op_a_0 * (subw_operation__value__1 - 0) = 0
+adapter__op_a_0 * (subw_operation__msb__msb * 65535 - 0) = 0
+adapter__op_a_0 * (subw_operation__msb__msb * 65535 - 0) = 0
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+is_real * (is_real - 1) = 0
+
+
+
 # NonLoadX0(SLLW)
 (id=5, mult=is_sll + is_sllw, args=[3, 0, (adapter__op_c_memory__prev_value__0__0 - (0 + c_bits__0 * 1 + c_bits__1 * 2 + c_bits__2 * 4 + c_bits__3 * 8 + c_bits__4 * 16 + c_bits__5 * 32 + c_bits__6 * 64 + c_bits__7 * 128)) * 2005401601, 0])
 (id=5, mult=is_sll + is_sllw, args=[6, top_bits__0, b_lower_bytes__low_bytes__0, 8 - c_bits__0 - c_bits__1 * 2 - c_bits__2 * 4])
