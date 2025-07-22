@@ -25,10 +25,18 @@ slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "caf069e", default-features = false }
+# Use powdr main of 2025-07-22
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+
+# For local powdr
+#powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles" }
+#powdr-number = { path = "../../../../powdr/number" }
+#powdr-expression = { path = "../../../../powdr/expression" }
+#powdr-constraint-solver = { path = "../../../../powdr/constraint-solver" }
+
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
 slop-futures = { workspace = true }
