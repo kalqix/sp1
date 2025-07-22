@@ -17,7 +17,9 @@ pub struct Sp1MemoryBusInteraction {
 /// The memory address, represented as 3 16-Bit limbs in little-endian order.
 // TODO: It might make sense to add a artificial address space field, to make sure that the
 // memory optimizer does not redo register accesses if a RAM access happened.
-// Need to confirm with the Succinct team that this is fine.
+// It is guaranteed by the constraints of SP1 that RAM accesses don't go to the register memory
+// space (RAM access must go to addresses > 2^16), but the memory optimizer likely doesn't infer
+// that.
 pub struct MemoryAddress([GroupedExpression<BabyBearField, AlgebraicReference>; 3]);
 
 impl IntoIterator for MemoryAddress {
@@ -71,7 +73,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
     }
 
     fn op(&self) -> powdr_autoprecompiles::memory_optimizer::MemoryOp {
-        self.op.clone()
+        self.op
     }
 
     fn register_address(&self) -> Option<usize> {
