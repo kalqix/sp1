@@ -25,11 +25,13 @@ slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
-# Use generalize-memory branch
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "be92636", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "be92636", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "be92636", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "be92636", default-features = false }
+# Use powdr main of 2025-07-22
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "d74aaa1", default-features = false }
+
+# For local powdr
 #powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles" }
 #powdr-number = { path = "../../../../powdr/number" }
 #powdr-expression = { path = "../../../../powdr/expression" }
