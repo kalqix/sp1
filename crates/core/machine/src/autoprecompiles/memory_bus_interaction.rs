@@ -15,7 +15,7 @@ pub struct Sp1MemoryBusInteraction {
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 /// The memory address, represented as 3 16-Bit limbs in little-endian order.
-// TODO: It might make sense to add a artificial address space field, to make sure that the
+// TODO: It might make sense to add an artificial address space field, to make sure that the
 // memory optimizer does not redo register accesses if a RAM access happened.
 // It is guaranteed by the constraints of SP1 that RAM accesses don't go to the register memory
 // space (RAM access must go to addresses > 2^16), but the memory optimizer likely doesn't infer
