@@ -81,12 +81,14 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
 }
 
 fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
-    // Instruction -> AIR mapping from:
+    // Instruction -> AIR mapping inspired from:
     // https://github.com/succinctlabs/sp1-wip/blob/1ec34e044ead850ed90deb1b66771eb0cfc8dc7e/crates/core/executor/src/executor.rs#L2552
     match air_id {
         RiscvAirId::Add => vec![Opcode::ADD],
         RiscvAirId::Addi => vec![Opcode::ADDI],
+        RiscvAirId::Addw => vec![Opcode::ADDW],
         RiscvAirId::Sub => vec![Opcode::SUB],
+        RiscvAirId::Subw => vec![Opcode::SUBW],
         RiscvAirId::Bitwise => vec![Opcode::XOR, Opcode::OR, Opcode::AND],
         RiscvAirId::DivRem => vec![
             Opcode::DIV,
