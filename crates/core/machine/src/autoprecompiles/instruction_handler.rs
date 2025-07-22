@@ -11,7 +11,6 @@ use powdr_autoprecompiles::{InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
-use slop_baby_bear::BabyBear;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstructionType {
@@ -152,9 +151,7 @@ fn is_load_opcode(opcode: Opcode) -> bool {
     )
 }
 
-impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction>
-    for Sp1InstructionHandler<F>
-{
+impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHandler<F> {
     fn get_instruction_air(&self, instruction: &Sp1Instruction) -> Option<&SymbolicMachine<F>> {
         let instruction_type = if is_load_opcode(instruction.0.opcode)
             && instruction.0.op_a == sp1_core_executor::Register::X0 as u8
@@ -169,28 +166,21 @@ impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction>
     }
 
     fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
-        // We allow all opcodes
-        // TODO: maybe make this static?
-        let opcode_allowlist: Vec<Opcode> = RiscvAir::<BabyBear>::airs()
-            .into_iter()
-            .map(|air| air.id())
-            .flat_map(air_id_to_opcodes)
-            .collect();
-        opcode_allowlist.contains(&instruction.0.opcode)
+        !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::UNIMP)
     }
 
     fn is_branching(&self, instruction: &Sp1Instruction) -> bool {
         // We define the branch opcodes manually
-        let branch_opcodes = vec![
-            Opcode::BEQ,
-            Opcode::BNE,
-            Opcode::BLT,
-            Opcode::BGE,
-            Opcode::BLTU,
-            Opcode::BGEU,
-            Opcode::JAL,
-            Opcode::JALR,
-        ];
-        branch_opcodes.contains(&instruction.0.opcode)
+        matches!(
+            instruction.0.opcode,
+            Opcode::BEQ
+                | Opcode::BNE
+                | Opcode::BLT
+                | Opcode::BGE
+                | Opcode::BLTU
+                | Opcode::BGEU
+                | Opcode::JAL
+                | Opcode::JALR
+        )
     }
 }

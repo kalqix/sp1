@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use cargo_metadata::semver;
+use itertools::Itertools;
 use std::{
     io::{BufRead, BufReader},
     process::{exit, Command, Stdio},
@@ -61,18 +62,17 @@ pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Versio
 
     // Start the section at the top of the stack for semantic purposes.
     // The stack will grow down to 0, never colliding with the start of the heap or static data.
-    let mut rust_flags = vec![
-        "-C".to_string(),
-        atomic_lower_pass.to_string(),
-        "-C".to_string(),
-        format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
-        "-C".to_string(),
-        "panic=abort".to_string(),
-    ];
-
-    rust_flags.extend(args.rustflags.clone());
-
-    rust_flags.join("\x1f")
+    [
+        "-C",
+        atomic_lower_pass,
+        "-C",
+        &format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
+        "-C",
+        "panic=abort",
+    ]
+    .into_iter()
+    .chain(args.rustflags.iter().map(|s| s.as_str()))
+    .join("\x1f")
 }
 
 /// Execute the command and handle the output depending on the context.

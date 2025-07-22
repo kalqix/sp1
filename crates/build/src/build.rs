@@ -200,7 +200,8 @@ pub fn generate_elf_paths(
             };
 
             if let Some(args) = args {
-                elf_path = elf_path.join(args.build_target.clone()).join("release").join(&bin_target.name);
+                elf_path =
+                    elf_path.join(args.build_target.clone()).join("release").join(&bin_target.name);
             }
 
             target_elf_paths.push((bin_target.name.to_owned(), elf_path));

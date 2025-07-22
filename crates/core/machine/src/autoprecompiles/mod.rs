@@ -7,19 +7,19 @@ pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
 pub mod program;
-pub mod customize_exe;
 
-use powdr_autoprecompiles::{BasicBlock, blocks::collect_basic_blocks};
-use sp1_build::{BuildArgs, generate_elf_paths, DEFAULT_TARGET_64};
+use powdr_autoprecompiles::blocks::{collect_basic_blocks, BasicBlock};
+use sp1_build::{generate_elf_paths, BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::Program;
+use std::collections::BTreeSet;
 
-use crate::autoprecompiles::{adapter::Sp1ApcAdapter, customize_exe::customize, instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler, program::Sp1Program};
+use crate::autoprecompiles::{
+    adapter::Sp1ApcAdapter, instruction::Sp1Instruction,
+    instruction_handler::Sp1InstructionHandler, program::Sp1Program,
+};
 
 pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
-    sp1_helper::build_program_with_args(
-        guest_path,
-        build_args.clone(),
-    );
+    sp1_helper::build_program_with_args(guest_path, build_args.clone());
     let program_dir = std::path::Path::new(guest_path);
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -29,27 +29,23 @@ pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
     // For now, take the first elf path
     // TODO: add a filter input argument and assert only one elf is left after filtering
     let out_path = target_elf_paths[0].1.clone();
-    
+
     out_path.to_string()
 }
 
-pub fn compile_exe_with_elf(
-    elf: &[u8],
-) -> CompiledProgram {
-    let labels = powdr_riscv_elf::rv64::load_elf_from_buffer_rv64(elf);
-    
-    let original_program = Program::from(&elf).unwrap();
+pub fn compile_exe_with_elf(elf: &[u8]) -> CompiledProgram {
+    let labels = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf);
 
-    customize(original_program, &labels.text_labels)
+    let original_program = Program::from(elf).unwrap();
+
+    CompiledProgram::new(original_program, &labels.jumpdests)
 }
 
-pub fn compile_exe(
-    guest_path: &str,
-) -> CompiledProgram {
+pub fn compile_exe(guest_path: &str) -> CompiledProgram {
     let build_args = powdr_default_build_args();
     let elf_path = build_elf_path(guest_path, build_args);
     let elf = std::fs::read(elf_path).unwrap();
-    
+
     compile_exe_with_elf(&elf)
 }
 
@@ -63,6 +59,18 @@ pub fn powdr_default_build_args() -> BuildArgs {
 
 pub struct CompiledProgram {
     pub basic_blocks: Vec<BasicBlock<Sp1Instruction>>,
+}
+
+impl CompiledProgram {
+    pub fn new(original_program: Program, labels: &BTreeSet<u64>) -> Self {
+        let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(
+            &Sp1Program(original_program),
+            labels,
+            &Sp1InstructionHandler::new(),
+        );
+
+        Self { basic_blocks }
+    }
 }
 
 #[cfg(test)]
@@ -109,20 +117,14 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use std::collections::BTreeSet;
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig, blocks::collect_basic_blocks};
-    use sp1_core_executor::{Instruction, Opcode, Program};
-    use sp1_build::{BuildArgs, generate_elf_paths, DEFAULT_TARGET_64};
     use super::*;
+    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
+    use sp1_core_executor::{Instruction, Opcode};
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter,
-            bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map,
-            instruction::Sp1Instruction,
-            instruction_handler::Sp1InstructionHandler,
-            program::Sp1Program,
+            adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
+            bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
@@ -167,10 +169,10 @@ mod apc_snapshot_tests {
     // #[should_panic = "get labels"]
     fn test_collect_basic_blocks() {
         setup_logger();
-        
+
         let compiled_program = compile_exe(GUEST_FIBONACCI);
-        
-        // print out the blocks
-        compiled_program.basic_blocks.iter().for_each(|bb| println!("{:?}", bb))
+
+        // For now, just assert the number of basic blocks produced.
+        assert_eq!(compiled_program.basic_blocks.len(), 1565);
     }
 }
