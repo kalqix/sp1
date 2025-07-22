@@ -170,9 +170,59 @@ mod apc_snapshot_tests {
     fn test_collect_basic_blocks() {
         setup_logger();
 
-        let compiled_program = compile_exe(GUEST_FIBONACCI);
+        let build_args = powdr_default_build_args();
+        let elf_path = build_elf_path(GUEST_FIBONACCI, build_args);
+        let elf = std::fs::read(elf_path).unwrap();
 
-        // For now, just assert the number of basic blocks produced.
-        assert_eq!(compiled_program.basic_blocks.len(), 1565);
+        let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
+        let original_program = Program::from(&elf).unwrap();
+        let compiled_program = CompiledProgram::new(original_program, &jumpdest_set);
+
+        // let compiled_program = compile_exe(GUEST_FIBONACCI);
+
+        // Check total number of basic blocks produced
+        let basic_blocks = compiled_program.basic_blocks;
+        let basic_blocks_length = basic_blocks.len();
+        assert_eq!(basic_blocks_length, 1565);
+        basic_blocks.iter().for_each(|bb| println!("{:?}", bb));
+
+        // Check the validity of each basic block
+        let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
+        let mut prior_block_last_instruction = basic_blocks[0].statements[0].clone(); // placeholder
+        basic_blocks.iter().enumerate().for_each(|(idx, bb)| {
+            assert!(
+                bb.statements.first().is_some(),
+                "Basic block must not be empty"
+            );
+
+            // A basic block must EITHER start with a not allowed instruction (in which case it's alone in its own block)
+            // OR start with a target instruction
+            // OR the last instruction of the prior block
+            // OR is the first block
+            let first_instruction = &bb.statements[0];
+            // let first_instruction_opcode = first_instruction.opcode();
+            if !instruction_handler.is_allowed(first_instruction) {
+                assert!(
+                    bb.statements.len() == 1,
+                    "Basic block with not allowed instruction must be alone in its own block"
+                );
+            } else {
+                if idx != 0 {
+                    // if not the first block
+                    assert!(
+                        instruction_handler.is_branching(&prior_block_last_instruction) || jumpdest_set.contains(&bb.start_pc),
+                        "First instruction of basic block must be a jump target OR the last instruction of the prior block must be a branching instruction"
+                    );
+                }
+            }
+            // A basic block must EITHER end with a not allowed instruction (in whcih case it's alone in its own block)
+            // OR end with a branching instruction
+            // OR is the last block
+            let last_instruction = bb.statements.last().unwrap();
+            if instruction_handler.is_allowed(last_instruction) && !instruction_handler.is_branching(last_instruction) && !idx == basic_blocks_length - 1 {
+                panic!("Last instruction of basic block must be a disallowed instruction, or a branching instruction, or must be in the last block");
+            }
+            prior_block_last_instruction = last_instruction.clone();
+        });
     }
 }
