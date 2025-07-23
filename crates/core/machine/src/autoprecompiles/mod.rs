@@ -245,7 +245,7 @@ mod apc_snapshot_tests {
     #[test]
     fn test_sltui() {
         let basic_block = vec![Instruction::new(Opcode::SLTU, 1, 2, 3, false, true)];
-        assert_machine_output(basic_block, "sltu")
+        assert_machine_output(basic_block, "sltui")
     }
 
     #[test]
