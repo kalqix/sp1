@@ -73,16 +73,20 @@ mod machine_extraction_tests {
     use pretty_assertions::assert_eq;
     use slop_baby_bear::BabyBear;
 
-    use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};
+    use crate::{
+        autoprecompiles::{bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler},
+        utils::setup_logger,
+    };
 
     #[test]
     fn test_extract_machine() {
         setup_logger();
         let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
         let airs = instruction_handler.airs();
-        // TODO: Use `render(bus_map)` instead of `to_string()`, once the bus map is complete.
         let rendered = airs
-            .map(|(instruction_type, air)| format!("# {instruction_type:?}\n{air}"))
+            .map(|(instruction_type, air)| {
+                format!("# {instruction_type:?}\n{}", air.render(&sp1_bus_map()))
+            })
             .join("\n\n\n");
 
         let path =
@@ -141,12 +145,11 @@ mod apc_snapshot_tests {
             .instruction_handler
             .get_instruction_air(&block.statements[0])
             .expect("Failed to get instruction AIR")
-            // render() does not work, because not all buses are in the bus map yet.
-            .to_string();
+            .render(&vm_config.bus_map);
         tracing::info!("Original AIR:\n{original_air}");
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
-        let actual = apc.machine.to_string();
+        let actual = apc.machine.render(&sp1_bus_map());
 
         let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")

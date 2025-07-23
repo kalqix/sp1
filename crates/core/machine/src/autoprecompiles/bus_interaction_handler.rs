@@ -19,19 +19,10 @@ impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
         match kind {
             InteractionKind::Memory => true,
             InteractionKind::Program => false,
-            InteractionKind::Instruction => todo!(),
-            InteractionKind::Alu => todo!(),
             InteractionKind::Byte => false,
-            InteractionKind::Range => false,
             InteractionKind::State => true,
-            InteractionKind::Syscall => todo!(),
-            InteractionKind::Global => todo!(),
-            InteractionKind::ShaExtend => todo!(),
-            InteractionKind::ShaCompress => todo!(),
-            InteractionKind::Keccak => todo!(),
-            InteractionKind::GlobalAccumulation => todo!(),
-            InteractionKind::MemoryGlobalInitControl => todo!(),
-            InteractionKind::MemoryGlobalFinalizeControl => todo!(),
+            // All instruction AIRs only use the four buses above.
+            _ => unreachable!("Unexpected bus: {:?}", kind),
         }
     }
 }
