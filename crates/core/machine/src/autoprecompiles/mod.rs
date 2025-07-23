@@ -118,11 +118,11 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use std::{fs, path::Path};
     use super::*;
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
+    use std::{fs, path::Path};
 
     use crate::{
         autoprecompiles::{
