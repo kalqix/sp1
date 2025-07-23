@@ -1,7 +1,8 @@
+use std::{collections::HashMap, path::Path};
+
 use powdr_autoprecompiles::{
-    adapter::{Adapter, AdapterApc},
+    adapter::{Adapter, AdapterApc, AdapterVmConfig},
     blocks::{Candidate, KnapsackItem},
-    Apc,
 };
 
 /// A candidate for the SP1 autoprecompiles.
@@ -30,31 +31,13 @@ impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
     type JsonExport = ();
     type ApcStats = ();
 
-    fn create(
-        apc: Apc<
-            <A as powdr_autoprecompiles::adapter::Adapter>::Field,
-            <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
-        >,
-        _: &std::collections::HashMap<u64, u32>,
-        _: powdr_autoprecompiles::VmConfig<
-            <A as powdr_autoprecompiles::adapter::Adapter>::InstructionHandler,
-            <A as powdr_autoprecompiles::adapter::Adapter>::BusInteractionHandler,
-        >,
-    ) -> Self {
+    fn create(apc: AdapterApc<A>, _: &HashMap<u64, u32>, _: AdapterVmConfig<A>) -> Self {
         Sp1Candidate { apc }
     }
 
-    fn to_json_export(&self, _apc_candidates_dir_path: &std::path::Path) -> Self::JsonExport {}
+    fn to_json_export(&self, _apc_candidates_dir_path: &Path) -> Self::JsonExport {}
 
-    fn into_apc_and_stats(
-        self,
-    ) -> (
-        Apc<
-            <A as powdr_autoprecompiles::adapter::Adapter>::Field,
-            <A as powdr_autoprecompiles::adapter::Adapter>::Instruction,
-        >,
-        Self::ApcStats,
-    ) {
+    fn into_apc_and_stats(self) -> (AdapterApc<A>, Self::ApcStats) {
         (self.apc, ())
     }
 }
