@@ -178,7 +178,7 @@ mod apc_snapshot_tests {
     }
 
     #[test]
-    fn test_add() {
+    fn test_addi() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         assert_machine_output(basic_block, "addi")
