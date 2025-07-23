@@ -116,8 +116,9 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
     let byte_opcode = opcode_value.map(|opcode| {
         ByteOpcode::byte_table()
             .into_iter()
+            .chain([ByteOpcode::Range])
             .find(|kind| *kind as u64 == opcode.to_degree())
-            .unwrap()
+            .unwrap_or_else(|| panic!("Unknown byte opcode: {opcode}"))
     });
 
     // The range constraint on `a` depends on the opcode.
