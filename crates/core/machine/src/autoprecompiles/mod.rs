@@ -9,6 +9,62 @@ pub mod interaction_builder;
 pub mod memory_bus_interaction;
 pub mod program;
 
+use powdr_autoprecompiles::blocks::{collect_basic_blocks, BasicBlock};
+use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
+use sp1_core_executor::Program;
+use std::collections::BTreeSet;
+
+use crate::autoprecompiles::{
+    adapter::Sp1ApcAdapter, instruction::Sp1Instruction,
+    instruction_handler::Sp1InstructionHandler, program::Sp1Program,
+};
+
+pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
+    let guest_path = std::path::Path::new(guest_path).to_path_buf();
+    // Currently we only take the first elf path built from the given `guest_path`, assuming that
+    // there's only one binary in `guest_path` TODO: add a filter input argument and assert only
+    // one elf is left after filtering
+    let elf_path =
+        sp1_build::execute_build_program(&build_args, Some(guest_path)).unwrap()[0].1.clone();
+    elf_path.to_string()
+}
+
+pub fn compile_exe_with_elf(elf: &[u8]) -> CompiledProgram {
+    let labels = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf);
+
+    let original_program = Program::from(elf).unwrap();
+
+    CompiledProgram::new(original_program, &labels.jumpdests)
+}
+
+pub fn compile_exe(guest_path: &str) -> CompiledProgram {
+    let build_args = powdr_default_build_args();
+    let elf_path = build_elf_path(guest_path, build_args);
+    let elf = std::fs::read(elf_path).unwrap();
+
+    compile_exe_with_elf(&elf)
+}
+
+pub fn powdr_default_build_args() -> BuildArgs {
+    BuildArgs { build_target: DEFAULT_TARGET_64.to_string(), ..Default::default() }
+}
+
+pub struct CompiledProgram {
+    pub basic_blocks: Vec<BasicBlock<Sp1Instruction>>,
+}
+
+impl CompiledProgram {
+    pub fn new(original_program: Program, labels: &BTreeSet<u64>) -> Self {
+        let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(
+            &Sp1Program::from(original_program),
+            labels,
+            &Sp1InstructionHandler::new(),
+        );
+
+        Self { basic_blocks }
+    }
+}
+
 #[cfg(test)]
 mod machine_extraction_tests {
     use std::{fs, io, path::Path};
@@ -53,11 +109,11 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use std::{fs, path::Path};
-
+    use super::*;
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
+    use std::{fs, path::Path};
 
     use crate::{
         autoprecompiles::{
@@ -66,6 +122,7 @@ mod apc_snapshot_tests {
         },
         utils::setup_logger,
     };
+    const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 
     fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
         let vm_config = VmConfig {
@@ -123,5 +180,55 @@ mod apc_snapshot_tests {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         assert_machine_output(basic_block, "addi")
+    }
+
+    #[test]
+    fn test_collect_basic_blocks() {
+        setup_logger();
+
+        let build_args = powdr_default_build_args();
+        let elf_path = build_elf_path(GUEST_FIBONACCI, build_args);
+        let elf = std::fs::read(elf_path).unwrap();
+
+        let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
+        let original_program = Program::from(&elf).unwrap();
+        let compiled_program = CompiledProgram::new(original_program, &jumpdest_set);
+
+        // Check total number of basic blocks produced
+        let basic_blocks = compiled_program.basic_blocks;
+        let basic_blocks_length = basic_blocks.len();
+        assert_eq!(basic_blocks_length, 1601);
+
+        // Check the validity of each basic block
+        let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
+
+        basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {
+            // Every block must be non-empty
+            assert!(!bb.statements.is_empty(), "Basic block must not be empty");
+
+            // A basic block must:
+            // start with a not allowed instruction (in which case it's alone in its own block)
+            // OR start with a target instruction
+            // OR the last instruction of the prior block is branching/not allowed instruction
+            // OR is the first block
+            let first = &bb.statements[0];
+            if !instruction_handler.is_allowed(first) {
+                assert!(
+                    bb.statements.len() == 1,
+                    "Block with not allowed instruction must be in its own block"
+                );
+            } else if idx != 0 {
+                let prev = prior.as_ref().expect("Prior should be set after the first iteration");
+                assert!(
+                    instruction_handler.is_branching(prev)
+                        || jumpdest_set.contains(&bb.start_pc)
+                        || !instruction_handler.is_allowed(prev),
+                    "Block must start at a jumpdest or after a branching instruction"
+                );
+            }
+
+            // Update the last instruction of the prior block for the next iteration
+            Some(bb.statements.last().unwrap().clone())
+        });
     }
 }

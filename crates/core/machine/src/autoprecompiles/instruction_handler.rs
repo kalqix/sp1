@@ -130,7 +130,6 @@ fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
         RiscvAirId::StoreHalf => vec![Opcode::SH],
         RiscvAirId::StoreWord => vec![Opcode::SW],
         RiscvAirId::StoreDouble => vec![Opcode::SD],
-        RiscvAirId::SyscallInstrs => vec![Opcode::ECALL],
         _ => Default::default(),
     }
 }
@@ -167,11 +166,22 @@ impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHa
         Some(&self.airs[*idx])
     }
 
-    fn is_allowed(&self, _instruction: &Sp1Instruction) -> bool {
-        todo!()
+    fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
+        !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
     }
 
-    fn is_branching(&self, _instruction: &Sp1Instruction) -> bool {
-        todo!()
+    fn is_branching(&self, instruction: &Sp1Instruction) -> bool {
+        // We define the branch opcodes manually
+        matches!(
+            instruction.0.opcode,
+            Opcode::BEQ
+                | Opcode::BNE
+                | Opcode::BLT
+                | Opcode::BGE
+                | Opcode::BLTU
+                | Opcode::BGEU
+                | Opcode::JAL
+                | Opcode::JALR
+        )
     }
 }

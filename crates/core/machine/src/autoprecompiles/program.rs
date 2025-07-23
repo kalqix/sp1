@@ -17,3 +17,9 @@ impl Program<Sp1Instruction> for Sp1Program {
         Box::new(self.0.instructions.iter().map(|inst| Sp1Instruction(*inst)))
     }
 }
+
+impl From<sp1_core_executor::Program> for Sp1Program {
+    fn from(inner: sp1_core_executor::Program) -> Self {
+        Sp1Program(inner)
+    }
+}

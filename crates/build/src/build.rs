@@ -191,12 +191,16 @@ pub fn generate_elf_paths(
                 }
             }
 
-            let elf_path = metadata.target_directory.join(HELPER_TARGET_SUBDIR);
-            let elf_path = match args {
+            let mut elf_path = metadata.target_directory.join(HELPER_TARGET_SUBDIR);
+            elf_path = match args {
                 Some(args) if args.docker => elf_path.join("docker"),
                 _ => elf_path,
             };
-            let elf_path = elf_path.join(DEFAULT_TARGET).join("release").join(&bin_target.name);
+
+            if let Some(args) = args {
+                elf_path =
+                    elf_path.join(args.build_target.clone()).join("release").join(&bin_target.name);
+            }
 
             target_elf_paths.push((bin_target.name.to_owned(), elf_path));
         }
