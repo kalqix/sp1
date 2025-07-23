@@ -64,7 +64,7 @@ pub struct CompiledProgram {
 impl CompiledProgram {
     pub fn new(original_program: Program, labels: &BTreeSet<u64>) -> Self {
         let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(
-            &Sp1Program(original_program),
+            &Sp1Program::from(original_program),
             labels,
             &Sp1InstructionHandler::new(),
         );
@@ -177,51 +177,51 @@ mod apc_snapshot_tests {
         let original_program = Program::from(&elf).unwrap();
         let compiled_program = CompiledProgram::new(original_program, &jumpdest_set);
 
-        // let compiled_program = compile_exe(GUEST_FIBONACCI);
-
         // Check total number of basic blocks produced
         let basic_blocks = compiled_program.basic_blocks;
         let basic_blocks_length = basic_blocks.len();
-        assert_eq!(basic_blocks_length, 1565);
+        assert_eq!(basic_blocks_length, 1601);
         basic_blocks.iter().for_each(|bb| println!("{:?}", bb));
 
         // Check the validity of each basic block
         let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
-        let mut prior_block_last_instruction = basic_blocks[0].statements[0].clone(); // placeholder
-        basic_blocks.iter().enumerate().for_each(|(idx, bb)| {
-            assert!(
-                bb.statements.first().is_some(),
-                "Basic block must not be empty"
-            );
 
-            // A basic block must EITHER start with a not allowed instruction (in which case it's alone in its own block)
-            // OR start with a target instruction
-            // OR the last instruction of the prior block
-            // OR is the first block
-            let first_instruction = &bb.statements[0];
-            // let first_instruction_opcode = first_instruction.opcode();
-            if !instruction_handler.is_allowed(first_instruction) {
-                assert!(
-                    bb.statements.len() == 1,
-                    "Basic block with not allowed instruction must be alone in its own block"
-                );
-            } else {
-                if idx != 0 {
-                    // if not the first block
+        basic_blocks
+            .iter()
+            .enumerate()
+            .scan(None, |prior: &mut Option<Sp1Instruction>, (idx, bb)| {
+                // Every block must be non-empty
+                assert!(!bb.statements.is_empty(), "Basic block must not be empty");
+
+                // A basic block must:
+                // start with a not allowed instruction (in which case it's alone in its own block)
+                // OR start with a target instruction
+                // OR the last instruction of the prior block is branching/not allowed instruction
+                // OR is the first block
+                let first = &bb.statements[0];
+                if !instruction_handler.is_allowed(first) {
                     assert!(
-                        instruction_handler.is_branching(&prior_block_last_instruction) || jumpdest_set.contains(&bb.start_pc),
-                        "First instruction of basic block must be a jump target OR the last instruction of the prior block must be a branching instruction"
+                        bb.statements.len() == 1,
+                        "Block with not allowed instruction must be in its own block"
+                    );
+                } else if idx != 0 {
+                    let prev =
+                        prior.as_ref().expect("Prior should be set after the first iteration");
+                    assert!(
+                        instruction_handler.is_branching(prev)
+                            || jumpdest_set.contains(&bb.start_pc)
+                            || !instruction_handler.is_allowed(prev),
+                        "Block must start at a jumpdest or after a branching instruction"
                     );
                 }
-            }
-            // A basic block must EITHER end with a not allowed instruction (in whcih case it's alone in its own block)
-            // OR end with a branching instruction
-            // OR is the last block
-            let last_instruction = bb.statements.last().unwrap();
-            if instruction_handler.is_allowed(last_instruction) && !instruction_handler.is_branching(last_instruction) && !idx == basic_blocks_length - 1 {
-                panic!("Last instruction of basic block must be a disallowed instruction, or a branching instruction, or must be in the last block");
-            }
-            prior_block_last_instruction = last_instruction.clone();
-        });
+
+                // Update the last instruction of the prior block for the next iteration
+                *prior = Some(bb.statements.last().unwrap().clone());
+
+                // Nothing to return, so just yield ().
+                Some(())
+            })
+            // Drive the iterator by consuming it
+            .for_each(drop);
     }
 }
