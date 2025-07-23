@@ -1,4 +1,5 @@
 pub mod adapter;
+pub mod air_stats;
 pub mod air_to_symbolic_machine;
 pub mod bus_interaction_handler;
 pub mod bus_map;
@@ -120,16 +121,14 @@ mod apc_snapshot_tests {
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler,
+            adapter::Sp1ApcAdapter, air_stats::evaluate_apc,
+            bus_interaction_handler::Sp1BusInteractionHandler, bus_map::sp1_bus_map,
+            instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
 
     fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
-        let basic_block_str =
-            basic_block.iter().map(|inst| format!("//   {inst:?}")).collect::<Vec<_>>().join("\n");
-
         let vm_config = VmConfig {
             instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
@@ -139,12 +138,17 @@ mod apc_snapshot_tests {
         let degree_bound = DegreeBound { identities: 3, bus_interactions: 2 };
         let block = BasicBlock {
             start_pc: 0,
-            statements: basic_block.into_iter().map(Into::into).collect(),
+            statements: basic_block.iter().cloned().map(Into::into).collect(),
         };
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
+
+        let basic_block_str =
+            basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
+        let evaluation = evaluate_apc(&basic_block, &apc.machine);
         let actual = format!(
-            "// APC for basic block:\n{basic_block_str}\n//\n{}",
+            "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
+            evaluation,
             apc.machine.render(&sp1_bus_map())
         );
 

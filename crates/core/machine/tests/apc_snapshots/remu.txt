@@ -1,6 +1,11 @@
-// APC for basic block:
-//   remu       %x1        %x2        %x3       
-//
+Instructions:
+  remu       %x1        %x2        %x3       
+
+APC advantage:
+  - Main columns: 251 -> 129 (effectiveness: 1.95)
+  - Bus interactions: 119 -> 104 (effectiveness: 1.14)
+  - Constraints: 352 -> 93 (effectiveness: 3.78)
+
 // Symbolic machine using 129 unique main columns
 
 // Bus 1 (MEMORY):

@@ -1,6 +1,11 @@
-// APC for basic block:
-//   blt        %x1        %x2        100       
-//
+Instructions:
+  blt        %x1        %x2        100       
+
+APC advantage:
+  - Main columns: 45 -> 29 (effectiveness: 1.55)
+  - Bus interactions: 16 -> 15 (effectiveness: 1.07)
+  - Constraints: 49 -> 24 (effectiveness: 2.04)
+
 // Symbolic machine using 29 unique main columns
 
 // Bus 1 (MEMORY):
