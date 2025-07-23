@@ -1,3 +1,6 @@
+// APC for basic block:
+//   addi       %x29       %x0        5         
+//
 // Symbolic machine using 12 unique main columns
 
 // Bus 1 (MEMORY):
