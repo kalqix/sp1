@@ -10,7 +10,7 @@ pub mod memory_bus_interaction;
 pub mod program;
 
 use powdr_autoprecompiles::blocks::{collect_basic_blocks, BasicBlock};
-use sp1_build::{generate_elf_paths, BuildArgs, DEFAULT_TARGET_64};
+use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::Program;
 use std::collections::BTreeSet;
 
@@ -20,18 +20,13 @@ use crate::autoprecompiles::{
 };
 
 pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
-    sp1_helper::build_program_with_args(guest_path, build_args.clone());
-    let program_dir = std::path::Path::new(guest_path);
-    let metadata_file = program_dir.join("Cargo.toml");
-    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
-    let target_elf_paths = generate_elf_paths(&metadata, Some(&build_args))
-        .expect("failed to collect target ELF paths");
-    // For now, take the first elf path
-    // TODO: add a filter input argument and assert only one elf is left after filtering
-    let out_path = target_elf_paths[0].1.clone();
-
-    out_path.to_string()
+    let guest_path = std::path::Path::new(guest_path).to_path_buf();
+    // Currently we only take the first elf path built from the given `guest_path`, assuming that
+    // there's only one binary in `guest_path` TODO: add a filter input argument and assert only
+    // one elf is left after filtering
+    let elf_path =
+        sp1_build::execute_build_program(&build_args, Some(guest_path)).unwrap()[0].1.clone();
+    elf_path.to_string()
 }
 
 pub fn compile_exe_with_elf(elf: &[u8]) -> CompiledProgram {
