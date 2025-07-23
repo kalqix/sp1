@@ -207,7 +207,6 @@ mod apc_snapshot_tests {
         let basic_blocks = compiled_program.basic_blocks;
         let basic_blocks_length = basic_blocks.len();
         assert_eq!(basic_blocks_length, 1601);
-        basic_blocks.iter().for_each(|bb| println!("{:?}", bb));
 
         // Check the validity of each basic block
         let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
