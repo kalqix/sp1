@@ -184,109 +184,115 @@ mod apc_snapshot_tests {
 
     #[test]
     fn test_add() {
-        let basic_block = vec![Instruction::new(Opcode::ADD, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::ADD, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "add")
     }
 
     #[test]
     fn test_sub() {
-        let basic_block = vec![Instruction::new(Opcode::SUB, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::SUB, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "sub")
     }
 
     #[test]
     fn test_xor() {
-        let basic_block = vec![Instruction::new(Opcode::XOR, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::XOR, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "xor")
     }
 
     #[test]
     fn test_or() {
-        let basic_block = vec![Instruction::new(Opcode::OR, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::OR, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "or")
     }
 
     #[test]
     fn test_and() {
-        let basic_block = vec![Instruction::new(Opcode::AND, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::AND, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "and")
     }
 
     #[test]
     fn test_sll() {
-        let basic_block = vec![Instruction::new(Opcode::SLL, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::SLL, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "sll")
     }
 
     #[test]
     fn test_srl() {
-        let basic_block = vec![Instruction::new(Opcode::SRL, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::SRL, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "srl")
     }
 
     #[test]
     fn test_sra() {
-        let basic_block = vec![Instruction::new(Opcode::SRA, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::SRA, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "sra")
     }
 
     #[test]
     fn test_slt() {
-        let basic_block = vec![Instruction::new(Opcode::SLT, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::SLT, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "slt")
     }
 
     #[test]
     fn test_sltu() {
+        let basic_block = vec![Instruction::new(Opcode::SLTU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "sltu")
+    }
+
+    #[test]
+    fn test_sltui() {
         let basic_block = vec![Instruction::new(Opcode::SLTU, 1, 2, 3, false, true)];
         assert_machine_output(basic_block, "sltu")
     }
 
     #[test]
     fn test_mul() {
-        let basic_block = vec![Instruction::new(Opcode::MUL, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::MUL, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "mul")
     }
 
     #[test]
     fn test_mulh() {
-        let basic_block = vec![Instruction::new(Opcode::MULH, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::MULH, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "mulh")
     }
 
     #[test]
     fn test_mulhu() {
-        let basic_block = vec![Instruction::new(Opcode::MULHU, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::MULHU, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "mulhu")
     }
 
     #[test]
     fn test_mulhsu() {
-        let basic_block = vec![Instruction::new(Opcode::MULHSU, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::MULHSU, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "mulhsu")
     }
 
     #[test]
     fn test_div() {
-        let basic_block = vec![Instruction::new(Opcode::DIV, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::DIV, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "div")
     }
 
     #[test]
     fn test_divu() {
-        let basic_block = vec![Instruction::new(Opcode::DIVU, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::DIVU, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "divu")
     }
 
     #[test]
     fn test_rem() {
-        let basic_block = vec![Instruction::new(Opcode::REM, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::REM, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "rem")
     }
 
     #[test]
     fn test_remu() {
-        let basic_block = vec![Instruction::new(Opcode::REMU, 1, 2, 3, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::REMU, 1, 2, 3, false, false)];
         assert_machine_output(basic_block, "remu")
     }
 
@@ -340,37 +346,37 @@ mod apc_snapshot_tests {
 
     #[test]
     fn test_beq() {
-        let basic_block = vec![Instruction::new(Opcode::BEQ, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BEQ, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "beq")
     }
 
     #[test]
     fn test_bne() {
-        let basic_block = vec![Instruction::new(Opcode::BNE, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BNE, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "bne")
     }
 
     #[test]
     fn test_blt() {
-        let basic_block = vec![Instruction::new(Opcode::BLT, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BLT, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "blt")
     }
 
     #[test]
     fn test_bge() {
-        let basic_block = vec![Instruction::new(Opcode::BGE, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BGE, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "bge")
     }
 
     #[test]
     fn test_bltu() {
-        let basic_block = vec![Instruction::new(Opcode::BLTU, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BLTU, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "bltu")
     }
 
     #[test]
     fn test_bgeu() {
-        let basic_block = vec![Instruction::new(Opcode::BGEU, 1, 2, 100, false, true)];
+        let basic_block = vec![Instruction::new(Opcode::BGEU, 1, 2, 100, false, false)];
         assert_machine_output(basic_block, "bgeu")
     }
 
