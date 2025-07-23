@@ -1053,7 +1053,6 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
- "itertools 0.13.0",
  "sp1-primitives 6.0.0",
 ]
 

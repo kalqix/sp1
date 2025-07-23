@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use cargo_metadata::semver;
-use itertools::Itertools;
 use std::{
     io::{BufRead, BufReader},
     process::{exit, Command, Stdio},
@@ -51,7 +50,7 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
 /// Rust flags for compilation of C libraries.
 #[allow(clippy::uninlined_format_args)]
-pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Version) -> String {
+pub(crate) fn get_rust_compiler_flags(_args: &BuildArgs, version: &semver::Version) -> String {
     // Note: as of 1.81.0, the `-C passes=loweratomic` flag is deprecated, because of a change to
     // llvm.
     let atomic_lower_pass = if version > &semver::Version::new(1, 81, 0) {
@@ -62,17 +61,16 @@ pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Versio
 
     // Start the section at the top of the stack for semantic purposes.
     // The stack will grow down to 0, never colliding with the start of the heap or static data.
-    [
+    let rust_flags = [
         "-C",
         atomic_lower_pass,
         "-C",
         &format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
         "-C",
         "panic=abort",
-    ]
-    .into_iter()
-    .chain(args.rustflags.iter().map(|s| s.as_str()))
-    .join("\x1f")
+    ];
+
+    rust_flags.join("\x1f")
 }
 
 /// Execute the command and handle the output depending on the context.

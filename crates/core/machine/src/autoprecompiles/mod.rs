@@ -51,11 +51,7 @@ pub fn compile_exe(guest_path: &str) -> CompiledProgram {
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
-    BuildArgs {
-        rustflags: vec!["-C".to_string(), "link-arg=--emit-relocs".to_string()],
-        build_target: DEFAULT_TARGET_64.to_string(),
-        ..Default::default()
-    }
+    BuildArgs { build_target: DEFAULT_TARGET_64.to_string(), ..Default::default() }
 }
 
 pub struct CompiledProgram {
@@ -211,42 +207,33 @@ mod apc_snapshot_tests {
         // Check the validity of each basic block
         let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
 
-        basic_blocks
-            .iter()
-            .enumerate()
-            .scan(None, |prior: &mut Option<Sp1Instruction>, (idx, bb)| {
-                // Every block must be non-empty
-                assert!(!bb.statements.is_empty(), "Basic block must not be empty");
+        basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {
+            // Every block must be non-empty
+            assert!(!bb.statements.is_empty(), "Basic block must not be empty");
 
-                // A basic block must:
-                // start with a not allowed instruction (in which case it's alone in its own block)
-                // OR start with a target instruction
-                // OR the last instruction of the prior block is branching/not allowed instruction
-                // OR is the first block
-                let first = &bb.statements[0];
-                if !instruction_handler.is_allowed(first) {
-                    assert!(
-                        bb.statements.len() == 1,
-                        "Block with not allowed instruction must be in its own block"
-                    );
-                } else if idx != 0 {
-                    let prev =
-                        prior.as_ref().expect("Prior should be set after the first iteration");
-                    assert!(
-                        instruction_handler.is_branching(prev)
-                            || jumpdest_set.contains(&bb.start_pc)
-                            || !instruction_handler.is_allowed(prev),
-                        "Block must start at a jumpdest or after a branching instruction"
-                    );
-                }
+            // A basic block must:
+            // start with a not allowed instruction (in which case it's alone in its own block)
+            // OR start with a target instruction
+            // OR the last instruction of the prior block is branching/not allowed instruction
+            // OR is the first block
+            let first = &bb.statements[0];
+            if !instruction_handler.is_allowed(first) {
+                assert!(
+                    bb.statements.len() == 1,
+                    "Block with not allowed instruction must be in its own block"
+                );
+            } else if idx != 0 {
+                let prev = prior.as_ref().expect("Prior should be set after the first iteration");
+                assert!(
+                    instruction_handler.is_branching(prev)
+                        || jumpdest_set.contains(&bb.start_pc)
+                        || !instruction_handler.is_allowed(prev),
+                    "Block must start at a jumpdest or after a branching instruction"
+                );
+            }
 
-                // Update the last instruction of the prior block for the next iteration
-                *prior = Some(bb.statements.last().unwrap().clone());
-
-                // Nothing to return, so just yield ().
-                Some(())
-            })
-            // Drive the iterator by consuming it
-            .for_each(drop);
+            // Update the last instruction of the prior block for the next iteration
+            Some(bb.statements.last().unwrap().clone())
+        });
     }
 }
