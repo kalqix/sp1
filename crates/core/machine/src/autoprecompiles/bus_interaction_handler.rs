@@ -109,48 +109,48 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
     // We know that b and c must be bytes:
     let b = b.conjunction(&byte_constraint());
     let c = c.conjunction(&byte_constraint());
+    let zero = RangeConstraint::from_value(BabyBearField::zero());
 
     // The range constraint on `a` depends on the opcode.
-    match opcode.try_to_single_value().map(|v| v.to_degree()) {
+    let (a, b, c) = match opcode.try_to_single_value().map(|v| v.to_degree()) {
         // AND: a = b & c
         Some(0) => {
             if let (Some(b_value), Some(c_value)) =
                 (b.try_to_single_value(), c.try_to_single_value())
             {
                 let a = BabyBearField::from(b_value.to_degree() & c_value.to_degree());
-                vec![opcode.clone(), RangeConstraint::from_value(a), b, c]
+                (RangeConstraint::from_value(a), b, c)
             } else {
                 let a = b.conjunction(&c);
-                vec![opcode.clone(), a, b, c]
+                (a, b, c)
             }
         }
         // OR: a = b | c
         Some(1) => {
             if let (Some(b_val), Some(c_val)) = (b.try_to_single_value(), c.try_to_single_value()) {
                 let a = BabyBearField::from(b_val.to_degree() | c_val.to_degree());
-                vec![opcode.clone(), RangeConstraint::from_value(a), b, c]
+                (RangeConstraint::from_value(a), b, c)
             } else {
                 let a = b.disjunction(&c);
-                vec![opcode.clone(), a, b, c]
+                (a, b, c)
             }
         }
         // XOR: a = b ^ c
         Some(2) => {
             if let (Some(b_val), Some(c_val)) = (b.try_to_single_value(), c.try_to_single_value()) {
                 let a = BabyBearField::from(b_val.to_degree() ^ c_val.to_degree());
-                vec![opcode.clone(), RangeConstraint::from_value(a), b, c]
+                (RangeConstraint::from_value(a), b, c)
             } else {
                 let a = b.disjunction(&c);
-                vec![opcode.clone(), a, b, c]
+                (a, b, c)
             }
         }
         // U8Range: assert(a == 0 && b < 256 && c < 256)
-        Some(3) => vec![
-            opcode.clone(),
+        Some(3) => (
             RangeConstraint::from_value(BabyBearField::zero()),
             byte_constraint(),
             byte_constraint(),
-        ],
+        ),
         // LTU: a = b < c
         Some(4) => {
             if let (Some(b_val), Some(c_val)) = (b.try_to_single_value(), c.try_to_single_value()) {
@@ -160,9 +160,9 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
                 } else {
                     BabyBearField::zero()
                 };
-                vec![opcode.clone(), RangeConstraint::from_value(result), b, c]
+                (RangeConstraint::from_value(result), b, c)
             } else {
-                vec![opcode.clone(), RangeConstraint::from_mask(0x1u64), b, c]
+                (RangeConstraint::from_mask(0x1u64), b, c)
             }
         }
         // MSB: a = b >> 7, c = 0
@@ -170,19 +170,9 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
             if let Some(b_val) = b.try_to_single_value() {
                 assert!(b_val.to_degree() < 256);
                 let result = BabyBearField::from((b_val.to_degree() >> 7) & 1);
-                vec![
-                    opcode.clone(),
-                    RangeConstraint::from_value(result),
-                    b,
-                    RangeConstraint::from_value(BabyBearField::zero()),
-                ]
+                (RangeConstraint::from_value(result), b, zero)
             } else {
-                vec![
-                    opcode.clone(),
-                    RangeConstraint::from_mask(0x1u64),
-                    b,
-                    RangeConstraint::from_value(BabyBearField::zero()),
-                ]
+                (RangeConstraint::from_mask(0x1u64), b, zero)
             }
         }
         // SR: a = b >> c
@@ -194,32 +184,37 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
                 } else {
                     BabyBearField::zero()
                 };
-                vec![opcode.clone(), RangeConstraint::from_value(result), b, c]
+                (RangeConstraint::from_value(result), b, c)
             } else {
-                vec![opcode.clone(), byte_constraint(), b, c]
+                (byte_constraint(), b, c)
             }
         }
         // Range: assert(a <= 2**b && c == 0)
         Some(7) => {
+            let b = b.conjunction(&RangeConstraint::from_range(
+                BabyBearField::zero(),
+                BabyBearField::from(16),
+            ));
             let max_bit = if let Some(b_val) = b.try_to_single_value() {
                 assert!(b_val.to_degree() <= 16);
                 b_val.to_degree()
             } else {
-                17
+                b.range().1.to_degree()
             };
             let a = a.conjunction(&RangeConstraint::from_mask((1u64 << max_bit) - 1));
-            vec![opcode.clone(), a, b, c]
+            (a, b, zero)
         }
         None => {
             // The opcode is unknown, but the largest value `a` can have is 0xffff
             // (if opcode = 7 and b = 16).
             let a = a.conjunction(&bit16_constraint());
-            vec![opcode.clone(), a, b, c]
+            (a, b, c)
         }
         Some(unexpected_opcode) => {
             unreachable!("Unknown opcode in byte bus interaction: {unexpected_opcode}")
         }
-    }
+    };
+    vec![opcode.clone(), a, b, c]
 }
 
 fn byte_constraint() -> RangeConstraint<BabyBearField> {
