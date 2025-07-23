@@ -28,11 +28,11 @@ sp1-primitives = { workspace = true }
 sp1-build = { workspace = true }
 
 # Use powdr main of 07-23
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "2a7abb8", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "2a7abb8", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "2a7abb8", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "2a7abb8", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "2a7abb8", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "0322973", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "0322973", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "0322973", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "0322973", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "0322973", default-features = false }
 
 # Use local powdr
 # powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }
