@@ -28,7 +28,7 @@ sp1-primitives = { workspace = true }
 sp1-helper = { workspace = true }
 sp1-build = { workspace = true }
 
-# Use powdr main of 07-15
+# Use powdr main of 07-22
 powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "c390b07", default-features = false }
 powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "c390b07", default-features = false }
 powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "c390b07", default-features = false }

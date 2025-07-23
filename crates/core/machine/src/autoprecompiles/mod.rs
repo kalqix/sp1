@@ -6,6 +6,7 @@ pub mod candidate;
 pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
+pub mod memory_bus_interaction;
 pub mod program;
 
 use powdr_autoprecompiles::blocks::{collect_basic_blocks, BasicBlock};
@@ -117,8 +118,10 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
+    use std::{fs, path::Path};
     use super::*;
     use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
+    use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
 
     use crate::{
@@ -128,10 +131,9 @@ mod apc_snapshot_tests {
         },
         utils::setup_logger,
     };
-
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 
-    fn compile(basic_block: Vec<Instruction>) -> String {
+    fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
         let vm_config = VmConfig {
             instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
@@ -153,16 +155,40 @@ mod apc_snapshot_tests {
         tracing::info!("Original AIR:\n{original_air}");
 
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
-        apc.machine.render(&sp1_bus_map())
+        let actual = apc.machine.to_string();
+
+        let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("apc_snapshots")
+            .join(format!("{test_name}.txt"));
+
+        match fs::read_to_string(&expected_path) {
+            Ok(expected) => {
+                assert_eq!(
+                    expected.trim(),
+                    actual.trim(),
+                    "The output of `{test_name}` does not match the expected output. \
+                 To re-generate the expected output, delete the file `{}` and re-run the test.",
+                    expected_path.display()
+                );
+            }
+            _ => {
+                // Write the new expected output to the file
+                fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
+                fs::write(&expected_path, actual).unwrap();
+
+                tracing::info!(
+                    "Expected output for `{test_name}` was updated. Re-run the test to confirm."
+                );
+            }
+        }
     }
 
     #[test]
-    #[should_panic]
     fn test_add() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
-        let rendered = compile(basic_block);
-        tracing::info!("{rendered}");
+        assert_machine_output(basic_block, "addi")
     }
 
     #[test]
