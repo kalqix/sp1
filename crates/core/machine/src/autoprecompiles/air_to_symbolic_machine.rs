@@ -1,12 +1,14 @@
 use core::fmt;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
+use itertools::Itertools;
 use powdr_autoprecompiles::{
-    expression::AlgebraicReference, SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
+    expression::AlgebraicReference, powdr::UniqueReferences, SymbolicBusInteraction,
+    SymbolicConstraint, SymbolicMachine,
 };
 use powdr_expression::{
-    AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicExpression,
-    AlgebraicUnaryOperation, AlgebraicUnaryOperator,
+    visitors::ExpressionVisitable, AlgebraicBinaryOperation, AlgebraicBinaryOperator,
+    AlgebraicExpression, AlgebraicUnaryOperation, AlgebraicUnaryOperator,
 };
 
 use slop_air::{Air, BaseAir};
@@ -21,6 +23,53 @@ use crate::{
     autoprecompiles::interaction_builder::{Interaction, InteractionBuilder},
     riscv::RiscvAir,
 };
+
+/// Reassigns IDs in the symbolic machine to be dense, starting from 0.
+pub fn densify_ids<F: PrimeField32>(machine: SymbolicMachine<F>) -> SymbolicMachine<F> {
+    let id_map = machine
+        .unique_references()
+        .map(|r| r.id)
+        .sorted()
+        .enumerate()
+        .map(|(new_id, old_id)| (old_id, new_id as u64))
+        .collect::<BTreeMap<_, _>>();
+
+    SymbolicMachine {
+        constraints: machine
+            .constraints
+            .into_iter()
+            .map(|c| SymbolicConstraint { expr: densify_ids_expr(c.expr, &id_map) })
+            .collect(),
+        bus_interactions: machine
+            .bus_interactions
+            .into_iter()
+            .map(|bi| densify_ids_bus_interaction(bi, &id_map))
+            .collect(),
+    }
+}
+
+fn densify_ids_expr<F>(
+    mut expr: AlgebraicExpression<F, AlgebraicReference>,
+    id_map: &BTreeMap<u64, u64>,
+) -> AlgebraicExpression<F, AlgebraicReference> {
+    expr.pre_visit_expressions_mut(&mut |e| {
+        if let AlgebraicExpression::Reference(ref mut r) = e {
+            r.id = *id_map.get(&r.id).unwrap();
+        }
+    });
+    expr
+}
+
+fn densify_ids_bus_interaction<F>(
+    interaction: SymbolicBusInteraction<F>,
+    id_map: &BTreeMap<u64, u64>,
+) -> SymbolicBusInteraction<F> {
+    SymbolicBusInteraction {
+        id: interaction.id,
+        mult: densify_ids_expr(interaction.mult, id_map),
+        args: interaction.args.into_iter().map(|arg| densify_ids_expr(arg, id_map)).collect(),
+    }
+}
 
 pub fn air_to_symbolic_machine<F: PrimeField32>(
     air: &RiscvAir<F>,
