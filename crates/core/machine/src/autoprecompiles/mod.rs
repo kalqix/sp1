@@ -113,8 +113,7 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use super::*;
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, InstructionHandler, VmConfig};
+    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, VmConfig};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
     use std::{fs, path::Path};
@@ -126,9 +125,11 @@ mod apc_snapshot_tests {
         },
         utils::setup_logger,
     };
-    const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 
     fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
+        let basic_block_str =
+            basic_block.iter().map(|inst| format!("//   {inst:?}")).collect::<Vec<_>>().join("\n");
+
         let vm_config = VmConfig {
             instruction_handler: &Sp1InstructionHandler::new(),
             bus_interaction_handler: Sp1BusInteractionHandler::default(),
@@ -141,15 +142,11 @@ mod apc_snapshot_tests {
             statements: basic_block.into_iter().map(Into::into).collect(),
         };
 
-        let original_air = vm_config
-            .instruction_handler
-            .get_instruction_air(&block.statements[0])
-            .expect("Failed to get instruction AIR")
-            .render(&vm_config.bus_map);
-        tracing::info!("Original AIR:\n{original_air}");
-
         let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
-        let actual = apc.machine.render(&sp1_bus_map());
+        let actual = format!(
+            "// APC for basic block:\n{basic_block_str}\n//\n{}",
+            apc.machine.render(&sp1_bus_map())
+        );
 
         let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
@@ -179,11 +176,21 @@ mod apc_snapshot_tests {
     }
 
     #[test]
-    fn test_add() {
+    fn test_addi() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         assert_machine_output(basic_block, "addi")
     }
+}
+
+#[cfg(test)]
+mod basic_block_detection_tests {
+    use super::*;
+    use powdr_autoprecompiles::InstructionHandler;
+    use pretty_assertions::assert_eq;
+
+    use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};
+    const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 
     #[test]
     fn test_collect_basic_blocks() {
