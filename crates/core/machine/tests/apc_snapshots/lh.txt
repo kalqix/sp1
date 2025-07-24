@@ -2,11 +2,11 @@ Instructions:
   lh         %x1        %x2        100       
 
 APC advantage:
-  - Main columns: 44 -> 32 (effectiveness: 1.38)
+  - Main columns: 44 -> 33 (effectiveness: 1.33)
   - Bus interactions: 22 -> 21 (effectiveness: 1.05)
-  - Constraints: 33 -> 15 (effectiveness: 2.20)
+  - Constraints: 33 -> 16 (effectiveness: 2.06)
 
-// Symbolic machine using 32 unique main columns
+// Symbolic machine using 33 unique main columns
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_0, memory_access__access_timestamp__prev_low_0, address_operation__addr_word_operation__value__0_0 - (2 * offset_bit__0_0 + 4 * offset_bit__1_0), address_operation__addr_word_operation__value__1_0, address_operation__addr_word_operation__value__2_0, memory_access__prev_value__0__0_0, memory_access__prev_value__0__1_0, memory_access__prev_value__0__2_0, memory_access__prev_value__0__3_0]
@@ -21,7 +21,7 @@ mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__0_0, 
 mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__1_0, 16, 0]
 mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__2_0, 16, 0]
 mult=is_valid * 1, args=[7, 503316480 * offset_bit__0_0 + 1006632960 * offset_bit__1_0 - 251658240 * address_operation__addr_word_operation__value__0_0, 13, 0]
-mult=is_valid * 1, args=[7, memory_access__access_timestamp__compare_low_0 * (65536 * state__clk_16_24_0 + state__clk_0_16_0) + (1 - memory_access__access_timestamp__compare_low_0) * state__clk_high_0 + (memory_access__access_timestamp__compare_low_0 - 1) * memory_access__access_timestamp__prev_high_0 - (memory_access__access_timestamp__compare_low_0 * memory_access__access_timestamp__prev_low_0 + 65536 * memory_access__access_timestamp__diff_high_limb_0 + 1), 16, 0]
+mult=is_valid * 1, args=[7, memory_access__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_0, 0]
 mult=is_valid * 1, args=[7, 2 * selected_half_0 - 65536 * msb__msb_0, 16, 0]
 mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
@@ -45,6 +45,7 @@ offset_bit__1_0 * (offset_bit__1_0 - 1) = 0
 address_operation__top_two_limb_min_0 * (address_operation__addr_word_operation__value__1_0 + address_operation__addr_word_operation__value__2_0) - 1 * is_valid = 0
 memory_access__access_timestamp__compare_low_0 * (memory_access__access_timestamp__compare_low_0 - 1) = 0
 memory_access__access_timestamp__compare_low_0 * (state__clk_high_0 - memory_access__access_timestamp__prev_high_0) = 0
+memory_access__access_timestamp__compare_low_0 * (65536 * state__clk_16_24_0 + state__clk_0_16_0) + (1 - memory_access__access_timestamp__compare_low_0) * state__clk_high_0 + (memory_access__access_timestamp__compare_low_0 - 1) * memory_access__access_timestamp__prev_high_0 - (memory_access__access_timestamp__compare_low_0 * memory_access__access_timestamp__prev_low_0 + memory_access__access_timestamp__diff_low_limb_0 + 65536 * memory_access__access_timestamp__diff_high_limb_0 + 1 * is_valid) = 0
 (offset_bit__0_0 - 1) * ((offset_bit__1_0 - 1) * (selected_half_0 - memory_access__prev_value__0__0_0)) = 0
 offset_bit__0_0 * ((offset_bit__1_0 - 1) * (selected_half_0 - memory_access__prev_value__0__1_0)) = 0
 (offset_bit__0_0 - 1) * (offset_bit__1_0 * (selected_half_0 - memory_access__prev_value__0__2_0)) = 0

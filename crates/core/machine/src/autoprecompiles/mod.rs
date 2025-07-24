@@ -10,15 +10,54 @@ pub mod interaction_builder;
 pub mod memory_bus_interaction;
 pub mod program;
 
-use powdr_autoprecompiles::blocks::{collect_basic_blocks, BasicBlock};
+use powdr_autoprecompiles::{
+    adapter::AdapterApc,
+    blocks::{collect_basic_blocks, generate_apcs_with_pgo},
+    DegreeBound, PgoConfig, PowdrConfig,
+};
+use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::Program;
-use std::collections::BTreeSet;
 
 use crate::autoprecompiles::{
-    adapter::Sp1ApcAdapter, instruction::Sp1Instruction,
-    instruction_handler::Sp1InstructionHandler, program::Sp1Program,
+    adapter::Sp1ApcAdapter,
+    bus_interaction_handler::Sp1BusInteractionHandler,
+    bus_map::{sp1_bus_map, Sp1SpecificBuses},
+    instruction_handler::Sp1InstructionHandler,
+    program::Sp1Program,
 };
+
+const SP1_DEGREE_BOUND: usize = 3;
+const DEFAULT_DEGREE_BOUND: DegreeBound =
+    DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
+
+// TODO: remove opcode from PowdrConfig
+const POWDR_OPCODE: usize = 0x10ff;
+pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
+    'a,
+    Sp1InstructionHandler<BabyBear>,
+    Sp1BusInteractionHandler,
+    Sp1SpecificBuses,
+>;
+
+pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
+    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND, POWDR_OPCODE)
+}
+
+pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<BabyBear>) -> VmConfig<'a> {
+    // Need to pass in a handler due to VmConfig lifetime OR return a static lifetime VmConfig
+    VmConfig {
+        instruction_handler: handler,
+        bus_interaction_handler: Sp1BusInteractionHandler::default(),
+        bus_map: sp1_bus_map(),
+    }
+}
+
+pub fn build_elf(guest_path: &str) -> Vec<u8> {
+    let build_args = powdr_default_build_args();
+    let elf_path = build_elf_path(guest_path, build_args);
+    std::fs::read(elf_path).unwrap()
+}
 
 pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
     let guest_path = std::path::Path::new(guest_path).to_path_buf();
@@ -30,20 +69,13 @@ pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
     elf_path.to_string()
 }
 
-pub fn compile_exe_with_elf(elf: &[u8]) -> CompiledProgram {
-    let labels = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf);
-
-    let original_program = Program::from(elf).unwrap();
-
-    CompiledProgram::new(original_program, &labels.jumpdests)
-}
-
-pub fn compile_exe(guest_path: &str) -> CompiledProgram {
-    let build_args = powdr_default_build_args();
-    let elf_path = build_elf_path(guest_path, build_args);
-    let elf = std::fs::read(elf_path).unwrap();
-
-    compile_exe_with_elf(&elf)
+pub fn compile_guest(
+    guest_path: &str,
+    config: PowdrConfig,
+    pgo_config: PgoConfig,
+) -> CompiledProgram {
+    let elf = build_elf(guest_path);
+    CompiledProgram::new(&elf, config, pgo_config)
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
@@ -51,18 +83,31 @@ pub fn powdr_default_build_args() -> BuildArgs {
 }
 
 pub struct CompiledProgram {
-    pub basic_blocks: Vec<BasicBlock<Sp1Instruction>>,
+    pub apcs: Vec<AdapterApc<Sp1ApcAdapter>>,
 }
 
 impl CompiledProgram {
-    pub fn new(original_program: Program, labels: &BTreeSet<u64>) -> Self {
-        let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(
-            &Sp1Program::from(original_program),
-            labels,
-            &Sp1InstructionHandler::new(),
-        );
+    pub fn new(elf: &[u8], config: PowdrConfig, pgo_config: PgoConfig) -> Self {
+        let program = Sp1Program::from(Program::from(elf).unwrap());
+        let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
-        Self { basic_blocks }
+        let airs = Sp1InstructionHandler::<BabyBear>::new();
+        let vm_config = sp1_vm_config(&airs);
+
+        // Currently we don't support the max_total_apc_columns option for cell PGO
+        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
+
+        // Collect basic blocks
+        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
+        tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
+
+        // Generate APC
+        let apcs =
+            generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
+
+        let apcs = apcs.into_iter().map(|(apc, _)| apc).collect::<Vec<_>>();
+
+        Self { apcs }
     }
 }
 
@@ -114,34 +159,30 @@ mod machine_extraction_tests {
 
 #[cfg(test)]
 mod apc_snapshot_tests {
-    use powdr_autoprecompiles::{build, BasicBlock, DegreeBound, VmConfig};
+    use super::*;
+    use powdr_autoprecompiles::{build, BasicBlock};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
     use std::{fs, path::Path};
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter, air_stats::evaluate_apc,
-            bus_interaction_handler::Sp1BusInteractionHandler, bus_map::sp1_bus_map,
+            adapter::Sp1ApcAdapter, air_stats::evaluate_apc, bus_map::sp1_bus_map,
             instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
 
     fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
-        let vm_config = VmConfig {
-            instruction_handler: &Sp1InstructionHandler::new(),
-            bus_interaction_handler: Sp1BusInteractionHandler::default(),
-            bus_map: sp1_bus_map(),
-        };
-        // TODO: Is this correct?
-        let degree_bound = DegreeBound { identities: 3, bus_interactions: 2 };
+        let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
+        let vm_config = sp1_vm_config(&instruction_handler);
         let block = BasicBlock {
             start_pc: 0,
             statements: basic_block.iter().cloned().map(Into::into).collect(),
         };
 
-        let apc = build::<Sp1ApcAdapter>(block, vm_config, degree_bound, 1234, None).unwrap();
+        let apc =
+            build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, 1234, None).unwrap();
 
         let basic_block_str =
             basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
@@ -410,13 +451,25 @@ mod apc_snapshot_tests {
 }
 
 #[cfg(test)]
-mod basic_block_detection_tests {
+mod compile_program_tests {
     use super::*;
+    use crate::{autoprecompiles::instruction::Sp1Instruction, utils::setup_logger};
     use powdr_autoprecompiles::InstructionHandler;
-    use pretty_assertions::assert_eq;
 
-    use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
+    const APC: u64 = 10;
+    const APC_SKIP: u64 = 0;
+
+    #[test]
+    // TODO: currently fails at `check_register_operation_consistency` in APC optimizer stage
+    #[should_panic]
+    fn test_compile_program() {
+        setup_logger();
+
+        let config = sp1_powdr_config(APC, APC_SKIP);
+        let pgo_config = PgoConfig::None;
+        let _ = compile_guest(GUEST_FIBONACCI, config, pgo_config);
+    }
 
     #[test]
     fn test_collect_basic_blocks() {
@@ -426,12 +479,16 @@ mod basic_block_detection_tests {
         let elf_path = build_elf_path(GUEST_FIBONACCI, build_args);
         let elf = std::fs::read(elf_path).unwrap();
 
+        let sp1_program = Sp1Program::from(Program::from(&elf).unwrap());
         let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
-        let original_program = Program::from(&elf).unwrap();
-        let compiled_program = CompiledProgram::new(original_program, &jumpdest_set);
+        let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
 
         // Check total number of basic blocks produced
-        let basic_blocks = compiled_program.basic_blocks;
+        let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(
+            &sp1_program,
+            &jumpdest_set,
+            &instruction_handler,
+        );
         let basic_blocks_length = basic_blocks.len();
         assert_eq!(basic_blocks_length, 1601);
 
