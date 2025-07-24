@@ -141,8 +141,6 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
                 let a = BabyBearField::from(b_val.to_degree() | c_val.to_degree());
                 (RangeConstraint::from_value(a), b, c)
             } else {
-                // TODO: This a avoids a bug in `RangeConstraint::conjunction`, see:
-                // https://github.com/powdr-labs/powdr/pull/3079
                 let a_mask = b.mask().try_into_u32().unwrap() | c.mask().try_into_u32().unwrap();
                 (RangeConstraint::from_mask(a_mask), b, c)
             }
@@ -153,8 +151,6 @@ fn handle_byte(payload: &[RangeConstraint<BabyBearField>]) -> Vec<RangeConstrain
                 let a = BabyBearField::from(b_val.to_degree() ^ c_val.to_degree());
                 (RangeConstraint::from_value(a), b, c)
             } else {
-                // TODO: This a avoids a bug in `RangeConstraint::conjunction`, see:
-                // https://github.com/powdr-labs/powdr/pull/3079
                 let a_mask = b.mask().try_into_u32().unwrap() | c.mask().try_into_u32().unwrap();
                 (RangeConstraint::from_mask(a_mask), b, c)
             }
