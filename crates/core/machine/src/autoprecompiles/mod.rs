@@ -1,4 +1,5 @@
 pub mod adapter;
+pub mod air_stats;
 pub mod air_to_symbolic_machine;
 pub mod bus_interaction_handler;
 pub mod bus_map;
@@ -171,15 +172,16 @@ mod machine_extraction_tests {
 #[cfg(test)]
 mod apc_snapshot_tests {
     use super::*;
-    use powdr_autoprecompiles::{build, BasicBlock, InstructionHandler, VmConfig};
+    use powdr_autoprecompiles::{build, BasicBlock, VmConfig};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
     use std::{fs, path::Path};
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-            bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler,
+            adapter::Sp1ApcAdapter, air_stats::evaluate_apc,
+            bus_interaction_handler::Sp1BusInteractionHandler, bus_map::sp1_bus_map,
+            instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
     };
@@ -192,19 +194,20 @@ mod apc_snapshot_tests {
         };
         let block = BasicBlock {
             start_pc: 0,
-            statements: basic_block.into_iter().map(Into::into).collect(),
+            statements: basic_block.iter().cloned().map(Into::into).collect(),
         };
-
-        let original_air = vm_config
-            .instruction_handler
-            .get_instruction_air(&block.statements[0])
-            .expect("Failed to get instruction AIR")
-            .render(&vm_config.bus_map);
-        tracing::info!("Original AIR:\n{original_air}");
 
         let apc =
             build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, 1234, None).unwrap();
-        let actual = apc.machine.render(&sp1_bus_map());
+
+        let basic_block_str =
+            basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
+        let evaluation = evaluate_apc(&basic_block, &apc.machine);
+        let actual = format!(
+            "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
+            evaluation,
+            apc.machine.render(&sp1_bus_map())
+        );
 
         let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
@@ -234,17 +237,239 @@ mod apc_snapshot_tests {
     }
 
     #[test]
-    fn test_add() {
+    fn test_addi() {
         setup_logger();
         let basic_block = vec![Instruction::new(Opcode::ADDI, 29, 0, 5, false, true)];
         assert_machine_output(basic_block, "addi")
+    }
+
+    #[test]
+    fn test_add() {
+        let basic_block = vec![Instruction::new(Opcode::ADD, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "add")
+    }
+
+    #[test]
+    fn test_sub() {
+        let basic_block = vec![Instruction::new(Opcode::SUB, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "sub")
+    }
+
+    #[test]
+    fn test_xor() {
+        let basic_block = vec![Instruction::new(Opcode::XOR, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "xor")
+    }
+
+    #[test]
+    fn test_or() {
+        let basic_block = vec![Instruction::new(Opcode::OR, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "or")
+    }
+
+    #[test]
+    fn test_and() {
+        let basic_block = vec![Instruction::new(Opcode::AND, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "and")
+    }
+
+    #[test]
+    fn test_sll() {
+        let basic_block = vec![Instruction::new(Opcode::SLL, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "sll")
+    }
+
+    #[test]
+    fn test_srl() {
+        let basic_block = vec![Instruction::new(Opcode::SRL, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "srl")
+    }
+
+    #[test]
+    fn test_sra() {
+        let basic_block = vec![Instruction::new(Opcode::SRA, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "sra")
+    }
+
+    #[test]
+    fn test_slt() {
+        let basic_block = vec![Instruction::new(Opcode::SLT, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "slt")
+    }
+
+    #[test]
+    fn test_sltu() {
+        let basic_block = vec![Instruction::new(Opcode::SLTU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "sltu")
+    }
+
+    #[test]
+    fn test_sltui() {
+        let basic_block = vec![Instruction::new(Opcode::SLTU, 1, 2, 3, false, true)];
+        assert_machine_output(basic_block, "sltui")
+    }
+
+    #[test]
+    fn test_mul() {
+        let basic_block = vec![Instruction::new(Opcode::MUL, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "mul")
+    }
+
+    #[test]
+    fn test_mulh() {
+        let basic_block = vec![Instruction::new(Opcode::MULH, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "mulh")
+    }
+
+    #[test]
+    fn test_mulhu() {
+        let basic_block = vec![Instruction::new(Opcode::MULHU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "mulhu")
+    }
+
+    #[test]
+    fn test_mulhsu() {
+        let basic_block = vec![Instruction::new(Opcode::MULHSU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "mulhsu")
+    }
+
+    #[test]
+    fn test_div() {
+        let basic_block = vec![Instruction::new(Opcode::DIV, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "div")
+    }
+
+    #[test]
+    fn test_divu() {
+        let basic_block = vec![Instruction::new(Opcode::DIVU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "divu")
+    }
+
+    #[test]
+    fn test_rem() {
+        let basic_block = vec![Instruction::new(Opcode::REM, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "rem")
+    }
+
+    #[test]
+    fn test_remu() {
+        let basic_block = vec![Instruction::new(Opcode::REMU, 1, 2, 3, false, false)];
+        assert_machine_output(basic_block, "remu")
+    }
+
+    #[test]
+    fn test_lb() {
+        let basic_block = vec![Instruction::new(Opcode::LB, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "lb")
+    }
+
+    #[test]
+    fn test_lh() {
+        let basic_block = vec![Instruction::new(Opcode::LH, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "lh")
+    }
+
+    #[test]
+    fn test_lw() {
+        let basic_block = vec![Instruction::new(Opcode::LW, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "lw")
+    }
+
+    #[test]
+    fn test_lbu() {
+        let basic_block = vec![Instruction::new(Opcode::LBU, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "lbu")
+    }
+
+    #[test]
+    fn test_lhu() {
+        let basic_block = vec![Instruction::new(Opcode::LHU, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "lhu")
+    }
+
+    #[test]
+    fn test_sb() {
+        let basic_block = vec![Instruction::new(Opcode::SB, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "sb")
+    }
+
+    #[test]
+    fn test_sh() {
+        let basic_block = vec![Instruction::new(Opcode::SH, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "sh")
+    }
+
+    #[test]
+    fn test_sw() {
+        let basic_block = vec![Instruction::new(Opcode::SW, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "sw")
+    }
+
+    #[test]
+    fn test_beq() {
+        let basic_block = vec![Instruction::new(Opcode::BEQ, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "beq")
+    }
+
+    #[test]
+    fn test_bne() {
+        let basic_block = vec![Instruction::new(Opcode::BNE, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "bne")
+    }
+
+    #[test]
+    fn test_blt() {
+        let basic_block = vec![Instruction::new(Opcode::BLT, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "blt")
+    }
+
+    #[test]
+    fn test_bge() {
+        let basic_block = vec![Instruction::new(Opcode::BGE, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "bge")
+    }
+
+    #[test]
+    fn test_bltu() {
+        let basic_block = vec![Instruction::new(Opcode::BLTU, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "bltu")
+    }
+
+    #[test]
+    fn test_bgeu() {
+        let basic_block = vec![Instruction::new(Opcode::BGEU, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "bgeu")
+    }
+
+    #[test]
+    fn test_jal() {
+        let basic_block = vec![Instruction::new(Opcode::JAL, 1, 0, 100, true, true)];
+        assert_machine_output(basic_block, "jal")
+    }
+
+    #[test]
+    fn test_jalr() {
+        let basic_block = vec![Instruction::new(Opcode::JALR, 1, 2, 100, false, true)];
+        assert_machine_output(basic_block, "jalr")
+    }
+
+    #[test]
+    fn test_auipc() {
+        let basic_block = vec![Instruction::new(Opcode::AUIPC, 1, 0, 0x12345, true, true)];
+        assert_machine_output(basic_block, "auipc")
+    }
+
+    #[test]
+    fn test_lui() {
+        let basic_block = vec![Instruction::new(Opcode::LUI, 1, 0, 0x12345, true, true)];
+        assert_machine_output(basic_block, "lui")
     }
 }
 
 #[cfg(test)]
 mod compile_program_tests {
     use super::*;
-    use crate::utils::setup_logger;
+    use crate::{autoprecompiles::instruction::Sp1Instruction, utils::setup_logger};
     use powdr_autoprecompiles::InstructionHandler;
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
