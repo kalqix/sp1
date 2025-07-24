@@ -450,6 +450,16 @@ mod apc_snapshot_tests {
     }
 
     #[test]
+    fn test_two_ld() {
+        // Used to trigger a failure of `check_register_operation_consistency`
+        let basic_block = vec![
+            Instruction::new(Opcode::LD, 12, 10, 0, false, true),
+            Instruction::new(Opcode::LD, 10, 12, 8, false, true),
+        ];
+        assert_machine_output(basic_block, "two_ld")
+    }
+
+    #[test]
     fn test_memory_optimizer() {
         setup_logger();
         let basic_block = vec![
@@ -473,8 +483,6 @@ mod compile_program_tests {
     const APC_SKIP: u64 = 0;
 
     #[test]
-    // TODO: currently fails at `check_register_operation_consistency` in APC optimizer stage
-    #[should_panic]
     fn test_compile_program() {
         setup_logger();
 
