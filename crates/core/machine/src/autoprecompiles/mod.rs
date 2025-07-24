@@ -14,7 +14,7 @@ use powdr_autoprecompiles::{
     blocks::{collect_basic_blocks, generate_apcs_with_pgo},
     DegreeBound, PgoConfig, PowdrConfig, VmConfig,
 };
-use sp1_build::{generate_elf_paths, BuildArgs, DEFAULT_TARGET_64};
+use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::Program;
 use std::collections::BTreeSet;
 
@@ -36,18 +36,13 @@ pub fn default_powdr_sp1_config(apc: u64, skip: u64) -> PowdrConfig {
 }
 
 pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
-    sp1_helper::build_program_with_args(guest_path, build_args.clone());
-    let program_dir = std::path::Path::new(guest_path);
-    let metadata_file = program_dir.join("Cargo.toml");
-    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
-    let target_elf_paths = generate_elf_paths(&metadata, Some(&build_args))
-        .expect("failed to collect target ELF paths");
-    // For now, take the first elf path
-    // TODO: add a filter input argument and assert only one elf is left after filtering
-    let out_path = target_elf_paths[0].1.clone();
-
-    out_path.to_string()
+    let guest_path = std::path::Path::new(guest_path).to_path_buf();
+    // Currently we only take the first elf path built from the given `guest_path`, assuming that
+    // there's only one binary in `guest_path` TODO: add a filter input argument and assert only
+    // one elf is left after filtering
+    let elf_path =
+        sp1_build::execute_build_program(&build_args, Some(guest_path)).unwrap()[0].1.clone();
+    elf_path.to_string()
 }
 
 pub fn compile_exe_with_elf(
@@ -135,16 +130,20 @@ mod machine_extraction_tests {
     use pretty_assertions::assert_eq;
     use slop_baby_bear::BabyBear;
 
-    use crate::{autoprecompiles::instruction_handler::Sp1InstructionHandler, utils::setup_logger};
+    use crate::{
+        autoprecompiles::{bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler},
+        utils::setup_logger,
+    };
 
     #[test]
     fn test_extract_machine() {
         setup_logger();
         let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
         let airs = instruction_handler.airs();
-        // TODO: Use `render(bus_map)` instead of `to_string()`, once the bus map is complete.
         let rendered = airs
-            .map(|(instruction_type, air)| format!("# {instruction_type:?}\n{air}"))
+            .map(|(instruction_type, air)| {
+                format!("# {instruction_type:?}\n{}", air.render(&sp1_bus_map()))
+            })
             .join("\n\n\n");
 
         let path =
@@ -200,13 +199,12 @@ mod apc_snapshot_tests {
             .instruction_handler
             .get_instruction_air(&block.statements[0])
             .expect("Failed to get instruction AIR")
-            // render() does not work, because not all buses are in the bus map yet.
-            .to_string();
+            .render(&vm_config.bus_map);
         tracing::info!("Original AIR:\n{original_air}");
 
         let apc =
             build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, 1234, None).unwrap();
-        let actual = apc.machine.to_string();
+        let actual = apc.machine.render(&sp1_bus_map());
 
         let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
