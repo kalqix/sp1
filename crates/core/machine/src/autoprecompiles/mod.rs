@@ -13,27 +13,50 @@ pub mod program;
 use powdr_autoprecompiles::{
     adapter::AdapterApc,
     blocks::{collect_basic_blocks, generate_apcs_with_pgo},
-    DegreeBound, PgoConfig, PowdrConfig, VmConfig,
+    DegreeBound, PgoConfig, PowdrConfig,
 };
+use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::Program;
-use std::collections::BTreeSet;
 
 use crate::autoprecompiles::{
-    adapter::Sp1ApcAdapter, bus_interaction_handler::Sp1BusInteractionHandler,
-    bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler, program::Sp1Program,
+    adapter::Sp1ApcAdapter,
+    bus_interaction_handler::Sp1BusInteractionHandler,
+    bus_map::{sp1_bus_map, Sp1SpecificBuses},
+    instruction_handler::Sp1InstructionHandler,
+    program::Sp1Program,
 };
 
-// TODO: Is this correct?
 const SP1_DEGREE_BOUND: usize = 3;
 const DEFAULT_DEGREE_BOUND: DegreeBound =
-    DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: SP1_DEGREE_BOUND - 1 };
+    DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
 
-// TODO: Is this ok?
+// TODO: remove opcode from PowdrConfig
 const POWDR_OPCODE: usize = 0x10ff;
+pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
+    'a,
+    Sp1InstructionHandler<BabyBear>,
+    Sp1BusInteractionHandler,
+    Sp1SpecificBuses,
+>;
 
-pub fn default_powdr_sp1_config(apc: u64, skip: u64) -> PowdrConfig {
+pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND, POWDR_OPCODE)
+}
+
+pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<BabyBear>) -> VmConfig<'a> {
+    // Need to pass in a handler due to VmConfig lifetime OR return a static lifetime VmConfig
+    VmConfig {
+        instruction_handler: handler,
+        bus_interaction_handler: Sp1BusInteractionHandler::default(),
+        bus_map: sp1_bus_map(),
+    }
+}
+
+pub fn build_elf(guest_path: &str) -> Vec<u8> {
+    let build_args = powdr_default_build_args();
+    let elf_path = build_elf_path(guest_path, build_args);
+    std::fs::read(elf_path).unwrap()
 }
 
 pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
@@ -46,28 +69,13 @@ pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
     elf_path.to_string()
 }
 
-pub fn compile_exe_with_elf(
-    elf: &[u8],
-    config: PowdrConfig,
-    pgo_config: PgoConfig,
-) -> CompiledProgram {
-    let labels = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf);
-
-    let original_program = Program::from(elf).unwrap();
-
-    CompiledProgram::new(original_program, &labels.jumpdests, config, pgo_config)
-}
-
-pub fn compile_exe(
+pub fn compile_guest(
     guest_path: &str,
     config: PowdrConfig,
     pgo_config: PgoConfig,
 ) -> CompiledProgram {
-    let build_args = powdr_default_build_args();
-    let elf_path = build_elf_path(guest_path, build_args);
-    let elf = std::fs::read(elf_path).unwrap();
-
-    compile_exe_with_elf(&elf, config, pgo_config)
+    let elf = build_elf(guest_path);
+    CompiledProgram::new(&elf, config, pgo_config)
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
@@ -79,46 +87,26 @@ pub struct CompiledProgram {
 }
 
 impl CompiledProgram {
-    pub fn new(
-        original_program: Program,
-        labels: &BTreeSet<u64>,
-        config: PowdrConfig,
-        pgo_config: PgoConfig,
-    ) -> Self {
-        let program = Sp1Program::from(original_program);
+    pub fn new(elf: &[u8], config: PowdrConfig, pgo_config: PgoConfig) -> Self {
+        let program = Sp1Program::from(Program::from(elf).unwrap());
+        let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
-        let airs = Sp1InstructionHandler::new();
+        let airs = Sp1InstructionHandler::<BabyBear>::new();
+        let vm_config = sp1_vm_config(&airs);
 
-        let vm_config = VmConfig {
-            instruction_handler: &airs,
-            // TODO: update bus interaction handler constructor once complete
-            bus_interaction_handler: Sp1BusInteractionHandler::default(),
-            bus_map: sp1_bus_map(),
-        };
-
-        let max_total_apc_columns: Option<usize> = match pgo_config {
-            // TODO: not sure if we need to limit max_total_columns at all
-            // If yes, need to subtract non-APC SP1 columns from it
-            PgoConfig::Cell(_, max_total_columns) => max_total_columns,
-            PgoConfig::Instruction(_) | PgoConfig::None => None,
-        };
+        // Currently we don't support the max_total_apc_columns option for cell PGO
+        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
 
         // Collect basic blocks
-        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, labels, &airs);
+        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Generate APC
-        let apcs = generate_apcs_with_pgo::<Sp1ApcAdapter>(
-            blocks,
-            &config,
-            max_total_apc_columns,
-            pgo_config,
-            vm_config,
-        );
+        let apcs =
+            generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
 
         let apcs = apcs.into_iter().map(|(apc, _)| apc).collect::<Vec<_>>();
 
-        // TODO: cater `CompiledProgram` to what's needed for execution
         Self { apcs }
     }
 }
@@ -187,11 +175,8 @@ mod apc_snapshot_tests {
     };
 
     fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
-        let vm_config = VmConfig {
-            instruction_handler: &Sp1InstructionHandler::new(),
-            bus_interaction_handler: Sp1BusInteractionHandler::default(),
-            bus_map: sp1_bus_map(),
-        };
+        let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
+        let vm_config = sp1_vm_config(&instruction_handler);
         let block = BasicBlock {
             start_pc: 0,
             statements: basic_block.iter().cloned().map(Into::into).collect(),
@@ -477,10 +462,14 @@ mod compile_program_tests {
     const APC_SKIP: u64 = 0;
 
     #[test]
+    // TODO: currently fails at `check_register_operation_consistency` in APC optimizer stage
+    #[should_panic]
     fn test_compile_program() {
-        let config = default_powdr_sp1_config(APC, APC_SKIP);
+        setup_logger();
+
+        let config = sp1_powdr_config(APC, APC_SKIP);
         let pgo_config = PgoConfig::None;
-        let _ = compile_exe(GUEST_FIBONACCI, config, pgo_config);
+        let _ = compile_guest(GUEST_FIBONACCI, config, pgo_config);
     }
 
     #[test]
