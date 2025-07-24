@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
-        air_to_symbolic_machine::{air_to_symbolic_machine, densify_ids},
+        air_to_symbolic_machine::{air_to_symbolic_machine, densify_ids, sort_memory_interactions},
         instruction::Sp1Instruction,
     },
     riscv::RiscvAir,
@@ -57,6 +57,7 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
         // TODO: This will likely complicate witgen, maybe it better to relax the assumption in
         // powdr that IDs have to be dense?
         let machine = densify_ids(machine);
+        let machine = sort_memory_interactions(machine);
 
         let instruction_types =
             if is_load_air(&riscv_air.id()) && riscv_air.id() == RiscvAirId::LoadX0 {

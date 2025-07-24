@@ -448,6 +448,18 @@ mod apc_snapshot_tests {
         let basic_block = vec![Instruction::new(Opcode::LUI, 1, 0, 0x12345, true, true)];
         assert_machine_output(basic_block, "lui")
     }
+
+    #[test]
+    fn test_memory_optimizer() {
+        setup_logger();
+        let basic_block = vec![
+            // x1 <- x2
+            Instruction::new(Opcode::ADDI, 1, 2, 0, false, true),
+            // x1 <- x1 + x2
+            Instruction::new(Opcode::ADD, 1, 1, 2, false, false),
+        ];
+        assert_machine_output(basic_block, "memory_optimizer");
+    }
 }
 
 #[cfg(test)]

@@ -2,12 +2,12 @@
 // Symbolic machine using 33 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, add_operation__value__0__0, add_operation__value__0__1, add_operation__value__0__2, add_operation__value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, add_operation__value__0__0, add_operation__value__0__1, add_operation__value__0__2, add_operation__value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 0, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, 0 + adapter__op_c, 0, 0, 0, adapter__op_a_0, 0, 0, 51, 0, 0]
@@ -52,10 +52,10 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 30 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, add_operation__value__0__0, add_operation__value__0__1, add_operation__value__0__2, add_operation__value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, add_operation__value__0__0, add_operation__value__0__1, add_operation__value__0__2, add_operation__value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 1, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 19, 0, 0]
@@ -97,12 +97,12 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 33 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, sub_operation__value__0__0, sub_operation__value__0__1, sub_operation__value__0__2, sub_operation__value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, sub_operation__value__0__0, sub_operation__value__0__1, sub_operation__value__0__2, sub_operation__value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 2, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, 0 + adapter__op_c, 0, 0, 0, adapter__op_a_0, 0, 0, 51, 0, 32]
@@ -147,12 +147,12 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 52 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_xor + is_or + is_and - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_xor + is_or + is_and - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_xor + is_or + is_and, args=[state__pc__0, state__pc__1, state__pc__2, is_xor * 3 + is_or * 4 + is_and * 5, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_xor * 4 + is_or * 6 + is_and * 7, is_xor * 0 + is_or * 0 + is_and * 0]
@@ -205,12 +205,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 52 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_xor + is_or + is_and - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_xor + is_or + is_and - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_xor + is_or + is_and, args=[state__pc__0, state__pc__1, state__pc__2, is_xor * 3 + is_or * 4 + is_and * 5, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_xor * 4 + is_or * 6 + is_and * 7, is_xor * 0 + is_or * 0 + is_and * 0]
@@ -263,12 +263,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 52 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
-mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_xor + is_or + is_and - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_xor + is_or + is_and - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_xor + is_or + is_and, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_xor + is_or + is_and), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, bitwise_operation__bitwise_operation__result__0 + bitwise_operation__bitwise_operation__result__1 * 256, bitwise_operation__bitwise_operation__result__2 + bitwise_operation__bitwise_operation__result__3 * 256, bitwise_operation__bitwise_operation__result__4 + bitwise_operation__bitwise_operation__result__5 * 256, bitwise_operation__bitwise_operation__result__6 + bitwise_operation__bitwise_operation__result__7 * 256]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_xor + is_or + is_and, args=[state__pc__0, state__pc__1, state__pc__2, is_xor * 3 + is_or * 4 + is_and * 5, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_xor * 4 + is_or * 6 + is_and * 7, is_xor * 0 + is_or * 0 + is_and * 0]
@@ -321,12 +321,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 71 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_sll + is_sllw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_sll + is_sllw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_sll + is_sllw, args=[state__pc__0, state__pc__1, state__pc__2, is_sll * 6 + is_sllw * 41, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_sll * 1 + is_sllw * 1, is_sll * 0 + is_sllw * 0]
@@ -427,12 +427,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 79 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__pc__0, state__pc__1, state__pc__2, is_srl * 7 + is_sra * 8 + is_srlw * 42 + is_sraw * 43, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_srl * 5 + is_sra * 5 + is_srlw * 5 + is_sraw * 5, is_srl * 0 + is_sra * 32 + is_srlw * 0 + is_sraw * 32]
@@ -546,12 +546,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 79 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__pc__0, state__pc__1, state__pc__2, is_srl * 7 + is_sra * 8 + is_srlw * 42 + is_sraw * 43, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_srl * 5 + is_sra * 5 + is_srlw * 5 + is_sraw * 5, is_srl * 0 + is_sra * 32 + is_srlw * 0 + is_sraw * 32]
@@ -665,12 +665,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, 0 + lt_operation__result__u16_compare_operation__bit, 0, 0, 0]
-mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_slt + is_sltu - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_slt + is_sltu - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, 0 + lt_operation__result__u16_compare_operation__bit, 0, 0, 0]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_slt + is_sltu, args=[state__pc__0, state__pc__1, state__pc__2, is_slt * 9 + is_sltu * 10, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_slt * 2 + is_sltu * 3, is_slt * 0 + is_sltu * 0]
@@ -740,12 +740,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, 0 + lt_operation__result__u16_compare_operation__bit, 0, 0, 0]
-mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_slt + is_sltu - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_slt + is_sltu - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_slt + is_sltu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_slt + is_sltu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, 0 + lt_operation__result__u16_compare_operation__bit, 0, 0, 0]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_slt + is_sltu, args=[state__pc__0, state__pc__1, state__pc__2, is_slt * 9 + is_sltu * 10, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_slt * 2 + is_sltu * 3, is_slt * 0 + is_sltu * 0]
@@ -815,12 +815,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 88 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_mul * 11 + is_mulh * 12 + is_mulhu * 13 + is_mulhsu * 14 + is_mulw * 47, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_mul * 0 + is_mulh * 1 + is_mulhu * 3 + is_mulhsu * 2 + is_mulw * 0, is_mul * 1 + is_mulh * 1 + is_mulhu * 1 + is_mulhsu * 1 + is_mulw * 1]
@@ -947,12 +947,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 88 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_mul * 11 + is_mulh * 12 + is_mulhu * 13 + is_mulhsu * 14 + is_mulw * 47, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_mul * 0 + is_mulh * 1 + is_mulhu * 3 + is_mulhsu * 2 + is_mulw * 0, is_mul * 1 + is_mulh * 1 + is_mulhu * 1 + is_mulhsu * 1 + is_mulw * 1]
@@ -1079,12 +1079,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 88 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_mul * 11 + is_mulh * 12 + is_mulhu * 13 + is_mulhsu * 14 + is_mulw * 47, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_mul * 0 + is_mulh * 1 + is_mulhu * 3 + is_mulhsu * 2 + is_mulw * 0, is_mul * 1 + is_mulh * 1 + is_mulhu * 1 + is_mulhsu * 1 + is_mulw * 1]
@@ -1211,12 +1211,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 88 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_mul * 11 + is_mulh * 12 + is_mulhu * 13 + is_mulhsu * 14 + is_mulw * 47, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_mul * 0 + is_mulh * 1 + is_mulhu * 3 + is_mulhsu * 2 + is_mulw * 0, is_mul * 1 + is_mulh * 1 + is_mulhu * 1 + is_mulhsu * 1 + is_mulw * 1]
@@ -1343,12 +1343,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -1828,12 +1828,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -2313,12 +2313,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -2798,12 +2798,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -3285,10 +3285,10 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Bus 1 (MEMORY):
 mult=is_lb + is_lbu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_byte + 65280 * msb, 65535 * msb, 65535 * msb, 65535 * msb]
 mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_byte + 65280 * msb, 65535 * msb, 65535 * msb, 65535 * msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lb + is_lbu, args=[state__pc__0, state__pc__1, state__pc__2, 19 * is_lb + 22 * is_lbu, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lb * 3 + is_lbu * 3, is_lb * 0 + is_lbu * 4, is_lb * 0 + is_lbu * 0]
@@ -3354,10 +3354,10 @@ adapter__op_a_0 * (65535 * msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_lh + is_lhu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_half, 65535 * msb__msb, 65535 * msb__msb, 65535 * msb__msb]
 mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_half, 65535 * msb__msb, 65535 * msb__msb, 65535 * msb__msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lh + is_lhu, args=[state__pc__0, state__pc__1, state__pc__2, 20 * is_lh + 23 * is_lhu, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lh * 3 + is_lhu * 3, is_lh * 1 + is_lhu * 5, is_lh * 0 + is_lhu * 0]
@@ -3423,10 +3423,10 @@ adapter__op_a_0 * (65535 * msb__msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_lw + is_lwu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_word__0, selected_word__1, 65535 * msb__msb, 65535 * msb__msb]
 mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_word__0, selected_word__1, 65535 * msb__msb, 65535 * msb__msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lw + is_lwu, args=[state__pc__0, state__pc__1, state__pc__2, is_lw * 21 + is_lwu * 44, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lw * 3 + is_lwu * 3, is_lw * 2 + is_lwu * 6, is_lw * 0 + is_lwu * 0]
@@ -3491,10 +3491,10 @@ adapter__op_a_0 * (65535 * msb__msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_lb + is_lbu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_byte + 65280 * msb, 65535 * msb, 65535 * msb, 65535 * msb]
 mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lb + is_lbu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lb + is_lbu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_byte + 65280 * msb, 65535 * msb, 65535 * msb, 65535 * msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lb + is_lbu, args=[state__pc__0, state__pc__1, state__pc__2, 19 * is_lb + 22 * is_lbu, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lb * 3 + is_lbu * 3, is_lb * 0 + is_lbu * 4, is_lb * 0 + is_lbu * 0]
@@ -3560,10 +3560,10 @@ adapter__op_a_0 * (65535 * msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_lh + is_lhu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_half, 65535 * msb__msb, 65535 * msb__msb, 65535 * msb__msb]
 mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lh + is_lhu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lh + is_lhu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_half, 65535 * msb__msb, 65535 * msb__msb, 65535 * msb__msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lh + is_lhu, args=[state__pc__0, state__pc__1, state__pc__2, 20 * is_lh + 23 * is_lhu, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lh * 3 + is_lhu * 3, is_lh * 1 + is_lhu * 5, is_lh * 0 + is_lhu * 0]
@@ -3629,10 +3629,10 @@ adapter__op_a_0 * (65535 * msb__msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_real, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, store_value__0__0, store_value__0__1, store_value__0__2, store_value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 24, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 35, 0, 0]
@@ -3698,10 +3698,10 @@ is_real * (is_real - 1) = 0
 // Bus 1 (MEMORY):
 mult=is_real, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__1 - 2 * offset_bit__0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, store_value__0__0, store_value__0__1, store_value__0__2, store_value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 25, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 35, 1, 0]
@@ -3760,10 +3760,10 @@ is_real * (is_real - 1) = 0
 // Bus 1 (MEMORY):
 mult=is_real, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, store_value__0__0, store_value__0__1, store_value__0__2, store_value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 26, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 35, 2, 0]
@@ -3820,10 +3820,10 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -3899,10 +3899,10 @@ is_branching * (((((0 + state__pc__0 + adapter__op_c_imm__0__0 - next_pc__0) * 2
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -3978,10 +3978,10 @@ is_branching * (((((0 + state__pc__0 + adapter__op_c_imm__0__0 - next_pc__0) * 2
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -4057,10 +4057,10 @@ is_branching * (((((0 + state__pc__0 + adapter__op_c_imm__0__0 - next_pc__0) * 2
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -4136,10 +4136,10 @@ is_branching * (((((0 + state__pc__0 + adapter__op_c_imm__0__0 - next_pc__0) * 2
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -4215,10 +4215,10 @@ is_branching * (((((0 + state__pc__0 + adapter__op_c_imm__0__0 - next_pc__0) * 2
 // Symbolic machine using 45 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_beq + is_bne + is_blt + is_bge + is_bltu + is_bgeu, args=[state__pc__0, state__pc__1, state__pc__2, is_beq * 27 + is_bne * 28 + is_blt * 29 + is_bge * 30 + is_bltu * 31 + is_bgeu * 32, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_beq * 99 + is_bne * 99 + is_blt * 99 + is_bge * 99 + is_bltu * 99 + is_bgeu * 99, is_beq * 0 + is_bne * 1 + is_blt * 4 + is_bge * 5 + is_bltu * 6 + is_bgeu * 7, is_beq * 0 + is_bne * 0 + is_blt * 0 + is_bge * 0 + is_bltu * 0 + is_bgeu * 0]
@@ -4348,10 +4348,10 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 34 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, op_a_operation__value__0__0, op_a_operation__value__0__1, op_a_operation__value__0__2, op_a_operation__value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, op_a_operation__value__0__0, op_a_operation__value__0__1, op_a_operation__value__0__2, op_a_operation__value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 34, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 103, 0, 0]
@@ -4497,12 +4497,12 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 37 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, addw_operation__value__0, addw_operation__value__1, addw_operation__msb__msb * 65535, addw_operation__msb__msb * 65535]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, addw_operation__value__0, addw_operation__value__1, addw_operation__msb__msb * 65535, addw_operation__msb__msb * 65535]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 39, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, 0, 0]
@@ -4551,12 +4551,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 32 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, subw_operation__value__0, subw_operation__value__1, subw_operation__msb__msb * 65535, subw_operation__msb__msb * 65535]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, subw_operation__value__0, subw_operation__value__1, subw_operation__msb__msb * 65535, subw_operation__msb__msb * 65535]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 40, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, 0 + adapter__op_c, 0, 0, 0, adapter__op_a_0, 0, 0, 59, 0, 32]
@@ -4600,12 +4600,12 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 71 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_sll + is_sllw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_sll + is_sllw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_sll + is_sllw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_sll + is_sllw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_sll + is_sllw, args=[state__pc__0, state__pc__1, state__pc__2, is_sll * 6 + is_sllw * 41, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_sll * 1 + is_sllw * 1, is_sll * 0 + is_sllw * 0]
@@ -4706,12 +4706,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 79 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__pc__0, state__pc__1, state__pc__2, is_srl * 7 + is_sra * 8 + is_srlw * 42 + is_sraw * 43, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_srl * 5 + is_sra * 5 + is_srlw * 5 + is_sraw * 5, is_srl * 0 + is_sra * 32 + is_srlw * 0 + is_sraw * 32]
@@ -4825,12 +4825,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 79 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_srl + is_sra + is_srlw + is_sraw - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_srl + is_sra + is_srlw + is_sraw), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_srl + is_sra + is_srlw + is_sraw, args=[state__pc__0, state__pc__1, state__pc__2, is_srl * 7 + is_sra * 8 + is_srlw * 42 + is_sraw * 43, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_srl * 5 + is_sra * 5 + is_srlw * 5 + is_sraw * 5, is_srl * 0 + is_sra * 32 + is_srlw * 0 + is_sraw * 32]
@@ -4946,10 +4946,10 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Bus 1 (MEMORY):
 mult=is_lw + is_lwu, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_word__0, selected_word__1, 65535 * msb__msb, 65535 * msb__msb]
 mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lw + is_lwu, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lw + is_lwu), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, selected_word__0, selected_word__1, 65535 * msb__msb, 65535 * msb__msb]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lw + is_lwu, args=[state__pc__0, state__pc__1, state__pc__2, is_lw * 21 + is_lwu * 44, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lw * 3 + is_lwu * 3, is_lw * 2 + is_lwu * 6, is_lw * 0 + is_lwu * 0]
@@ -5014,10 +5014,10 @@ adapter__op_a_0 * (65535 * msb__msb - 0) = 0
 // Bus 1 (MEMORY):
 mult=is_real, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * 0 - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * 0 - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 45, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 3, 3, 0]
@@ -5073,10 +5073,10 @@ is_real * (is_real - 1) = 0
 // Bus 1 (MEMORY):
 mult=is_real, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * 0 - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * 0 - 2 * 0 - 0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, 46, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, 35, 3, 0]
@@ -5129,12 +5129,12 @@ is_real * (is_real - 1) = 0
 // Symbolic machine using 88 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_mul * 11 + is_mulh * 12 + is_mulhu * 13 + is_mulhsu * 14 + is_mulw * 47, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_mul * 0 + is_mulh * 1 + is_mulhu * 3 + is_mulhsu * 2 + is_mulw * 0, is_mul * 1 + is_mulh * 1 + is_mulhu * 1 + is_mulhsu * 1 + is_mulw * 1]
@@ -5261,12 +5261,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -5746,12 +5746,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -6231,12 +6231,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -6716,12 +6716,12 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Symbolic machine using 251 unique main columns
 
 // Bus 1 (MEMORY):
-mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
-mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
-mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=is_real - adapter__imm_c, args=[state__clk_high, adapter__op_c_memory__access_timestamp__prev_low, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
 mult=-(is_real - adapter__imm_c), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 1, adapter__op_c__0__0, 0, 0, adapter__op_c_memory__prev_value__0__0, adapter__op_c_memory__prev_value__0__1, adapter__op_c_memory__prev_value__0__2, adapter__op_c_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_real, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-is_real, args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, a__0__0, a__0__1, a__0__2, a__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_real, args=[state__pc__0, state__pc__1, state__pc__2, is_divu * 16 + is_remu * 18 + is_div * 15 + is_rem * 17 + is_divw * 48 + is_remw * 50 + is_divuw * 49 + is_remuw * 51, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c__0__0, adapter__op_c__0__1, adapter__op_c__0__2, adapter__op_c__0__3, adapter__op_a_0, 0, adapter__imm_c, base_op_code, is_divu * 5 + is_remu * 7 + is_div * 4 + is_rem * 6 + is_divw * 4 + is_remw * 6 + is_divuw * 5 + is_remuw * 7, is_divu * 1 + is_remu * 1 + is_div * 1 + is_rem * 1 + is_divw * 1 + is_remw * 1 + is_divuw * 1 + is_remuw * 1]
@@ -7203,10 +7203,10 @@ adapter__imm_c * (adapter__op_c_memory__prev_value__0__3 - adapter__op_c__0__3) 
 // Bus 1 (MEMORY):
 mult=is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld, args=[memory_access__access_timestamp__prev_high, memory_access__access_timestamp__prev_low, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
 mult=-(is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536, address_operation__addr_word_operation__value__0 - 4 * offset_bit__2 - 2 * offset_bit__1 - offset_bit__0, address_operation__addr_word_operation__value__1, address_operation__addr_word_operation__value__2, memory_access__prev_value__0__0, memory_access__prev_value__0__1, memory_access__prev_value__0__2, memory_access__prev_value__0__3]
-mult=is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
-mult=-(is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 mult=is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld, args=[state__clk_high, adapter__op_b_memory__access_timestamp__prev_low, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
 mult=-(is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 2, adapter__op_b, 0, 0, adapter__op_b_memory__prev_value__0__0, adapter__op_b_memory__prev_value__0__1, adapter__op_b_memory__prev_value__0__2, adapter__op_b_memory__prev_value__0__3]
+mult=is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld, args=[state__clk_high, adapter__op_a_memory__access_timestamp__prev_low, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
+mult=-(is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld), args=[state__clk_high, state__clk_0_16 + state__clk_16_24 * 65536 + 3, adapter__op_a, 0, 0, adapter__op_a_memory__prev_value__0__0, adapter__op_a_memory__prev_value__0__1, adapter__op_a_memory__prev_value__0__2, adapter__op_a_memory__prev_value__0__3]
 
 // Bus 2 (PC_LOOKUP):
 mult=is_lb + is_lbu + is_lh + is_lhu + is_lw + is_lwu + is_ld, args=[state__pc__0, state__pc__1, state__pc__2, 19 * is_lb + 22 * is_lbu + 20 * is_lh + 23 * is_lhu + 21 * is_lw + 44 * is_lwu + 45 * is_ld, adapter__op_a, 0 + adapter__op_b, 0, 0, 0, adapter__op_c_imm__0__0, adapter__op_c_imm__0__1, adapter__op_c_imm__0__2, adapter__op_c_imm__0__3, adapter__op_a_0, 0, 1, is_lb * 3 + is_lbu * 3 + is_lh * 3 + is_lhu * 3 + is_lw * 3 + is_lwu * 3 + is_ld * 3, is_lb * 0 + is_lbu * 4 + is_lh * 1 + is_lhu * 5 + is_lw * 2 + is_lwu * 6 + is_ld * 3, is_lb * 0 + is_lbu * 0 + is_lh * 0 + is_lhu * 0 + is_lw * 0 + is_lwu * 0 + is_ld * 0]

@@ -3,14 +3,16 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    expression::AlgebraicReference, powdr::UniqueReferences, SymbolicBusInteraction,
-    SymbolicConstraint, SymbolicMachine,
+    bus_map::BusType, expression::AlgebraicReference, powdr::UniqueReferences,
+    SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
 };
+use powdr_constraint_solver::grouped_expression::GroupedExpression;
 use powdr_expression::{
     visitors::ExpressionVisitable, AlgebraicBinaryOperation, AlgebraicBinaryOperator,
     AlgebraicExpression, AlgebraicUnaryOperation, AlgebraicUnaryOperator,
 };
 
+use powdr_number::{BabyBearField, ExpressionConvertible, FieldElement};
 use slop_air::{Air, BaseAir};
 use slop_algebra::PrimeField32;
 use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
@@ -20,9 +22,56 @@ use sp1_stark::{
 };
 
 use crate::{
-    autoprecompiles::interaction_builder::{Interaction, InteractionBuilder},
+    autoprecompiles::{
+        bus_map::sp1_bus_map,
+        interaction_builder::{Interaction, InteractionBuilder},
+    },
     riscv::RiscvAir,
 };
+
+pub fn sort_memory_interactions<F: PrimeField32>(
+    machine: SymbolicMachine<F>,
+) -> SymbolicMachine<F> {
+    let bus_map = sp1_bus_map();
+    let memory_bus_id = bus_map.get_bus_id(&BusType::Memory).unwrap();
+    let (memory_bus_interactions, other_interactions): (Vec<_>, Vec<_>) =
+        machine.bus_interactions.into_iter().partition(|bi| bi.id == memory_bus_id);
+
+    let memory_bus_interactions = memory_bus_interactions
+        .into_iter()
+        .chunks(2)
+        .into_iter()
+        .map(|interaction_pair| {
+            let [send, receive] = interaction_pair.collect::<Vec<_>>().try_into().unwrap();
+            (send, receive)
+        })
+        .sorted_by_key(|(_send, receive)| {
+            // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
+            let [_clk_high, clk_low, _addr0, _addr1, _addr2, _data0, _data1, _data2, _data3] =
+                &receive.args[..]
+            else {
+                panic!();
+            };
+
+            let clk_low: GroupedExpression<BabyBearField, _> = clk_low.to_expression(
+                &|n| {
+                    GroupedExpression::from_number(BabyBearField::from_bytes_le(
+                        &n.as_canonical_u32().to_le_bytes(),
+                    ))
+                },
+                &|reference| GroupedExpression::from_unknown_variable(reference.clone()),
+            );
+            let (_, _, offset) = clk_low.components();
+            offset.to_degree()
+        })
+        .flat_map(|(send, receive)| [send, receive])
+        .collect::<Vec<_>>();
+
+    SymbolicMachine {
+        constraints: machine.constraints,
+        bus_interactions: other_interactions.into_iter().chain(memory_bus_interactions).collect(),
+    }
+}
 
 /// Reassigns IDs in the symbolic machine to be dense, starting from 0.
 pub fn densify_ids<F: PrimeField32>(machine: SymbolicMachine<F>) -> SymbolicMachine<F> {
