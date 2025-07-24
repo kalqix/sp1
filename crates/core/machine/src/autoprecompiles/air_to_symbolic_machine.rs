@@ -29,39 +29,65 @@ use crate::{
     riscv::RiscvAir,
 };
 
+/// Reorders bus interactions such that they are sorted chronologically, assuming all clk_low
+/// values are of the form `<same expression> + <offset>`.
 pub fn sort_memory_interactions<F: PrimeField32>(
     machine: SymbolicMachine<F>,
 ) -> SymbolicMachine<F> {
+    // Split bus interactions into memory and other interactions.
     let bus_map = sp1_bus_map();
     let memory_bus_id = bus_map.get_bus_id(&BusType::Memory).unwrap();
     let (memory_bus_interactions, other_interactions): (Vec<_>, Vec<_>) =
         machine.bus_interactions.into_iter().partition(|bi| bi.id == memory_bus_id);
 
-    let memory_bus_interactions = memory_bus_interactions
+    // Chunk into pairs of send and receive interactions.
+    let memory_interaction_pairs = memory_bus_interactions
         .into_iter()
         .chunks(2)
         .into_iter()
         .map(|interaction_pair| {
             let [send, receive] = interaction_pair.collect::<Vec<_>>().try_into().unwrap();
+            assert!(is_negation(&receive.mult));
+            assert!(!is_negation(&send.mult));
+
+            // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
+            // We'd expect the address to be the same in the pair:
+            for i in [2, 3, 4] {
+                assert_eq!(send.args[i], receive.args[i]);
+            }
+
             (send, receive)
         })
-        .sorted_by_key(|(_send, receive)| {
-            // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
-            let [_clk_high, clk_low, _addr0, _addr1, _addr2, _data0, _data1, _data2, _data3] =
-                &receive.args[..]
-            else {
-                panic!();
-            };
+        .collect::<Vec<_>>();
 
-            let clk_low: GroupedExpression<BabyBearField, _> = clk_low.to_expression(
-                &|n| {
-                    GroupedExpression::from_number(BabyBearField::from_bytes_le(
-                        &n.as_canonical_u32().to_le_bytes(),
-                    ))
-                },
-                &|reference| GroupedExpression::from_unknown_variable(reference.clone()),
-            );
-            let (_, _, offset) = clk_low.components();
+    // Assert consistency: We expect all receives happen at the same clock, except for a
+    // constant offset.
+    let mut base_clk = None;
+    for (_send, receive) in &memory_interaction_pairs {
+        let clk_high = receive.args[0].clone();
+        let clk_low = to_grouped_expr(&receive.args[1]);
+        let (quadratic, linear, _offset) = clk_low.components();
+
+        // Assert that apart from the offset, all clocks are the same.
+        let quadratic = quadratic.to_vec();
+        let linear = linear.map(|(r, c)| (r.clone(), *c)).collect::<Vec<_>>();
+        let current_base_clk = (clk_high, quadratic, linear);
+        match &base_clk {
+            None => {
+                base_clk = Some(current_base_clk);
+            }
+            Some(prev_base_clk) => {
+                assert_eq!(prev_base_clk, &current_base_clk);
+            }
+        }
+    }
+
+    // Sort pairs by the offset in clk_low and flatten interactions.
+    let memory_bus_interactions = memory_interaction_pairs
+        .into_iter()
+        .sorted_by_key(move |(_send, receive)| {
+            let clk_low = to_grouped_expr(&receive.args[1]);
+            let (_quadratic, _linear, offset) = clk_low.components();
             offset.to_degree()
         })
         .flat_map(|(send, receive)| [send, receive])
@@ -71,6 +97,28 @@ pub fn sort_memory_interactions<F: PrimeField32>(
         constraints: machine.constraints,
         bus_interactions: other_interactions.into_iter().chain(memory_bus_interactions).collect(),
     }
+}
+
+fn is_negation<F: PrimeField32>(expr: &AlgebraicExpression<F, AlgebraicReference>) -> bool {
+    matches!(
+        expr,
+        AlgebraicExpression::UnaryOperation(AlgebraicUnaryOperation {
+            op: AlgebraicUnaryOperator::Minus,
+            ..
+        })
+    )
+}
+
+fn to_grouped_expr<F: PrimeField32>(
+    expr: &AlgebraicExpression<F, AlgebraicReference>,
+) -> GroupedExpression<BabyBearField, AlgebraicReference> {
+    expr.to_expression(
+        &|number| {
+            let number = BabyBearField::from_bytes_le(&number.as_canonical_u32().to_le_bytes());
+            GroupedExpression::from_number(number)
+        },
+        &|reference| GroupedExpression::from_unknown_variable(reference.clone()),
+    )
 }
 
 /// Reassigns IDs in the symbolic machine to be dense, starting from 0.
