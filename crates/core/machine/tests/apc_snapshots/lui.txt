@@ -1,0 +1,34 @@
+Instructions:
+  lui        %x1        0          74565     
+
+APC advantage:
+  - Main columns: 31 -> 14 (effectiveness: 2.21)
+  - Bus interactions: 13 -> 12 (effectiveness: 1.08)
+  - Constraints: 18 -> 5 (effectiveness: 3.60)
+
+// Symbolic machine using 14 unique main columns
+
+// Bus 1 (MEMORY):
+mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 1, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 1, 0, 0, add_operation__value__0__0_0, add_operation__value__0__1_0, add_operation__value__0__2_0, add_operation__value__0__3_0]
+
+// Bus 5 (BYTE):
+mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
+mult=is_valid * 1, args=[7, add_operation__value__0__0_0, 16, 0]
+mult=is_valid * 1, args=[7, add_operation__value__0__1_0, 16, 0]
+mult=is_valid * 1, args=[7, add_operation__value__0__2_0, 16, 0]
+mult=is_valid * 1, args=[7, add_operation__value__0__3_0, 16, 0]
+mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
+
+// Bus 7 (EXECUTION_BRIDGE):
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0]
+mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8, 4, 0, 0]
+
+// Algebraic constraints:
+30720 * add_operation__value__0__0_0 * (30720 * add_operation__value__0__0_0 - 1) = 0
+(30720 * add_operation__value__0__1_0 - 943718400 * add_operation__value__0__0_0) * (30720 * add_operation__value__0__1_0 - (943718400 * add_operation__value__0__0_0 + 1)) = 0
+(30720 * add_operation__value__0__2_0 - (14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) * (30720 * add_operation__value__0__2_0 - (14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0 + 1)) = 0
+(442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0)) * (442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 1)) = 0
+is_valid * (is_valid - 1) = 0
