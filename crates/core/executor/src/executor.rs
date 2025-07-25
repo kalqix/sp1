@@ -1560,7 +1560,7 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    pub fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
+    fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
         // if 2500 <= self.state.global_clk && self.state.global_clk <= 2600 {
         //     tracing::info!(
         //         "global_clk: {}, pc: {}, instruction: {:?}",
@@ -1602,7 +1602,7 @@ impl<'a> Executor<'a> {
 
     /// Execute the given instruction over the current state of the runtime.
     #[allow(clippy::too_many_lines)]
-    pub fn execute_instruction<E: ExecutorConfig>(
+    fn execute_instruction<E: ExecutorConfig>(
         &mut self,
         instruction: &Instruction,
     ) -> Result<(), ExecutionError> {
@@ -2036,11 +2036,11 @@ impl<'a> Executor<'a> {
     #[inline]
     #[allow(clippy::too_many_lines)]
     fn execute_cycle<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
-        // Fetch the instruction at the current program counter.
-        tracing::trace!(pc = self.state.pc, "executing instruction");
-        let instruction = self.fetch::<E>();
-
         // Log the current PC to be collected
+        tracing::trace!(pc = self.state.pc, "executing instruction");
+
+        // Fetch the instruction at the current program counter.
+        let instruction = self.fetch::<E>();
 
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
