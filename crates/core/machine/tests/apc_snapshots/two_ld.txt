@@ -3,9 +3,9 @@ Instructions:
   ld         %x10       %x12       8         
 
 APC advantage:
-  - Main columns: 78 -> 46 (effectiveness: 1.70)
-  - Bus interactions: 42 -> 32 (effectiveness: 1.31)
-  - Constraints: 48 -> 17 (effectiveness: 2.82)
+  - Main columns: 78 -> 46 (1.70x reduction)
+  - Bus interactions: 42 -> 32 (1.31x reduction)
+  - Constraints: 48 -> 17 (2.82x reduction)
 
 // Symbolic machine using 46 unique main columns
 

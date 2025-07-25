@@ -2,9 +2,9 @@ Instructions:
   bge        %x1        %x2        100       
 
 APC advantage:
-  - Main columns: 45 -> 29 (effectiveness: 1.55)
-  - Bus interactions: 16 -> 15 (effectiveness: 1.07)
-  - Constraints: 49 -> 25 (effectiveness: 1.96)
+  - Main columns: 45 -> 29 (1.55x reduction)
+  - Bus interactions: 16 -> 15 (1.07x reduction)
+  - Constraints: 49 -> 25 (1.96x reduction)
 
 // Symbolic machine using 29 unique main columns
 
