@@ -22,6 +22,7 @@ members = [
   "hint-io",
   "keccak-permute",
   "keccak256",
+  "keccak256-software",
   "panic",
   "rand",
   "secp256k1-add",
