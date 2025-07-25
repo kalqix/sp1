@@ -1,3 +1,6 @@
+use std::iter::{once, Chain};
+
+use num::{One, Zero};
 use powdr_autoprecompiles::{
     expression::AlgebraicReference,
     memory_optimizer::{MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp},
@@ -13,21 +16,48 @@ pub struct Sp1MemoryBusInteraction {
     op: MemoryOp,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
-/// The memory address, represented as 3 16-Bit limbs in little-endian order.
-// TODO: It might make sense to add an artificial address space field, to make sure that the
-// memory optimizer does not redo register accesses if a RAM access happened.
+// We introduce an "artificial" address space to distinguish between register and RAM accesses.
 // It is guaranteed by the constraints of SP1 that RAM accesses don't go to the register memory
-// space (RAM access must go to addresses > 2^16), but the memory optimizer likely doesn't infer
-// that.
-pub struct MemoryAddress([GroupedExpression<BabyBearField, AlgebraicReference>; 3]);
+// space (RAM access must go to addresses > 2^16), but the memory optimizer doesn't infer that.
+// Luckily, we can easily detect register accesses, because they will always have the higher
+// address limbs set to zero at compile time.
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub enum ArtificialAddressSpace {
+    Register,
+    Ram,
+}
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct MemoryAddress {
+    address_space: ArtificialAddressSpace,
+    /// The memory address, represented as 3 16-Bit limbs in little-endian order.
+    addr: [GroupedExpression<BabyBearField, AlgebraicReference>; 3],
+}
+
+impl MemoryAddress {
+    pub fn new(addr: [GroupedExpression<BabyBearField, AlgebraicReference>; 3]) -> Self {
+        let address_space = if addr[1].is_zero() && addr[2].is_zero() {
+            ArtificialAddressSpace::Register
+        } else {
+            ArtificialAddressSpace::Ram
+        };
+        Self { address_space, addr }
+    }
+}
 
 impl IntoIterator for MemoryAddress {
     type Item = GroupedExpression<BabyBearField, AlgebraicReference>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = Chain<
+        std::iter::Once<GroupedExpression<BabyBearField, AlgebraicReference>>,
+        std::array::IntoIter<GroupedExpression<BabyBearField, AlgebraicReference>, 3>,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
-        Vec::from(self.0).into_iter()
+        let address_space = match self.address_space {
+            ArtificialAddressSpace::Register => BabyBearField::zero(),
+            ArtificialAddressSpace::Ram => BabyBearField::one(),
+        };
+        once(GroupedExpression::from_number(address_space)).chain(self.addr)
     }
 }
 
@@ -59,7 +89,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
         else {
             panic!()
         };
-        let addr = MemoryAddress([addr0.clone(), addr1.clone(), addr2.clone()]);
+        let addr = MemoryAddress::new([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
         Ok(Some(Sp1MemoryBusInteraction { addr, data, op }))
     }
@@ -77,12 +107,11 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
     }
 
     fn register_address(&self) -> Option<usize> {
-        if self.addr.0[1] == GroupedExpression::from_number(0.into())
-            && self.addr.0[2] == GroupedExpression::from_number(0.into())
-        {
-            // If the address is in the form of [addr, 0, 0], it is a register access.
-            // The first limb is the register number.
-            Some(self.addr.0[0].try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
+        if matches!(self.addr.address_space, ArtificialAddressSpace::Register) {
+            assert_eq!(self.addr.addr[1], GroupedExpression::from_number(0.into()));
+            assert_eq!(self.addr.addr[2], GroupedExpression::from_number(0.into()));
+            let addr = &self.addr.addr[0];
+            Some(addr.try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
         } else {
             None
         }
