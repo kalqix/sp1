@@ -476,11 +476,20 @@ mod compile_program_tests {
     use powdr_autoprecompiles::InstructionHandler;
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
+    const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
     const APC: u64 = 10;
     const APC_SKIP: u64 = 0;
 
     #[test]
-    fn test_compile_program() {
+    fn test_compile_program_keccak256_software() {
+        setup_logger();
+        let config = sp1_powdr_config(APC, APC_SKIP);
+        let pgo_config = PgoConfig::None;
+        let _ = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+    }
+
+    #[test]
+    fn test_compile_program_fibonacci() {
         setup_logger();
 
         let config = sp1_powdr_config(APC, APC_SKIP);
@@ -489,7 +498,7 @@ mod compile_program_tests {
     }
 
     #[test]
-    fn test_collect_basic_blocks() {
+    fn test_collect_basic_blocks_fibonacci() {
         setup_logger();
 
         let build_args = powdr_default_build_args();
