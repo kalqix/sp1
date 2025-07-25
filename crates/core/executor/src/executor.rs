@@ -2036,6 +2036,9 @@ impl<'a> Executor<'a> {
     #[inline]
     #[allow(clippy::too_many_lines)]
     fn execute_cycle<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
+        // Log the current PC to be collected
+        tracing::trace!(pc = self.state.pc, "executing instruction");
+
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch::<E>();
 
