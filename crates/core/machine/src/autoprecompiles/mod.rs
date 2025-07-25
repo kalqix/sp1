@@ -1,5 +1,4 @@
 pub mod adapter;
-pub mod air_stats;
 pub mod air_to_symbolic_machine;
 pub mod bus_interaction_handler;
 pub mod bus_map;
@@ -33,8 +32,6 @@ const SP1_DEGREE_BOUND: usize = 3;
 const DEFAULT_DEGREE_BOUND: DegreeBound =
     DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
 
-// TODO: remove opcode from PowdrConfig
-const POWDR_OPCODE: usize = 0x10ff;
 pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     'a,
     Sp1InstructionHandler<BabyBear>,
@@ -43,7 +40,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
 >;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
-    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND, POWDR_OPCODE)
+    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
 }
 
 pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<BabyBear>) -> VmConfig<'a> {
@@ -173,14 +170,14 @@ mod machine_extraction_tests {
 #[cfg(test)]
 mod apc_snapshot_tests {
     use super::*;
-    use powdr_autoprecompiles::{build, BasicBlock};
+    use powdr_autoprecompiles::{build, evaluation::evaluate_apc, BasicBlock};
     use pretty_assertions::assert_eq;
     use sp1_core_executor::{Instruction, Opcode};
     use std::{fs, path::Path};
 
     use crate::{
         autoprecompiles::{
-            adapter::Sp1ApcAdapter, air_stats::evaluate_apc, bus_map::sp1_bus_map,
+            adapter::Sp1ApcAdapter, bus_map::sp1_bus_map,
             instruction_handler::Sp1InstructionHandler,
         },
         utils::setup_logger,
@@ -195,11 +192,11 @@ mod apc_snapshot_tests {
         };
 
         let apc =
-            build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, 1234, None).unwrap();
+            build::<Sp1ApcAdapter>(block.clone(), vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
 
         let basic_block_str =
             basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
-        let evaluation = evaluate_apc(&basic_block, &apc.machine);
+        let evaluation = evaluate_apc(&block.statements, &instruction_handler, &apc.machine);
         let actual = format!(
             "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
             evaluation,
@@ -463,6 +460,16 @@ mod apc_snapshot_tests {
     }
 
     #[test]
+    fn test_two_ld() {
+        // Used to trigger a failure of `check_register_operation_consistency`
+        let basic_block = vec![
+            Instruction::new(Opcode::LD, 12, 10, 0, false, true),
+            Instruction::new(Opcode::LD, 10, 12, 8, false, true),
+        ];
+        assert_machine_output(basic_block, "two_ld")
+    }
+
+    #[test]
     fn test_memory_optimizer() {
         setup_logger();
         let basic_block = vec![
@@ -484,6 +491,7 @@ mod compile_program_tests {
     };
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
+    const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
     const APC: u64 = 10;
     const APC_SKIP: u64 = 0;
 
@@ -514,9 +522,15 @@ mod compile_program_tests {
     }
 
     #[test]
-    // TODO: currently fails at `check_register_operation_consistency` in APC optimizer stage
-    #[should_panic]
-    fn test_compile_program() {
+    fn test_compile_program_keccak256_software() {
+        setup_logger();
+        let config = sp1_powdr_config(APC, APC_SKIP);
+        let pgo_config = PgoConfig::None;
+        let _ = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+    }
+
+    #[test]
+    fn test_compile_program_fibonacci() {
         setup_logger();
 
         let config = sp1_powdr_config(APC, APC_SKIP);
@@ -525,7 +539,7 @@ mod compile_program_tests {
     }
 
     #[test]
-    fn test_collect_basic_blocks() {
+    fn test_collect_basic_blocks_fibonacci() {
         setup_logger();
 
         let elf = build_elf(GUEST_FIBONACCI);

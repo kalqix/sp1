@@ -1,41 +1,75 @@
-use powdr_autoprecompiles::{
-    expression::AlgebraicReference,
-    memory_optimizer::{MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp},
+use num::{One, Zero};
+use powdr_autoprecompiles::memory_optimizer::{
+    MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp,
 };
 use powdr_constraint_solver::{
     constraint_system::BusInteraction, grouped_expression::GroupedExpression,
 };
 use powdr_number::{BabyBearField, FieldElement};
+use std::{
+    fmt::Display,
+    hash::Hash,
+    iter::{once, Chain},
+};
 
-pub struct Sp1MemoryBusInteraction {
-    addr: MemoryAddress,
-    data: Vec<GroupedExpression<BabyBearField, AlgebraicReference>>,
+pub struct Sp1MemoryBusInteraction<V> {
+    addr: MemoryAddress<V>,
+    data: Vec<GroupedExpression<BabyBearField, V>>,
     op: MemoryOp,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
-/// The memory address, represented as 3 16-Bit limbs in little-endian order.
-// TODO: It might make sense to add an artificial address space field, to make sure that the
-// memory optimizer does not redo register accesses if a RAM access happened.
+// We introduce an "artificial" address space to distinguish between register and RAM accesses.
 // It is guaranteed by the constraints of SP1 that RAM accesses don't go to the register memory
-// space (RAM access must go to addresses > 2^16), but the memory optimizer likely doesn't infer
-// that.
-pub struct MemoryAddress([GroupedExpression<BabyBearField, AlgebraicReference>; 3]);
+// space (RAM access must go to addresses > 2^16), but the memory optimizer doesn't infer that.
+// Luckily, we can easily detect register accesses, because they will always have the higher
+// address limbs set to zero at compile time.
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub enum ArtificialAddressSpace {
+    Register,
+    Ram,
+}
 
-impl IntoIterator for MemoryAddress {
-    type Item = GroupedExpression<BabyBearField, AlgebraicReference>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct MemoryAddress<V> {
+    address_space: ArtificialAddressSpace,
+    /// The memory address, represented as 3 16-Bit limbs in little-endian order.
+    addr: [GroupedExpression<BabyBearField, V>; 3],
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        Vec::from(self.0).into_iter()
+impl<V: Ord + Clone + Eq + Display + Hash> MemoryAddress<V> {
+    pub fn new(addr: [GroupedExpression<BabyBearField, V>; 3]) -> Self {
+        let address_space = if addr[1].is_zero() && addr[2].is_zero() {
+            ArtificialAddressSpace::Register
+        } else {
+            ArtificialAddressSpace::Ram
+        };
+        Self { address_space, addr }
     }
 }
 
-impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInteraction {
-    type Address = MemoryAddress;
+impl<V: Ord + Clone + Eq + Display + Hash> IntoIterator for MemoryAddress<V> {
+    type Item = GroupedExpression<BabyBearField, V>;
+    type IntoIter = Chain<
+        std::iter::Once<GroupedExpression<BabyBearField, V>>,
+        std::array::IntoIter<GroupedExpression<BabyBearField, V>, 3>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let address_space = match self.address_space {
+            ArtificialAddressSpace::Register => BabyBearField::zero(),
+            ArtificialAddressSpace::Ram => BabyBearField::one(),
+        };
+        once(GroupedExpression::from_number(address_space)).chain(self.addr)
+    }
+}
+
+impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<BabyBearField, V>
+    for Sp1MemoryBusInteraction<V>
+{
+    type Address = MemoryAddress<V>;
 
     fn try_from_bus_interaction(
-        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, AlgebraicReference>>,
+        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
         memory_bus_id: u64,
     ) -> Result<Option<Self>, MemoryBusInteractionConversionError> {
         // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
@@ -59,7 +93,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
         else {
             panic!()
         };
-        let addr = MemoryAddress([addr0.clone(), addr1.clone(), addr2.clone()]);
+        let addr = MemoryAddress::new([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
         Ok(Some(Sp1MemoryBusInteraction { addr, data, op }))
     }
@@ -68,7 +102,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
         self.addr.clone()
     }
 
-    fn data(&self) -> &[GroupedExpression<BabyBearField, AlgebraicReference>] {
+    fn data(&self) -> &[GroupedExpression<BabyBearField, V>] {
         &self.data
     }
 
@@ -77,12 +111,12 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
     }
 
     fn register_address(&self) -> Option<usize> {
-        if self.addr.0[1] == GroupedExpression::from_number(0.into())
-            && self.addr.0[2] == GroupedExpression::from_number(0.into())
-        {
-            // If the address is in the form of [addr, 0, 0], it is a register access.
-            // The first limb is the register number.
-            Some(self.addr.0[0].try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
+        if matches!(self.addr.address_space, ArtificialAddressSpace::Register) {
+            // Can't use assert_eq!, because V is not guaranteed to implement Debug :(
+            assert!(self.addr.addr[1] == GroupedExpression::from_number(0.into()));
+            assert!(self.addr.addr[2] == GroupedExpression::from_number(0.into()));
+            let addr = &self.addr.addr[0];
+            Some(addr.try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
         } else {
             None
         }

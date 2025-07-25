@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses,
     candidate::Sp1Candidate, instruction::Sp1Instruction,
@@ -8,6 +10,7 @@ use powdr_autoprecompiles::adapter::Adapter;
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
+use std::hash::Hash;
 
 pub struct Sp1ApcAdapter;
 
@@ -19,7 +22,7 @@ impl Adapter for Sp1ApcAdapter {
     type Candidate = Sp1Candidate<Self>;
     type Program = Sp1Program;
     type Instruction = Sp1Instruction;
-    type MemoryBusInteraction = Sp1MemoryBusInteraction;
+    type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
