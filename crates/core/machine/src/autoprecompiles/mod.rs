@@ -13,11 +13,13 @@ pub mod program;
 use powdr_autoprecompiles::{
     adapter::AdapterApc,
     blocks::{collect_basic_blocks, generate_apcs_with_pgo},
+    execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
-use sp1_core_executor::Program;
+use sp1_core_executor::{Executor, Program, SP1CoreOpts};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::autoprecompiles::{
     adapter::Sp1ApcAdapter,
@@ -76,6 +78,17 @@ pub fn compile_guest(
 ) -> CompiledProgram {
     let elf = build_elf(guest_path);
     CompiledProgram::new(&elf, config, pgo_config)
+}
+
+pub fn execution_profile_from_guest(guest_path: &str, sp1_opts: SP1CoreOpts) -> HashMap<u64, u32> {
+    let elf = build_elf(guest_path);
+
+    let program = Program::from(&elf).unwrap();
+
+    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program.clone()), || {
+        let mut executor = Executor::new(Arc::new(program), sp1_opts);
+        executor.run_fast().unwrap();
+    })
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
@@ -466,11 +479,39 @@ mod apc_snapshot_tests {
 mod compile_program_tests {
     use super::*;
     use crate::{autoprecompiles::instruction::Sp1Instruction, utils::setup_logger};
-    use powdr_autoprecompiles::InstructionHandler;
+    use powdr_autoprecompiles::{
+        blocks::Program as PowdrProgram, execution_profile::execution_profile, InstructionHandler,
+    };
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
     const APC: u64 = 10;
     const APC_SKIP: u64 = 0;
+
+    #[test]
+    fn test_execution_profile() {
+        setup_logger();
+
+        let elf = build_elf(GUEST_FIBONACCI);
+        let sp1_opts = SP1CoreOpts::default();
+
+        let program = Program::from(&elf).unwrap();
+        let sp1_program = Sp1Program::from(program.clone());
+
+        let execution_profile = execution_profile::<Sp1ApcAdapter>(&sp1_program, || {
+            let mut executor = Executor::new(Arc::new(program), sp1_opts);
+            executor.run_fast().unwrap();
+        });
+
+        // Check that all executed pc are within the program's range
+        let pc_min = execution_profile.keys().min().unwrap();
+        let pc_max = execution_profile.keys().max().unwrap();
+        assert!(*pc_min >= sp1_program.base_pc());
+        assert!(
+            *pc_max
+                <= sp1_program.base_pc()
+                    + sp1_program.length() as u64 * sp1_program.pc_step() as u64
+        );
+    }
 
     #[test]
     // TODO: currently fails at `check_register_operation_consistency` in APC optimizer stage
@@ -487,9 +528,7 @@ mod compile_program_tests {
     fn test_collect_basic_blocks() {
         setup_logger();
 
-        let build_args = powdr_default_build_args();
-        let elf_path = build_elf_path(GUEST_FIBONACCI, build_args);
-        let elf = std::fs::read(elf_path).unwrap();
+        let elf = build_elf(GUEST_FIBONACCI);
 
         let sp1_program = Sp1Program::from(Program::from(&elf).unwrap());
         let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
@@ -505,8 +544,6 @@ mod compile_program_tests {
         assert_eq!(basic_blocks_length, 1601);
 
         // Check the validity of each basic block
-        let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
-
         basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {
             // Every block must be non-empty
             assert!(!bb.statements.is_empty(), "Basic block must not be empty");
