@@ -1,18 +1,20 @@
-use std::iter::{once, Chain};
-
 use num::{One, Zero};
-use powdr_autoprecompiles::{
-    expression::AlgebraicReference,
-    memory_optimizer::{MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp},
+use powdr_autoprecompiles::memory_optimizer::{
+    MemoryBusInteraction, MemoryBusInteractionConversionError, MemoryOp,
 };
 use powdr_constraint_solver::{
     constraint_system::BusInteraction, grouped_expression::GroupedExpression,
 };
 use powdr_number::{BabyBearField, FieldElement};
+use std::{
+    fmt::Display,
+    hash::Hash,
+    iter::{once, Chain},
+};
 
-pub struct Sp1MemoryBusInteraction {
-    addr: MemoryAddress,
-    data: Vec<GroupedExpression<BabyBearField, AlgebraicReference>>,
+pub struct Sp1MemoryBusInteraction<V> {
+    addr: MemoryAddress<V>,
+    data: Vec<GroupedExpression<BabyBearField, V>>,
     op: MemoryOp,
 }
 
@@ -28,14 +30,14 @@ pub enum ArtificialAddressSpace {
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
-pub struct MemoryAddress {
+pub struct MemoryAddress<V> {
     address_space: ArtificialAddressSpace,
     /// The memory address, represented as 3 16-Bit limbs in little-endian order.
-    addr: [GroupedExpression<BabyBearField, AlgebraicReference>; 3],
+    addr: [GroupedExpression<BabyBearField, V>; 3],
 }
 
-impl MemoryAddress {
-    pub fn new(addr: [GroupedExpression<BabyBearField, AlgebraicReference>; 3]) -> Self {
+impl<V: Ord + Clone + Eq + Display + Hash> MemoryAddress<V> {
+    pub fn new(addr: [GroupedExpression<BabyBearField, V>; 3]) -> Self {
         let address_space = if addr[1].is_zero() && addr[2].is_zero() {
             ArtificialAddressSpace::Register
         } else {
@@ -45,11 +47,11 @@ impl MemoryAddress {
     }
 }
 
-impl IntoIterator for MemoryAddress {
-    type Item = GroupedExpression<BabyBearField, AlgebraicReference>;
+impl<V: Ord + Clone + Eq + Display + Hash> IntoIterator for MemoryAddress<V> {
+    type Item = GroupedExpression<BabyBearField, V>;
     type IntoIter = Chain<
-        std::iter::Once<GroupedExpression<BabyBearField, AlgebraicReference>>,
-        std::array::IntoIter<GroupedExpression<BabyBearField, AlgebraicReference>, 3>,
+        std::iter::Once<GroupedExpression<BabyBearField, V>>,
+        std::array::IntoIter<GroupedExpression<BabyBearField, V>, 3>,
     >;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -61,11 +63,13 @@ impl IntoIterator for MemoryAddress {
     }
 }
 
-impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInteraction {
-    type Address = MemoryAddress;
+impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<BabyBearField, V>
+    for Sp1MemoryBusInteraction<V>
+{
+    type Address = MemoryAddress<V>;
 
     fn try_from_bus_interaction(
-        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, AlgebraicReference>>,
+        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
         memory_bus_id: u64,
     ) -> Result<Option<Self>, MemoryBusInteractionConversionError> {
         // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
@@ -98,7 +102,7 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
         self.addr.clone()
     }
 
-    fn data(&self) -> &[GroupedExpression<BabyBearField, AlgebraicReference>] {
+    fn data(&self) -> &[GroupedExpression<BabyBearField, V>] {
         &self.data
     }
 
@@ -108,8 +112,9 @@ impl MemoryBusInteraction<BabyBearField, AlgebraicReference> for Sp1MemoryBusInt
 
     fn register_address(&self) -> Option<usize> {
         if matches!(self.addr.address_space, ArtificialAddressSpace::Register) {
-            assert_eq!(self.addr.addr[1], GroupedExpression::from_number(0.into()));
-            assert_eq!(self.addr.addr[2], GroupedExpression::from_number(0.into()));
+            // Can't use assert_eq!, because V is not guaranteed to implement Debug :(
+            assert!(self.addr.addr[1] == GroupedExpression::from_number(0.into()));
+            assert!(self.addr.addr[2] == GroupedExpression::from_number(0.into()));
             let addr = &self.addr.addr[0];
             Some(addr.try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
         } else {

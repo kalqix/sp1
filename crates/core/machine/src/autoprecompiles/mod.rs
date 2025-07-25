@@ -31,8 +31,6 @@ const SP1_DEGREE_BOUND: usize = 3;
 const DEFAULT_DEGREE_BOUND: DegreeBound =
     DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
 
-// TODO: remove opcode from PowdrConfig
-const POWDR_OPCODE: usize = 0x10ff;
 pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     'a,
     Sp1InstructionHandler<BabyBear>,
@@ -41,7 +39,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
 >;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
-    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND, POWDR_OPCODE)
+    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
 }
 
 pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<BabyBear>) -> VmConfig<'a> {
@@ -181,8 +179,7 @@ mod apc_snapshot_tests {
             statements: basic_block.iter().cloned().map(Into::into).collect(),
         };
 
-        let apc =
-            build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, 1234, None).unwrap();
+        let apc = build::<Sp1ApcAdapter>(block, vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
 
         let basic_block_str =
             basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
