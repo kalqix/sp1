@@ -4,7 +4,7 @@ Instructions:
 APC advantage:
   - Main columns: 251 -> 159 (1.58x reduction)
   - Bus interactions: 119 -> 104 (1.14x reduction)
-  - Constraints: 352 -> 123 (2.86x reduction)
+  - Constraints: 352 -> 121 (2.91x reduction)
 
 // Symbolic machine using 159 unique main columns
 
@@ -167,7 +167,6 @@ is_overflow_b__is_diff_zero__is_zero_limb__3__result_0 * (is_overflow_b__is_diff
 is_overflow_b__is_diff_zero__is_zero_limb__3__result_0 * (abs_remainder__0__3_0 + c_times_quotient_lower__product__6_0 + 256 * c_times_quotient_lower__product__7_0 + carry__2_0 - (65536 * carry__3_0 + 32768)) = 0
 is_overflow_b__is_diff_zero__result_0 * (is_overflow_b__is_diff_zero__result_0 - 1) = 0
 is_overflow_b__is_diff_zero__is_zero_first_half_0 - is_overflow_b__is_diff_zero__is_zero_limb__0__result_0 * is_overflow_b__is_diff_zero__is_zero_limb__1__result_0 = 0
-is_overflow_b__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_b__is_diff_zero__is_zero_limb__3__result_0 - is_overflow_b__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_b__is_diff_zero__is_zero_limb__3__result_0 = 0
 is_overflow_b__is_diff_zero__result_0 - is_overflow_b__is_diff_zero__is_zero_first_half_0 * (is_overflow_b__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_b__is_diff_zero__is_zero_limb__3__result_0) = 0
 1 * is_valid - (is_overflow_c__is_diff_zero__is_zero_limb__0__inverse_0 * (abs_c__0__0_0 - 65535) + is_overflow_c__is_diff_zero__is_zero_limb__0__result_0) = 0
 is_overflow_c__is_diff_zero__is_zero_limb__0__result_0 * (is_overflow_c__is_diff_zero__is_zero_limb__0__result_0 - 1) = 0
@@ -183,7 +182,6 @@ is_overflow_c__is_diff_zero__is_zero_limb__3__result_0 * (is_overflow_c__is_diff
 is_overflow_c__is_diff_zero__is_zero_limb__3__result_0 * (abs_c__0__3_0 - 65535) = 0
 is_overflow_c__is_diff_zero__result_0 * (is_overflow_c__is_diff_zero__result_0 - 1) = 0
 is_overflow_c__is_diff_zero__is_zero_first_half_0 - is_overflow_c__is_diff_zero__is_zero_limb__0__result_0 * is_overflow_c__is_diff_zero__is_zero_limb__1__result_0 = 0
-is_overflow_c__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_c__is_diff_zero__is_zero_limb__3__result_0 - is_overflow_c__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_c__is_diff_zero__is_zero_limb__3__result_0 = 0
 is_overflow_c__is_diff_zero__result_0 - is_overflow_c__is_diff_zero__is_zero_first_half_0 * (is_overflow_c__is_diff_zero__is_zero_limb__2__result_0 * is_overflow_c__is_diff_zero__is_zero_limb__3__result_0) = 0
 b_neg_not_overflow_0 * (c_times_quotient_upper__product__8_0 + 256 * c_times_quotient_upper__product__9_0 + carry__3_0 - (65536 * carry__4_0 + 65535)) = 0
 b_not_neg_not_overflow_0 * (c_times_quotient_upper__product__8_0 + 256 * c_times_quotient_upper__product__9_0 + carry__3_0 - 65536 * carry__4_0) = 0
