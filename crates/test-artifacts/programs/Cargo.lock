@@ -2456,7 +2456,7 @@ dependencies = [
 [[package]]
 name = "slop-algebra"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#3020c9ac42f7dea2c832e14d2e6d34113daaa5df"
+source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
 dependencies = [
  "p3-field",
  "serde",
@@ -2465,7 +2465,7 @@ dependencies = [
 [[package]]
 name = "slop-baby-bear"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#3020c9ac42f7dea2c832e14d2e6d34113daaa5df"
+source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
 dependencies = [
  "p3-baby-bear",
 ]
@@ -2473,7 +2473,7 @@ dependencies = [
 [[package]]
 name = "slop-poseidon2"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#3020c9ac42f7dea2c832e14d2e6d34113daaa5df"
+source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
 dependencies = [
  "p3-poseidon2",
 ]
@@ -2481,7 +2481,7 @@ dependencies = [
 [[package]]
 name = "slop-symmetric"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#3020c9ac42f7dea2c832e14d2e6d34113daaa5df"
+source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2568,6 +2568,7 @@ version = "6.0.0"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.16",
+ "getrandom 0.3.3",
  "lazy_static",
  "libm",
  "rand 0.8.5",
@@ -2962,6 +2963,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 name = "verify-proof"
 version = "1.1.0"
 dependencies = [
+ "bytemuck",
  "hex",
  "sha2 0.10.9",
  "sp1-zkvm-64",

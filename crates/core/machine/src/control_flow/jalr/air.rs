@@ -46,7 +46,7 @@ where
 
         // Constrain the state of the CPU.
         // The `next_pc` is constrained by the AIR.
-        // The clock is incremented by `4`.
+        // The clock is incremented by `8`.
         CPUState::<AB::F>::eval(
             builder,
             local.state,
@@ -67,6 +67,8 @@ where
             local.adapter,
             local.is_real.into(),
         );
+
+        builder.when_not(local.is_real).assert_zero(local.adapter.op_a_0);
 
         // Verify that pc_abs + 4 is saved in op_a.
         // When op_a is set to register X0, the RISC-V spec states that the jump instruction will

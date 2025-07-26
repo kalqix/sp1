@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -15,15 +16,14 @@ use slop_jagged::{
 };
 use slop_uni_stark::SymbolicAirBuilder;
 
+use super::{
+    DefaultTraceGenerator, MachineProver, MachineProverBuilder, ProverSemaphore, ShardProver,
+    ShardProverComponents, ZerocheckAir, ZerocheckCpuProverData,
+};
 use crate::{
     air::MachineAir, prover::MachineProverComponents, BabyBearPoseidon2, ConstraintSumcheckFolder,
     GkrProverImpl, LogupGkrCpuProverComponents, LogupGkrCpuRoundProver, LogupGkrCpuTraceGenerator,
     ShardVerifier,
-};
-
-use super::{
-    DefaultTraceGenerator, MachineProver, MachineProverBuilder, ProverSemaphore, ShardProver,
-    ShardProverComponents, ZerocheckAir, ZerocheckCpuProverData,
 };
 
 /// The components of a CPU shard prover.
@@ -51,6 +51,16 @@ where
     type Config = <PcsComponents as JaggedProverComponents>::Config;
     type Air = A;
     type Prover = ShardProver<CpuShardProverComponents<PcsComponents, A>>;
+
+    fn preprocessed_table_heights(
+        pk: Arc<super::ProvingKey<Self::Config, Self::Air, Self::Prover>>,
+    ) -> BTreeMap<String, usize> {
+        pk.preprocessed_data
+            .preprocessed_traces
+            .iter()
+            .map(|(name, trace)| (name.to_owned(), trace.num_real_entries()))
+            .collect()
+    }
 }
 
 /// A CPU prover.

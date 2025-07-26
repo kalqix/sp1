@@ -5,7 +5,7 @@ use core::{
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
-use slop_air::{Air, BaseAir};
+use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -79,7 +79,6 @@ impl<F: PrimeField32> MachineAir<F> for AddwChip {
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let chunk_size = std::cmp::max(input.addw_events.len() / num_cpus::get(), 1);
-        let merged_events = input.addw_events.iter().collect::<Vec<_>>();
         let padded_nb_rows = <AddwChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADDW_COLS);
 
@@ -89,13 +88,12 @@ impl<F: PrimeField32> MachineAir<F> for AddwChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut AddwCols<F> = row.borrow_mut();
 
-                    if idx < merged_events.len() {
+                    if idx < input.addw_events.len() {
                         let mut byte_lookup_events = Vec::new();
-                        let event = merged_events[idx];
-                        // tracing::info!("instruction: {:?}", instruction.opcode);
+                        let event = input.addw_events[idx];
                         cols.adapter.populate(&mut byte_lookup_events, event.1);
-                        self.event_to_row(&event.0, cols, &mut byte_lookup_events);
                         cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
+                        self.event_to_row(&event.0, cols, &mut byte_lookup_events);
                     }
                 });
             },
@@ -150,7 +148,7 @@ impl AddwChip {
         blu: &mut impl ByteRecord,
     ) {
         cols.is_real = F::one();
-        cols.addw_operation.populate(blu, event.b, event.c, true);
+        cols.addw_operation.populate(blu, event.b, event.c);
 
         // Get base opcode variants
         let (addw_base, addw_imm) = Opcode::ADDW.base_opcode();
@@ -178,6 +176,24 @@ where
         // Assert boolean constraints
         builder.assert_bool(local.is_real);
 
+        // Get base opcode variants for ADDW
+        let (addw_base, addw_imm) = Opcode::ADDW.base_opcode();
+        let addw_imm = addw_imm.expect("ADDW immediate opcode not found");
+
+        // Constrain that base_op_code is either addw_base or addw_imm
+        let addw_base_expr = AB::Expr::from_canonical_u32(addw_base);
+        let addw_imm_expr = AB::Expr::from_canonical_u32(addw_imm);
+
+        // If imm_c is set, base_op_code must be addw_imm; otherwise it must be addw_base
+        // Get proper base opcode based on imm_c, then check equality
+        let proper_base_op_code =
+            builder.if_else(local.adapter.imm_c.into(), addw_imm_expr, addw_base_expr);
+
+        // Constrain base_op_code to be correct based on imm_c.
+        builder
+            .when(local.is_real.into())
+            .assert_eq(local.base_op_code.into(), proper_base_op_code);
+
         // The opcode is always ADDW (both for immediate and non-immediate variants)
         let opcode = AB::Expr::from_f(Opcode::ADDW.as_field());
 
@@ -198,7 +214,7 @@ where
         );
 
         // Constrain the state of the CPU.
-        // The program counter and timestamp increment by `4`.
+        // The program counter and timestamp increment by `4` and `8`.
         CPUState::<AB::F>::eval(
             builder,
             local.state,
@@ -211,7 +227,7 @@ where
             local.is_real.into(),
         );
 
-        let u16_max = AB::F::from_canonical_u32((1 << 16) - 1 as u32);
+        let u16_max = AB::F::from_canonical_u32((1 << 16) - 1);
 
         let word: Word<AB::Expr> = Word([
             local.addw_operation.value[0].into(),

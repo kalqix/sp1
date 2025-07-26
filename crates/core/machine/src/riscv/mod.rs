@@ -46,7 +46,6 @@ pub(crate) mod riscv_chips {
             BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip,
         },
         bytes::ByteChip,
-        cpu::CpuChip,
         memory::MemoryGlobalChip,
         program::ProgramChip,
         syscall::{
@@ -54,6 +53,7 @@ pub(crate) mod riscv_chips {
             precompiles::{
                 edwards::{EdAddAssignChip, EdDecompressChip},
                 keccak256::{KeccakPermuteChip, KeccakPermuteControlChip},
+                poseidon2::Poseidon2Chip,
                 sha256::{
                     ShaCompressChip, ShaCompressControlChip, ShaExtendChip, ShaExtendControlChip,
                 },
@@ -220,6 +220,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2Mul(Fp2MulAssignChip<Bn254BaseField>),
     /// A precompile for BN-254 fp2 addition/subtraction.
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
+    /// A precompile for Poseidon2 permutation.
+    Poseidon2(Poseidon2Chip),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -227,7 +229,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 64] {
+    pub fn airs() -> [RiscvAir<F>; 65] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -271,6 +273,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Bls12381Decompress(
                 WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule(),
             ),
+            RiscvAir::Poseidon2(Poseidon2Chip::new()),
             RiscvAir::SyscallCore(SyscallChip::core()),
             RiscvAir::SyscallPrecompile(SyscallChip::precompile()),
             RiscvAir::DivRem(DivRemChip::default()),
@@ -364,6 +367,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Bn254Fp2AddSub].as_slice(),
             [Bn254Fp2Mul].as_slice(),
             [Bls12381Decompress].as_slice(),
+            [Poseidon2].as_slice(),
         ]
         .into_iter()
         .map(|ids| extend_base(&base_precompile_cluster, ids.iter().cloned()));
@@ -413,8 +417,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
-            [Uint256Mul].as_slice(),
             [Uint256Ops].as_slice(),
+            [Poseidon2].as_slice(),
         ];
 
         // These extended clusters support the AIR retainment setting in SP1Context.
@@ -773,6 +777,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(range.name(), range.cost());
         chips.push(range);
 
+        let poseidon2 = Chip::new(RiscvAir::Poseidon2(Poseidon2Chip::new()));
+        costs.insert(poseidon2.name(), poseidon2.cost());
+        chips.push(poseidon2);
+
         assert_eq!(chips.len(), costs.len(), "chips and costs must have the same length",);
 
         (chips, costs)
@@ -909,6 +917,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256ExtendControl => RiscvAirId::ShaExtendControl,
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
+            RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
         }
     }
 }
@@ -940,8 +949,6 @@ pub mod tests {
     //     }
     // }
 
-    // TODO:  Re-enable when we get all precompiles compatible w/ v6 (specifically the
-    // first_row, last_row,     // and next_row constraints).
     use hashbrown::HashMap;
     #[test]
     fn core_air_cost_consistency() {
@@ -967,48 +974,84 @@ pub mod tests {
         serde_json::to_writer_pretty(file, &costs).unwrap();
     }
 
-    //     #[test]
-    //     fn test_simple_prove() {
-    //         utils::setup_logger();
-    //         let program = simple_program();
-    //         let stdin = SP1Stdin::new();
-    //         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-    //     }
-
-    //     #[test]
-    //     fn test_shift_prove() {
-    //         utils::setup_logger();
-    //         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
-    //         let operands =
-    //             [(1, 1), (1234, 5678), (0xffff, 0xffff - 1), (u32::MAX - 1, u32::MAX), (u32::MAX,
-    // 0)];         for shift_op in shift_ops.iter() {
-    //             for op in operands.iter() {
-    //                 let instructions = vec![
-    //                     Instruction::new(Opcode::ADDI, 29, 0, op.0, false, true),
-    //                     Instruction::new(Opcode::ADDI, 30, 0, op.1, false, true),
-    //                     Instruction::new(*shift_op, 31, 29, 3, false, false),
-    //                 ];
-    //                 let program = Program::new(instructions, 0, 0);
-    //                 let stdin = SP1Stdin::new();
-    //                 run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-    //             }
-    //         }
-    //     }
-
-    //     #[test]
-    //     fn test_sub_prove() {
-    //         utils::setup_logger();
-    //         let instructions = vec![
-    //             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-    //             Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-    //             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
-    //         ];
-    //         let program = Program::new(instructions, 0, 0);
-    //         let stdin = SP1Stdin::new();
-    //         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-    //     }
-
     use crate::{io::SP1Stdin, utils::run_test};
+
+    #[tokio::test]
+    async fn test_simple_prove() {
+        setup_logger();
+        let program = simple_program();
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_shift_prove() {
+        setup_logger();
+        let shift_ops =
+            [Opcode::SRL, Opcode::SRLW, Opcode::SRA, Opcode::SRAW, Opcode::SLL, Opcode::SLLW];
+        let operands = [
+            (0, 0),
+            (1, 0),
+            (1, 1),
+            (0xff, 4),
+            (0x123456789abcdef0, 31),
+            (0x123456789abcdef0, 32),
+            (0x123456789abcdef0, 63),
+            (0x123456789abcdef0, 64),
+            (0x8000000000000000u64 as i64 as u64, 1),
+            (0x8000000000000000u64 as i64 as u64, 63),
+            (0x80000000u64, 1),
+            (0xffffffffffffffff, 1),
+            (0xffffffffffffffff, 32),
+            (u64::MAX, 0),
+            (u64::MAX, 1),
+            (u64::MAX - 1, 1),
+            (1u64 << 63, 1),
+            (1u64 << 31, 1),
+            (0x5555555555555555, 1),
+            (0xaaaaaaaaaaaaaaaa, 1),
+            (0x123456789abcdef0, 4),
+            (0x123456789abcdef0, 8),
+            (0xffffffff00000000, 16),
+            (0x00000000ffffffff, 16),
+            (0x80000000, 31),
+            (0xdeadbeef, 65),
+            (0xdeadbeef, 128),
+            (0xdeadbeef, 33),
+            (1, 1),
+            (1234, 5678),
+            (0xffff, 0xffff - 1),
+            (u64::MAX - 1, u64::MAX),
+            (u64::MAX, 0),
+        ];
+
+        let mut instructions = vec![];
+        for shift_op in shift_ops.iter() {
+            for op in operands.iter() {
+                instructions.push(Instruction::new(Opcode::ADDI, 29, 0, op.0 as u64, false, true));
+                instructions.push(Instruction::new(Opcode::ADDI, 30, 0, op.1 as u64, false, true));
+                instructions.push(Instruction::new(*shift_op, 31, 29, 3, false, false));
+            }
+        }
+        add_halt(&mut instructions);
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sub_prove() {
+        setup_logger();
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
+        ];
+        add_halt(&mut instructions);
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
     #[tokio::test]
     async fn test_add_prove() {

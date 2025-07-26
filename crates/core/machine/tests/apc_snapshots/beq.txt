@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 45 -> 27 (1.67x reduction)
-  - Bus interactions: 16 -> 13 (1.23x reduction)
+  - Bus interactions: 19 -> 16 (1.19x reduction)
   - Constraints: 49 -> 23 (2.13x reduction)
 
 // Symbolic machine using 27 unique main columns
@@ -15,13 +15,16 @@ mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timesta
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 1, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
 
 // Bus 5 (BYTE):
-mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
-mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
-mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
-mult=is_valid * 1, args=[7, 65536 * compare_operation__result__u16_compare_operation__bit_0 + compare_operation__result__comparison_limbs__0_0 - compare_operation__result__comparison_limbs__1_0, 16, 0]
+mult=is_valid * 1, args=[6, 65536 * compare_operation__result__u16_compare_operation__bit_0 + compare_operation__result__comparison_limbs__0_0 - compare_operation__result__comparison_limbs__1_0, 16, 0]
+mult=is_valid * 1, args=[6, next_pc__0_0, 16, 0]
+mult=is_valid * 1, args=[6, next_pc__1_0, 16, 0]
+mult=is_valid * 1, args=[6, next_pc__2_0, 16, 0]
 
 // Bus 7 (EXECUTION_BRIDGE):
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0]

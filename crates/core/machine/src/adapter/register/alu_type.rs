@@ -12,8 +12,8 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
-    cpu::columns::InstructionCols,
     memory::MemoryAccessInShardCols,
+    program::instruction::InstructionCols,
 };
 
 /// A set of columns to read operations with op_a and op_b being registers and op_c being a register
