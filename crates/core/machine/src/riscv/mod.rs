@@ -229,7 +229,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 64] {
+    pub fn airs() -> [RiscvAir<F>; 65] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),

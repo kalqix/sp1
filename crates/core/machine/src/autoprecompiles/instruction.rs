@@ -1,8 +1,9 @@
-use crate::cpu::columns::InstructionCols;
 use powdr_autoprecompiles::blocks::Instruction;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_baby_bear::BabyBear;
+
+use crate::program::instruction::InstructionCols;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sp1Instruction(pub sp1_core_executor::Instruction);

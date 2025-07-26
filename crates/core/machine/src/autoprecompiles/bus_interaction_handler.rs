@@ -212,22 +212,23 @@ impl Sp1BusInteractionHandler {
                     (RangeConstraint::from_mask(0x1u64), b, zero)
                 }
             }
+            // TODO: DOesn't exist anymore, how do the do shifts?
             // SR: a = b >> c
-            Some(ByteOpcode::SR) => {
-                if let (Some(b_val), Some(c_val)) =
-                    (b.try_to_single_value(), c.try_to_single_value())
-                {
-                    let shift = c_val.to_degree();
-                    let result = if shift < 8 {
-                        BabyBearField::from((b_val.to_degree() >> shift) & 0xff)
-                    } else {
-                        BabyBearField::zero()
-                    };
-                    (RangeConstraint::from_value(result), b, c)
-                } else {
-                    (byte_constraint(), b, c)
-                }
-            }
+            // Some(ByteOpcode::SR) => {
+            //     if let (Some(b_val), Some(c_val)) =
+            //         (b.try_to_single_value(), c.try_to_single_value())
+            //     {
+            //         let shift = c_val.to_degree();
+            //         let result = if shift < 8 {
+            //             BabyBearField::from((b_val.to_degree() >> shift) & 0xff)
+            //         } else {
+            //             BabyBearField::zero()
+            //         };
+            //         (RangeConstraint::from_value(result), b, c)
+            //     } else {
+            //         (byte_constraint(), b, c)
+            //     }
+            // }
             // Range: assert(a <= 2**b && c == 0)
             Some(ByteOpcode::Range) => {
                 let b = b.conjunction(&RangeConstraint::from_range(
