@@ -2,7 +2,7 @@ Instructions:
   mul        %x1        %x2        %x3       
 
 APC advantage:
-  - Main columns: 88 -> 63 (1.40x reduction)
+  - Main columns: 87 -> 63 (1.38x reduction)
   - Bus interactions: 52 -> 50 (1.04x reduction)
   - Constraints: 66 -> 18 (3.67x reduction)
 
@@ -27,22 +27,22 @@ mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__2_0, 7864
 mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__3_0, 7864320 * mul_operation__c_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_c_memory__prev_value__0__3_0]
 mult=is_valid * 1, args=[5, mul_operation__b_msb_0, 7864320 * mul_operation__b_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_b_memory__prev_value__0__3_0, 0]
 mult=is_valid * 1, args=[5, mul_operation__c_msb_0, 7864320 * mul_operation__c_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_c_memory__prev_value__0__3_0, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__0_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__1_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__2_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__3_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__4_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__5_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__6_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__7_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__8_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__9_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__10_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__11_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__12_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__13_0, 16, 0]
-mult=is_valid * 1, args=[7, 256 * mul_operation__carry__15_0 + mul_operation__product__15_0, 16, 0]
-mult=is_valid * 1, args=[7, mul_operation__carry__15_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__0_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__1_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__2_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__3_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__4_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__5_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__6_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__7_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__8_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__9_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__10_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__11_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__12_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__13_0, 16, 0]
+mult=is_valid * 1, args=[6, 256 * mul_operation__carry__15_0 + mul_operation__product__15_0, 16, 0]
+mult=is_valid * 1, args=[6, mul_operation__carry__15_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__0_0, mul_operation__product__1_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__2_0, mul_operation__product__3_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__4_0, mul_operation__product__5_0]
@@ -51,13 +51,13 @@ mult=is_valid * 1, args=[3, 0, mul_operation__product__8_0, mul_operation__produ
 mult=is_valid * 1, args=[3, 0, mul_operation__product__10_0, mul_operation__product__11_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__12_0, mul_operation__product__13_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__14_0, mul_operation__product__15_0]
-mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
-mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
-mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
-mult=is_valid * 1, args=[7, adapter__op_c_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_c_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_c_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_c_memory__access_timestamp__diff_low_limb_0 - 30720 * state__clk_0_16_0, 0]
 
 // Bus 7 (EXECUTION_BRIDGE):
