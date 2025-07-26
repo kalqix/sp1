@@ -212,22 +212,6 @@ impl Sp1BusInteractionHandler {
                     (RangeConstraint::from_mask(0x1u64), b, zero)
                 }
             }
-            // SR: a = b >> c
-            Some(ByteOpcode::SR) => {
-                if let (Some(b_val), Some(c_val)) =
-                    (b.try_to_single_value(), c.try_to_single_value())
-                {
-                    let shift = c_val.to_degree();
-                    let result = if shift < 8 {
-                        BabyBearField::from((b_val.to_degree() >> shift) & 0xff)
-                    } else {
-                        BabyBearField::zero()
-                    };
-                    (RangeConstraint::from_value(result), b, c)
-                } else {
-                    (byte_constraint(), b, c)
-                }
-            }
             // Range: assert(a <= 2**b && c == 0)
             Some(ByteOpcode::Range) => {
                 let b = b.conjunction(&RangeConstraint::from_range(
@@ -555,49 +539,8 @@ mod tests {
     }
 
     #[test]
-    fn test_sr_known() {
-        let opcode = value(6);
-        let a = default();
-        let b = value(0b11110000);
-        let c = value(4);
-
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
-
-        assert_eq!(result.len(), 4);
-        assert_eq!(result[0], value(6));
-        assert_eq!(result[1], value(0b00001111));
-        assert_eq!(result[2], value(0b11110000));
-        assert_eq!(result[3], value(4));
-
-        let opcode = value(6);
-        let a = default();
-        let b = value(0b11110000);
-        let c = value(8);
-
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
-
-        assert_eq!(result[1], value(0));
-    }
-
-    #[test]
-    fn test_sr_unknown() {
-        let opcode = value(6);
-        let a = default();
-        let b = default();
-        let c = default();
-
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
-
-        assert_eq!(result.len(), 4);
-        assert_eq!(result[0], value(6));
-        assert_eq!(result[1], mask(0xff));
-        assert_eq!(result[2], mask(0xff));
-        assert_eq!(result[3], mask(0xff));
-    }
-
-    #[test]
     fn test_range() {
-        let opcode = value(7);
+        let opcode = value(6);
         let a = default();
         let b = value(8);
         let c = default();
@@ -605,12 +548,12 @@ mod tests {
         let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
 
         assert_eq!(result.len(), 4);
-        assert_eq!(result[0], value(7));
+        assert_eq!(result[0], value(6));
         assert_eq!(result[1], mask(0xff));
         assert_eq!(result[2], value(8));
         assert_eq!(result[3], value(0));
 
-        let opcode = value(7);
+        let opcode = value(6);
         let a = default();
         let b = value(16);
         let c = default();

@@ -555,7 +555,7 @@ mod compile_program_tests {
             &instruction_handler,
         );
         let basic_blocks_length = basic_blocks.len();
-        assert_eq!(basic_blocks_length, 1601);
+        assert_eq!(basic_blocks_length, 1628);
 
         // Check the validity of each basic block
         basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {

@@ -20,27 +20,27 @@ mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state_
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 11, 10, 0, 0, memory_access__prev_value__0__0_1, memory_access__prev_value__0__1_1, memory_access__prev_value__0__2_1, memory_access__prev_value__0__3_1]
 
 // Bus 5 (BYTE):
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__0_0, 16, 0]
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__1_0, 16, 0]
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__2_0, 16, 0]
-mult=is_valid * 1, args=[7, -(251658240 * address_operation__addr_word_operation__value__0_0), 13, 0]
-mult=is_valid * 1, args=[7, memory_access__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_0, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_0, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_0, 16, 0]
+mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_0), 13, 0]
+mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_0, 0]
-mult=is_valid * 1, args=[7, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
-mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
-mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__0_1, 16, 0]
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__1_1, 16, 0]
-mult=is_valid * 1, args=[7, address_operation__addr_word_operation__value__2_1, 16, 0]
-mult=is_valid * 1, args=[7, -(251658240 * address_operation__addr_word_operation__value__0_1), 13, 0]
-mult=is_valid * 1, args=[7, memory_access__access_timestamp__diff_low_limb_1, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_1, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_1, 16, 0]
+mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_1, 16, 0]
+mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_1), 13, 0]
+mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_1, 0]
-mult=is_valid * 1, args=[7, adapter__op_a_memory__access_timestamp__diff_low_limb_1, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 307200), 0]
-mult=is_valid * 1, args=[7, adapter__op_b_memory__access_timestamp__diff_low_limb_1, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 276480), 0]
 
 // Bus 7 (EXECUTION_BRIDGE):
@@ -52,7 +52,7 @@ mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__
 (30720 * address_operation__addr_word_operation__value__1_0 + 943718400 * adapter__op_a_memory__prev_value__0__0_1 - (943718400 * address_operation__addr_word_operation__value__0_0 + 30720 * adapter__op_a_memory__prev_value__0__1_1)) * (30720 * address_operation__addr_word_operation__value__1_0 + 943718400 * adapter__op_a_memory__prev_value__0__0_1 - (943718400 * address_operation__addr_word_operation__value__0_0 + 30720 * adapter__op_a_memory__prev_value__0__1_1 + 1)) = 0
 (30720 * address_operation__addr_word_operation__value__2_0 + 14400 * adapter__op_a_memory__prev_value__0__0_1 + 943718400 * adapter__op_a_memory__prev_value__0__1_1 - (14400 * address_operation__addr_word_operation__value__0_0 + 943718400 * address_operation__addr_word_operation__value__1_0 + 30720 * adapter__op_a_memory__prev_value__0__2_1)) * (30720 * address_operation__addr_word_operation__value__2_0 + 14400 * adapter__op_a_memory__prev_value__0__0_1 + 943718400 * adapter__op_a_memory__prev_value__0__1_1 - (14400 * address_operation__addr_word_operation__value__0_0 + 943718400 * address_operation__addr_word_operation__value__1_0 + 30720 * adapter__op_a_memory__prev_value__0__2_1 + 1)) = 0
 (442368000 * address_operation__addr_word_operation__value__0_0 + 14400 * adapter__op_a_memory__prev_value__0__1_1 + 943718400 * adapter__op_a_memory__prev_value__0__2_1 - (14400 * address_operation__addr_word_operation__value__1_0 + 943718400 * address_operation__addr_word_operation__value__2_0 + 442368000 * adapter__op_a_memory__prev_value__0__0_1 + 30720 * adapter__op_a_memory__prev_value__0__3_1)) * (442368000 * address_operation__addr_word_operation__value__0_0 + 14400 * adapter__op_a_memory__prev_value__0__1_1 + 943718400 * adapter__op_a_memory__prev_value__0__2_1 - (14400 * address_operation__addr_word_operation__value__1_0 + 943718400 * address_operation__addr_word_operation__value__2_0 + 442368000 * adapter__op_a_memory__prev_value__0__0_1 + 30720 * adapter__op_a_memory__prev_value__0__3_1 + 1)) = 0
-address_operation__top_two_limb_min_0 * (address_operation__addr_word_operation__value__1_0 + address_operation__addr_word_operation__value__2_0) - 1 * is_valid = 0
+address_operation__top_two_limb_inv_0 * (address_operation__addr_word_operation__value__1_0 + address_operation__addr_word_operation__value__2_0) - 1 * is_valid = 0
 memory_access__access_timestamp__compare_low_0 * (memory_access__access_timestamp__compare_low_0 - 1) = 0
 memory_access__access_timestamp__compare_low_0 * (state__clk_high_0 - memory_access__access_timestamp__prev_high_0) = 0
 memory_access__access_timestamp__compare_low_0 * (65536 * state__clk_16_24_0 + state__clk_0_16_0) + (1 - memory_access__access_timestamp__compare_low_0) * state__clk_high_0 + (memory_access__access_timestamp__compare_low_0 - 1) * memory_access__access_timestamp__prev_high_0 - (memory_access__access_timestamp__compare_low_0 * memory_access__access_timestamp__prev_low_0 + memory_access__access_timestamp__diff_low_limb_0 + 65536 * memory_access__access_timestamp__diff_high_limb_0 + 1 * is_valid) = 0
@@ -60,7 +60,7 @@ memory_access__access_timestamp__compare_low_0 * (65536 * state__clk_16_24_0 + s
 (943718400 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * address_operation__addr_word_operation__value__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * address_operation__addr_word_operation__value__0_1 + 503316484 * is_valid)) * (943718400 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * address_operation__addr_word_operation__value__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * address_operation__addr_word_operation__value__0_1 + 503316485)) = 0
 (14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * address_operation__addr_word_operation__value__2_1 + 115200 * is_valid - (30720 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * address_operation__addr_word_operation__value__0_1 + 943718400 * address_operation__addr_word_operation__value__1_1)) * (14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * address_operation__addr_word_operation__value__2_1 + 115199 - (30720 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * address_operation__addr_word_operation__value__0_1 + 943718400 * address_operation__addr_word_operation__value__1_1)) = 0
 (14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 442368000 * address_operation__addr_word_operation__value__0_1 + 487587842 * is_valid - (442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 14400 * address_operation__addr_word_operation__value__1_1 + 943718400 * address_operation__addr_word_operation__value__2_1)) * (14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 442368000 * address_operation__addr_word_operation__value__0_1 + 487587841 - (442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 14400 * address_operation__addr_word_operation__value__1_1 + 943718400 * address_operation__addr_word_operation__value__2_1)) = 0
-address_operation__top_two_limb_min_1 * (address_operation__addr_word_operation__value__1_1 + address_operation__addr_word_operation__value__2_1) - 1 * is_valid = 0
+address_operation__top_two_limb_inv_1 * (address_operation__addr_word_operation__value__1_1 + address_operation__addr_word_operation__value__2_1) - 1 * is_valid = 0
 memory_access__access_timestamp__compare_low_1 * (memory_access__access_timestamp__compare_low_1 - 1) = 0
 memory_access__access_timestamp__compare_low_1 * (state__clk_high_0 - memory_access__access_timestamp__prev_high_1) = 0
 memory_access__access_timestamp__compare_low_1 * (65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8) + (1 - memory_access__access_timestamp__compare_low_1) * state__clk_high_0 + (memory_access__access_timestamp__compare_low_1 - 1) * memory_access__access_timestamp__prev_high_1 - (memory_access__access_timestamp__compare_low_1 * memory_access__access_timestamp__prev_low_1 + memory_access__access_timestamp__diff_low_limb_1 + 65536 * memory_access__access_timestamp__diff_high_limb_1 + 1 * is_valid) = 0
