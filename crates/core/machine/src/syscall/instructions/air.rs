@@ -60,7 +60,7 @@ where
         self.eval_is_halt_syscall(builder, &a, local);
 
         // Constrain the state of the CPU.
-        // The extra timestamp increment is `num_extra_cycles`.
+        // The extra timestamp increment is `256` always.
         // The `next_pc` is constrained in the AIR.
         CPUState::<AB::F>::eval(
             builder,
@@ -103,14 +103,7 @@ where
             .when(AB::Expr::one() - local.is_halt)
             .assert_eq(local.next_pc[2], local.state.pc[2]);
 
-        // `num_extra_cycles` is checked to be equal to the return value of
-        // `get_num_extra_ecall_cycles`
-        builder.assert_eq::<AB::Var, AB::Expr>(
-            local.num_extra_cycles,
-            self.get_num_extra_ecall_cycles::<AB>(&a, local),
-        );
-
-        //ECALL instruction.
+        // ECALL instruction.
         self.eval_ecall(builder, &a, local);
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
@@ -169,7 +162,7 @@ impl SyscallInstrsChip {
         // SAFETY: The multiplicities are zero when `is_real = 0`.
         BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
             builder,
-            *local.adapter.b(),
+            local.adapter.b().map(Into::into),
             local.op_b_range_check,
             local.is_halt.into(),
         );
@@ -177,7 +170,7 @@ impl SyscallInstrsChip {
         // Check if `op_c` is a valid BabyBear word.
         BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
             builder,
-            *local.adapter.c(),
+            local.adapter.c().map(Into::into),
             local.op_c_range_check,
             local.is_commit_deferred_proofs.result.into(),
         );
@@ -424,18 +417,5 @@ impl SyscallInstrsChip {
         };
 
         (is_commit.into(), is_commit_deferred_proofs.into())
-    }
-
-    /// Returns the number of extra cycles from an ECALL instruction.
-    pub(crate) fn get_num_extra_ecall_cycles<AB: SP1AirBuilder>(
-        &self,
-        prev_a_byte: &[AB::Expr; 8],
-        local: &SyscallInstrColumns<AB::Var>,
-    ) -> AB::Expr {
-        let num_extra_cycles = prev_a_byte[2].clone();
-
-        // If `is_real = 0`, then the return value is `0` regardless of `num_extra_cycles`.
-        // If `is_real = 1`, `prev_a_byte` is constrained, and `num_extra_cycles` is correct.
-        num_extra_cycles * local.is_real
     }
 }

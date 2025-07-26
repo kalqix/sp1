@@ -4,12 +4,15 @@ use futures::{
 };
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
-use slop_algebra::{ExtensionField, Field};
+use slop_algebra::{ExtensionField, Field, PrimeField32};
 use slop_jagged::JaggedConfig;
 use thiserror::Error;
 use tracing::{Instrument, Span};
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use slop_futures::{handle::TaskHandle, queue::WorkerQueue};
 
@@ -36,6 +39,11 @@ pub trait MachineProverComponents: 'static + Send + Sync {
     type Air: MachineAir<Self::F>;
     /// The prover.
     type Prover: AirProver<Self::Config, Self::Air>;
+
+    /// A function which deduces preprocessed table heights from the proving key.
+    fn preprocessed_table_heights(
+        pk: Arc<ProvingKey<Self::Config, Self::Air, Self::Prover>>,
+    ) -> BTreeMap<String, usize>;
 }
 
 /// The type of program this prover can make proofs for.
@@ -324,6 +332,7 @@ impl<C: MachineProverComponents> MachineProver<C> {
     ) -> Result<(), MachineVerifierConfigError<C::Config>>
     where
         C::Air: for<'a> Air<VerifierConstraintFolder<'a, C::Config>>,
+        C::F: PrimeField32,
     {
         self.inner.verifier.verify(vk, proof)
     }
@@ -506,5 +515,13 @@ impl<C: MachineProverComponents> MachineProver<C> {
         self.inner.task_tx.send(task).unwrap();
         // Crate an abort handle for this task.
         TaskHandle::new(output_rx, abort_handle)
+    }
+
+    /// A function to extract preprocessed table heights from the pk.
+    pub fn preprocessed_table_heights(
+        &self,
+        pk: Arc<MachineProvingKey<C>>,
+    ) -> BTreeMap<String, usize> {
+        C::preprocessed_table_heights(pk)
     }
 }

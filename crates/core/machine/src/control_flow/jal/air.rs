@@ -49,8 +49,7 @@ where
 
         // Constrain the state of the CPU.
         // The `next_pc` is constrained by the AIR.
-        // The clock is incremented by `4`.
-        // Set `op_b` immediate as `pc + op_b` value in the instruction encoding.
+        // The clock is incremented by `8`.
         CPUState::<AB::F>::eval(
             builder,
             local.state,
@@ -58,6 +57,8 @@ where
             AB::Expr::from_canonical_u32(CLK_INC),
             local.is_real.into(),
         );
+
+        builder.when_not(local.is_real).assert_zero(local.adapter.op_a_0);
 
         let op_input = AddOperationInput::<AB>::new(
             Word([
