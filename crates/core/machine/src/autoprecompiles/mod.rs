@@ -539,10 +539,21 @@ mod compile_program_tests {
     }
 
     #[test]
+    fn test_collect_basic_blocks_keccak256_software() {
+        setup_logger();
+
+        test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1870);
+    }
+
+    #[test]
     fn test_collect_basic_blocks_fibonacci() {
         setup_logger();
 
-        let elf = build_elf(GUEST_FIBONACCI);
+        test_collect_basic_blocks(GUEST_FIBONACCI, 1628);
+    }
+
+    fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: usize) {
+        let elf = build_elf(guest_path);
 
         let sp1_program = Sp1Program::from(Program::from(&elf).unwrap());
         let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
@@ -555,7 +566,7 @@ mod compile_program_tests {
             &instruction_handler,
         );
         let basic_blocks_length = basic_blocks.len();
-        assert_eq!(basic_blocks_length, 1628);
+        assert_eq!(basic_blocks_length, expected_bb_len);
 
         // Check the validity of each basic block
         basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {
