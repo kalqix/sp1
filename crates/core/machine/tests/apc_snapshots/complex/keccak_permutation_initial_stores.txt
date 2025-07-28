@@ -15,132 +15,80 @@ APC advantage:
 // Symbolic machine using 155 unique main columns
 
 // Bus 1 (MEMORY):
-// Mem access 1
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_0, memory_access__access_timestamp__prev_low_0, address_operation__addr_word_operation__value__0_0, address_operation__addr_word_operation__value__1_0, address_operation__addr_word_operation__value__2_0, memory_access__prev_value__0__0_0, memory_access__prev_value__0__1_0, memory_access__prev_value__0__2_0, memory_access__prev_value__0__3_0]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, address_operation__addr_word_operation__value__0_0, address_operation__addr_word_operation__value__1_0, address_operation__addr_word_operation__value__2_0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
-
-// Get x2
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 2, 0, 0, adapter__op_b_memory__prev_value__0__0_6, adapter__op_b_memory__prev_value__0__1_6, adapter__op_b_memory__prev_value__0__2_6, adapter__op_b_memory__prev_value__0__3_6]
-
-// Access x12
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 12, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 12, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
-
-// Mem access 2
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_1, memory_access__access_timestamp__prev_low_1, address_operation__addr_word_operation__value__0_1, address_operation__addr_word_operation__value__1_1, address_operation__addr_word_operation__value__2_1, memory_access__prev_value__0__0_1, memory_access__prev_value__0__1_1, memory_access__prev_value__0__2_1, memory_access__prev_value__0__3_1]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8, address_operation__addr_word_operation__value__0_1, address_operation__addr_word_operation__value__1_1, address_operation__addr_word_operation__value__2_1, adapter__op_a_memory__prev_value__0__0_1, adapter__op_a_memory__prev_value__0__1_1, adapter__op_a_memory__prev_value__0__2_1, adapter__op_a_memory__prev_value__0__3_1]
-
-// Access x25
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_1, 25, 0, 0, adapter__op_a_memory__prev_value__0__0_1, adapter__op_a_memory__prev_value__0__1_1, adapter__op_a_memory__prev_value__0__2_1, adapter__op_a_memory__prev_value__0__3_1]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 11, 25, 0, 0, adapter__op_a_memory__prev_value__0__0_1, adapter__op_a_memory__prev_value__0__1_1, adapter__op_a_memory__prev_value__0__2_1, adapter__op_a_memory__prev_value__0__3_1]
-
-// Mem access 3
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_2, memory_access__access_timestamp__prev_low_2, address_operation__addr_word_operation__value__0_2, address_operation__addr_word_operation__value__1_2, address_operation__addr_word_operation__value__2_2, memory_access__prev_value__0__0_2, memory_access__prev_value__0__1_2, memory_access__prev_value__0__2_2, memory_access__prev_value__0__3_2]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 16, address_operation__addr_word_operation__value__0_2, address_operation__addr_word_operation__value__1_2, address_operation__addr_word_operation__value__2_2, adapter__op_a_memory__prev_value__0__0_2, adapter__op_a_memory__prev_value__0__1_2, adapter__op_a_memory__prev_value__0__2_2, adapter__op_a_memory__prev_value__0__3_2]
-
-// Access x7
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_2, 7, 0, 0, adapter__op_a_memory__prev_value__0__0_2, adapter__op_a_memory__prev_value__0__1_2, adapter__op_a_memory__prev_value__0__2_2, adapter__op_a_memory__prev_value__0__3_2]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 19, 7, 0, 0, adapter__op_a_memory__prev_value__0__0_2, adapter__op_a_memory__prev_value__0__1_2, adapter__op_a_memory__prev_value__0__2_2, adapter__op_a_memory__prev_value__0__3_2]
-
-// Mem access 4
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_3, memory_access__access_timestamp__prev_low_3, address_operation__addr_word_operation__value__0_3, address_operation__addr_word_operation__value__1_3, address_operation__addr_word_operation__value__2_3, memory_access__prev_value__0__0_3, memory_access__prev_value__0__1_3, memory_access__prev_value__0__2_3, memory_access__prev_value__0__3_3]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 24, address_operation__addr_word_operation__value__0_3, address_operation__addr_word_operation__value__1_3, address_operation__addr_word_operation__value__2_3, adapter__op_a_memory__prev_value__0__0_3, adapter__op_a_memory__prev_value__0__1_3, adapter__op_a_memory__prev_value__0__2_3, adapter__op_a_memory__prev_value__0__3_3]
-
-// Access x6
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_3, 6, 0, 0, adapter__op_a_memory__prev_value__0__0_3, adapter__op_a_memory__prev_value__0__1_3, adapter__op_a_memory__prev_value__0__2_3, adapter__op_a_memory__prev_value__0__3_3]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 27, 6, 0, 0, adapter__op_a_memory__prev_value__0__0_3, adapter__op_a_memory__prev_value__0__1_3, adapter__op_a_memory__prev_value__0__2_3, adapter__op_a_memory__prev_value__0__3_3]
-
-// Mem access 5
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_4, memory_access__access_timestamp__prev_low_4, address_operation__addr_word_operation__value__0_4, address_operation__addr_word_operation__value__1_4, address_operation__addr_word_operation__value__2_4, memory_access__prev_value__0__0_4, memory_access__prev_value__0__1_4, memory_access__prev_value__0__2_4, memory_access__prev_value__0__3_4]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 32, address_operation__addr_word_operation__value__0_4, address_operation__addr_word_operation__value__1_4, address_operation__addr_word_operation__value__2_4, adapter__op_a_memory__prev_value__0__0_4, adapter__op_a_memory__prev_value__0__1_4, adapter__op_a_memory__prev_value__0__2_4, adapter__op_a_memory__prev_value__0__3_4]
-
-// Access x16
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_4, 16, 0, 0, adapter__op_a_memory__prev_value__0__0_4, adapter__op_a_memory__prev_value__0__1_4, adapter__op_a_memory__prev_value__0__2_4, adapter__op_a_memory__prev_value__0__3_4]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 35, 16, 0, 0, adapter__op_a_memory__prev_value__0__0_4, adapter__op_a_memory__prev_value__0__1_4, adapter__op_a_memory__prev_value__0__2_4, adapter__op_a_memory__prev_value__0__3_4]
-
-// Mem access 6
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_5, memory_access__access_timestamp__prev_low_5, address_operation__addr_word_operation__value__0_5, address_operation__addr_word_operation__value__1_5, address_operation__addr_word_operation__value__2_5, memory_access__prev_value__0__0_5, memory_access__prev_value__0__1_5, memory_access__prev_value__0__2_5, memory_access__prev_value__0__3_5]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 40, address_operation__addr_word_operation__value__0_5, address_operation__addr_word_operation__value__1_5, address_operation__addr_word_operation__value__2_5, adapter__op_a_memory__prev_value__0__0_5, adapter__op_a_memory__prev_value__0__1_5, adapter__op_a_memory__prev_value__0__2_5, adapter__op_a_memory__prev_value__0__3_5]
-
-// Access x17
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_5, 17, 0, 0, adapter__op_a_memory__prev_value__0__0_5, adapter__op_a_memory__prev_value__0__1_5, adapter__op_a_memory__prev_value__0__2_5, adapter__op_a_memory__prev_value__0__3_5]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 43, 17, 0, 0, adapter__op_a_memory__prev_value__0__0_5, adapter__op_a_memory__prev_value__0__1_5, adapter__op_a_memory__prev_value__0__2_5, adapter__op_a_memory__prev_value__0__3_5]
-
-// Mem access 7
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_6, memory_access__access_timestamp__prev_low_6, address_operation__addr_word_operation__value__0_6, address_operation__addr_word_operation__value__1_6, address_operation__addr_word_operation__value__2_6, memory_access__prev_value__0__0_6, memory_access__prev_value__0__1_6, memory_access__prev_value__0__2_6, memory_access__prev_value__0__3_6]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 48, address_operation__addr_word_operation__value__0_6, address_operation__addr_word_operation__value__1_6, address_operation__addr_word_operation__value__2_6, adapter__op_a_memory__prev_value__0__0_6, adapter__op_a_memory__prev_value__0__1_6, adapter__op_a_memory__prev_value__0__2_6, adapter__op_a_memory__prev_value__0__3_6]
-
-// Set x2
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 50, 2, 0, 0, adapter__op_b_memory__prev_value__0__0_6, adapter__op_b_memory__prev_value__0__1_6, adapter__op_b_memory__prev_value__0__2_6, adapter__op_b_memory__prev_value__0__3_6]
-
-// Access x28
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_6, 28, 0, 0, adapter__op_a_memory__prev_value__0__0_6, adapter__op_a_memory__prev_value__0__1_6, adapter__op_a_memory__prev_value__0__2_6, adapter__op_a_memory__prev_value__0__3_6]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 51, 28, 0, 0, adapter__op_a_memory__prev_value__0__0_6, adapter__op_a_memory__prev_value__0__1_6, adapter__op_a_memory__prev_value__0__2_6, adapter__op_a_memory__prev_value__0__3_6]
 
 // Bus 5 (BYTE):
-
-// Range check for first memory address
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_0, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_0, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_0, 16, 0]
 mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_0), 13, 0]
-
-// Range check for timestamp diff
 mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_0, 0]
-
-// Range check for initial clock
 mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
-
 mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
-
 mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
-
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_1, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_1, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_1, 16, 0]
 mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_1), 13, 0]
-
 mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_1, 0]
-
 mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 307200), 0]
-
 mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 276480), 0]
-
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_2, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_2, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_2, 16, 0]
 mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_2), 13, 0]
-
 mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_2, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_2, 0]
-
 mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_2, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_2 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_2 - (30720 * state__clk_0_16_0 + 552960), 0]
-
 mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_2, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_2 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_2 - (30720 * state__clk_0_16_0 + 522240), 0]
-
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_3, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_3, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_3, 16, 0]
 mult=is_valid * 1, args=[6, -(251658240 * address_operation__addr_word_operation__value__0_3), 13, 0]
-
 mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_3, 16, 0]
 mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_3, 0]
-
 mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_3, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_3 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_3 - (30720 * state__clk_0_16_0 + 798720), 0]
-
 mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_3, 16, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_3 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_3 - (30720 * state__clk_0_16_0 + 768000), 0]
-
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_4, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_4, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_4, 16, 0]
