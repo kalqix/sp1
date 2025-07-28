@@ -34,6 +34,22 @@ fn test_memory_optimizer() {
 }
 
 #[test]
+fn stack_accesses() {
+    setup_logger();
+    // The memory optimizer should realize that [x2 + 24] is accessed twice,
+    // with the same value of x2. Therefore, we can reduce it to just one access.
+    let basic_block = vec![
+        // Load [x2 + 20] into x8
+        Instruction::new(Opcode::LD, 8, 2, 20, false, true),
+        // Load [x2 + 24] into x9
+        Instruction::new(Opcode::LD, 9, 2, 24, false, true),
+        // Store [x8] into [x2 + 24]
+        Instruction::new(Opcode::SD, 8, 2, 24, false, true),
+    ];
+    assert_machine_output(basic_block, "stack_accesses");
+}
+
+#[test]
 fn keccak_permutation() {
     setup_logger();
 
