@@ -20,12 +20,15 @@ use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::{Executor, Program, SP1CoreOpts};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::autoprecompiles::{
-    adapter::Sp1ApcAdapter,
-    bus_interaction_handler::Sp1BusInteractionHandler,
-    bus_map::{sp1_bus_map, Sp1SpecificBuses},
-    instruction_handler::Sp1InstructionHandler,
-    program::Sp1Program,
+use crate::{
+    autoprecompiles::{
+        adapter::Sp1ApcAdapter,
+        bus_interaction_handler::Sp1BusInteractionHandler,
+        bus_map::{sp1_bus_map, Sp1SpecificBuses},
+        instruction_handler::Sp1InstructionHandler,
+        program::Sp1Program,
+    },
+    io::SP1Stdin,
 };
 
 const SP1_DEGREE_BOUND: usize = 3;
@@ -77,13 +80,29 @@ pub fn compile_guest(
     CompiledProgram::new(&elf, config, pgo_config)
 }
 
-pub fn execution_profile_from_guest(guest_path: &str, sp1_opts: SP1CoreOpts) -> HashMap<u64, u32> {
+pub fn execution_profile_from_guest(
+    guest_path: &str,
+    sp1_opts: SP1CoreOpts,
+    stdin: Option<SP1Stdin>,
+) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
     let program = Program::from(&elf).unwrap();
 
-    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program.clone()), || {
-        let mut executor = Executor::new(Arc::new(program), sp1_opts);
+    execution_profile_from_program(program, sp1_opts, stdin)
+}
+
+pub fn execution_profile_from_program(
+    program: Program,
+    sp1_opts: SP1CoreOpts,
+    stdin: Option<SP1Stdin>,
+) -> HashMap<u64, u32> {
+    let mut executor = Executor::new(Arc::new(program.clone()), sp1_opts);
+    if let Some(input) = stdin {
+        executor.write_vecs(&input.buffer)
+    }
+
+    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program), || {
         executor.run_fast().unwrap();
     })
 }
@@ -486,29 +505,25 @@ mod apc_snapshot_tests {
 mod compile_program_tests {
     use super::*;
     use crate::{autoprecompiles::instruction::Sp1Instruction, utils::setup_logger};
-    use powdr_autoprecompiles::{
-        blocks::Program as PowdrProgram, execution_profile::execution_profile, InstructionHandler,
-    };
+    use powdr_autoprecompiles::{blocks::Program as PowdrProgram, InstructionHandler};
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
     const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
+    const GUEST_KECCAK256_SOFTWARE_ITER: usize = 10;
+    const GUEST_KECCAK256_SOFTWARE_INPUT: [u8; 1] = [0u8];
     const APC: u64 = 10;
     const APC_SKIP: u64 = 0;
 
-    #[test]
-    fn test_execution_profile() {
+    fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
         setup_logger();
 
-        let elf = build_elf(GUEST_FIBONACCI);
+        let elf = build_elf(guest_path);
         let sp1_opts = SP1CoreOpts::default();
 
         let program = Program::from(&elf).unwrap();
         let sp1_program = Sp1Program::from(program.clone());
 
-        let execution_profile = execution_profile::<Sp1ApcAdapter>(&sp1_program, || {
-            let mut executor = Executor::new(Arc::new(program), sp1_opts);
-            executor.run_fast().unwrap();
-        });
+        let execution_profile = execution_profile_from_program(program, sp1_opts, stdin);
 
         // Check that all executed pc are within the program's range
         let pc_min = execution_profile.keys().min().unwrap();
@@ -519,6 +534,19 @@ mod compile_program_tests {
                 <= sp1_program.base_pc()
                     + sp1_program.length() as u64 * sp1_program.pc_step() as u64
         );
+    }
+
+    #[test]
+    fn test_execution_profile_keccak256_software() {
+        let mut stdin = SP1Stdin::default();
+        stdin.write(&GUEST_KECCAK256_SOFTWARE_ITER);
+        stdin.write_vec(GUEST_KECCAK256_SOFTWARE_INPUT.to_vec());
+        test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(stdin));
+    }
+
+    #[test]
+    fn test_execution_profile_fibonacci() {
+        test_execution_profile(GUEST_FIBONACCI, None);
     }
 
     #[test]
