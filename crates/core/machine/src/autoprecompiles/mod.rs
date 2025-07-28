@@ -505,9 +505,7 @@ mod apc_snapshot_tests {
 mod compile_program_tests {
     use super::*;
     use crate::{autoprecompiles::instruction::Sp1Instruction, utils::setup_logger};
-    use powdr_autoprecompiles::{
-        blocks::Program as PowdrProgram, execution_profile::execution_profile, InstructionHandler,
-    };
+    use powdr_autoprecompiles::{blocks::Program as PowdrProgram, InstructionHandler};
 
     const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
     const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
@@ -519,7 +517,7 @@ mod compile_program_tests {
     fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
         setup_logger();
 
-        let elf = build_elf(GUEST_FIBONACCI);
+        let elf = build_elf(guest_path);
         let sp1_opts = SP1CoreOpts::default();
 
         let program = Program::from(&elf).unwrap();
@@ -543,7 +541,7 @@ mod compile_program_tests {
         let mut stdin = SP1Stdin::default();
         stdin.write(&GUEST_KECCAK256_SOFTWARE_ITER);
         stdin.write_vec(GUEST_KECCAK256_SOFTWARE_INPUT.to_vec());
-        test_execution_profile(GUEST_KECCAK256_SOFTWARE, None);
+        test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(stdin));
     }
 
     #[test]
