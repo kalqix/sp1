@@ -320,3 +320,19 @@ fn keccak_permutation() {
     ];
     assert_machine_output(basic_block, "keccak_permutation");
 }
+
+#[test]
+fn keccak_permutation_initial_stores() {
+    setup_logger();
+    // The first 7 instructions of the `keccak_permutation` test above.
+    let basic_block = vec![
+        Instruction::new(Opcode::SD, 12, 2, 72, false, true),
+        Instruction::new(Opcode::SD, 25, 2, 16, false, true),
+        Instruction::new(Opcode::SD, 7, 2, 24, false, true),
+        Instruction::new(Opcode::SD, 6, 2, 32, false, true),
+        Instruction::new(Opcode::SD, 16, 2, 40, false, true),
+        Instruction::new(Opcode::SD, 17, 2, 56, false, true),
+        Instruction::new(Opcode::SD, 28, 2, 80, false, true),
+    ];
+    assert_machine_output(basic_block, "keccak_permutation_initial_stores");
+}
