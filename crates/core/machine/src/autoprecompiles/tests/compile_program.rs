@@ -81,12 +81,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
         .apc_stats
         .into_iter()
-        .map(|s| {
-            let before = s.as_ref().unwrap().before;
-            let after = s.as_ref().unwrap().after;
-            println!("before: {:?}; after: {:?}", before, after);
-            (before, after)
-        })
+        .map(|s| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
         .unzip();
 
     // Currently just sum up the before and after stats for each APC, but APC-level analysis is also
@@ -102,9 +97,6 @@ fn test_compile_program_keccak256_software_cell_pgo() {
         apc_stats_after,
         AirStats { main_columns: 386, constraints: 120, bus_interactions: 339 }
     );
-
-    println!("apc_stats_before: {:?}", apc_stats_before);
-    println!("apc_stats_after: {:?}", apc_stats_after);
 }
 
 #[test]
