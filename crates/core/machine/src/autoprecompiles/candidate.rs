@@ -35,8 +35,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
         self.apc.block.start_pc.try_into().unwrap()
     }
 }
-// impl<'a> Candidate<BabyBearOpenVmApcAdapter<'a>> for OpenVmApcCandidate<BabyBear,
-// Instr<BabyBear>> {
+
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
     type JsonExport = ();
     type ApcStats = EvaluationResult;
