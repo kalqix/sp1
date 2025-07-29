@@ -14,6 +14,7 @@ mod tests;
 use powdr_autoprecompiles::{
     adapter::AdapterApc,
     blocks::{collect_basic_blocks, generate_apcs_with_pgo},
+    evaluation::EvaluationResult,
     execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
@@ -115,6 +116,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
 
 pub struct CompiledProgram {
     pub apcs: Vec<AdapterApc<Sp1ApcAdapter>>,
+    pub apc_stats: Vec<Option<EvaluationResult>>,
 }
 
 impl CompiledProgram {
@@ -136,8 +138,8 @@ impl CompiledProgram {
         let apcs =
             generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
 
-        let apcs = apcs.into_iter().map(|(apc, _)| apc).collect::<Vec<_>>();
+        let (apcs, apc_stats) = apcs.into_iter().unzip();
 
-        Self { apcs }
+        Self { apcs, apc_stats }
     }
 }

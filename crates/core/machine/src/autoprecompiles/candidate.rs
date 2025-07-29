@@ -2,11 +2,13 @@ use std::{collections::HashMap, path::Path};
 
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{Candidate, KnapsackItem},
+    blocks::{BasicBlock, Candidate, KnapsackItem},
     evaluation::{AirStats, EvaluationResult},
 };
 
-use crate::autoprecompiles::adapter::Sp1ApcAdapter;
+use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
+
+use serde::{Deserialize, Serialize};
 
 /// A candidate for the SP1 autoprecompiles.
 /// Currently does not use pgo data and instead is ranked by the start index of the block.
@@ -37,7 +39,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
-    type JsonExport = ();
+    type JsonExport = Sp1ApcCandidateJsonExport;
     type ApcStats = EvaluationResult;
 
     fn create(
@@ -61,9 +63,34 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         Sp1Candidate { apc, execution_frequency, stats }
     }
 
-    fn to_json_export(&self, _apc_candidates_dir_path: &Path) -> Self::JsonExport {}
+    fn to_json_export(&self, apc_candidates_dir_path: &Path) -> Self::JsonExport {
+        Sp1ApcCandidateJsonExport {
+            start_pc: self.apc.start_pc(),
+            execution_frequency: self.execution_frequency,
+            original_block: self.apc.block.clone(),
+            stats: self.stats,
+            apc_candidate_file: apc_candidates_dir_path
+                .join(format!("apc_{}.cbor", self.apc.start_pc()))
+                .display()
+                .to_string(),
+        }
+    }
 
     fn into_apc_and_stats(self) -> (AdapterApc<Sp1ApcAdapter>, Self::ApcStats) {
         (self.apc, self.stats)
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Sp1ApcCandidateJsonExport {
+    // start_pc
+    start_pc: u64,
+    // execution_frequency
+    execution_frequency: usize,
+    // original instructions
+    original_block: BasicBlock<Sp1Instruction>,
+    // before and after optimization stats
+    stats: EvaluationResult,
+    // path to the apc candidate file
+    apc_candidate_file: String,
 }

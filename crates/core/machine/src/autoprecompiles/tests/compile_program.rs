@@ -9,6 +9,7 @@ use crate::{
 };
 use powdr_autoprecompiles::{
     blocks::{collect_basic_blocks, Program as PowdrProgram},
+    evaluation::AirStats,
     InstructionHandler, PgoConfig,
 };
 use sp1_core_executor::{Program, SP1CoreOpts};
@@ -72,9 +73,38 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     let execution_profile =
         execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, SP1CoreOpts::default(), Some(stdin));
 
-    let config = sp1_powdr_config(APC, APC_SKIP);
+    let path = std::path::Path::new("apc_candidates");
+    let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
     let pgo_config = PgoConfig::Cell(execution_profile, None);
-    let _ = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+    let compiled_program = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+
+    let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
+        .apc_stats
+        .into_iter()
+        .map(|s| {
+            let before = s.as_ref().unwrap().before;
+            let after = s.as_ref().unwrap().after;
+            println!("before: {:?}; after: {:?}", before, after);
+            (before, after)
+        })
+        .unzip();
+
+    // Currently just sum up the before and after stats for each APC, but APC-level analysis is also
+    // available.
+    let apc_stats_before = apc_stats_before.into_iter().sum::<AirStats>();
+    let apc_stats_after = apc_stats_after.into_iter().sum::<AirStats>();
+
+    assert_eq!(
+        apc_stats_before,
+        AirStats { main_columns: 1182, constraints: 821, bus_interactions: 559 }
+    );
+    assert_eq!(
+        apc_stats_after,
+        AirStats { main_columns: 386, constraints: 120, bus_interactions: 339 }
+    );
+
+    println!("apc_stats_before: {:?}", apc_stats_before);
+    println!("apc_stats_after: {:?}", apc_stats_after);
 }
 
 #[test]
