@@ -1,8 +1,8 @@
 use crate::{
     autoprecompiles::{
-        adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_program,
-        instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
-        program::Sp1Program, sp1_powdr_config,
+        adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_guest,
+        execution_profile_from_program, instruction::Sp1Instruction,
+        instruction_handler::Sp1InstructionHandler, program::Sp1Program, sp1_powdr_config,
     },
     io::SP1Stdin,
     utils::setup_logger,
@@ -59,6 +59,21 @@ fn test_compile_program_keccak256_software() {
     setup_logger();
     let config = sp1_powdr_config(APC, APC_SKIP);
     let pgo_config = PgoConfig::None;
+    let _ = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+}
+
+#[test]
+fn test_compile_program_keccak256_software_cell_pgo() {
+    setup_logger();
+
+    let mut stdin = SP1Stdin::default();
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_ITER);
+    stdin.write_vec(GUEST_KECCAK256_SOFTWARE_INPUT.to_vec());
+    let execution_profile =
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, SP1CoreOpts::default(), Some(stdin));
+
+    let config = sp1_powdr_config(APC, APC_SKIP);
+    let pgo_config = PgoConfig::Cell(execution_profile, None);
     let _ = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
 }
 

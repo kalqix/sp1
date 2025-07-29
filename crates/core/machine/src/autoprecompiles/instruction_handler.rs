@@ -8,7 +8,7 @@ use crate::{
     riscv::RiscvAir,
 };
 use itertools::Itertools;
-use powdr_autoprecompiles::{InstructionHandler, SymbolicMachine};
+use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, RiscvAirId};
 use sp1_stark::air::MachineAir;
@@ -24,7 +24,7 @@ pub enum InstructionType {
 #[derive(Default)]
 pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
-    airs: Vec<SymbolicMachine<F>>,
+    airs: Vec<(SymbolicMachine<F>, AirStats)>,
     /// Maps (opcode, op_a_0) to the index of the corresponding AIR in `airs`.
     /// (Using BTreeMap for determinism of [Sp1InstructionHandler::airs].)
     instruction_to_air_idx: BTreeMap<InstructionType, usize>,
@@ -68,7 +68,10 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
             };
 
         let idx = self.airs.len();
-        self.airs.push(machine);
+        // Cache stats of original airs so that we don't repeatedly calculated them during PGO.
+        let air_stats = AirStats::new(&machine);
+        self.airs.push((machine, air_stats));
+
         for instruction_type in instruction_types {
             self.instruction_to_air_idx.insert(instruction_type, idx);
         }
@@ -78,11 +81,31 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
         self.airs.len()
     }
 
+    pub fn get_instruction_air_and_stats(
+        &self,
+        instruction: &Sp1Instruction,
+    ) -> Option<&(SymbolicMachine<F>, AirStats)> {
+        let instruction_type = if is_load_opcode(instruction.0.opcode)
+            && instruction.0.op_a == sp1_core_executor::Register::X0 as u8
+        {
+            InstructionType::LoadX0
+        } else {
+            InstructionType::NonLoadX0(instruction.0.opcode)
+        };
+
+        let idx = self.instruction_to_air_idx.get(&instruction_type)?;
+        Some(&self.airs[*idx])
+    }
+
+    pub fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<&AirStats> {
+        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats)
+    }
+
     #[cfg(test)]
     pub fn airs(&self) -> impl Iterator<Item = (InstructionType, &SymbolicMachine<F>)> {
         self.instruction_to_air_idx
             .iter()
-            .map(|(instruction_type, idx)| (instruction_type.clone(), &self.airs[*idx]))
+            .map(|(instruction_type, idx)| (instruction_type.clone(), &self.airs[*idx].0))
     }
 }
 
@@ -160,16 +183,7 @@ fn is_load_opcode(opcode: Opcode) -> bool {
 
 impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHandler<F> {
     fn get_instruction_air(&self, instruction: &Sp1Instruction) -> Option<&SymbolicMachine<F>> {
-        let instruction_type = if is_load_opcode(instruction.0.opcode)
-            && instruction.0.op_a == sp1_core_executor::Register::X0 as u8
-        {
-            InstructionType::LoadX0
-        } else {
-            InstructionType::NonLoadX0(instruction.0.opcode)
-        };
-
-        let idx = self.instruction_to_air_idx.get(&instruction_type)?;
-        Some(&self.airs[*idx])
+        self.get_instruction_air_and_stats(instruction).map(|(machine, _)| machine)
     }
 
     fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
