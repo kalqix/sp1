@@ -4,7 +4,7 @@ Instructions:
 APC advantage:
   - Main columns: 251 -> 159 (1.58x reduction)
   - Bus interactions: 119 -> 104 (1.14x reduction)
-  - Constraints: 353 -> 121 (2.92x reduction)
+  - Constraints: 353 -> 120 (2.94x reduction)
 
 // Symbolic machine using 159 unique main columns
 
@@ -210,7 +210,6 @@ is_c_0__is_zero_first_half_0 - is_c_0__is_zero_limb__0__result_0 * is_c_0__is_ze
 (1 * is_valid - remainder_check_multiplicity_0) * (quotient_comp__0__1_0 - 65535) = 0
 (1 * is_valid - remainder_check_multiplicity_0) * (quotient_comp__0__2_0 - 65535) = 0
 (1 * is_valid - remainder_check_multiplicity_0) * (quotient_comp__0__3_0 - 65535) = 0
-remainder_check_multiplicity_0 * (remainder_check_multiplicity_0 - 1) = 0
 remainder_lt_operation__u16_flags__0_0 * (remainder_lt_operation__u16_flags__0_0 - 1) = 0
 remainder_lt_operation__u16_flags__1_0 * (remainder_lt_operation__u16_flags__1_0 - 1) = 0
 remainder_lt_operation__u16_flags__2_0 * (remainder_lt_operation__u16_flags__2_0 - 1) = 0
