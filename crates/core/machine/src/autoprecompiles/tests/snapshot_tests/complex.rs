@@ -369,6 +369,10 @@ fn keccak_permutation_xor_chain() {
 #[test]
 fn keccak_permutation_rot63() {
     setup_logger();
+    // Instructions 36-38 of the `keccak_permutation` test above.
+    // These 3 instruction implement a rotation. Similar instructions
+    // appear 29 times in the Keccak basic block, about a third of all
+    // instructions.
     let basic_block = vec![
         Instruction::new(Opcode::SRL, 15, 11, 63, false, true),
         Instruction::new(Opcode::SLL, 5, 11, 1, false, true),
