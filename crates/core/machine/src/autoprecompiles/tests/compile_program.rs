@@ -74,7 +74,8 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
-    let pgo_config = PgoConfig::Cell(execution_profile, None);
+    // Cell pgo that only creates APCs for basic blocks with fewer than 1000 instructions
+    let pgo_config = PgoConfig::Cell(execution_profile, None, Some(1000));
     let compiled_program = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
 
     let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
