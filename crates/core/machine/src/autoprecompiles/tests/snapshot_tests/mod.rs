@@ -10,6 +10,7 @@ use crate::autoprecompiles::{
 };
 
 mod complex;
+mod pseudo_instructions;
 mod single_instructions;
 
 fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_name: &str) {
