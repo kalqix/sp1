@@ -79,9 +79,9 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     let compiled_program = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
 
     let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
-        .apc_stats
+        .apcs_and_stats
         .into_iter()
-        .map(|s| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
+        .map(|(_, s)| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
         .unzip();
 
     // Currently just sum up the before and after stats for each APC, but APC-level analysis is also

@@ -115,8 +115,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
 }
 
 pub struct CompiledProgram {
-    pub apcs: Vec<AdapterApc<Sp1ApcAdapter>>,
-    pub apc_stats: Vec<Option<EvaluationResult>>,
+    pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
 }
 
 impl CompiledProgram {
@@ -135,11 +134,9 @@ impl CompiledProgram {
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Generate APC
-        let apcs =
+        let apcs_and_stats =
             generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
 
-        let (apcs, apc_stats) = apcs.into_iter().unzip();
-
-        Self { apcs, apc_stats }
+        Self { apcs_and_stats }
     }
 }
