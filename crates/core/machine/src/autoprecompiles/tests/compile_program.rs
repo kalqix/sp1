@@ -71,16 +71,30 @@ pub fn random_preimages_with_bounded_len(count: u8, len: usize) -> Vec<Vec<u8>> 
 }
 
 fn keccak256_software_stdin() -> SP1Stdin {
-    let mut stdin = SP1Stdin::default();
-    let preimages = random_preimages_with_bounded_len(
-        GUEST_KECCAK256_SOFTWARE_NUM_CASES,
-        GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN,
-        // 1234,
-    );
-    let inputs_len = preimages.len();
-    stdin.write(&inputs_len);
-    for preimage in preimages {
-        stdin.write_vec(preimage);
+    // let mut stdin = SP1Stdin::new();
+    // let preimages = random_preimages_with_bounded_len(
+    //     GUEST_KECCAK256_SOFTWARE_NUM_CASES,
+    //     GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN,
+    //     // 1234,
+    // );
+    // let inputs_len = preimages.len();
+    // stdin.write(&inputs_len);
+    // for preimage in preimages {
+    //     stdin.write_vec(preimage);
+    // }
+    // stdin
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let mut inputs = Vec::<Vec<u8>>::new();
+    for len in 0..GUEST_KECCAK256_SOFTWARE_NUM_CASES {
+        let bytes = (0..(len+1)).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+        inputs.push(bytes.clone());
+    }
+
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
+    for input in inputs.iter() {
+        stdin.write(&input);
     }
     stdin
 }
