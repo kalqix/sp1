@@ -83,24 +83,19 @@ fn test_compile_program_keccak256_software_cell_pgo() {
         .map(|(_, s)| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
         .unzip();
 
-    println!("apc_stats_before: {:?}", apc_stats_before);
-    println!("apc_stats_after: {:?}", apc_stats_after);
-
     // Currently just sum up the before and after stats for each APC, but APC-level analysis is also
     // available.
     let apc_stats_before = apc_stats_before.into_iter().sum::<AirStats>();
     let apc_stats_after = apc_stats_after.into_iter().sum::<AirStats>();
 
-    println!("apc_stats_before: {:?}", apc_stats_before);
-    println!("apc_stats_after: {:?}", apc_stats_after);
-    // assert_eq!(
-    //     apc_stats_before,
-    //     AirStats { main_columns: 1182, constraints: 821, bus_interactions: 559 }
-    // );
-    // assert_eq!(
-    //     apc_stats_after,
-    //     AirStats { main_columns: 386, constraints: 120, bus_interactions: 339 }
-    // );
+    assert_eq!(
+        apc_stats_before,
+        AirStats { main_columns: 1046, constraints: 730, bus_interactions: 490 }
+    );
+    assert_eq!(
+        apc_stats_after,
+        AirStats { main_columns: 271, constraints: 41, bus_interactions: 272 }
+    );
 }
 
 #[test]
