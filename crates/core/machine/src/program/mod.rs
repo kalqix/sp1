@@ -108,8 +108,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                     ];
                     // let instruction =
                     //     program.instructions[idx].preprocess::<F>(program.pc_base, pc);
-                    let instruction = program.instructions[idx];
-                    cols.instruction.populate(&instruction);
+                    let instruction = program.instructions.get(idx).unwrap();
+                    cols.instruction.populate(instruction);
 
                     if instruction.opcode != Opcode::UNIMP {
                         let (base_opcode, base_imm_opcode) = instruction.opcode.base_opcode();
@@ -336,7 +336,8 @@ mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ];
+        ]
+        .into();
         let shard = ExecutionRecord {
             program: Arc::new(Program {
                 instructions,

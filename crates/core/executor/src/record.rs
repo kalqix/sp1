@@ -23,9 +23,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent, JumpEvent,
-        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
-        PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
+        AluEvent, ApcEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
+        JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent,
+        MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
     },
     program::Program,
     syscalls::SyscallCode,
@@ -101,6 +101,8 @@ pub struct ExecutionRecord {
     pub cpu_local_memory_access: Vec<MemoryLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<(SyscallEvent, RTypeRecord)>,
+    /// A trace for all APC events.
+    pub apc_events: Vec<ApcEvent>,
     /// A trace of all the global interaction events.
     pub global_interaction_events: Vec<GlobalInteractionEvent>,
     /// The global culmulative sum.

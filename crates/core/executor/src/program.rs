@@ -5,7 +5,7 @@ use std::{fs::File, io::Read, str::FromStr};
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    RiscvAirId,
+    Opcode, RiscvAirId,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ use sp1_stark::{
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     /// The instructions of the program.
-    pub instructions: Vec<Instruction>,
+    pub instructions: Instructions,
     /// The encoded instructions of the program. Only used if program is untrusted
     pub instructions_encoded: Option<Vec<u32>>,
     /// The start address of the program. It is absolute, meaning not relative to `pc_base`.
@@ -39,12 +39,116 @@ pub struct Program {
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Instructions {
+    pub original: Vec<Instruction>,
+    pub apcs: Vec<(usize, usize)>,
+    pub modified: Option<Vec<Instruction>>,
+}
+
+impl IntoIterator for Instructions {
+    type Item = Instruction;
+    type IntoIter = std::vec::IntoIter<Instruction>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        if let Some(modified) = self.modified {
+            modified.into_iter()
+        } else {
+            self.original.into_iter()
+        }
+    }
+}
+
+impl From<Vec<Instruction>> for Instructions {
+    fn from(original: Vec<Instruction>) -> Self {
+        Self { original, apcs: Vec::new(), modified: None }
+    }
+}
+
+fn modified_instructions(original: &[Instruction], apcs: &[(usize, usize)]) -> Vec<Instruction> {
+    let mut apc_ranges = apcs.iter().enumerate();
+    original
+        .iter()
+        .enumerate()
+        .scan(apc_ranges.next(), move |range, (index, instruction)| {
+            if let Some((apc_index, (start, end))) = range {
+                if index < *start {
+                    Some(*instruction)
+                } else if index == *start {
+                    Some(Instruction::new(
+                        Opcode::APC,
+                        0,
+                        (APC_INDEX_START + *apc_index) as u64,
+                        0,
+                        true,
+                        true,
+                    ))
+                } else if index < *end - 1 {
+                    Some(Instruction::unimp())
+                } else if index == *end - 1 {
+                    *range = apc_ranges.next();
+                    Some(Instruction::unimp())
+                } else {
+                    unreachable!()
+                }
+            } else {
+                Some(*instruction)
+            }
+        })
+        .collect()
+}
+
+impl Instructions {
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.original.len()
+    }
+
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&Instruction> {
+        if let Some(modified) = &self.modified {
+            modified.get(index)
+        } else {
+            self.original.get(index)
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.original.is_empty()
+    }
+
+    #[must_use]
+    pub fn original_instructions_for_range(&self, from: usize, to: usize) -> Vec<Instruction> {
+        assert!(from <= to && to <= self.original.len());
+        self.original[from..to].to_vec()
+    }
+
+    pub(crate) fn clear_apcs(&mut self) {
+        self.apcs.clear();
+        self.modified = None;
+    }
+}
+
+pub const APC_INDEX_START: usize = 42424242;
+
 impl Program {
+    #[must_use]
+    pub fn with_apcs(mut self, apc_ranges: &[(usize, usize)]) -> Self {
+        assert!(self.instructions.apcs.is_empty(), "APC ranges already set");
+        assert!(self.instructions.modified.is_none(), "Modified instructions already set");
+        self.instructions.apcs = apc_ranges.to_vec();
+        self.instructions.modified =
+            Some(modified_instructions(&self.instructions.original, &self.instructions.apcs));
+
+        self
+    }
+
     /// Create a new [Program].
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
         Self {
-            instructions,
+            instructions: instructions.into(),
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
@@ -66,11 +170,12 @@ impl Program {
 
         // Transpile the RV32IM instructions.
         let instruction_pair = transpile(&elf.instructions);
-        let (instructions, instructions_encoded) = instruction_pair.into_iter().unzip();
+        let (instructions, instructions_encoded): (Vec<Instruction>, _) =
+            instruction_pair.into_iter().unzip();
 
         // Return the program.
         Ok(Program {
-            instructions,
+            instructions: instructions.into(),
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
@@ -105,7 +210,7 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(&self.instructions[idx])
+            Some(self.instructions.get(idx).unwrap())
         } else {
             None
         }

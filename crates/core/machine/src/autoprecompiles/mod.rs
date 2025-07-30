@@ -3,11 +3,13 @@ pub mod air_to_symbolic_machine;
 pub mod bus_interaction_handler;
 pub mod bus_map;
 pub mod candidate;
+pub mod chip;
 pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
 pub mod memory_bus_interaction;
 pub mod program;
+
 #[cfg(test)]
 mod tests;
 

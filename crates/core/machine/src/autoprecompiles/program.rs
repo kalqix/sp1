@@ -14,7 +14,7 @@ impl Program<Sp1Instruction> for Sp1Program {
     }
 
     fn instructions(&self) -> Box<dyn Iterator<Item = Sp1Instruction> + '_> {
-        Box::new(self.0.instructions.iter().map(|inst| Sp1Instruction(*inst)))
+        Box::new(self.0.instructions.clone().into_iter().map(|inst| Sp1Instruction(inst)))
     }
 
     fn length(&self) -> u32 {
