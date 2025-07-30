@@ -2823,7 +2823,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, SP1Context, SP1CoreOpts, Simple};
+    use crate::{Register, SP1Context, SP1CoreOpts, Simple, Trace};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2945,8 +2945,6 @@ mod tests {
         );
         runtime.run::<Simple>().unwrap();
         assert_eq!(runtime.register::<Simple>(Register::X31), 42);
-
-        println!("Main records: {:#?}", runtime.records);
     }
 
     #[test]
