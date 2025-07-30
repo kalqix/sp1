@@ -14,12 +14,9 @@ use powdr_autoprecompiles::{
 };
 use sp1_core_executor::{Program, SP1CoreOpts};
 
-use rand::{distributions::Distribution, rngs::StdRng, Rng, SeedableRng};
-
 const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
-const GUEST_KECCAK256_SOFTWARE_NUM_CASES: u8 = 10; // Number of Keccak hashes to compute
-const GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN: usize = 10; // Max number of bytes in each hash input
+const GUEST_KECCAK256_SOFTWARE_NUM_CASES: usize = 10; // Number of Keccak hashes to compute
 
 const APC: u64 = 10;
 const APC_SKIP: u64 = 0;
@@ -45,63 +42,11 @@ fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
     );
 }
 
-fn seeded_random_preimages_with_bounded_len(count: usize, len: usize, seed: u64) -> Vec<Vec<u8>> {
-    let mut rng = StdRng::seed_from_u64(seed);
-
-    (0..count)
-        .map(|_| {
-            let actual_len = rand::distributions::Uniform::new(0_usize, len).sample(&mut rng);
-            (0..actual_len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>()
-        })
-        .collect()
-}
-
-/// Generate `count` random preimages with bounded length `len`.
-pub fn random_preimages_with_bounded_len(count: u8, len: usize) -> Vec<Vec<u8>> {
-    use rand::distributions::Distribution;
-
-    (0..count)
-        .map(|_| {
-            let len =
-                rand::distributions::Uniform::new(0_usize, len).sample(&mut rand::thread_rng());
-
-            (0..len).map(|_| rand::random::<u8>()).collect::<Vec<u8>>()
-        })
-        .collect()
-}
-
-fn keccak256_software_stdin() -> SP1Stdin {
-    // let mut stdin = SP1Stdin::new();
-    // let preimages = random_preimages_with_bounded_len(
-    //     GUEST_KECCAK256_SOFTWARE_NUM_CASES,
-    //     GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN,
-    //     // 1234,
-    // );
-    // let inputs_len = preimages.len();
-    // stdin.write(&inputs_len);
-    // for preimage in preimages {
-    //     stdin.write_vec(preimage);
-    // }
-    // stdin
-
-    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-    let mut inputs = Vec::<Vec<u8>>::new();
-    for len in 0..GUEST_KECCAK256_SOFTWARE_NUM_CASES {
-        let bytes = (0..(len+1)).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
-        inputs.push(bytes.clone());
-    }
-
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
-    for input in inputs.iter() {
-        stdin.write(&input);
-    }
-    stdin
-}
-
 #[test]
 fn test_execution_profile_keccak256_software() {
-    test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(keccak256_software_stdin()));
+    let mut stdin = SP1Stdin::default();
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
+    test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(stdin));
 }
 
 #[test]
@@ -121,11 +66,11 @@ fn test_compile_program_keccak256_software() {
 fn test_compile_program_keccak256_software_cell_pgo() {
     setup_logger();
 
-    let execution_profile = execution_profile_from_guest(
-        GUEST_KECCAK256_SOFTWARE,
-        SP1CoreOpts::default(),
-        Some(keccak256_software_stdin()),
-    );
+    let mut stdin = SP1Stdin::default();
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
+
+    let execution_profile =
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, SP1CoreOpts::default(), Some(stdin));
 
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
