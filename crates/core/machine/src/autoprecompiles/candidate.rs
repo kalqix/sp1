@@ -1,10 +1,9 @@
 use std::{collections::HashMap, path::Path};
 
 use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
-use powdr_autoprecompiles::blocks::ApcCandidateJsonExport;
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{BasicBlock, Candidate, KnapsackItem},
+    blocks::{ApcCandidateJsonExport, BasicBlock, Candidate, KnapsackItem},
     evaluation::{AirStats, EvaluationResult},
 };
 
