@@ -4,9 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{
-    apc::Apc, estimator::RecordEstimator, events::ApcEvent, APC_INDEX_START, NUM_REGISTERS,
-};
+use crate::{apc::Apc, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -91,8 +89,12 @@ impl<'a, 'b> IntoIterator for &'b Apcs<'a> {
 
 impl<'a> Apcs<'a> {
     fn new(program: &Program, opts: SP1CoreOpts, context: &SP1Context<'a>) -> Self {
-        let mut apc_free_program = program.clone();
-        apc_free_program.instructions.clear_apcs();
+        // Create a program with no APCs which is used for executing the APCs based on their original instructions.
+        let apc_free_program = {
+            let mut p = program.clone();
+            p.instructions.clear_apcs();
+            p
+        };
         let apc_free_program = Arc::new(apc_free_program);
 
         let apcs = program
@@ -101,16 +103,17 @@ impl<'a> Apcs<'a> {
             .iter()
             .enumerate()
             .map(|(id, range)| {
+                // Create an executor for the APC with the apc-free program
                 let apc_executor =
                     Executor::with_context(apc_free_program.clone(), opts.clone(), context.clone());
-                Apc::new((APC_INDEX_START + id) as u64, *range, apc_executor)
+                Apc::new(id as u64, *range, apc_executor)
             })
             .collect();
         Apcs { apcs }
     }
 
     fn get_mut(&mut self, op_b: u64) -> Option<&mut Apc<'a>> {
-        let index = (op_b - APC_INDEX_START as u64) as usize;
+        let index = op_b as usize;
         self.apcs.get_mut(index)
     }
 
@@ -1970,6 +1973,10 @@ impl<'a> Executor<'a> {
     }
 
     /// Execute an APC instruction.
+    /// Returns a, b, c, the next pc and the execution record of the APC
+    /// a and c are always 0 for APC instructions.
+    /// b is the id of the APC being executed.
+    /// The next pc is the pc obtained after executing the original instructions of the APC.
     #[allow(clippy::type_complexity)]
     fn execute_apc<E: ExecutorConfig>(
         &mut self,
@@ -2921,22 +2928,27 @@ mod tests {
     #[test]
     fn test_add_apc() {
         // main:
-        //     apc_0
+        //     apc_0:
         //      addi x29, x0, 5
         //      addi x30, x0, 37
+        //     apc_1:
+        //      addi x27, x0, 5
+        //      addi x28, x0, 37
         //     add x31, x30, x29
+        //     add x26, x28, x27
 
         let mut original_instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADD, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
         ];
         add_halt(&mut original_instructions);
 
         let program = Program::new(original_instructions, 0, 0);
-        let program = program.with_apcs(&[(0, 2)]);
-
-        println!("done with program");
+        let program = program.with_apcs(&[(0, 2), (2, 4)]);
 
         let mut runtime = Executor::with_context(
             Arc::new(program),
@@ -2945,6 +2957,7 @@ mod tests {
         );
         runtime.run::<Simple>().unwrap();
         assert_eq!(runtime.register::<Simple>(Register::X31), 42);
+        assert_eq!(runtime.register::<Simple>(Register::X26), 42);
     }
 
     #[test]
