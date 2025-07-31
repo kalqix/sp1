@@ -9,6 +9,7 @@ bincode = "1.3.3"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 tokio = "1.42.0"
 tracing = "0.1"
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
 # rsp
 rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "3647076" }
 

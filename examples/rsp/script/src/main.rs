@@ -1,16 +1,20 @@
 // use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
-use sp1_core_executor::{RetainedEventsPreset, SP1CoreOpts, SP1Context, Executor, Program};
+use powdr_autoprecompiles::PgoConfig;
+use sp1_build::include_elf;
+use sp1_build::Elf;
+use sp1_core_executor::{Executor, Program, RetainedEventsPreset, SP1Context, SP1CoreOpts};
+use sp1_core_machine::autoprecompiles::execution_profile_from_program;
+use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::CompiledProgram;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::utils::setup_logger;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{
-    local::{LocalProver, LocalProverOpts},
     components::CpuSP1ProverComponents,
+    local::{LocalProver, LocalProverOpts},
     SP1ProverBuilder,
 };
-use sp1_build::Elf;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_build::include_elf;
 use std::sync::Arc;
-use sp1_primitives::io::SP1PublicValues;
-use sp1_core_machine::utils::setup_logger;
 
 use alloy_primitives::B256;
 use clap::Parser;
@@ -46,10 +50,23 @@ async fn main() {
 
     let opts = SP1CoreOpts::default();
     let program = Arc::new(Program::from(&ELF).unwrap());
-    let mut runtime = Executor::with_context(program, opts, SP1Context::default());
+    let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
     runtime.maybe_setup_profiler(&ELF);
 
     runtime.write_vecs(&stdin.buffer);
+
+    println!("[powdr] Getting execution profile...");
+    let execution_profile =
+        execution_profile_from_program(program, SP1CoreOpts::default(), Some(stdin));
+
+    println!("[powdr] Generating APCs...");
+    let path = std::path::Path::new("apc_candidates");
+    let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
+    let pgo_config = PgoConfig::Cell(execution_profile, None, Some(1000));
+    let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+
+    println!("[powdr] Done!");
+
     let now = std::time::Instant::now();
     runtime.run_fast().unwrap();
 
@@ -58,7 +75,7 @@ async fn main() {
     println!("Full execution report:\n{:?}", runtime.report);
     println!("Cycles: {:?}", runtime.report.total_instruction_count());
 
-    let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream); 
+    let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
     let block_hash = public_values.read::<B256>();
     println!("success: block_hash={block_hash}");

@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use crate::autoprecompiles::instruction::Sp1Instruction;
 use powdr_autoprecompiles::blocks::Program;
 
-pub struct Sp1Program(sp1_core_executor::Program);
+pub struct Sp1Program(Arc<sp1_core_executor::Program>);
 
 impl Program<Sp1Instruction> for Sp1Program {
     fn base_pc(&self) -> u64 {
@@ -22,8 +24,8 @@ impl Program<Sp1Instruction> for Sp1Program {
     }
 }
 
-impl From<sp1_core_executor::Program> for Sp1Program {
-    fn from(inner: sp1_core_executor::Program) -> Self {
+impl From<Arc<sp1_core_executor::Program>> for Sp1Program {
+    fn from(inner: Arc<sp1_core_executor::Program>) -> Self {
         Sp1Program(inner)
     }
 }
