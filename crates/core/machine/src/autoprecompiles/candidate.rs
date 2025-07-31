@@ -43,6 +43,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
+    type JsonExport = Sp1ApcCandidateJsonExport;
     type ApcStats = EvaluationResult;
 
     fn create(
