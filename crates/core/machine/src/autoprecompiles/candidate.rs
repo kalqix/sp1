@@ -20,10 +20,14 @@ pub struct Sp1Candidate<A: Adapter> {
 
 impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     fn cost(&self) -> usize {
+        // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
+        // account too.
         self.stats.after.main_columns
     }
 
     fn value(&self) -> usize {
+        // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
+        // account too.
         let cells_saved_per_row = self.stats.before.main_columns - self.stats.after.main_columns;
 
         let value = self.execution_frequency.checked_mul(cells_saved_per_row).unwrap();

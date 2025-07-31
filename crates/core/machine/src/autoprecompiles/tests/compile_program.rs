@@ -91,11 +91,11 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     assert_eq!(
         apc_stats_before,
-        AirStats { main_columns: 1046, constraints: 730, bus_interactions: 490 }
+        AirStats { main_columns: 1107, constraints: 787, bus_interactions: 515 }
     );
     assert_eq!(
         apc_stats_after,
-        AirStats { main_columns: 271, constraints: 41, bus_interactions: 272 }
+        AirStats { main_columns: 256, constraints: 61, bus_interactions: 245 }
     );
 }
 
