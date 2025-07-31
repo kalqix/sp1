@@ -2,24 +2,39 @@ use std::{collections::HashMap, path::Path};
 
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{Candidate, KnapsackItem},
+    blocks::{BasicBlock, Candidate, KnapsackItem},
+    evaluation::{AirStats, EvaluationResult},
 };
+
+use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
+
+use serde::{Deserialize, Serialize};
 
 /// A candidate for the SP1 autoprecompiles.
 /// Currently does not use pgo data and instead is ranked by the start index of the block.
 pub struct Sp1Candidate<A: Adapter> {
     apc: AdapterApc<A>,
+    execution_frequency: usize,
+    stats: EvaluationResult,
 }
 
 impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     fn cost(&self) -> usize {
-        // TODO: use column count to rank candidates
-        1
+        // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
+        // account too.
+        self.stats.after.main_columns
     }
 
     fn value(&self) -> usize {
-        // TODO: use trace cells and pgo data to rank candidates
-        1
+        // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
+        // account too.
+        let cells_saved_per_row = self.stats.before.main_columns - self.stats.after.main_columns;
+
+        let value = self.execution_frequency.checked_mul(cells_saved_per_row).unwrap();
+
+        // We need `value()` to be much larger than `cost()` to avoid ties when ranking by `value()
+        // / cost()` Therefore, we scale it up by a constant factor.
+        value.checked_mul(1000).unwrap()
     }
 
     fn tie_breaker(&self) -> usize {
@@ -27,17 +42,59 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     }
 }
 
-impl<A: Adapter> Candidate<A> for Sp1Candidate<A> {
-    type JsonExport = ();
-    type ApcStats = ();
+impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
+    type JsonExport = Sp1ApcCandidateJsonExport;
+    type ApcStats = EvaluationResult;
 
-    fn create(apc: AdapterApc<A>, _: &HashMap<u64, u32>, _: AdapterVmConfig<A>) -> Self {
-        Sp1Candidate { apc }
+    fn create(
+        apc: AdapterApc<Sp1ApcAdapter>,
+        pgo_program_pc_count: &HashMap<u64, u32>,
+        vm_config: AdapterVmConfig<Sp1ApcAdapter>,
+    ) -> Self {
+        let stats_before = apc
+            .block
+            .statements
+            .iter()
+            .map(|s| *vm_config.instruction_handler.get_instruction_air_stats(s).unwrap())
+            .sum();
+        let stats_after = AirStats::new(apc.machine());
+
+        let stats = EvaluationResult { before: stats_before, after: stats_after };
+
+        let execution_frequency =
+            *pgo_program_pc_count.get(&apc.block.start_pc).unwrap_or(&0) as usize;
+
+        Sp1Candidate { apc, execution_frequency, stats }
     }
 
-    fn to_json_export(&self, _apc_candidates_dir_path: &Path) -> Self::JsonExport {}
-
-    fn into_apc_and_stats(self) -> (AdapterApc<A>, Self::ApcStats) {
-        (self.apc, ())
+    fn to_json_export(&self, apc_candidates_dir_path: &Path) -> Self::JsonExport {
+        Sp1ApcCandidateJsonExport {
+            start_pc: self.apc.start_pc(),
+            execution_frequency: self.execution_frequency,
+            original_block: self.apc.block.clone(),
+            stats: self.stats,
+            apc_candidate_file: apc_candidates_dir_path
+                .join(format!("apc_{}.cbor", self.apc.start_pc()))
+                .display()
+                .to_string(),
+        }
     }
+
+    fn into_apc_and_stats(self) -> (AdapterApc<Sp1ApcAdapter>, Self::ApcStats) {
+        (self.apc, self.stats)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Sp1ApcCandidateJsonExport {
+    // start_pc
+    start_pc: u64,
+    // execution_frequency
+    execution_frequency: usize,
+    // original instructions
+    original_block: BasicBlock<Sp1Instruction>,
+    // before and after optimization stats
+    stats: EvaluationResult,
+    // path to the apc candidate file
+    apc_candidate_file: String,
 }

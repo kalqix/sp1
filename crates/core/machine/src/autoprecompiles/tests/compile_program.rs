@@ -1,22 +1,23 @@
 use crate::{
     autoprecompiles::{
-        adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_program,
-        instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
-        program::Sp1Program, sp1_powdr_config,
+        adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_guest,
+        execution_profile_from_program, instruction::Sp1Instruction,
+        instruction_handler::Sp1InstructionHandler, program::Sp1Program, sp1_powdr_config,
     },
     io::SP1Stdin,
     utils::setup_logger,
 };
 use powdr_autoprecompiles::{
     blocks::{collect_basic_blocks, Program as PowdrProgram},
+    evaluation::AirStats,
     InstructionHandler, PgoConfig,
 };
 use sp1_core_executor::{Program, SP1CoreOpts};
 
 const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
-const GUEST_KECCAK256_SOFTWARE_ITER: usize = 10;
-const GUEST_KECCAK256_SOFTWARE_INPUT: [u8; 1] = [0u8];
+const GUEST_KECCAK256_SOFTWARE_NUM_CASES: usize = 10; // Number of Keccak hashes to compute
+
 const APC: u64 = 10;
 const APC_SKIP: u64 = 0;
 
@@ -44,8 +45,7 @@ fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
 #[test]
 fn test_execution_profile_keccak256_software() {
     let mut stdin = SP1Stdin::default();
-    stdin.write(&GUEST_KECCAK256_SOFTWARE_ITER);
-    stdin.write_vec(GUEST_KECCAK256_SOFTWARE_INPUT.to_vec());
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
     test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(stdin));
 }
 
@@ -63,6 +63,43 @@ fn test_compile_program_keccak256_software() {
 }
 
 #[test]
+fn test_compile_program_keccak256_software_cell_pgo() {
+    setup_logger();
+
+    let mut stdin = SP1Stdin::default();
+    stdin.write(&GUEST_KECCAK256_SOFTWARE_NUM_CASES);
+
+    let execution_profile =
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, SP1CoreOpts::default(), Some(stdin));
+
+    let path = std::path::Path::new("apc_candidates");
+    let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
+    // Cell pgo that only creates APCs for basic blocks with fewer than 1000 instructions
+    let pgo_config = PgoConfig::Cell(execution_profile, None, Some(1000));
+    let compiled_program = compile_guest(GUEST_KECCAK256_SOFTWARE, config, pgo_config);
+
+    let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
+        .apcs_and_stats
+        .into_iter()
+        .map(|(_, s)| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
+        .unzip();
+
+    // Currently just sum up the before and after stats for each APC, but APC-level analysis is also
+    // available.
+    let apc_stats_before = apc_stats_before.into_iter().sum::<AirStats>();
+    let apc_stats_after = apc_stats_after.into_iter().sum::<AirStats>();
+
+    assert_eq!(
+        apc_stats_before,
+        AirStats { main_columns: 1107, constraints: 787, bus_interactions: 515 }
+    );
+    assert_eq!(
+        apc_stats_after,
+        AirStats { main_columns: 256, constraints: 61, bus_interactions: 245 }
+    );
+}
+
+#[test]
 fn test_compile_program_fibonacci() {
     setup_logger();
 
@@ -75,7 +112,7 @@ fn test_compile_program_fibonacci() {
 fn test_collect_basic_blocks_keccak256_software() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1870);
+    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1737);
 }
 
 #[test]
