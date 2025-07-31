@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{BasicBlock, Candidate, KnapsackItem},
+    blocks::{ApcCandidateJsonExport, BasicBlock, Candidate, KnapsackItem},
     evaluation::{AirStats, EvaluationResult},
 };
 
@@ -43,7 +43,6 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
-    type JsonExport = Sp1ApcCandidateJsonExport;
     type ApcStats = EvaluationResult;
 
     fn create(
@@ -67,12 +66,21 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         Sp1Candidate { apc, execution_frequency, stats }
     }
 
-    fn to_json_export(&self, apc_candidates_dir_path: &Path) -> Self::JsonExport {
-        Sp1ApcCandidateJsonExport {
+    fn to_json_export(
+        &self,
+        apc_candidates_dir_path: &Path,
+    ) -> ApcCandidateJsonExport<Sp1Instruction> {
+        ApcCandidateJsonExport {
             start_pc: self.apc.start_pc(),
             execution_frequency: self.execution_frequency,
             original_block: self.apc.block.clone(),
             stats: self.stats,
+            total_width_before: self.stats.before.main_columns, /* TODO: add bus interaction and
+                                                                 * preprocessed columns */
+            total_width_after: self.stats.after.main_columns, /* TODO: add bus interaction and
+                                                               * preprocessed columns */
+            value: self.value(),
+            cost: self.cost(),
             apc_candidate_file: apc_candidates_dir_path
                 .join(format!("apc_{}.cbor", self.apc.start_pc()))
                 .display()
