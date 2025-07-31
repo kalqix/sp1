@@ -17,7 +17,7 @@ use sp1_core_executor::{Program, SP1CoreOpts};
 
 const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
-const GUEST_KECCAK256_SOFTWARE_NUM_CASES: usize = 10; // Number of Keccak hashes to compute
+const GUEST_KECCAK256_SOFTWARE_NUM_CASES: usize = 10000; // Number of Keccak hashes to compute
 const GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN: usize = 10; // Max number of bytes in each hash input
 
 const APC: u64 = 10;
