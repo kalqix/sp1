@@ -39,15 +39,17 @@ pub struct Program {
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
 }
 
-/// Instructions of a program, including the original instructions, the ranges which have APC chips, and the modified
+/// Instructions of a program, including the original instructions, the ranges which have APC chips,
+/// and the modified
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Instructions {
     /// The original instructions of the program.
     original: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
     apcs: Vec<(usize, usize)>,
-    /// The modified instructions, which replace the original instructions in the ranges with APC instructions.
-    /// This can be computed from the original instructions and the APC ranges, but is stored here for convenience.
+    /// The modified instructions, which replace the original instructions in the ranges with APC
+    /// instructions. This can be computed from the original instructions and the APC ranges,
+    /// but is stored here for convenience.
     modified: Option<Vec<Instruction>>,
 }
 
@@ -74,16 +76,20 @@ impl Instructions {
             .scan(apc_ranges_iter.next(), move |range, (index, instruction)| {
                 if let Some((apc_index, (start, end))) = range {
                     if index < *start {
-                        // If the index is before the start of the range, we keep the original instruction
+                        // If the index is before the start of the range, we keep the original
+                        // instruction
                         Some(*instruction)
                     } else if index == *start {
-                        // If the index is at the start of the range, we replace it with an APC instruction
+                        // If the index is at the start of the range, we replace it with an APC
+                        // instruction
                         Some(apc_instruction(*apc_index))
                     } else if index < *end - 1 {
-                        // If the index is in the middle of the range, we replace it with an unimplemented instruction
+                        // If the index is in the middle of the range, we replace it with an
+                        // unimplemented instruction
                         Some(Instruction::unimp())
                     } else if index == *end - 1 {
-                        // If the index is at the end of the range, we replace it with an unimplemented instruction and move to the next range
+                        // If the index is at the end of the range, we replace it with an
+                        // unimplemented instruction and move to the next range
                         *range = apc_ranges_iter.next();
                         Some(Instruction::unimp())
                     } else {
@@ -148,8 +154,8 @@ impl Instructions {
 
 impl Program {
     /// Set the APC ranges for this program.
-    /// This will also compute the modified instructions based on the original instructions and the APC ranges.
-    /// # Panics
+    /// This will also compute the modified instructions based on the original instructions and the
+    /// APC ranges. # Panics
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
     pub fn with_apcs(mut self, apc_ranges: &[(usize, usize)]) -> Self {

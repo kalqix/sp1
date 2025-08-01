@@ -37,8 +37,9 @@ impl<'a, 'b> IntoIterator for &'b Apcs<'a> {
 
 impl<'a> Apcs<'a> {
     /// Creates a new Apcs instance from a program and options.
-    pub fn new(program: &Program, opts: SP1CoreOpts, context: &SP1Context<'a>) -> Self {
-        // Create a program with no APCs which is used for executing the APCs based on their original instructions.
+    pub fn new(program: &Program, opts: &SP1CoreOpts, context: &SP1Context<'a>) -> Self {
+        // Create a program with no APCs which is used for executing the APCs based on their
+        // original instructions.
         let apc_free_program = {
             let mut p = program.clone();
             p.instructions.clear_apcs();

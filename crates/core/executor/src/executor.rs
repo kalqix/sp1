@@ -382,7 +382,7 @@ impl<'a> Executor<'a> {
     /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
-        let apcs = Apcs::new(&program, opts.clone(), &context);
+        let apcs = Apcs::new(&program, &opts, &context);
 
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
@@ -1958,7 +1958,8 @@ impl<'a> Executor<'a> {
         // The pc of the apc executor is the next pc in the main execution
         let next_pc = apc.executor.state.pc;
 
-        // After state of the main execution is that of the apc executor, except for the pc which is the original pc.
+        // After state of the main execution is that of the apc executor, except for the pc which is
+        // the original pc.
         self.state = std::mem::take(&mut apc.executor.state);
         self.state.pc = original_pc;
 
@@ -2904,9 +2905,11 @@ mod tests {
         runtime.run::<Simple>().unwrap();
         assert_eq!(runtime.register::<Simple>(Register::X31), 42);
         assert_eq!(runtime.register::<Simple>(Register::X26), 42);
-        // TODO: I could not find a way to test check something inside `runtime` which would signal that the APCs were actually executed,
-        // since in `Simple` mode we do not store anything (for example, events). To test this, we would need to use `Trace` mode, but this fails for an unrelated reason.
-        // I did test this by panicking in `execute_apc` and checking that this test fails.
+        // TODO: I could not find a way to test check something inside `runtime` which would signal
+        // that the APCs were actually executed, since in `Simple` mode we do not store
+        // anything (for example, events). To test this, we would need to use `Trace` mode, but this
+        // fails for an unrelated reason. I did test this by panicking in `execute_apc` and
+        // checking that this test fails.
     }
 
     #[test]
