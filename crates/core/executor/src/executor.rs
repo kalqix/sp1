@@ -2782,7 +2782,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, SP1Context, SP1CoreOpts, Simple};
+    use crate::{Register, SP1Context, SP1CoreOpts, Simple, Trace};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2883,33 +2883,44 @@ mod tests {
         //     apc_0:
         //      addi x29, x0, 5
         //      addi x30, x0, 37
+        //     add x31, x30, x29
         //     apc_1:
         //      addi x27, x0, 5
         //      addi x28, x0, 37
-        //     add x31, x30, x29
         //     add x26, x28, x27
 
+        // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
+        // This is found somewhere else in the codebase
+        // Without this change, `Trace` mode fails.
+
         let mut original_instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADD, 27, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
         ];
         add_halt(&mut original_instructions);
 
-        let program = Program::new(original_instructions, 0, 0).with_apcs(&[(0, 2), (2, 4)]);
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        let mut runtime =
+            Executor::new(Arc::new(program_without_apcs.clone()), SP1CoreOpts::default());
+        runtime.run::<Trace>().unwrap();
+        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+        // Check that no APCs were executed
+        assert!(runtime.records[0].apc_events.is_empty());
+
+        let program = program_without_apcs.with_apcs(&[(0, 2), (3, 5)]);
 
         let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
-        runtime.run::<Simple>().unwrap();
-        assert_eq!(runtime.register::<Simple>(Register::X31), 42);
-        assert_eq!(runtime.register::<Simple>(Register::X26), 42);
-        // TODO: I could not find a way to test check something inside `runtime` which would signal
-        // that the APCs were actually executed, since in `Simple` mode we do not store
-        // anything (for example, events). To test this, we would need to use `Trace` mode, but this
-        // fails for an unrelated reason. I did test this by panicking in `execute_apc` and
-        // checking that this test fails.
+        runtime.run::<Trace>().unwrap();
+        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+        // Check that the APCs were executed
+        assert!(!runtime.records[0].apc_events.is_empty());
     }
 
     #[test]
