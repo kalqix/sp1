@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Executor, Instruction, Program, SP1Context, SP1CoreOpts};
+use crate::{Executor, Program, SP1Context, SP1CoreOpts};
 
 /// Represents an autoprecompile (APC) in the executor.
 pub struct Apc<'a> {

@@ -1955,9 +1955,11 @@ impl<'a> Executor<'a> {
             apc.executor.execute_cycle::<E>()?;
         }
 
-        // After executing the APC, we need to update the state of the executor.
+        // The pc of the apc executor is the next pc in the main execution
+        let next_pc = apc.executor.state.pc;
+
+        // After state of the main execution is that of the apc executor, except for the pc which is the original pc.
         self.state = std::mem::take(&mut apc.executor.state);
-        let next_pc = self.state.pc;
         self.state.pc = original_pc;
 
         // TODO: maybe this is not necessary and we can just rely on apc.executor.records?
@@ -2779,7 +2781,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, SP1Context, SP1CoreOpts, Simple, Trace};
+    use crate::{Register, SP1Context, SP1CoreOpts, Simple};
 
     use super::{Executor, Instruction, Opcode, Program};
 
