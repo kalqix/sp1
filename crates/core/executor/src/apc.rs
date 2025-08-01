@@ -8,6 +8,8 @@ pub struct Apc<'a> {
     pub id: u64,
     /// The original instructions that led to this autoprecompile
     pub original_instructions: Vec<Instruction>,
+    /// An single executor which is used each time the autoprecompile is executed.
+    /// Before executing the autoprecompile, it is synced with the current state of main execution.
     pub executor: Executor<'a>,
 }
 
