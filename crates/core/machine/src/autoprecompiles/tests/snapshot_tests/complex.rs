@@ -352,3 +352,31 @@ fn keccak_permutation_initial_stores() {
     ];
     assert_machine_output(basic_block, "keccak_permutation_initial_stores");
 }
+
+#[test]
+fn keccak_permutation_xor_chain() {
+    setup_logger();
+    // Instructions 14-17 of the `keccak_permutation` test above.
+    let basic_block = vec![
+        Instruction::new(Opcode::XOR, 12, 18, 19, false, false),
+        Instruction::new(Opcode::XOR, 10, 10, 11, false, false),
+        Instruction::new(Opcode::XOR, 11, 20, 25, false, false),
+        Instruction::new(Opcode::XOR, 11, 12, 11, false, false),
+    ];
+    assert_machine_output(basic_block, "keccak_permutation_xor_chain");
+}
+
+#[test]
+fn keccak_permutation_rot63() {
+    setup_logger();
+    // Instructions 36-38 of the `keccak_permutation` test above.
+    // These 3 instruction implement a rotation. Similar instructions
+    // appear 29 times in the Keccak basic block, about a third of all
+    // instructions.
+    let basic_block = vec![
+        Instruction::new(Opcode::SRL, 15, 11, 63, false, true),
+        Instruction::new(Opcode::SLL, 5, 11, 1, false, true),
+        Instruction::new(Opcode::OR, 15, 5, 15, false, false),
+    ];
+    assert_machine_output(basic_block, "keccak_permutation_rot63");
+}

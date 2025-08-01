@@ -11,6 +11,7 @@ categories = { workspace = true }
 
 [dependencies]
 bincode = "1.3.3"
+rand = "0.8.5"
 serde = { workspace = true, features = ["derive", "rc"] }
 serde_json = { workspace = true }
 itertools = { workspace = true }
@@ -27,11 +28,11 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-build = { workspace = true }
 
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "83cd1ecc3e0fc467d521eceb2a5651a78ffd04de", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "83cd1ecc3e0fc467d521eceb2a5651a78ffd04de", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "83cd1ecc3e0fc467d521eceb2a5651a78ffd04de", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "83cd1ecc3e0fc467d521eceb2a5651a78ffd04de", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "83cd1ecc3e0fc467d521eceb2a5651a78ffd04de", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
 
 # Use local powdr
 # powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }

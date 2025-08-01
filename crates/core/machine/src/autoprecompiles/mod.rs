@@ -14,6 +14,7 @@ mod tests;
 use powdr_autoprecompiles::{
     adapter::AdapterApc,
     blocks::{collect_basic_blocks, generate_apcs_with_pgo},
+    evaluation::EvaluationResult,
     execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
@@ -114,7 +115,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
 }
 
 pub struct CompiledProgram {
-    pub apcs: Vec<AdapterApc<Sp1ApcAdapter>>,
+    pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
 }
 
 impl CompiledProgram {
@@ -126,18 +127,16 @@ impl CompiledProgram {
         let vm_config = sp1_vm_config(&airs);
 
         // Currently we don't support the max_total_apc_columns option for cell PGO
-        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
+        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_), _)));
 
         // Collect basic blocks
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Generate APC
-        let apcs =
+        let apcs_and_stats =
             generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
 
-        let apcs = apcs.into_iter().map(|(apc, _)| apc).collect::<Vec<_>>();
-
-        Self { apcs }
+        Self { apcs_and_stats }
     }
 }
