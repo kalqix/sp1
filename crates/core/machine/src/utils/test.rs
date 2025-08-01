@@ -28,6 +28,8 @@ pub async fn run_test(
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
+    println!("APC EVENTS {:#?}", runtime.records[0].apc_events);
+
     let _ = run_test_core(runtime, inputs).await?;
     Ok(public_values)
 }
