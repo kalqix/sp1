@@ -6,8 +6,8 @@ use crate::{Executor, Instruction, Program, SP1Context, SP1CoreOpts};
 pub struct Apc<'a> {
     /// The id of the autoprecompile, used for identification.
     pub id: u64,
-    /// The original instructions that led to this autoprecompile
-    pub original_instructions: Vec<Instruction>,
+    /// The number of original instructions in the autoprecompile.
+    pub original_instructions_count: usize,
     /// An single executor which is used each time the autoprecompile is executed.
     /// Before executing the autoprecompile, it is synced with the current state of main execution.
     pub executor: Executor<'a>,
@@ -15,14 +15,7 @@ pub struct Apc<'a> {
 
 impl<'a> Apc<'a> {
     pub fn new(id: u64, (from, to): (usize, usize), executor: Executor<'a>) -> Self {
-        Self {
-            id,
-            original_instructions: executor
-                .program
-                .instructions
-                .original_instructions_for_range(from, to),
-            executor,
-        }
+        Self { id, original_instructions_count: to - from, executor }
     }
 }
 

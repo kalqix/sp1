@@ -129,13 +129,6 @@ impl Instructions {
         }
     }
 
-    /// Get the original instructions for the given range.
-    #[must_use]
-    pub fn original_instructions_for_range(&self, from: usize, to: usize) -> Vec<Instruction> {
-        assert!(from <= to && to <= self.original.len());
-        self.original[from..to].to_vec()
-    }
-
     /// Remove the apc ranges and modified instructions.
     pub(crate) fn clear_apcs(&mut self) {
         self.apcs.clear();

@@ -1950,7 +1950,8 @@ impl<'a> Executor<'a> {
         // Pass all the necessary execution state to the APC
         apc.executor.state = std::mem::take(&mut self.state);
 
-        for _ in &apc.original_instructions {
+        // Execute as many cycles as the APC has original instructions.
+        for _ in 0..apc.original_instructions_count {
             apc.executor.execute_cycle::<E>()?;
         }
 
