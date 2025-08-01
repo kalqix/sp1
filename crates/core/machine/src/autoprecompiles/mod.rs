@@ -18,6 +18,7 @@ use powdr_autoprecompiles::{
     execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
+use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::{Executor, Program, SP1CoreOpts};
@@ -114,6 +115,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
     BuildArgs { build_target: DEFAULT_TARGET_64.to_string(), ..Default::default() }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct CompiledProgram {
     pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
 }
@@ -133,9 +135,13 @@ impl CompiledProgram {
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
+        println!("generate apc");
+
         // Generate APC
         let apcs_and_stats =
             generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
+
+        println!("generate apc success with length {}", apcs_and_stats.len());
 
         Self { apcs_and_stats }
     }

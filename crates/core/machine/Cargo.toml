@@ -28,6 +28,12 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-build = { workspace = true }
 
+# Powdr CLI dependencies
+clap = { version = "^4.3", features = ["derive"] }
+eyre = "0.6.12"
+serde_cbor = "0.11.2"
+metrics-tracing-context = "0.16.0"
+
 powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
 powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
 powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
@@ -96,6 +102,10 @@ bigint-rug = ["sp1-curves/bigint-rug"]
 [lib]
 path = "src/lib.rs"
 bench = false
+
+[[bin]]
+name = "powdr_sp1"
+path = "src/autoprecompiles/bin/cli.rs"
 
 [lints]
 workspace = true
