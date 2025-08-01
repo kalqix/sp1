@@ -35,7 +35,7 @@ enum Commands {
         #[arg(long, default_value_t = PgoType::default())]
         pgo: PgoType,
 
-        /// When `--pgo cell`, the optional max number of instructions per block to create APC for
+        /// The optional max number of instructions per block to create APC for
         #[arg(long)]
         max_block_instructions: Option<usize>,
 

@@ -135,13 +135,9 @@ impl CompiledProgram {
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
-        println!("generate apc");
-
         // Generate APC
         let apcs_and_stats =
             generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
-
-        println!("generate apc success with length {}", apcs_and_stats.len());
 
         Self { apcs_and_stats }
     }

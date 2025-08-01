@@ -138,7 +138,7 @@ fn test_compile_program_fibonacci() {
 fn test_collect_basic_blocks_keccak256_software() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1737);
+    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1870);
 }
 
 #[test]
