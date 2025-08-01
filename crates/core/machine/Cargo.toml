@@ -34,11 +34,11 @@ eyre = "0.6.12"
 serde_cbor = "0.11.2"
 metrics-tracing-context = "0.16.0"
 
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "7485dbf", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "666b31d", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "666b31d", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "666b31d", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "666b31d", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "666b31d", default-features = false }
 
 # Use local powdr
 # powdr-autoprecompiles = { path = "../../../../powdr/autoprecompiles/" }

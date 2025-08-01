@@ -1,7 +1,7 @@
-use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use metrics_tracing_context::MetricsLayer;
-use powdr_autoprecompiles::PgoConfig;
+use powdr_autoprecompiles::{get_pgo_config, PgoType};
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::{
     autoprecompiles::{
@@ -10,7 +10,6 @@ use sp1_core_machine::{
     io::SP1Stdin,
 };
 use std::{io, path::PathBuf};
-use strum::Display;
 use tracing::Level;
 use tracing_forest::ForestLayer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
@@ -49,22 +48,6 @@ enum Commands {
     },
 }
 
-#[derive(ValueEnum, Clone, Debug, Display)]
-pub enum PgoType {
-    /// cost = cells saved per apc * times executed
-    Cell,
-    /// cost = instruction per apc * times executed
-    Instruction,
-    /// cost = instruction per apc
-    None,
-}
-
-impl Default for PgoType {
-    fn default() -> Self {
-        Self::Cell
-    }
-}
-
 fn main() -> Result<(), io::Error> {
     let args = Cli::parse();
 
@@ -93,8 +76,11 @@ fn run_command(command: Commands) {
             if let Some(apc_candidates_dir) = apc_candidates_dir {
                 config = config.with_apc_candidates_dir(apc_candidates_dir);
             }
-            let pgo_config = pgo_config(guest.clone(), pgo, max_block_instructions, input);
+            let execution_profile =
+                execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
+            let pgo_config = get_pgo_config(pgo, None, max_block_instructions, execution_profile);
             let program = compile_guest(&guest, config, pgo_config);
+            // `cbor` file written to the guest folder
             write_program_to_file(program, &format!("{guest}_compiled.cbor")).unwrap();
         }
     }
@@ -114,37 +100,6 @@ fn stdin_from(input: Option<usize>) -> Option<SP1Stdin> {
         s.write(&i);
         s
     })
-}
-
-fn pgo_config(
-    guest: String,
-    pgo: PgoType,
-    max_block_instructions: Option<usize>,
-    input: Option<usize>,
-) -> PgoConfig {
-    match pgo {
-        PgoType::Cell => {
-            let execution_profile =
-                execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
-
-            // sort and print execution profile
-            let mut execution_profile_sorted: Vec<_> =
-                execution_profile.clone().into_iter().collect();
-            execution_profile_sorted.sort_by_key(|(_, count)| *count);
-            for (pc, count) in execution_profile_sorted.into_iter().rev() {
-                println!("PC: {}, count: {:?}", pc, count);
-            }
-
-            // Supports max_block_instructions but not max total columns
-            PgoConfig::Cell(execution_profile, None, max_block_instructions)
-        }
-        PgoType::Instruction => {
-            let execution_profile =
-                execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
-            PgoConfig::Instruction(execution_profile)
-        }
-        PgoType::None => PgoConfig::None,
-    }
 }
 
 fn setup_tracing_with_log_level(level: Level) {
