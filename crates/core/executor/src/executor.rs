@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apc, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
+use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -68,58 +68,6 @@ impl From<bool> for DeferredProofVerification {
         } else {
             DeferredProofVerification::Disabled
         }
-    }
-}
-
-/// A collection of APCs that are available for the execution.
-#[derive(Default)]
-pub struct Apcs<'a> {
-    /// The APCs that are available for this execution.
-    pub apcs: Vec<Apc<'a>>,
-}
-
-impl<'a, 'b> IntoIterator for &'b Apcs<'a> {
-    type Item = &'b Apc<'a>;
-    type IntoIter = std::slice::Iter<'b, Apc<'a>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.apcs.iter()
-    }
-}
-
-impl<'a> Apcs<'a> {
-    fn new(program: &Program, opts: SP1CoreOpts, context: &SP1Context<'a>) -> Self {
-        // Create a program with no APCs which is used for executing the APCs based on their original instructions.
-        let apc_free_program = {
-            let mut p = program.clone();
-            p.instructions.clear_apcs();
-            p
-        };
-        let apc_free_program = Arc::new(apc_free_program);
-
-        let apcs = program
-            .instructions
-            .apcs
-            .iter()
-            .enumerate()
-            .map(|(id, range)| {
-                // Create an executor for the APC with the apc-free program
-                let apc_executor =
-                    Executor::with_context(apc_free_program.clone(), opts.clone(), context.clone());
-                Apc::new(id as u64, *range, apc_executor)
-            })
-            .collect();
-        Apcs { apcs }
-    }
-
-    fn get_mut(&mut self, op_b: u64) -> Option<&mut Apc<'a>> {
-        let index = op_b as usize;
-        self.apcs.get_mut(index)
-    }
-
-    /// Iterator over the APCs.
-    pub fn iter(&self) -> std::slice::Iter<'_, Apc<'a>> {
-        self.apcs.iter()
     }
 }
 
@@ -2947,17 +2895,15 @@ mod tests {
         ];
         add_halt(&mut original_instructions);
 
-        let program = Program::new(original_instructions, 0, 0);
-        let program = program.with_apcs(&[(0, 2), (2, 4)]);
+        let program = Program::new(original_instructions, 0, 0).with_apcs(&[(0, 2), (2, 4)]);
 
-        let mut runtime = Executor::with_context(
-            Arc::new(program),
-            SP1CoreOpts::default(),
-            SP1Context::default(),
-        );
+        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
         runtime.run::<Simple>().unwrap();
         assert_eq!(runtime.register::<Simple>(Register::X31), 42);
         assert_eq!(runtime.register::<Simple>(Register::X26), 42);
+        // TODO: I could not find a way to test check something inside `runtime` which would signal that the APCs were actually executed,
+        // since in `Simple` mode we do not store anything (for example, events). To test this, we would need to use `Trace` mode, but this fails for an unrelated reason.
+        // I did test this by panicking in `execute_apc` and checking that this test fails.
     }
 
     #[test]

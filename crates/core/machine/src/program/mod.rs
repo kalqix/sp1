@@ -108,7 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                     ];
                     // let instruction =
                     //     program.instructions[idx].preprocess::<F>(program.pc_base, pc);
-                    let instruction = program.instructions.get(idx).unwrap();
+                    let instruction = program.instructions.get_proving(idx).unwrap();
                     cols.instruction.populate(instruction);
 
                     if instruction.opcode != Opcode::UNIMP {
@@ -254,8 +254,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut rows = input
             .program
             .instructions
-            .clone()
-            .into_iter()
+            .original()
             .enumerate()
             .map(|(i, _)| {
                 let pc = input.program.pc_base + i as u64 * 4;

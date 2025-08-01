@@ -43,25 +43,12 @@ pub struct Program {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Instructions {
     /// The original instructions of the program.
-    pub original: Vec<Instruction>,
+    original: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
-    pub apcs: Vec<(usize, usize)>,
+    apcs: Vec<(usize, usize)>,
     /// The modified instructions, which replace the original instructions in the ranges with APC instructions.
     /// This can be computed from the original instructions and the APC ranges, but is stored here for convenience.
-    pub modified: Option<Vec<Instruction>>,
-}
-
-impl IntoIterator for Instructions {
-    type Item = Instruction;
-    type IntoIter = std::vec::IntoIter<Instruction>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        if let Some(modified) = self.modified {
-            modified.into_iter()
-        } else {
-            self.original.into_iter()
-        }
-    }
+    modified: Option<Vec<Instruction>>,
 }
 
 impl From<Vec<Instruction>> for Instructions {
@@ -74,38 +61,46 @@ fn apc_instruction(apc_index: usize) -> Instruction {
     Instruction::new(Opcode::APC, 0, apc_index as u64, 0, true, true)
 }
 
-fn modified_instructions(original: &[Instruction], apcs: &[(usize, usize)]) -> Vec<Instruction> {
-    let mut apc_ranges = apcs.iter().enumerate();
-    original
-        .iter()
-        .enumerate()
-        .scan(apc_ranges.next(), move |range, (index, instruction)| {
-            if let Some((apc_index, (start, end))) = range {
-                if index < *start {
-                    // If the index is before the start of the range, we keep the original instruction
-                    Some(*instruction)
-                } else if index == *start {
-                    // If the index is at the start of the range, we replace it with an APC instruction
-                    Some(apc_instruction(*apc_index))
-                } else if index < *end - 1 {
-                    // If the index is in the middle of the range, we replace it with an unimplemented instruction
-                    Some(Instruction::unimp())
-                } else if index == *end - 1 {
-                    // If the index is at the end of the range, we replace it with an unimplemented instruction and move to the next range
-                    *range = apc_ranges.next();
-                    Some(Instruction::unimp())
-                } else {
-                    unreachable!()
-                }
-            } else {
-                // If there are no more ranges, we keep the original instruction
-                Some(*instruction)
-            }
-        })
-        .collect()
-}
-
 impl Instructions {
+    #[must_use]
+    fn with_apcs(mut self, apc_ranges: &[(usize, usize)]) -> Self {
+        assert!(self.apcs.is_empty(), "APC ranges already set");
+        assert!(self.modified.is_none(), "Modified instructions already set");
+        let mut apc_ranges_iter = apc_ranges.iter().enumerate();
+        let modified_instructions = self
+            .original
+            .iter()
+            .enumerate()
+            .scan(apc_ranges_iter.next(), move |range, (index, instruction)| {
+                if let Some((apc_index, (start, end))) = range {
+                    if index < *start {
+                        // If the index is before the start of the range, we keep the original instruction
+                        Some(*instruction)
+                    } else if index == *start {
+                        // If the index is at the start of the range, we replace it with an APC instruction
+                        Some(apc_instruction(*apc_index))
+                    } else if index < *end - 1 {
+                        // If the index is in the middle of the range, we replace it with an unimplemented instruction
+                        Some(Instruction::unimp())
+                    } else if index == *end - 1 {
+                        // If the index is at the end of the range, we replace it with an unimplemented instruction and move to the next range
+                        *range = apc_ranges_iter.next();
+                        Some(Instruction::unimp())
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    // If there are no more ranges, we keep the original instruction
+                    Some(*instruction)
+                }
+            })
+            .collect();
+        self.modified = Some(modified_instructions);
+        self.apcs = apc_ranges.to_vec();
+
+        self
+    }
+
     /// The number of instructions
     #[must_use]
     pub fn len(&self) -> usize {
@@ -118,9 +113,15 @@ impl Instructions {
         self.original.is_empty()
     }
 
-    /// Get the instruction at the given index.
+    /// Get the proving instruction at the given index.
     #[must_use]
-    pub fn get(&self, index: usize) -> Option<&Instruction> {
+    pub fn get_proving(&self, index: usize) -> Option<&Instruction> {
+        self.original.get(index)
+    }
+
+    /// Get the execution instruction at the given index.
+    #[must_use]
+    pub fn get_execution(&self, index: usize) -> Option<&Instruction> {
         if let Some(modified) = &self.modified {
             modified.get(index)
         } else {
@@ -140,6 +141,16 @@ impl Instructions {
         self.apcs.clear();
         self.modified = None;
     }
+
+    /// Get the original instructions as an iterator.
+    pub fn original(&self) -> impl Iterator<Item = Instruction> {
+        self.original.clone().into_iter()
+    }
+
+    /// Get the apcs as an iterator.
+    pub(crate) fn apcs(&self) -> impl Iterator<Item = &(usize, usize)> {
+        self.apcs.iter()
+    }
 }
 
 impl Program {
@@ -149,12 +160,7 @@ impl Program {
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
     pub fn with_apcs(mut self, apc_ranges: &[(usize, usize)]) -> Self {
-        assert!(self.instructions.apcs.is_empty(), "APC ranges already set");
-        assert!(self.instructions.modified.is_none(), "Modified instructions already set");
-        self.instructions.apcs = apc_ranges.to_vec();
-        self.instructions.modified =
-            Some(modified_instructions(&self.instructions.original, &self.instructions.apcs));
-
+        self.instructions = self.instructions.with_apcs(apc_ranges);
         self
     }
 
@@ -224,7 +230,7 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(self.instructions.get(idx).unwrap())
+            Some(self.instructions.get_execution(idx).unwrap())
         } else {
             None
         }
