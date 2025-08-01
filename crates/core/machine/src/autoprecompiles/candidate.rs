@@ -1,12 +1,11 @@
 use std::{collections::HashMap, path::Path};
 
+use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{BasicBlock, Candidate, KnapsackItem},
+    blocks::{ApcCandidateJsonExport, BasicBlock, Candidate, KnapsackItem},
     evaluation::{AirStats, EvaluationResult},
 };
-
-use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +42,6 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
-    type JsonExport = Sp1ApcCandidateJsonExport;
     type ApcStats = EvaluationResult;
 
     fn create(
@@ -67,9 +65,11 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         Sp1Candidate { apc, execution_frequency, stats }
     }
 
-    fn to_json_export(&self, apc_candidates_dir_path: &Path) -> Self::JsonExport {
-        Sp1ApcCandidateJsonExport {
-            start_pc: self.apc.start_pc(),
+    fn to_json_export(
+        &self,
+        apc_candidates_dir_path: &Path,
+    ) -> ApcCandidateJsonExport<Sp1Instruction> {
+        ApcCandidateJsonExport {
             execution_frequency: self.execution_frequency,
             original_block: self.apc.block.clone(),
             stats: self.stats,
@@ -77,6 +77,10 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
                 .join(format!("apc_{}.cbor", self.apc.start_pc()))
                 .display()
                 .to_string(),
+            width_before: self.stats.before.main_columns,
+            value: self.value(),
+            cost_before: self.stats.before.main_columns as f64,
+            cost_after: self.stats.after.main_columns as f64,
         }
     }
 
