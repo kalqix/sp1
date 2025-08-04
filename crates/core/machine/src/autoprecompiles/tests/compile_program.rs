@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     autoprecompiles::{
         adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_guest,
@@ -29,7 +31,7 @@ fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
     let elf = build_elf(guest_path);
     let sp1_opts = SP1CoreOpts::default();
 
-    let program = Program::from(&elf).unwrap();
+    let program = Arc::new(Program::from(&elf).unwrap());
     let sp1_program = Sp1Program::from(program.clone());
 
     let execution_profile = execution_profile_from_program(program, sp1_opts, stdin);
@@ -150,7 +152,7 @@ fn test_collect_basic_blocks_fibonacci() {
 fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: usize) {
     let elf = build_elf(guest_path);
 
-    let sp1_program = Sp1Program::from(Program::from(&elf).unwrap());
+    let sp1_program = Sp1Program::from(Arc::new(Program::from(&elf).unwrap()));
     let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
     let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
 

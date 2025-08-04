@@ -1,19 +1,23 @@
 // use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
-use sp1_core_executor::{RetainedEventsPreset, SP1CoreOpts, SP1Context, Executor, Program};
+use powdr_autoprecompiles::PgoConfig;
+use sp1_build::include_elf;
+use sp1_build::Elf;
+use sp1_core_executor::{Executor, Program, RetainedEventsPreset, SP1Context, SP1CoreOpts};
+use sp1_core_machine::autoprecompiles::execution_profile_from_program;
+use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::CompiledProgram;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::utils::setup_logger;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{
-    local::{LocalProver, LocalProverOpts},
     components::CpuSP1ProverComponents,
+    local::{LocalProver, LocalProverOpts},
     SP1ProverBuilder,
 };
-use sp1_build::Elf;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_build::include_elf;
 use std::sync::Arc;
-use sp1_primitives::io::SP1PublicValues;
-use sp1_core_machine::utils::setup_logger;
 
 use alloy_primitives::B256;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
 
@@ -21,10 +25,18 @@ use std::path::PathBuf;
 const ELF: Elf = include_elf!("rsp-program");
 
 #[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    /// Whether or not to generate a proof.
-    #[arg(long, default_value_t = false)]
-    prove: bool,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Execute the RSP program
+    Execute,
+    /// Generate APCs using Powdr
+    Powdr,
 }
 
 fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInput {
@@ -38,6 +50,8 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 #[tokio::main]
 async fn main() {
     setup_logger();
+    let args = Args::parse();
+    
     // Load the input from the cache.
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 21740137);
     let mut stdin = SP1Stdin::default();
@@ -46,20 +60,39 @@ async fn main() {
 
     let opts = SP1CoreOpts::default();
     let program = Arc::new(Program::from(&ELF).unwrap());
-    let mut runtime = Executor::with_context(program, opts, SP1Context::default());
-    runtime.maybe_setup_profiler(&ELF);
+    
+    match args.command {
+        Commands::Execute => {
+            let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
+            runtime.maybe_setup_profiler(&ELF);
 
-    runtime.write_vecs(&stdin.buffer);
-    let now = std::time::Instant::now();
-    runtime.run_fast().unwrap();
+            runtime.write_vecs(&stdin.buffer);
 
-    println!("total elapsed: {:?}", now.elapsed());
+            let now = std::time::Instant::now();
+            runtime.run_fast().unwrap();
 
-    println!("Full execution report:\n{:?}", runtime.report);
-    println!("Cycles: {:?}", runtime.report.total_instruction_count());
+            println!("total elapsed: {:?}", now.elapsed());
 
-    let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream); 
+            println!("Full execution report:\n{:?}", runtime.report);
+            println!("Cycles: {:?}", runtime.report.total_instruction_count());
 
-    let block_hash = public_values.read::<B256>();
-    println!("success: block_hash={block_hash}");
+            let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+
+            let block_hash = public_values.read::<B256>();
+            println!("success: block_hash={block_hash}");
+        }
+        Commands::Powdr => {
+            println!("[powdr] Getting execution profile...");
+            let execution_profile =
+                execution_profile_from_program(program, opts, Some(stdin));
+
+            println!("[powdr] Generating APCs...");
+            let path = std::path::Path::new("apc_candidates");
+            let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
+            let pgo_config = PgoConfig::Cell(execution_profile, None);
+            let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+
+            println!("[powdr] Done!");
+        }
+    }
 }
