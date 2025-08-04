@@ -1414,7 +1414,7 @@ name = "keccak256-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm-64",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0)",
 ]
 
 [[package]]
@@ -2836,10 +2836,11 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
+source = "git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
 dependencies = [
  "cfg-if",
  "crunchy",
+ "sp1-lib 6.0.0",
 ]
 
 [[package]]
