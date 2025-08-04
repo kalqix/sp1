@@ -62,7 +62,7 @@ async fn main() {
     println!("[powdr] Generating APCs...");
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
-    let pgo_config = PgoConfig::Cell(execution_profile, None, Some(1000));
+    let pgo_config = PgoConfig::Cell(execution_profile, None);
     let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
 
     println!("[powdr] Done!");
