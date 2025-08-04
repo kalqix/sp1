@@ -17,7 +17,7 @@ use sp1_prover::{
 use std::sync::Arc;
 
 use alloy_primitives::B256;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
 
@@ -25,10 +25,18 @@ use std::path::PathBuf;
 const ELF: Elf = include_elf!("rsp-program");
 
 #[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    /// Whether or not to generate a proof.
-    #[arg(long, default_value_t = false)]
-    prove: bool,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Execute the RSP program
+    Execute,
+    /// Generate APCs using Powdr
+    Powdr,
 }
 
 fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInput {
@@ -42,6 +50,8 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 #[tokio::main]
 async fn main() {
     setup_logger();
+    let args = Args::parse();
+    
     // Load the input from the cache.
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 21740137);
     let mut stdin = SP1Stdin::default();
@@ -50,33 +60,39 @@ async fn main() {
 
     let opts = SP1CoreOpts::default();
     let program = Arc::new(Program::from(&ELF).unwrap());
-    let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
-    runtime.maybe_setup_profiler(&ELF);
+    
+    match args.command {
+        Commands::Execute => {
+            let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
+            runtime.maybe_setup_profiler(&ELF);
 
-    runtime.write_vecs(&stdin.buffer);
+            runtime.write_vecs(&stdin.buffer);
 
-    println!("[powdr] Getting execution profile...");
-    let execution_profile =
-        execution_profile_from_program(program, SP1CoreOpts::default(), Some(stdin));
+            let now = std::time::Instant::now();
+            runtime.run_fast().unwrap();
 
-    println!("[powdr] Generating APCs...");
-    let path = std::path::Path::new("apc_candidates");
-    let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
-    let pgo_config = PgoConfig::Cell(execution_profile, None);
-    let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+            println!("total elapsed: {:?}", now.elapsed());
 
-    println!("[powdr] Done!");
+            println!("Full execution report:\n{:?}", runtime.report);
+            println!("Cycles: {:?}", runtime.report.total_instruction_count());
 
-    let now = std::time::Instant::now();
-    runtime.run_fast().unwrap();
+            let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    println!("total elapsed: {:?}", now.elapsed());
+            let block_hash = public_values.read::<B256>();
+            println!("success: block_hash={block_hash}");
+        }
+        Commands::Powdr => {
+            println!("[powdr] Getting execution profile...");
+            let execution_profile =
+                execution_profile_from_program(program, opts, Some(stdin));
 
-    println!("Full execution report:\n{:?}", runtime.report);
-    println!("Cycles: {:?}", runtime.report.total_instruction_count());
+            println!("[powdr] Generating APCs...");
+            let path = std::path::Path::new("apc_candidates");
+            let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
+            let pgo_config = PgoConfig::Cell(execution_profile, None);
+            let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
 
-    let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-    let block_hash = public_values.read::<B256>();
-    println!("success: block_hash={block_hash}");
+            println!("[powdr] Done!");
+        }
+    }
 }
