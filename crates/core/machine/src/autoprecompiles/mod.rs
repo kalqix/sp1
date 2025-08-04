@@ -18,6 +18,7 @@ use powdr_autoprecompiles::{
     execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
+use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::{Executor, Program, SP1CoreOpts};
@@ -114,6 +115,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
     BuildArgs { build_target: DEFAULT_TARGET_64.to_string(), ..Default::default() }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct CompiledProgram {
     pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
 }
