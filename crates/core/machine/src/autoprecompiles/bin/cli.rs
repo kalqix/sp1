@@ -1,7 +1,7 @@
 use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use metrics_tracing_context::MetricsLayer;
-use powdr_autoprecompiles::{get_pgo_config, PgoType};
+use powdr_autoprecompiles::{pgo_config, PgoType};
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::{
     autoprecompiles::{
@@ -78,7 +78,7 @@ fn run_command(command: Commands) {
             }
             let execution_profile =
                 execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
-            let pgo_config = get_pgo_config(pgo, None, max_block_instructions, execution_profile);
+            let pgo_config = pgo_config(pgo, None, max_block_instructions, execution_profile);
             let program = compile_guest(&guest, config, pgo_config);
             // `cbor` file written to the guest folder
             write_program_to_file(program, &format!("{guest}_compiled.cbor")).unwrap();
