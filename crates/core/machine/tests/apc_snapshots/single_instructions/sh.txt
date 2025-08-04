@@ -1,5 +1,5 @@
 Instructions:
-  sh         %x1        %x2        100       
+    0: sh         %x1        %x2        100       
 
 APC advantage:
   - Main columns: 45 -> 35 (1.29x reduction)

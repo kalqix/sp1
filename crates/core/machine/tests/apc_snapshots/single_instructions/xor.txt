@@ -1,5 +1,5 @@
 Instructions:
-  xor        %x1        %x2        %x3       
+    0: xor        %x1        %x2        %x3       
 
 APC advantage:
   - Main columns: 52 -> 38 (1.37x reduction)

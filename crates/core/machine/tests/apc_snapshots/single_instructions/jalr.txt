@@ -1,5 +1,5 @@
 Instructions:
-  jalr       %x1        %x2        100       
+    0: jalr       %x1        %x2        100       
 
 APC advantage:
   - Main columns: 34 -> 19 (1.79x reduction)

@@ -1,8 +1,8 @@
 Instructions:
-  xor        %x12       %x18       %x19      
-  xor        %x10       %x10       %x11      
-  xor        %x11       %x20       %x25      
-  xor        %x11       %x12       %x11      
+    0: xor        %x12       %x18       %x19      
+    1: xor        %x10       %x10       %x11      
+    2: xor        %x11       %x20       %x25      
+    3: xor        %x11       %x12       %x11      
 
 APC advantage:
   - Main columns: 208 -> 110 (1.89x reduction)

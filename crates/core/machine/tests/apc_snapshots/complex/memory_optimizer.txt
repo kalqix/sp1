@@ -1,6 +1,6 @@
 Instructions:
-  addi       %x1        %x2        0         
-  add        %x1        %x1        %x2       
+    0: addi       %x1        %x2        0         
+    1: add        %x1        %x1        %x2       
 
 APC advantage:
   - Main columns: 63 -> 24 (2.62x reduction)

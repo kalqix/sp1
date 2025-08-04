@@ -1,5 +1,5 @@
 Instructions:
-  lbu        %x1        %x2        100       
+    0: lbu        %x1        %x2        100       
 
 APC advantage:
   - Main columns: 47 -> 35 (1.34x reduction)

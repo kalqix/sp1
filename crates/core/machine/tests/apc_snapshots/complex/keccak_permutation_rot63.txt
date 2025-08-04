@@ -1,7 +1,7 @@
 Instructions:
-  srl        %x15       %x11       63        
-  sll        %x5        %x11       1         
-  or         %x15       %x5        %x15      
+    0: srl        %x15       %x11       63        
+    1: sll        %x5        %x11       1         
+    2: or         %x15       %x5        %x15      
 
 APC advantage:
   - Main columns: 186 -> 42 (4.43x reduction)

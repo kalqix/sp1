@@ -1,5 +1,5 @@
 Instructions:
-  sra        %x1        %x2        %x3       
+    0: sra        %x1        %x2        %x3       
 
 APC advantage:
   - Main columns: 69 -> 46 (1.50x reduction)

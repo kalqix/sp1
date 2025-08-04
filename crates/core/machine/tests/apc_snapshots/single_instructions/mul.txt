@@ -1,5 +1,5 @@
 Instructions:
-  mul        %x1        %x2        %x3       
+    0: mul        %x1        %x2        %x3       
 
 APC advantage:
   - Main columns: 87 -> 63 (1.38x reduction)

@@ -1,267 +1,267 @@
 Instructions:
-  sd         %x12       %x2        72        
-  sd         %x25       %x2        16        
-  sd         %x7        %x2        24        
-  sd         %x6        %x2        32        
-  sd         %x16       %x2        40        
-  sd         %x17       %x2        56        
-  sd         %x28       %x2        80        
-  addi       %x22       %x21       0         
-  ld         %x21       %x2        88        
-  xor        %x10       %x21       %x12      
-  xor        %x11       %x22       %x24      
-  addi       %x26       %x19       0         
-  ld         %x19       %x2        96        
-  xor        %x12       %x18       %x19      
-  xor        %x10       %x10       %x11      
-  xor        %x11       %x20       %x25      
-  xor        %x11       %x12       %x11      
-  ld         %x30       %x2        104       
-  xor        %x12       %x31       %x30      
-  addi       %x25       %x8        0         
-  addi       %x8        %x13       0         
-  xor        %x13       %x13       %x25      
-  xor        %x12       %x12       %x13      
-  ld         %x13       %x2        112       
-  ld         %x15       %x2        128       
-  xor        %x13       %x13       %x15      
-  sd         %x27       %x2        48        
-  xor        %x14       %x16       %x6       
-  xor        %x13       %x13       %x14      
-  sd         %x9        %x2        64        
-  ld         %x14       %x2        120       
-  xor        %x14       %x14       %x9       
-  xor        %x15       %x23       %x17      
-  xor        %x14       %x14       %x15      
-  xor        %x11       %x11       %x26      
-  srl        %x15       %x11       63        
-  sll        %x5        %x11       1         
-  or         %x15       %x5        %x15      
-  xor        %x17       %x12       %x1       
-  srl        %x5        %x17       63        
-  sll        %x12       %x17       1         
-  or         %x12       %x12       %x5       
-  xor        %x16       %x13       %x27      
-  srl        %x5        %x16       63        
-  sll        %x13       %x16       1         
-  or         %x13       %x13       %x5       
-  xor        %x6        %x14       %x7       
-  srl        %x5        %x6        63        
-  sll        %x14       %x6        1         
-  or         %x14       %x14       %x5       
-  xor        %x7        %x10       %x29      
-  srl        %x5        %x7        63        
-  sll        %x10       %x7        1         
-  or         %x10       %x10       %x5       
-  xor        %x5        %x6        %x15      
-  xor        %x6        %x12       %x7       
-  xor        %x11       %x13       %x11      
-  xor        %x15       %x14       %x17      
-  xor        %x16       %x16       %x10      
-  ld         %x10       %x2        72        
-  xor        %x10       %x5        %x10      
-  sd         %x10       %x2        72        
-  xor        %x9        %x5        %x21      
-  xor        %x13       %x5        %x22      
-  xor        %x21       %x5        %x24      
-  xor        %x10       %x5        %x29      
-  sd         %x10       %x2        88        
-  xor        %x14       %x6        %x19      
-  xor        %x10       %x6        %x18      
-  sd         %x10       %x2        96        
-  xor        %x27       %x6        %x20      
-  ld         %x10       %x2        16        
-  xor        %x24       %x6        %x10      
-  xor        %x22       %x6        %x26      
-  xor        %x18       %x11       %x30      
-  xor        %x17       %x11       %x31      
-  addi       %x10       %x23       0         
-  xor        %x8        %x11       %x8       
-  xor        %x20       %x11       %x25      
-  xor        %x31       %x11       %x1       
-  ld         %x23       %x28       0         
-  ld         %x11       %x2        128       
-  xor        %x11       %x15       %x11      
-  ld         %x12       %x2        112       
-  xor        %x7        %x15       %x12      
-  ld         %x12       %x2        40        
-  xor        %x1        %x15       %x12      
-  ld         %x12       %x2        32        
-  xor        %x6        %x15       %x12      
-  ld         %x12       %x2        48        
-  xor        %x29       %x15       %x12      
-  ld         %x12       %x2        64        
-  xor        %x28       %x16       %x12      
-  ld         %x12       %x2        120       
-  xor        %x5        %x12       %x16      
-  xor        %x26       %x10       %x16      
-  ld         %x10       %x2        56        
-  xor        %x12       %x10       %x16      
-  ld         %x10       %x2        24        
-  xor        %x10       %x10       %x16      
-  srl        %x15       %x14       63        
-  sll        %x14       %x14       1         
-  srl        %x16       %x13       61        
-  sll        %x13       %x13       3         
-  or         %x15       %x14       %x15      
-  srl        %x14       %x17       58        
-  sll        %x25       %x17       6         
-  or         %x16       %x13       %x16      
-  srl        %x13       %x27       54        
-  sll        %x27       %x27       10        
-  or         %x17       %x25       %x14      
-  srl        %x14       %x20       49        
-  sll        %x20       %x20       15        
-  or         %x13       %x27       %x13      
-  sd         %x13       %x2        64        
-  srl        %x25       %x6        43        
-  sll        %x6        %x6        21        
-  or         %x19       %x20       %x14      
-  srl        %x14       %x11       36        
-  sll        %x11       %x11       28        
-  or         %x27       %x6        %x25      
-  srl        %x6        %x9        28        
-  sll        %x9        %x9        36        
-  or         %x25       %x11       %x14      
-  srl        %x11       %x24       19        
-  sll        %x24       %x24       45        
-  or         %x6        %x9        %x6       
-  srl        %x14       %x7        9         
-  sll        %x7        %x7        55        
-  or         %x20       %x24       %x11      
-  srl        %x11       %x22       62        
-  sll        %x22       %x22       2         
-  or         %x14       %x7        %x14      
-  srl        %x7        %x10       50        
-  sll        %x9        %x10       14        
-  or         %x30       %x22       %x11      
-  srl        %x11       %x28       37        
-  sll        %x28       %x28       27        
-  or         %x9        %x9        %x7       
-  srl        %x22       %x21       23        
-  sll        %x21       %x21       41        
-  or         %x7        %x28       %x11      
-  srl        %x11       %x29       8         
-  sll        %x29       %x29       56        
-  or         %x28       %x21       %x22      
-  srl        %x21       %x12       56        
-  sll        %x12       %x12       8         
-  or         %x29       %x29       %x11      
-  srl        %x11       %x1        39        
-  sll        %x1        %x1        25        
-  or         %x24       %x12       %x21      
-  srl        %x12       %x8        21        
-  sll        %x8        %x8        43        
-  or         %x13       %x1        %x11      
-  srl        %x21       %x18       2         
-  sll        %x18       %x18       62        
-  or         %x12       %x8        %x12      
-  ld         %x22       %x2        88        
-  srl        %x8        %x22       46        
-  sll        %x22       %x22       18        
-  or         %x1        %x18       %x21      
-  srl        %x18       %x26       25        
-  sll        %x26       %x26       39        
-  or         %x8        %x22       %x8       
-  srl        %x21       %x31       3         
-  sll        %x31       %x31       61        
-  or         %x26       %x26       %x18      
-  srl        %x18       %x5        44        
-  sll        %x5        %x5        20        
-  or         %x21       %x31       %x21      
-  ld         %x22       %x2        96        
-  srl        %x31       %x22       20        
-  sll        %x22       %x22       44        
-  or         %x18       %x5        %x18      
-  ld         %x10       %x2        72        
-  xor        %x11       %x10       -1        
-  xor        %x5        %x23       %x10      
-  or         %x31       %x22       %x31      
-  xor        %x22       %x9        -1        
-  and        %x22       %x10       %x22      
-  xor        %x23       %x27       -1        
-  and        %x10       %x31       %x11      
-  and        %x23       %x9        %x23      
-  xor        %x9        %x10       %x9       
-  xor        %x10       %x12       -1        
-  and        %x10       %x27       %x10      
-  xor        %x10       %x10       %x31      
-  sd         %x10       %x2        96        
-  xor        %x10       %x31       -1        
-  and        %x10       %x12       %x10      
-  xor        %x12       %x23       %x12      
-  sd         %x12       %x2        104       
-  xor        %x12       %x18       -1        
-  xor        %x31       %x27       %x22      
-  sd         %x31       %x2        128       
-  xor        %x31       %x21       -1        
-  and        %x12       %x16       %x12      
-  and        %x22       %x25       %x31      
-  xor        %x12       %x25       %x12      
-  sd         %x12       %x2        88        
-  xor        %x12       %x25       -1        
-  xor        %x31       %x16       -1        
-  and        %x31       %x20       %x31      
-  and        %x12       %x18       %x12      
-  xor        %x18       %x31       %x18      
-  xor        %x31       %x20       -1        
-  and        %x31       %x21       %x31      
-  xor        %x31       %x16       %x31      
-  xor        %x11       %x22       %x20      
-  sd         %x11       %x2        112       
-  xor        %x16       %x17       -1        
-  xor        %x11       %x12       %x21      
-  sd         %x11       %x2        120       
-  xor        %x12       %x8        -1        
-  and        %x16       %x13       %x16      
-  and        %x12       %x15       %x12      
-  xor        %x21       %x16       %x15      
-  xor        %x15       %x15       -1        
-  xor        %x16       %x13       -1        
-  and        %x16       %x24       %x16      
-  and        %x15       %x17       %x15      
-  xor        %x20       %x16       %x17      
-  xor        %x16       %x24       -1        
-  and        %x16       %x8        %x16      
-  xor        %x13       %x13       %x16      
-  xor        %x16       %x12       %x24      
-  xor        %x11       %x6        -1        
-  xor        %x23       %x8        %x15      
-  xor        %x12       %x29       -1        
-  ld         %x17       %x2        64        
-  and        %x11       %x17       %x11      
-  and        %x12       %x7        %x12      
-  xor        %x24       %x11       %x7       
-  xor        %x11       %x7        -1        
-  xor        %x15       %x17       -1        
-  and        %x15       %x19       %x15      
-  and        %x11       %x6        %x11      
-  xor        %x25       %x6        %x15      
-  xor        %x15       %x19       -1        
-  and        %x15       %x29       %x15      
-  xor        %x8        %x15       %x17      
-  xor        %x6        %x12       %x19      
-  xor        %x12       %x14       -1        
-  xor        %x17       %x29       %x11      
-  xor        %x11       %x30       -1        
-  and        %x12       %x26       %x12      
-  and        %x11       %x1        %x11      
-  xor        %x29       %x12       %x1       
-  xor        %x12       %x1        -1        
-  xor        %x15       %x26       -1        
-  and        %x15       %x28       %x15      
-  and        %x12       %x14       %x12      
-  xor        %x19       %x14       %x15      
-  xor        %x14       %x28       -1        
-  and        %x14       %x30       %x14      
-  xor        %x1        %x14       %x26      
-  xor        %x27       %x28       %x11      
-  ld         %x28       %x2        80        
-  xor        %x7        %x12       %x30      
-  addi       %x28       %x28       8         
-  xor        %x12       %x10       %x5       
-  ld         %x10       %x2        8         
-  bne        %x28       %x10       -1048     
+    0: sd         %x12       %x2        72        
+    1: sd         %x25       %x2        16        
+    2: sd         %x7        %x2        24        
+    3: sd         %x6        %x2        32        
+    4: sd         %x16       %x2        40        
+    5: sd         %x17       %x2        56        
+    6: sd         %x28       %x2        80        
+    7: addi       %x22       %x21       0         
+    8: ld         %x21       %x2        88        
+    9: xor        %x10       %x21       %x12      
+   10: xor        %x11       %x22       %x24      
+   11: addi       %x26       %x19       0         
+   12: ld         %x19       %x2        96        
+   13: xor        %x12       %x18       %x19      
+   14: xor        %x10       %x10       %x11      
+   15: xor        %x11       %x20       %x25      
+   16: xor        %x11       %x12       %x11      
+   17: ld         %x30       %x2        104       
+   18: xor        %x12       %x31       %x30      
+   19: addi       %x25       %x8        0         
+   20: addi       %x8        %x13       0         
+   21: xor        %x13       %x13       %x25      
+   22: xor        %x12       %x12       %x13      
+   23: ld         %x13       %x2        112       
+   24: ld         %x15       %x2        128       
+   25: xor        %x13       %x13       %x15      
+   26: sd         %x27       %x2        48        
+   27: xor        %x14       %x16       %x6       
+   28: xor        %x13       %x13       %x14      
+   29: sd         %x9        %x2        64        
+   30: ld         %x14       %x2        120       
+   31: xor        %x14       %x14       %x9       
+   32: xor        %x15       %x23       %x17      
+   33: xor        %x14       %x14       %x15      
+   34: xor        %x11       %x11       %x26      
+   35: srl        %x15       %x11       63        
+   36: sll        %x5        %x11       1         
+   37: or         %x15       %x5        %x15      
+   38: xor        %x17       %x12       %x1       
+   39: srl        %x5        %x17       63        
+   40: sll        %x12       %x17       1         
+   41: or         %x12       %x12       %x5       
+   42: xor        %x16       %x13       %x27      
+   43: srl        %x5        %x16       63        
+   44: sll        %x13       %x16       1         
+   45: or         %x13       %x13       %x5       
+   46: xor        %x6        %x14       %x7       
+   47: srl        %x5        %x6        63        
+   48: sll        %x14       %x6        1         
+   49: or         %x14       %x14       %x5       
+   50: xor        %x7        %x10       %x29      
+   51: srl        %x5        %x7        63        
+   52: sll        %x10       %x7        1         
+   53: or         %x10       %x10       %x5       
+   54: xor        %x5        %x6        %x15      
+   55: xor        %x6        %x12       %x7       
+   56: xor        %x11       %x13       %x11      
+   57: xor        %x15       %x14       %x17      
+   58: xor        %x16       %x16       %x10      
+   59: ld         %x10       %x2        72        
+   60: xor        %x10       %x5        %x10      
+   61: sd         %x10       %x2        72        
+   62: xor        %x9        %x5        %x21      
+   63: xor        %x13       %x5        %x22      
+   64: xor        %x21       %x5        %x24      
+   65: xor        %x10       %x5        %x29      
+   66: sd         %x10       %x2        88        
+   67: xor        %x14       %x6        %x19      
+   68: xor        %x10       %x6        %x18      
+   69: sd         %x10       %x2        96        
+   70: xor        %x27       %x6        %x20      
+   71: ld         %x10       %x2        16        
+   72: xor        %x24       %x6        %x10      
+   73: xor        %x22       %x6        %x26      
+   74: xor        %x18       %x11       %x30      
+   75: xor        %x17       %x11       %x31      
+   76: addi       %x10       %x23       0         
+   77: xor        %x8        %x11       %x8       
+   78: xor        %x20       %x11       %x25      
+   79: xor        %x31       %x11       %x1       
+   80: ld         %x23       %x28       0         
+   81: ld         %x11       %x2        128       
+   82: xor        %x11       %x15       %x11      
+   83: ld         %x12       %x2        112       
+   84: xor        %x7        %x15       %x12      
+   85: ld         %x12       %x2        40        
+   86: xor        %x1        %x15       %x12      
+   87: ld         %x12       %x2        32        
+   88: xor        %x6        %x15       %x12      
+   89: ld         %x12       %x2        48        
+   90: xor        %x29       %x15       %x12      
+   91: ld         %x12       %x2        64        
+   92: xor        %x28       %x16       %x12      
+   93: ld         %x12       %x2        120       
+   94: xor        %x5        %x12       %x16      
+   95: xor        %x26       %x10       %x16      
+   96: ld         %x10       %x2        56        
+   97: xor        %x12       %x10       %x16      
+   98: ld         %x10       %x2        24        
+   99: xor        %x10       %x10       %x16      
+  100: srl        %x15       %x14       63        
+  101: sll        %x14       %x14       1         
+  102: srl        %x16       %x13       61        
+  103: sll        %x13       %x13       3         
+  104: or         %x15       %x14       %x15      
+  105: srl        %x14       %x17       58        
+  106: sll        %x25       %x17       6         
+  107: or         %x16       %x13       %x16      
+  108: srl        %x13       %x27       54        
+  109: sll        %x27       %x27       10        
+  110: or         %x17       %x25       %x14      
+  111: srl        %x14       %x20       49        
+  112: sll        %x20       %x20       15        
+  113: or         %x13       %x27       %x13      
+  114: sd         %x13       %x2        64        
+  115: srl        %x25       %x6        43        
+  116: sll        %x6        %x6        21        
+  117: or         %x19       %x20       %x14      
+  118: srl        %x14       %x11       36        
+  119: sll        %x11       %x11       28        
+  120: or         %x27       %x6        %x25      
+  121: srl        %x6        %x9        28        
+  122: sll        %x9        %x9        36        
+  123: or         %x25       %x11       %x14      
+  124: srl        %x11       %x24       19        
+  125: sll        %x24       %x24       45        
+  126: or         %x6        %x9        %x6       
+  127: srl        %x14       %x7        9         
+  128: sll        %x7        %x7        55        
+  129: or         %x20       %x24       %x11      
+  130: srl        %x11       %x22       62        
+  131: sll        %x22       %x22       2         
+  132: or         %x14       %x7        %x14      
+  133: srl        %x7        %x10       50        
+  134: sll        %x9        %x10       14        
+  135: or         %x30       %x22       %x11      
+  136: srl        %x11       %x28       37        
+  137: sll        %x28       %x28       27        
+  138: or         %x9        %x9        %x7       
+  139: srl        %x22       %x21       23        
+  140: sll        %x21       %x21       41        
+  141: or         %x7        %x28       %x11      
+  142: srl        %x11       %x29       8         
+  143: sll        %x29       %x29       56        
+  144: or         %x28       %x21       %x22      
+  145: srl        %x21       %x12       56        
+  146: sll        %x12       %x12       8         
+  147: or         %x29       %x29       %x11      
+  148: srl        %x11       %x1        39        
+  149: sll        %x1        %x1        25        
+  150: or         %x24       %x12       %x21      
+  151: srl        %x12       %x8        21        
+  152: sll        %x8        %x8        43        
+  153: or         %x13       %x1        %x11      
+  154: srl        %x21       %x18       2         
+  155: sll        %x18       %x18       62        
+  156: or         %x12       %x8        %x12      
+  157: ld         %x22       %x2        88        
+  158: srl        %x8        %x22       46        
+  159: sll        %x22       %x22       18        
+  160: or         %x1        %x18       %x21      
+  161: srl        %x18       %x26       25        
+  162: sll        %x26       %x26       39        
+  163: or         %x8        %x22       %x8       
+  164: srl        %x21       %x31       3         
+  165: sll        %x31       %x31       61        
+  166: or         %x26       %x26       %x18      
+  167: srl        %x18       %x5        44        
+  168: sll        %x5        %x5        20        
+  169: or         %x21       %x31       %x21      
+  170: ld         %x22       %x2        96        
+  171: srl        %x31       %x22       20        
+  172: sll        %x22       %x22       44        
+  173: or         %x18       %x5        %x18      
+  174: ld         %x10       %x2        72        
+  175: xor        %x11       %x10       -1        
+  176: xor        %x5        %x23       %x10      
+  177: or         %x31       %x22       %x31      
+  178: xor        %x22       %x9        -1        
+  179: and        %x22       %x10       %x22      
+  180: xor        %x23       %x27       -1        
+  181: and        %x10       %x31       %x11      
+  182: and        %x23       %x9        %x23      
+  183: xor        %x9        %x10       %x9       
+  184: xor        %x10       %x12       -1        
+  185: and        %x10       %x27       %x10      
+  186: xor        %x10       %x10       %x31      
+  187: sd         %x10       %x2        96        
+  188: xor        %x10       %x31       -1        
+  189: and        %x10       %x12       %x10      
+  190: xor        %x12       %x23       %x12      
+  191: sd         %x12       %x2        104       
+  192: xor        %x12       %x18       -1        
+  193: xor        %x31       %x27       %x22      
+  194: sd         %x31       %x2        128       
+  195: xor        %x31       %x21       -1        
+  196: and        %x12       %x16       %x12      
+  197: and        %x22       %x25       %x31      
+  198: xor        %x12       %x25       %x12      
+  199: sd         %x12       %x2        88        
+  200: xor        %x12       %x25       -1        
+  201: xor        %x31       %x16       -1        
+  202: and        %x31       %x20       %x31      
+  203: and        %x12       %x18       %x12      
+  204: xor        %x18       %x31       %x18      
+  205: xor        %x31       %x20       -1        
+  206: and        %x31       %x21       %x31      
+  207: xor        %x31       %x16       %x31      
+  208: xor        %x11       %x22       %x20      
+  209: sd         %x11       %x2        112       
+  210: xor        %x16       %x17       -1        
+  211: xor        %x11       %x12       %x21      
+  212: sd         %x11       %x2        120       
+  213: xor        %x12       %x8        -1        
+  214: and        %x16       %x13       %x16      
+  215: and        %x12       %x15       %x12      
+  216: xor        %x21       %x16       %x15      
+  217: xor        %x15       %x15       -1        
+  218: xor        %x16       %x13       -1        
+  219: and        %x16       %x24       %x16      
+  220: and        %x15       %x17       %x15      
+  221: xor        %x20       %x16       %x17      
+  222: xor        %x16       %x24       -1        
+  223: and        %x16       %x8        %x16      
+  224: xor        %x13       %x13       %x16      
+  225: xor        %x16       %x12       %x24      
+  226: xor        %x11       %x6        -1        
+  227: xor        %x23       %x8        %x15      
+  228: xor        %x12       %x29       -1        
+  229: ld         %x17       %x2        64        
+  230: and        %x11       %x17       %x11      
+  231: and        %x12       %x7        %x12      
+  232: xor        %x24       %x11       %x7       
+  233: xor        %x11       %x7        -1        
+  234: xor        %x15       %x17       -1        
+  235: and        %x15       %x19       %x15      
+  236: and        %x11       %x6        %x11      
+  237: xor        %x25       %x6        %x15      
+  238: xor        %x15       %x19       -1        
+  239: and        %x15       %x29       %x15      
+  240: xor        %x8        %x15       %x17      
+  241: xor        %x6        %x12       %x19      
+  242: xor        %x12       %x14       -1        
+  243: xor        %x17       %x29       %x11      
+  244: xor        %x11       %x30       -1        
+  245: and        %x12       %x26       %x12      
+  246: and        %x11       %x1        %x11      
+  247: xor        %x29       %x12       %x1       
+  248: xor        %x12       %x1        -1        
+  249: xor        %x15       %x26       -1        
+  250: and        %x15       %x28       %x15      
+  251: and        %x12       %x14       %x12      
+  252: xor        %x19       %x14       %x15      
+  253: xor        %x14       %x28       -1        
+  254: and        %x14       %x30       %x14      
+  255: xor        %x1        %x14       %x26      
+  256: xor        %x27       %x28       %x11      
+  257: ld         %x28       %x2        80        
+  258: xor        %x7        %x12       %x30      
+  259: addi       %x28       %x28       8         
+  260: xor        %x12       %x10       %x5       
+  261: ld         %x10       %x2        8         
+  262: bne        %x28       %x10       -1048     
 
 APC advantage:
   - Main columns: 13848 -> 3163 (4.38x reduction)

@@ -1,5 +1,5 @@
 Instructions:
-  bltu       %x1        %x2        100       
+    0: bltu       %x1        %x2        100       
 
 APC advantage:
   - Main columns: 45 -> 27 (1.67x reduction)

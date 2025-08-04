@@ -1,5 +1,5 @@
 Instructions:
-  sltu       %x1        %x2        3         
+    0: sltu       %x1        %x2        3         
 
 APC advantage:
   - Main columns: 45 -> 23 (1.96x reduction)

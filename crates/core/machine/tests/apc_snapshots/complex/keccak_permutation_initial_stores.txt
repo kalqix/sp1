@@ -1,11 +1,11 @@
 Instructions:
-  sd         %x12       %x2        72        
-  sd         %x25       %x2        16        
-  sd         %x7        %x2        24        
-  sd         %x6        %x2        32        
-  sd         %x16       %x2        40        
-  sd         %x17       %x2        56        
-  sd         %x28       %x2        80        
+    0: sd         %x12       %x2        72        
+    1: sd         %x25       %x2        16        
+    2: sd         %x7        %x2        24        
+    3: sd         %x6        %x2        32        
+    4: sd         %x16       %x2        40        
+    5: sd         %x17       %x2        56        
+    6: sd         %x28       %x2        80        
 
 APC advantage:
   - Main columns: 273 -> 143 (1.91x reduction)

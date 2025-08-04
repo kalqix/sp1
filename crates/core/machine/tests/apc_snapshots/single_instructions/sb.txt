@@ -1,5 +1,5 @@
 Instructions:
-  sb         %x1        %x2        100       
+    0: sb         %x1        %x2        100       
 
 APC advantage:
   - Main columns: 50 -> 40 (1.25x reduction)

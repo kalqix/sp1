@@ -1,5 +1,5 @@
 Instructions:
-  sw         %x1        %x2        100       
+    0: sw         %x1        %x2        100       
 
 APC advantage:
   - Main columns: 44 -> 34 (1.29x reduction)

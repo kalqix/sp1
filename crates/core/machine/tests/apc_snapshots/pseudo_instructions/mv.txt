@@ -1,5 +1,5 @@
 Instructions:
-  addi       %x29       %x30       0         
+    0: addi       %x29       %x30       0         
 
 APC advantage:
   - Main columns: 30 -> 20 (1.50x reduction)

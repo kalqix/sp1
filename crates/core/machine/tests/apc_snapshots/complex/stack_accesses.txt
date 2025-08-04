@@ -1,7 +1,7 @@
 Instructions:
-  ld         %x8        %x2        20        
-  ld         %x9        %x2        24        
-  sd         %x8        %x2        24        
+    0: ld         %x8        %x2        20        
+    1: ld         %x9        %x2        24        
+    2: sd         %x8        %x2        24        
 
 APC advantage:
   - Main columns: 117 -> 54 (2.17x reduction)
