@@ -1,6 +1,11 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{fs::File, io::Read, str::FromStr};
+use std::{
+    cmp::Ordering::{Equal, Greater, Less},
+    fs::File,
+    io::Read,
+    str::FromStr,
+};
 
 use crate::{
     disassembler::{transpile, Elf},
@@ -74,31 +79,40 @@ impl Instructions {
             .iter()
             .enumerate()
             .scan(apc_ranges_iter.next(), move |range, (index, instruction)| {
-                if let Some((apc_index, (start, end))) = range {
-                    if index < *start {
-                        // If the index is before the start of the range, we keep the original
-                        // instruction
-                        Some(*instruction)
-                    } else if index == *start {
-                        // If the index is at the start of the range, we replace it with an APC
-                        // instruction
-                        Some(apc_instruction(*apc_index))
-                    } else if index < *end - 1 {
-                        // If the index is in the middle of the range, we replace it with an
-                        // unimplemented instruction
-                        Some(Instruction::unimp())
-                    } else if index == *end - 1 {
-                        // If the index is at the end of the range, we replace it with an
-                        // unimplemented instruction and move to the next range
+                let instruction = if let Some((apc_index, (start, end))) = range {
+                    let instruction = match index.cmp(start) {
+                        Less => {
+                            // If the index is before the start of the range, we keep the original
+                            // instruction
+                            *instruction
+                        }
+                        Equal => {
+                            // If the index is at the start of the range, we replace it with an APC
+                            // instruction
+                            apc_instruction(*apc_index)
+                        }
+                        Greater => {
+                            // Sanity check that we do not overflow the range
+                            assert!(index < *end);
+                            // If the index is in the middle of the range, we replace it with an
+                            // unimplemented instruction
+                            Instruction::unimp()
+                        }
+                    };
+
+                    assert!(end > start, "APC range must have a non-zero length");
+                    if index == end - 1 {
+                        // If the index is at the end of the range, we move to the next range
                         *range = apc_ranges_iter.next();
-                        Some(Instruction::unimp())
-                    } else {
-                        unreachable!()
                     }
+
+                    instruction
                 } else {
                     // If there are no more ranges, we keep the original instruction
-                    Some(*instruction)
-                }
+                    *instruction
+                };
+
+                Some(instruction)
             })
             .collect();
         self.modified = Some(modified_instructions);
