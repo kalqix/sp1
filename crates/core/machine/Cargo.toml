@@ -97,5 +97,9 @@ bigint-rug = ["sp1-curves/bigint-rug"]
 path = "src/lib.rs"
 bench = false
 
+[[bin]]
+name = "powdr_sp1"
+path = "src/autoprecompiles/bin/cli.rs"
+
 [lints]
 workspace = true
