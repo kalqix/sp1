@@ -129,11 +129,11 @@ slop-keccak-air = { git = "https://github.com/succinctlabs/slop" }
 # slop-keccak-air = { path = "../slop/crates/keccak-air" }
 
 # powdr
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "5939ffb84f72ad97e0e2f19c8b1db331e3656c9f", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "5939ffb84f72ad97e0e2f19c8b1db331e3656c9f", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "5939ffb84f72ad97e0e2f19c8b1db331e3656c9f", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "5939ffb84f72ad97e0e2f19c8b1db331e3656c9f", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "5939ffb84f72ad97e0e2f19c8b1db331e3656c9f", default-features = false }
 
 # For local development.
 # powdr-autoprecompiles = { path = "../powdr/autoprecompiles/" }

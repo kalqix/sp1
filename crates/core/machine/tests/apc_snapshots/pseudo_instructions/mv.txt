@@ -6,7 +6,27 @@ APC advantage:
   - Bus interactions: 17 -> 16 (1.06x reduction)
   - Constraints: 14 -> 5 (2.80x reduction)
 
-// Symbolic machine using 20 unique main columns
+Symbolic machine using 20 unique main columns:
+  add_operation__value__0__0_0
+  adapter__op_b_memory__prev_value__0__0_0
+  add_operation__value__0__1_0
+  adapter__op_b_memory__prev_value__0__1_0
+  add_operation__value__0__2_0
+  adapter__op_b_memory__prev_value__0__2_0
+  add_operation__value__0__3_0
+  adapter__op_b_memory__prev_value__0__3_0
+  is_valid
+  state__clk_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__prev_value__0__0_0
+  adapter__op_a_memory__prev_value__0__1_0
+  adapter__op_a_memory__prev_value__0__2_0
+  adapter__op_a_memory__prev_value__0__3_0
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 30, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0]

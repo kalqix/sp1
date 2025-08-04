@@ -7,7 +7,49 @@ APC advantage:
   - Bus interactions: 42 -> 28 (1.50x reduction)
   - Constraints: 48 -> 17 (2.82x reduction)
 
-// Symbolic machine using 42 unique main columns
+Symbolic machine using 42 unique main columns:
+  address_operation__addr_word_operation__value__0_0
+  adapter__op_b_memory__prev_value__0__0_0
+  address_operation__addr_word_operation__value__1_0
+  adapter__op_b_memory__prev_value__0__1_0
+  address_operation__addr_word_operation__value__2_0
+  adapter__op_b_memory__prev_value__0__2_0
+  adapter__op_b_memory__prev_value__0__3_0
+  address_operation__top_two_limb_inv_0
+  is_valid
+  memory_access__access_timestamp__compare_low_0
+  state__clk_high_0
+  memory_access__access_timestamp__prev_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  memory_access__access_timestamp__prev_low_0
+  memory_access__access_timestamp__diff_low_limb_0
+  memory_access__access_timestamp__diff_high_limb_0
+  address_operation__addr_word_operation__value__0_1
+  adapter__op_b_memory__prev_value__0__0_1
+  address_operation__addr_word_operation__value__1_1
+  adapter__op_b_memory__prev_value__0__1_1
+  address_operation__addr_word_operation__value__2_1
+  adapter__op_b_memory__prev_value__0__2_1
+  adapter__op_b_memory__prev_value__0__3_1
+  address_operation__top_two_limb_inv_1
+  memory_access__access_timestamp__compare_low_1
+  memory_access__access_timestamp__prev_high_1
+  memory_access__access_timestamp__prev_low_1
+  memory_access__access_timestamp__diff_low_limb_1
+  memory_access__access_timestamp__diff_high_limb_1
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__prev_value__0__0_0
+  adapter__op_a_memory__prev_value__0__1_0
+  adapter__op_a_memory__prev_value__0__2_0
+  adapter__op_a_memory__prev_value__0__3_0
+  memory_access__prev_value__0__0_1
+  memory_access__prev_value__0__1_1
+  memory_access__prev_value__0__2_1
+  memory_access__prev_value__0__3_1
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_0, memory_access__access_timestamp__prev_low_0, address_operation__addr_word_operation__value__0_0, address_operation__addr_word_operation__value__1_0, address_operation__addr_word_operation__value__2_0, adapter__op_b_memory__prev_value__0__0_1, adapter__op_b_memory__prev_value__0__1_1, adapter__op_b_memory__prev_value__0__2_1, adapter__op_b_memory__prev_value__0__3_1]
