@@ -9,48 +9,48 @@ APC advantage:
   - Constraints: 166 -> 1 (166.00x reduction)
 
 Symbolic machine using 42 unique main columns:
-  is_valid
-  adapter__op_b_memory__prev_value__0__1_2
-  adapter__op_b_memory__prev_value__0__2_2
-  adapter__op_b_memory__prev_value__0__3_2
-  bitwise_operation__c_low_bytes__low_bytes__0_2
-  limb_result__0_0
-  limb_result__1_0
-  limb_result__2_0
-  higher_limb__0__3_1
-  adapter__op_b_memory__prev_value__0__0_2
-  higher_limb__0__0_1
-  higher_limb__0__1_1
-  higher_limb__0__2_1
   state__clk_high_0
   state__clk_16_24_0
   state__clk_0_16_0
-  adapter__op_a_memory__access_timestamp__diff_low_limb_0
-  adapter__op_a_memory__access_timestamp__prev_low_0
-  adapter__op_b_memory__access_timestamp__diff_low_limb_0
-  adapter__op_b_memory__access_timestamp__prev_low_0
   adapter__op_a_memory__prev_value__0__0_0
   adapter__op_a_memory__prev_value__0__1_0
   adapter__op_a_memory__prev_value__0__2_0
   adapter__op_a_memory__prev_value__0__3_0
-  adapter__op_a_memory__access_timestamp__diff_low_limb_1
-  adapter__op_a_memory__access_timestamp__prev_low_1
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  limb_result__0_0
+  limb_result__1_0
+  limb_result__2_0
   adapter__op_a_memory__prev_value__0__0_1
   adapter__op_a_memory__prev_value__0__1_1
   adapter__op_a_memory__prev_value__0__2_1
   adapter__op_a_memory__prev_value__0__3_1
-  bitwise_operation__bitwise_operation__result__0_2
+  adapter__op_a_memory__access_timestamp__prev_low_1
+  adapter__op_a_memory__access_timestamp__diff_low_limb_1
+  higher_limb__0__0_1
+  higher_limb__0__1_1
+  higher_limb__0__2_1
+  higher_limb__0__3_1
+  adapter__op_b_memory__prev_value__0__0_2
+  adapter__op_b_memory__prev_value__0__1_2
+  adapter__op_b_memory__prev_value__0__2_2
+  adapter__op_b_memory__prev_value__0__3_2
   bitwise_operation__b_low_bytes__low_bytes__0_2
+  bitwise_operation__b_low_bytes__low_bytes__1_2
+  bitwise_operation__b_low_bytes__low_bytes__2_2
+  bitwise_operation__b_low_bytes__low_bytes__3_2
+  bitwise_operation__c_low_bytes__low_bytes__0_2
+  bitwise_operation__bitwise_operation__result__0_2
   bitwise_operation__bitwise_operation__result__1_2
   bitwise_operation__bitwise_operation__result__2_2
-  bitwise_operation__b_low_bytes__low_bytes__1_2
   bitwise_operation__bitwise_operation__result__3_2
   bitwise_operation__bitwise_operation__result__4_2
-  bitwise_operation__b_low_bytes__low_bytes__2_2
   bitwise_operation__bitwise_operation__result__5_2
   bitwise_operation__bitwise_operation__result__6_2
-  bitwise_operation__b_low_bytes__low_bytes__3_2
   bitwise_operation__bitwise_operation__result__7_2
+  is_valid
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 11, 0, 0, 32768 * higher_limb__0__0_1 - 1006632960 * adapter__op_b_memory__prev_value__0__0_2, 1006632960 * higher_limb__0__0_1 + 32768 * higher_limb__0__1_1 - 1006632960 * adapter__op_b_memory__prev_value__0__1_2, 1006632960 * higher_limb__0__1_1 + 32768 * higher_limb__0__2_1 - 1006632960 * adapter__op_b_memory__prev_value__0__2_2, 1006632960 * higher_limb__0__2_1 + 32768 * higher_limb__0__3_1 - 1006632960 * adapter__op_b_memory__prev_value__0__3_2]

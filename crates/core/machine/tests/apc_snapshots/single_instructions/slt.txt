@@ -7,38 +7,38 @@ APC advantage:
   - Constraints: 42 -> 16 (2.62x reduction)
 
 Symbolic machine using 32 unique main columns:
-  lt_operation__b_msb__msb_0
-  lt_operation__c_msb__msb_0
-  lt_operation__result__u16_flags__0_0
-  lt_operation__result__u16_flags__1_0
-  lt_operation__result__u16_flags__2_0
-  lt_operation__result__u16_flags__3_0
-  adapter__op_b_memory__prev_value__0__3_0
-  adapter__op_c_memory__prev_value__0__3_0
-  adapter__op_b_memory__prev_value__0__2_0
-  adapter__op_c_memory__prev_value__0__2_0
-  adapter__op_b_memory__prev_value__0__1_0
-  adapter__op_c_memory__prev_value__0__1_0
-  adapter__op_b_memory__prev_value__0__0_0
-  adapter__op_c_memory__prev_value__0__0_0
-  lt_operation__result__comparison_limbs__0_0
-  lt_operation__result__comparison_limbs__1_0
-  lt_operation__result__not_eq_inv_0
-  lt_operation__result__u16_compare_operation__bit_0
-  is_valid
   state__clk_high_0
   state__clk_16_24_0
   state__clk_0_16_0
-  adapter__op_a_memory__access_timestamp__diff_low_limb_0
-  adapter__op_a_memory__access_timestamp__prev_low_0
-  adapter__op_b_memory__access_timestamp__diff_low_limb_0
-  adapter__op_b_memory__access_timestamp__prev_low_0
-  adapter__op_c_memory__access_timestamp__diff_low_limb_0
-  adapter__op_c_memory__access_timestamp__prev_low_0
   adapter__op_a_memory__prev_value__0__0_0
   adapter__op_a_memory__prev_value__0__1_0
   adapter__op_a_memory__prev_value__0__2_0
   adapter__op_a_memory__prev_value__0__3_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__prev_value__0__0_0
+  adapter__op_b_memory__prev_value__0__1_0
+  adapter__op_b_memory__prev_value__0__2_0
+  adapter__op_b_memory__prev_value__0__3_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  adapter__op_c_memory__prev_value__0__0_0
+  adapter__op_c_memory__prev_value__0__1_0
+  adapter__op_c_memory__prev_value__0__2_0
+  adapter__op_c_memory__prev_value__0__3_0
+  adapter__op_c_memory__access_timestamp__prev_low_0
+  adapter__op_c_memory__access_timestamp__diff_low_limb_0
+  lt_operation__result__u16_compare_operation__bit_0
+  lt_operation__result__u16_flags__0_0
+  lt_operation__result__u16_flags__1_0
+  lt_operation__result__u16_flags__2_0
+  lt_operation__result__u16_flags__3_0
+  lt_operation__result__not_eq_inv_0
+  lt_operation__result__comparison_limbs__0_0
+  lt_operation__result__comparison_limbs__1_0
+  lt_operation__b_msb__msb_0
+  lt_operation__c_msb__msb_0
+  is_valid
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_c_memory__access_timestamp__prev_low_0, 3, 0, 0, adapter__op_c_memory__prev_value__0__0_0, adapter__op_c_memory__prev_value__0__1_0, adapter__op_c_memory__prev_value__0__2_0, adapter__op_c_memory__prev_value__0__3_0]
