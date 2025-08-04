@@ -35,10 +35,6 @@ enum Commands {
         #[arg(long, default_value_t = PgoType::default())]
         pgo: PgoType,
 
-        /// The optional max number of instructions per block to create APC for
-        #[arg(long)]
-        max_block_instructions: Option<usize>,
-
         #[arg(long)]
         input: Option<usize>,
 
@@ -63,22 +59,14 @@ fn main() -> Result<(), io::Error> {
 
 fn run_command(command: Commands) {
     match command {
-        Commands::Compile {
-            guest,
-            autoprecompiles,
-            skip,
-            pgo,
-            max_block_instructions,
-            input,
-            apc_candidates_dir,
-        } => {
+        Commands::Compile { guest, autoprecompiles, skip, pgo, input, apc_candidates_dir } => {
             let mut config = sp1_powdr_config(autoprecompiles as u64, skip as u64);
             if let Some(apc_candidates_dir) = apc_candidates_dir {
                 config = config.with_apc_candidates_dir(apc_candidates_dir);
             }
             let execution_profile =
                 execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
-            let pgo_config = pgo_config(pgo, None, max_block_instructions, execution_profile);
+            let pgo_config = pgo_config(pgo, None, execution_profile);
             let program = compile_guest(&guest, config, pgo_config);
             // `cbor` file written to the guest folder
             write_program_to_file(program, &format!("{guest}_compiled.cbor")).unwrap();
