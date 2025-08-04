@@ -186,6 +186,10 @@ impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHa
         self.get_instruction_air_and_stats(instruction).map(|(machine, _)| machine)
     }
 
+    fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<AirStats> {
+        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats).copied()
+    }
+
     fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
         !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
     }
