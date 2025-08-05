@@ -23,9 +23,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, ApcEvents, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
-        JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent,
-        MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
+        AluEvent, ApcEvent, ApcEvents, BranchEvent, ByteLookupEvent, ByteRecord,
+        GlobalInteractionEvent, JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent,
+        MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
+        UTypeEvent,
     },
     program::Program,
     syscalls::SyscallCode,
@@ -327,6 +328,13 @@ impl ExecutionRecord {
         syscall_code: SyscallCode,
     ) -> &Vec<(SyscallEvent, PrecompileEvent)> {
         self.precompile_events.get_events(syscall_code).expect("Precompile events not found")
+    }
+
+    /// Get all the apc events for an apc id.
+    #[inline]
+    #[must_use]
+    pub fn get_apc_events(&self, apc_id: u64) -> &Vec<ApcEvent> {
+        self.apc_events.get_events(apc_id).expect("APC events not found")
     }
 
     /// Get all the local memory events.

@@ -17,6 +17,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
+    autoprecompiles::chip::ApcChip,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -222,6 +223,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
+    /// A precompile for the APC.
+    Apc(ApcChip<F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -229,7 +232,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 65] {
+    pub fn airs() -> [RiscvAir<F>; 66] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -309,6 +312,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
+            RiscvAir::Apc(ApcChip::default()),
         ]
     }
 
@@ -405,6 +409,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 StateBump,
                 MemoryLocal,
                 Global,
+                Apc,
             ],
         );
 
@@ -918,6 +923,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
+            RiscvAirDiscriminants::Apc => RiscvAirId::Apc,
         }
     }
 }
