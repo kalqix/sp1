@@ -84,7 +84,7 @@ sp1-zkvm = { path = "../crates/zkvm/entrypoint64", package = "sp1-zkvm-64", feat
 ] }
 sp1-cuda = { path = "../crates/cuda" }
 tokio = { version = "1.4", features = ["full"] }
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "4994f1a", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "abb72c8", default-features = false }
 
 # misc
 serde = "1.0.204"
