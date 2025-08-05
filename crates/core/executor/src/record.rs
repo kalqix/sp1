@@ -23,9 +23,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, ApcEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
-        JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent,
-        MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
+        AluEvent, ApcEvent, ApcEvents, BranchEvent, ByteLookupEvent, ByteRecord,
+        GlobalInteractionEvent, JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent,
+        MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
+        UTypeEvent,
     },
     program::Program,
     syscalls::SyscallCode,
@@ -102,7 +103,7 @@ pub struct ExecutionRecord {
     /// A trace of all the syscall events.
     pub syscall_events: Vec<(SyscallEvent, RTypeRecord)>,
     /// A trace for all APC events.
-    pub apc_events: Vec<ApcEvent>,
+    pub apc_events: ApcEvents,
     /// A trace of all the global interaction events.
     pub global_interaction_events: Vec<GlobalInteractionEvent>,
     /// The global culmulative sum.
@@ -333,7 +334,10 @@ impl ExecutionRecord {
     #[inline]
     pub fn get_local_mem_events(&self) -> impl Iterator<Item = &MemoryLocalEvent> {
         let precompile_local_mem_events = self.precompile_events.get_local_mem_events();
-        precompile_local_mem_events.chain(self.cpu_local_memory_access.iter())
+        let apc_local_mem_events = self.apc_events.get_local_mem_events();
+        precompile_local_mem_events
+            .chain(apc_local_mem_events)
+            .chain(self.cpu_local_memory_access.iter())
     }
 }
 
@@ -539,6 +543,7 @@ impl MachineRecord for ExecutionRecord {
         self.jalr_events.append(&mut other.jalr_events);
         self.utype_events.append(&mut other.utype_events);
         self.syscall_events.append(&mut other.syscall_events);
+        self.apc_events.append(&mut other.apc_events);
         self.bump_memory_events.append(&mut other.bump_memory_events);
         self.bump_state_events.append(&mut other.bump_state_events);
         self.precompile_events.append(&mut other.precompile_events);

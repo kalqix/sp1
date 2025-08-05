@@ -138,6 +138,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
         // Do nothing since this chip has no dependencies.
+        // TODO: Is this correct?
     }
 
     fn generate_trace(
@@ -248,6 +249,11 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         });
         input.syscall_events.iter().for_each(|event| {
             let pc = event.0.pc;
+            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
+        });
+        // TODO: Maybe defer here? See `precompile_events`
+        input.apc_events.all_events().for_each(|event| {
+            let pc = event.pc;
             instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
 

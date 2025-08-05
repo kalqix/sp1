@@ -306,14 +306,18 @@ impl MemoryWriteRecord {
     /// Creates a new [``MemoryWriteRecord``].
     #[must_use]
     #[inline]
-    pub const fn new(entry: &MemoryEntry, prev_entry: &MemoryEntry) -> Self {
+    pub fn new(entry: &MemoryEntry, prev_entry: &MemoryEntry) -> Self {
         let MemoryEntry { lshard, timestamp, value } = *entry;
         let MemoryEntry { lshard: prev_lshard, timestamp: prev_timestamp, value: prev_value } =
             *prev_entry;
         let shard = lshard.shard().get();
         let prev_shard = prev_lshard.shard().get();
-        debug_assert!(
+        println!(
+            "shard: {shard}, prev_shard: {prev_shard}, timestamp: {timestamp}, prev_timestamp: {prev_timestamp}, value: {value}, prev_value: {prev_value}"
+        );
+        assert!(
             shard > prev_shard || ((shard == prev_shard) && (timestamp > prev_timestamp)),
+            "shard: {shard}, prev_shard: {prev_shard}, timestamp: {timestamp}, prev_timestamp: {prev_timestamp}, value: {value}, prev_value: {prev_value}"
         );
         Self { value, shard, timestamp, prev_value, prev_shard, prev_timestamp }
     }
