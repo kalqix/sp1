@@ -410,8 +410,8 @@ impl<F: PrimeField32> RiscvAir<F> {
                 MemoryLocal,
                 Global,
                 Apc, /* TODO: check that the APC actually belongs in the core cluster. It is
-                      * here because putting it in the autoprecompiles cluster led to `smallest_cluster`
-                      * failing. */
+                      * here because putting it in the autoprecompiles cluster led to
+                      * `smallest_cluster` failing. */
             ],
         );
 
