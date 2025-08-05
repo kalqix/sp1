@@ -1,3 +1,4 @@
+/// Inspired from `events/precompiles/mod.rs`
 use crate::{
     deserialize_hashmap_as_vec,
     events::{MemoryLocalEvent, PrecompileLocalMemory},
@@ -19,7 +20,7 @@ pub struct ApcEvent {
     pub record: ExecutionRecord,
 }
 
-/// A record of all the precompile events.
+/// A record of all the apc events.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ApcEvents {
     #[serde(serialize_with = "serialize_hashmap_as_vec")]
@@ -40,6 +41,7 @@ impl ApcEvents {
     #[inline]
     /// Add a precompile event for a given apc id.
     pub fn add_event(&mut self, apc_id: u64, event: ApcEvent) {
+        assert_eq!(apc_id, event.id);
         self.events.entry(apc_id).or_default().push(event);
     }
 
@@ -55,27 +57,11 @@ impl ApcEvents {
         self.events.values().flatten()
     }
 
-    #[inline]
-    /// Insert a vector of precompile events for a given apc id.
-    pub(crate) fn insert(&mut self, apc_id: u64, events: Vec<ApcEvent>) {
-        self.events.insert(apc_id, events);
-    }
-
     /// Get the number of precompile events.
     #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
         self.events.len()
-    }
-
-    #[inline]
-    pub(crate) fn into_iter(self) -> impl Iterator<Item = (u64, Vec<ApcEvent>)> {
-        self.events.into_iter()
-    }
-
-    #[inline]
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&u64, &Vec<ApcEvent>)> {
-        self.events.iter()
     }
 
     /// Get all the precompile events for a given apc id.

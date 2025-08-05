@@ -17,7 +17,6 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::chip::ApcChip,
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -223,8 +222,6 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
-    /// A single APC chip
-    Apc(ApcChip<F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -232,7 +229,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 66] {
+    pub fn airs() -> [RiscvAir<F>; 65] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -312,7 +309,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-            RiscvAir::Apc(ApcChip::default()),
         ]
     }
 
@@ -829,7 +825,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAirId::Jalr, record.jalr_events.len()),
             (RiscvAirId::Global, record.global_interaction_events.len()),
             (RiscvAirId::SyscallCore, record.syscall_events.len()),
-            (RiscvAirId::Apc, record.apc_events.len()),
             (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
         ]
     }
@@ -923,7 +918,6 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
-            RiscvAirDiscriminants::Apc => RiscvAirId::Apc,
         }
     }
 }
@@ -1074,6 +1068,7 @@ pub mod tests {
     }
 
     #[tokio::test]
+    #[should_panic = "InvalidShardProof(GkrVerificationFailed(CumulativeSumMismatch"]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![

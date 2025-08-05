@@ -944,10 +944,7 @@ impl<'a> Executor<'a> {
 
         // If it's the first time accessing this register, initialize previous values.
         let record: &mut MemoryEntry = match entry {
-            Entry::Occupied(entry) => {
-                println!("occupied");
-                entry.into_mut()
-            }
+            Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
@@ -959,8 +956,6 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryEntry::init(*value))
             }
         };
-
-        // println!("previous record: {:#?}", record);
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
         if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
@@ -1120,11 +1115,6 @@ impl<'a> Executor<'a> {
 
     /// Write to a register.
     pub fn rw_cpu<E: ExecutorConfig>(&mut self, register: Register, value: u64) {
-        println!(
-            "Writing to register: {:?} with value: {} as clock {:#?}",
-            register, value, self.state.clk
-        );
-
         // The only time we are writing to a register is when it is in operand A.
         let position = MemoryAccessPosition::A;
 
@@ -1617,12 +1607,6 @@ impl<'a> Executor<'a> {
         &mut self,
         instruction: &Instruction,
     ) -> Result<(), ExecutionError> {
-        println!(
-            "Executing instruction: {:?} at PC: {:#x} and clock {:#?}",
-            instruction, self.state.pc, self.state.clk
-        );
-        // println!("Register state: {:#?}", self.state.memory.registers);
-
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
@@ -1992,23 +1976,21 @@ impl<'a> Executor<'a> {
                 .or_insert(access);
         }
 
-        let memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
-
-        for (addr, value) in memory_checkpoint {
+        // transfer the memory checkpoint from the APC executor to the main executor
+        for (addr, value) in std::mem::take(&mut apc.executor.memory_checkpoint) {
             self.memory_checkpoint.insert(addr, value);
         }
 
-        let uninitialized_memory_checkpoint =
-            std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
-
-        for (addr, value) in uninitialized_memory_checkpoint {
+        // transfer the uninitialized memory checkpoint from the APC executor to the main executor
+        for (addr, value) in std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint) {
             self.uninitialized_memory_checkpoint.insert(addr, value);
         }
 
-        // After state of the main execution is that of the apc executor, except for the pc which is
+        // After apc execution state of the main execution is that of the apc executor, except for the pc which is
         // the original pc.
         self.state = std::mem::take(&mut apc.executor.state);
         self.state.pc = original_pc;
+
         // In total, the clock must be incremented by 8 for each instruction. However, this function is called by `execute_instruction` which also increments it by 8.
         // So we need to decrement it by 8 here.
         self.state.clk -= 8;
@@ -2305,7 +2287,6 @@ impl<'a> Executor<'a> {
     ) -> Result<(ExecutionState, PublicValues<u32, u64, u64, u32>, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.emit_global_memory_events = emit_global_memory_events;
-        println!("EMIT GLOBAL MEMORY EVENTS: {}", self.emit_global_memory_events);
 
         // Clone self.state without memory, uninitialized_memory, proof_stream in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
@@ -2317,10 +2298,7 @@ impl<'a> Executor<'a> {
         self.state.uninitialized_memory = uninitialized_memory;
         self.state.proof_stream = proof_stream;
 
-        println!("RUN WITH CHECKPOINT");
         let done = tracing::debug_span!("execute").in_scope(|| self.execute::<Checkpoint>())?;
-        println!("RAN WITH CHECKPOINT");
-        assert!(self.state.memory.registers.get(29).is_some());
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
         let next_pc = self.state.pc;
@@ -2334,34 +2312,26 @@ impl<'a> Executor<'a> {
                 replacement_uninitialized_memory_checkpoint,
             );
             if done && !self.emit_global_memory_events {
-                println!("1");
                 // If it's the last shard, and we're not emitting memory events, we need to include
                 // all memory so that memory events can be emitted from the checkpoint. But we need
                 // to first reset any modified memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
                 checkpoint.page_prots = page_prots;
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
-                    println!("4");
                     if let Some(record) = record {
-                        println!("4 0");
-                        println!("Inserting address {} {:?} into checkpoint memory", addr, record);
                         checkpoint.memory.insert(addr, record);
                     } else {
-                        println!("4 1");
-                        println!("Removing address {} from checkpoint memory", addr);
                         checkpoint.memory.remove(addr);
                     }
                 });
                 checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
                 // Remove memory that was written to in this batch.
                 for (addr, is_old) in uninitialized_memory_checkpoint {
-                    println!("Uninitialized memory checkpoint: addr {} is_old {}", addr, is_old);
                     if !is_old {
                         checkpoint.uninitialized_memory.remove(addr);
                     }
                 }
             } else {
-                panic!();
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
@@ -2379,7 +2349,6 @@ impl<'a> Executor<'a> {
         if !done {
             self.records.clear();
         }
-        assert!(checkpoint.memory.registers.get(29).is_none());
         Ok((checkpoint, public_values, done))
     }
 
@@ -2419,7 +2388,6 @@ impl<'a> Executor<'a> {
         &mut self,
         emit_global_memory_events: bool,
     ) -> Result<(), ExecutionError> {
-        println!("RUN CHECKPOINT");
         self.print_report = true;
         while !self.execute_state(emit_global_memory_events)?.2 {}
         Ok(())
@@ -2463,8 +2431,6 @@ impl<'a> Executor<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
     pub fn execute<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
-        assert!(self.state.memory.registers.get(29).is_none());
-
         // Get the program.
         let program = self.program.clone();
 
@@ -2486,26 +2452,10 @@ impl<'a> Executor<'a> {
         let mut done = false;
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
-        let mut first = true;
         loop {
             if self.execute_cycle::<E>()? {
                 done = true;
                 break;
-            }
-
-            if first {
-                // println!(
-                //     "Runtime state after the first cycle: {:#?} {:#?} {:#?} {:#?} ",
-                //     self.state.clk,
-                //     self.state.current_shard,
-                //     self.state.pc,
-                //     self.state.memory.registers
-                // );
-                // println!(
-                //     "Runtime memory accesses after first cycle: {:#?}",
-                //     self.local_memory_access
-                // );
-                first = false;
             }
 
             // Check if the unconstrained cycle limit was exceeded.

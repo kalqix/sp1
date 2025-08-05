@@ -110,7 +110,6 @@ pub fn trace_checkpoint(
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program, state, opts);
-    assert!(runtime.state.memory.registers.get(29).is_none());
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
@@ -337,7 +336,6 @@ impl<F: PrimeField32> MachineExecutorBuilder<F> {
                 // Setup the runtime.
                 let mut runtime =
                     Box::new(Executor::with_context(program.clone(), opts.clone(), context));
-                assert!(runtime.state.memory.registers.get(29).is_none());
                 runtime.write_vecs(&stdin.buffer);
                 for proof in stdin.proofs.iter() {
                     let (proof, vk) = proof.clone();
@@ -349,7 +347,6 @@ impl<F: PrimeField32> MachineExecutorBuilder<F> {
                 let abort_handle = abort_registration.handle();
                 let mut done = false;
                 while !done && !abort_handle.is_aborted() {
-                    println!("Generating checkpoint {index} and done is {done}");
                     // Send and receive ownership of `runtime: Box<Executor<'_>>`.
                     // The `.unwrap()` propagates panics from `generate_checkpoint`.
                     let checkpoint_result;
