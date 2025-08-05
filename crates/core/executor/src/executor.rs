@@ -1986,13 +1986,14 @@ impl<'a> Executor<'a> {
             self.uninitialized_memory_checkpoint.insert(addr, value);
         }
 
-        // After apc execution state of the main execution is that of the apc executor, except for the pc which is
-        // the original pc.
+        // After apc execution state of the main execution is that of the apc executor, except for
+        // the pc which is the original pc.
         self.state = std::mem::take(&mut apc.executor.state);
         self.state.pc = original_pc;
 
-        // In total, the clock must be incremented by 8 for each instruction. However, this function is called by `execute_instruction` which also increments it by 8.
-        // So we need to decrement it by 8 here.
+        // In total, the clock must be incremented by 8 for each instruction. However, this function
+        // is called by `execute_instruction` which also increments it by 8. So we need to
+        // decrement it by 8 here.
         self.state.clk -= 8;
 
         Ok((0, apc.id, 0, next_pc, *record))
