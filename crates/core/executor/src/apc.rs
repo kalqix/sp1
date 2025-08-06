@@ -8,14 +8,15 @@ pub struct Apc<'a> {
     pub id: u64,
     /// The number of original instructions in the autoprecompile.
     pub original_instructions_count: usize,
-    /// An single executor which is used each time the autoprecompile is executed.
+    /// A single executor which is used each time the autoprecompile is executed.
     /// Before executing the autoprecompile, it is synced with the current state of main execution.
     pub executor: Executor<'a>,
 }
 
 impl<'a> Apc<'a> {
-    pub fn new(id: u64, (from, to): (usize, usize), executor: Executor<'a>) -> Self {
-        Self { id, original_instructions_count: to - from, executor }
+    pub fn new(id: u64, length: usize, executor: Executor<'a>) -> Self {
+        assert!(length > 0, "APC length must be greater than 0");
+        Self { id, original_instructions_count: length, executor }
     }
 }
 
@@ -55,7 +56,7 @@ impl<'a> Apcs<'a> {
                 // Create an executor for the APC with the apc-free program
                 let apc_executor =
                     Executor::with_context(apc_free_program.clone(), opts.clone(), context.clone());
-                Apc::new(id as u64, *range, apc_executor)
+                Apc::new(id as u64, range.len(), apc_executor)
             })
             .collect();
         Apcs { apcs }
