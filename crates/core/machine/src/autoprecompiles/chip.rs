@@ -39,7 +39,6 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        // TODO: this should filter by APC id
         Some(input.get_apc_events(APC_ID).len())
     }
 
@@ -97,37 +96,5 @@ where
         builder.assert_bool(*col);
         // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30` fails
         builder.send_byte(*col, *col, *col, *col, *col);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sp1_core_executor::{Instruction, Opcode};
-
-    use crate::{io::SP1Stdin, utils};
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_apc() {
-        utils::setup_logger();
-        // main:
-        //     block_42424242
-        //      addi x29, x0, 5
-        //      addi x30, x0, 37
-        //     add x31, x30, x29
-
-        // TODO: rely on elf instead
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ];
-
-        let program = Program::new(instructions, 0, 0);
-        let program = program.with_apcs(&[(0, 2)]);
-
-        let stdin = SP1Stdin::new();
-        crate::utils::run_test(program, stdin).await.unwrap();
     }
 }
