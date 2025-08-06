@@ -42,7 +42,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        // TODO: this should filter by APC id
         Some(input.get_apc_events(APC_ID).len())
     }
 
