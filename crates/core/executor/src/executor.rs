@@ -1502,7 +1502,7 @@ impl<'a> Executor<'a> {
 
     /// Emit an APC event.
     fn emit_apc_event(&mut self, apc_id: u64, record: ExecutionRecord) {
-        let event = ApcEvent { id: apc_id, pc: self.state.pc, record };
+        let event = ApcEvent { id: apc_id, record };
         self.record.apc_events.add_event(apc_id, event);
         // We assume that there are no dependencies for APC events.
     }
@@ -1921,7 +1921,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Execute an APC instruction.
-    /// Returns a, b, c, the next pc and the execution record of the APC
+    /// Returns a, b, c, the next pc and the execution record of the APC.
     /// a and c are always 0 for APC instructions.
     /// b is the id of the APC being executed.
     /// The next pc is the pc obtained after executing the original instructions of the APC.
@@ -2905,57 +2905,13 @@ mod tests {
     }
 
     #[test]
-    fn test_single_instruction_apc() {
-        // main:
-        //     apc_0:
-        //      addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        //     apc_1:
-        //      addi x27, x0, 5
-        //     addi x28, x0, 37
-        //     add x26, x28, x27
-
-        let mut original_instructions = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
-            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
-        ];
-        add_halt(&mut original_instructions);
-
-        let program_without_apcs = Program::new(original_instructions, 0, 0);
-
-        let mut runtime =
-            Executor::new(Arc::new(program_without_apcs.clone()), SP1CoreOpts::default());
-        runtime.run::<Trace>().unwrap();
-        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
-        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-        // Check that no APCs were executed
-        assert!(runtime.records[0].apc_events.is_empty());
-
-        let program = program_without_apcs.with_apcs(&[(0, 1), (3, 4)]);
-
-        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
-        runtime.run::<Trace>().unwrap();
-        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
-        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-        // Check that the APCs were executed
-        assert!(!runtime.records[0].apc_events.is_empty());
-    }
-
-    #[test]
     fn test_add_apc() {
         // main:
-        //     apc_0:
-        //      addi x29, x0, 5
-        //      addi x30, x0, 37
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
         //     add x31, x30, x29
-        //     apc_1:
-        //      addi x27, x0, 5
-        //      addi x28, x0, 37
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
         //     add x26, x28, x27
 
         // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
@@ -2974,22 +2930,19 @@ mod tests {
 
         let program_without_apcs = Program::new(original_instructions, 0, 0);
 
-        let mut runtime =
-            Executor::new(Arc::new(program_without_apcs.clone()), SP1CoreOpts::default());
-        runtime.run::<Trace>().unwrap();
-        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
-        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-        // Check that no APCs were executed
-        assert!(runtime.records[0].apc_events.is_empty());
+        // Test with different APC ranges
+        for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
+            let should_execute_apcs = !apcs.is_empty();
+            let program = program_without_apcs.clone().with_apcs(apcs);
 
-        let program = program_without_apcs.with_apcs(&[(0, 2), (3, 5)]);
-
-        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
-        runtime.run::<Trace>().unwrap();
-        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
-        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-        // Check that the APCs were executed
-        assert!(!runtime.records[0].apc_events.is_empty());
+            let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+            runtime.run::<Trace>().unwrap();
+            assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+            assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+            assert_eq!(runtime.records.len(), 1);
+            // Check that the APCs were executed iff there were any
+            assert_eq!(!runtime.records[0].apc_events.is_empty(), should_execute_apcs);
+        }
     }
 
     #[test]

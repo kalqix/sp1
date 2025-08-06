@@ -251,16 +251,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             let pc = event.0.pc;
             instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
-        // TODO: Maybe defer here? See `precompile_events`
-        input.apc_events.all_events().for_each(|event| {
-            let pc = event.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
+        // Note: We do not process the APC events here, since APCs do *not* interact with the
+        // program chip.
 
         let mut rows = input
             .program
             .instructions
-            .original()
+            .proving()
             .enumerate()
             .map(|(i, _)| {
                 let pc = input.program.pc_base + i as u64 * 4;
