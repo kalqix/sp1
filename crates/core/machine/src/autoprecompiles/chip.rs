@@ -104,7 +104,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_executor::{Instruction, Opcode};
+    use sp1_core_executor::{add_halt, Instruction, Opcode};
 
     use crate::{io::SP1Stdin, utils};
 
@@ -120,11 +120,12 @@ mod tests {
         //     add x31, x30, x29
 
         // TODO: rely on elf instead
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
+        add_halt(&mut instructions);
 
         let program = Program::new(instructions, 0, 0);
         let program = program.with_apcs(&[(0, 2)]);
