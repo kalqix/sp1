@@ -1502,7 +1502,7 @@ impl<'a> Executor<'a> {
 
     /// Emit an APC event.
     fn emit_apc_event(&mut self, apc_id: u64, record: ExecutionRecord) {
-        let event = ApcEvent { id: apc_id, pc: self.state.pc, record };
+        let event = ApcEvent { id: apc_id, record };
         self.record.apc_events.add_event(apc_id, event);
         // We assume that there are no dependencies for APC events.
     }

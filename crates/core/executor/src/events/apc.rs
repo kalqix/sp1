@@ -14,8 +14,6 @@ use crate::ExecutionRecord;
 pub struct ApcEvent {
     /// The apc id
     pub id: u64,
-    /// The pc at which the apc was executed.
-    pub pc: u64,
     /// The record of the original instructions executed by the apc.
     pub record: ExecutionRecord,
 }
