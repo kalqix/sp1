@@ -15,7 +15,6 @@ pub struct Apc<'a> {
 
 impl<'a> Apc<'a> {
     pub fn new(id: u64, length: usize, executor: Executor<'a>) -> Self {
-        assert!(length > 0, "APC length must be greater than 0");
         Self { id, original_instructions_count: length, executor }
     }
 }
