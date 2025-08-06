@@ -254,7 +254,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut rows = input
             .program
             .instructions
-            .original()
+            .proving()
             .enumerate()
             .map(|(i, _)| {
                 let pc = input.program.pc_base + i as u64 * 4;

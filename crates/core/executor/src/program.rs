@@ -44,23 +44,23 @@ pub struct Program {
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
 }
 
-/// Instructions of a program, including the original instructions, the ranges which have APC chips,
-/// and the modified instructions used for execution.
+/// Instructions of a program, including the proving instructions (which end up in the Program
+/// chip), the ranges which have APC chips, and the execution instructions used by the executor.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Instructions {
     /// The original instructions of the program.
-    original: Vec<Instruction>,
+    proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
     apcs: Vec<ApcRange>,
-    /// The modified instructions, which replace the original instructions in the ranges with APC
-    /// instructions. This can be computed from the original instructions and the APC ranges,
-    /// but is stored here for convenience.
-    modified: Option<Vec<Instruction>>,
+    /// The execution instructions, which replace the original instructions in the APC ranges with
+    /// APC instructions.
+    execution: Vec<Instruction>,
 }
 
 impl From<Vec<Instruction>> for Instructions {
     fn from(original: Vec<Instruction>) -> Self {
-        Self { original, apcs: Vec::new(), modified: None }
+        // We execute and prove the same instructions
+        Self { proving: original.clone(), apcs: Vec::new(), execution: original }
     }
 }
 
@@ -116,54 +116,54 @@ impl From<&(usize, usize)> for ApcRange {
     }
 }
 
+fn apply_apcs(instructions: &[Instruction], apc_ranges: &[ApcRange]) -> Vec<Instruction> {
+    let mut non_empty_apc_ranges_iter =
+        apc_ranges.iter().filter(|range| !range.is_empty()).enumerate();
+    instructions
+        .iter()
+        .enumerate()
+        .scan(non_empty_apc_ranges_iter.next(), move |r, (index, instruction)| {
+            let instruction = if let Some((apc_index, range)) = r {
+                let instruction = match index.cmp(&range.start().unwrap()) {
+                    Less => {
+                        // If the index is before the start of the range, we keep the original
+                        // instruction
+                        *instruction
+                    }
+                    Equal => {
+                        // If the index is at the start of the range, we replace it with an APC
+                        // instruction
+                        apc_instruction(*apc_index)
+                    }
+                    Greater => {
+                        // Sanity check that we do not overflow the range
+                        assert!(index <= range.end().unwrap());
+                        // If the index is in the middle of the range, we replace it with an
+                        // unimplemented instruction
+                        Instruction::unimp()
+                    }
+                };
+
+                if index == range.end().unwrap() {
+                    // If the index is at the end of the range, we move to the next range
+                    *r = non_empty_apc_ranges_iter.next();
+                }
+
+                instruction
+            } else {
+                // If there are no more ranges, we keep the original instruction
+                *instruction
+            };
+
+            Some(instruction)
+        })
+        .collect()
+}
+
 impl Instructions {
     #[must_use]
     fn with_apcs(mut self, apc_ranges: Vec<ApcRange>) -> Self {
-        assert!(self.apcs.is_empty(), "APC ranges already set");
-        assert!(self.modified.is_none(), "Modified instructions already set");
-        let mut non_empty_apc_ranges_iter =
-            apc_ranges.iter().filter(|range| !range.is_empty()).enumerate();
-        let modified_instructions = self
-            .original
-            .iter()
-            .enumerate()
-            .scan(non_empty_apc_ranges_iter.next(), move |r, (index, instruction)| {
-                let instruction = if let Some((apc_index, range)) = r {
-                    let instruction = match index.cmp(&range.start().unwrap()) {
-                        Less => {
-                            // If the index is before the start of the range, we keep the original
-                            // instruction
-                            *instruction
-                        }
-                        Equal => {
-                            // If the index is at the start of the range, we replace it with an APC
-                            // instruction
-                            apc_instruction(*apc_index)
-                        }
-                        Greater => {
-                            // Sanity check that we do not overflow the range
-                            assert!(index <= range.end().unwrap());
-                            // If the index is in the middle of the range, we replace it with an
-                            // unimplemented instruction
-                            Instruction::unimp()
-                        }
-                    };
-
-                    if index == range.end().unwrap() {
-                        // If the index is at the end of the range, we move to the next range
-                        *r = non_empty_apc_ranges_iter.next();
-                    }
-
-                    instruction
-                } else {
-                    // If there are no more ranges, we keep the original instruction
-                    *instruction
-                };
-
-                Some(instruction)
-            })
-            .collect();
-        self.modified = Some(modified_instructions);
+        self.execution = apply_apcs(&self.proving, &apc_ranges);
         self.apcs = apc_ranges;
 
         self
@@ -172,40 +172,36 @@ impl Instructions {
     /// The number of instructions
     #[must_use]
     pub fn len(&self) -> usize {
-        self.original.len()
+        self.proving.len()
     }
 
     /// Check if there are no instructions.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.original.is_empty()
+        self.proving.is_empty()
     }
 
     /// Get the proving instruction at the given index.
     #[must_use]
     pub fn get_proving(&self, index: usize) -> Option<&Instruction> {
-        self.original.get(index)
+        self.proving.get(index)
     }
 
     /// Get the execution instruction at the given index.
     #[must_use]
     pub fn get_execution(&self, index: usize) -> Option<&Instruction> {
-        if let Some(modified) = &self.modified {
-            modified.get(index)
-        } else {
-            self.original.get(index)
-        }
+        self.execution.get(index)
     }
 
     /// Remove the apc ranges and modified instructions.
     pub(crate) fn clear_apcs(&mut self) {
         self.apcs.clear();
-        self.modified = None;
+        self.execution = self.proving.clone();
     }
 
     /// Get the original instructions as an iterator.
-    pub fn original(&self) -> impl Iterator<Item = Instruction> {
-        self.original.clone().into_iter()
+    pub fn proving(&self) -> impl Iterator<Item = &Instruction> {
+        self.proving.iter()
     }
 
     /// Get the apcs as an iterator.
@@ -217,7 +213,7 @@ impl Instructions {
 impl Program {
     /// Set the APC ranges for this program.
     /// This will also compute the modified instructions based on the original instructions and the
-    /// APC ranges. # Panics
+    /// APC ranges.
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(mut self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
