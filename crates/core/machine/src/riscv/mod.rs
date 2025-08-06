@@ -234,6 +234,89 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
+    pub fn airs_without_apc() -> [RiscvAir<F>; 65] {
+        // The order of the chips is used to determine the order of trace generation.
+        [
+            RiscvAir::Program(ProgramChip::default()),
+            RiscvAir::Sha256Extend(ShaExtendChip::default()),
+            RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
+            RiscvAir::Sha256Compress(ShaCompressChip::default()),
+            RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()),
+            RiscvAir::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
+            RiscvAir::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default()),
+            RiscvAir::K256Decompress(
+                WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::with_lsb_rule(),
+            ),
+            RiscvAir::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new()),
+            RiscvAir::Secp256k1Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
+            ),
+            RiscvAir::P256Decompress(
+                WeierstrassDecompressChip::<SwCurve<Secp256r1Parameters>>::with_lsb_rule(),
+            ),
+            RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new()),
+            RiscvAir::Secp256r1Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new(),
+            ),
+            RiscvAir::KeccakP(KeccakPermuteChip::new()),
+            RiscvAir::KeccakPControl(KeccakPermuteControlChip::new()),
+            RiscvAir::Bn254Add(WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new()),
+            RiscvAir::Bn254Double(WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new()),
+            RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new()),
+            RiscvAir::Bls12381Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new(),
+            ),
+            RiscvAir::Uint256Mul(Uint256MulChip::default()),
+            RiscvAir::Uint256Ops(Uint256OpsChip::default()),
+            RiscvAir::U256x2048Mul(U256x2048MulChip::default()),
+            RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()),
+            RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()),
+            RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()),
+            RiscvAir::Bn254Fp(FpOpChip::<Bn254BaseField>::new()),
+            RiscvAir::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()),
+            RiscvAir::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()),
+            RiscvAir::Bls12381Decompress(
+                WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule(),
+            ),
+            RiscvAir::Poseidon2(Poseidon2Chip::new()),
+            RiscvAir::SyscallCore(SyscallChip::core()),
+            RiscvAir::SyscallPrecompile(SyscallChip::precompile()),
+            RiscvAir::DivRem(DivRemChip::default()),
+            RiscvAir::Add(AddChip::default()),
+            RiscvAir::Addi(AddiChip::default()),
+            RiscvAir::Addw(AddwChip::default()),
+            RiscvAir::Sub(SubChip::default()),
+            RiscvAir::Subw(SubwChip::default()),
+            RiscvAir::Bitwise(BitwiseChip::default()),
+            RiscvAir::Mul(MulChip::default()),
+            RiscvAir::ShiftRight(ShiftRightChip::default()),
+            RiscvAir::ShiftLeft(ShiftLeftChip::default()),
+            RiscvAir::Lt(LtChip::default()),
+            RiscvAir::LoadByte(LoadByteChip::default()),
+            RiscvAir::LoadHalf(LoadHalfChip::default()),
+            RiscvAir::LoadWord(LoadWordChip::default()),
+            RiscvAir::LoadDouble(LoadDoubleChip::default()),
+            RiscvAir::LoadX0(LoadX0Chip::default()),
+            RiscvAir::StoreByte(StoreByteChip::default()),
+            RiscvAir::StoreHalf(StoreHalfChip::default()),
+            RiscvAir::StoreWord(StoreWordChip::default()),
+            RiscvAir::StoreDouble(StoreDoubleChip::default()),
+            RiscvAir::UType(UTypeChip::default()),
+            RiscvAir::Branch(BranchChip::default()),
+            RiscvAir::Jal(JalChip::default()),
+            RiscvAir::Jalr(JalrChip::default()),
+            RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),
+            RiscvAir::MemoryBump(MemoryBumpChip::new()),
+            RiscvAir::StateBump(StateBumpChip::new()),
+            RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
+            RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+            RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAir::Global(GlobalChip),
+            RiscvAir::ByteLookup(ByteChip::default()),
+            RiscvAir::RangeLookup(RangeChip::default()),
+        ]
+    }
+
     pub fn airs() -> [RiscvAir<F>; 67] {
         // The order of the chips is used to determine the order of trace generation.
         [
@@ -317,6 +400,152 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Apc0(ApcChip::default()),
             RiscvAir::Apc1(ApcChip::default()),
         ]
+    }
+
+    pub fn machine_without_apc() -> Machine<F, Self> {
+        use RiscvAirDiscriminants::*;
+
+        let chips = Self::airs_without_apc().into_iter().map(Chip::new).collect::<Vec<_>>();
+
+        let chips_map = chips
+            .iter()
+            .map(|c| (c.air.as_ref().into(), c))
+            .collect::<HashMap<RiscvAirDiscriminants, &Chip<F, RiscvAir<F>>>>();
+        // Check that we listed all chips except the APCs.
+        assert_eq!(chips_map.len(), RiscvAirDiscriminants::iter().len() - 2);
+        assert_eq!(chips_map.len(), chips.len());
+
+        // Now that the chips are prepared, we can define clusters in terms of IDs.
+
+        fn extend_base<T: Clone + Ord>(
+            base: &BTreeSet<T>,
+            elts: impl IntoIterator<Item = T>,
+        ) -> BTreeSet<T> {
+            let mut base = base.to_owned();
+            base.extend(elts);
+            base
+        }
+
+        let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
+
+        let base_precompile_cluster =
+            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+
+        let precompile_clusters = [
+            [Sha256Extend, Sha256ExtendControl].as_slice(),
+            [Sha256Compress, Sha256CompressControl].as_slice(),
+            [Ed25519Add].as_slice(),
+            [Ed25519Decompress].as_slice(),
+            [K256Decompress].as_slice(),
+            [Secp256k1Add].as_slice(),
+            [Secp256k1Double].as_slice(),
+            [P256Decompress].as_slice(),
+            [Secp256r1Add].as_slice(),
+            [Secp256r1Double].as_slice(),
+            [KeccakP, KeccakPControl].as_slice(),
+            [Bn254Add].as_slice(),
+            [Bn254Double].as_slice(),
+            [Bls12381Add].as_slice(),
+            [Bls12381Double].as_slice(),
+            [Uint256Mul].as_slice(),
+            [Uint256Ops].as_slice(),
+            [U256x2048Mul].as_slice(),
+            [Bls12381Fp].as_slice(),
+            [Bls12381Fp2AddSub].as_slice(),
+            [Bls12381Fp2Mul].as_slice(),
+            [Bn254Fp].as_slice(),
+            [Bn254Fp2AddSub].as_slice(),
+            [Bn254Fp2Mul].as_slice(),
+            [Bls12381Decompress].as_slice(),
+            [Poseidon2].as_slice(),
+        ]
+        .into_iter()
+        .map(|ids| extend_base(&base_precompile_cluster, ids.iter().cloned()));
+
+        let core_cluster = extend_base(
+            &preprocessed_chips,
+            [
+                SyscallCore,
+                DivRem,
+                Add,
+                Addi,
+                Addw,
+                Sub,
+                Subw,
+                Bitwise,
+                Mul,
+                ShiftRight,
+                ShiftLeft,
+                Lt,
+                LoadByte,
+                LoadHalf,
+                LoadWord,
+                LoadDouble,
+                LoadX0,
+                StoreByte,
+                StoreHalf,
+                StoreWord,
+                StoreDouble,
+                UType,
+                Branch,
+                Jal,
+                Jalr,
+                SyscallInstrs,
+                MemoryBump,
+                StateBump,
+                MemoryLocal,
+                Global,
+            ],
+        );
+
+        let memory_boundary_cluster =
+            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+
+        // Chip sets that may be included in extended versions of the baseline core cluster.
+        let core_cluster_exts = [
+            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
+            [Bls12381Fp].as_slice(),
+            [Bn254Fp].as_slice(),
+            [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
+            [Uint256Ops].as_slice(),
+            [Poseidon2].as_slice(),
+        ];
+
+        // These extended clusters support the AIR retainment setting in SP1Context.
+        // Given E extensions, we include:
+        // - the base core cluster (E choose 0);
+        // - a core cluster with a single extension (E choose 1);
+        // - the core cluster with all extensions (E choose E).
+        let core_clusters = [0, 1, core_cluster_exts.len()]
+            .into_iter()
+            .flat_map(|k| core_cluster_exts.into_iter().combinations(k))
+            .map(|ext_set| extend_base(&core_cluster, ext_set.into_iter().flatten().cloned()));
+
+        // Collect all clusters and replace the IDs by chips.
+        let chip_clusters = core_clusters
+            .chain(core::iter::once(extend_base(
+                &core_cluster,
+                [
+                    MemoryGlobalInit,
+                    MemoryGlobalFinal,
+                    Sha256Extend,
+                    Sha256ExtendControl,
+                    Sha256Compress,
+                    Sha256CompressControl,
+                    Uint256Ops,
+                ],
+            )))
+            .chain(core::iter::once(memory_boundary_cluster))
+            .chain(precompile_clusters)
+            .map(|ids| ids.into_iter().map(|id| chips_map[&id].clone()).collect())
+            .collect::<Vec<_>>();
+
+        // Stop borrowing `chips`.
+        drop(chips_map);
+
+        let shape = MachineShape::new(chip_clusters);
+
+        Machine::new(chips, SP1_PROOF_NUM_PV_ELTS, shape)
     }
 
     pub fn machine() -> Machine<F, Self> {
