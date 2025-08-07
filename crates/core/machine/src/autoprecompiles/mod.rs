@@ -9,6 +9,7 @@ pub mod instruction_handler;
 pub mod interaction_builder;
 pub mod memory_bus_interaction;
 pub mod program;
+pub mod utils;
 #[cfg(test)]
 mod tests;
 
@@ -36,7 +37,7 @@ use crate::{
 };
 
 const SP1_DEGREE_BOUND: usize = 3;
-const DEFAULT_DEGREE_BOUND: DegreeBound =
+pub const DEFAULT_DEGREE_BOUND: DegreeBound =
     DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
 
 pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
