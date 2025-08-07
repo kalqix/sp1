@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, collections::BTreeMap};
 
 use itertools::Itertools;
-use powdr_autoprecompiles::{build, BasicBlock, SymbolicMachine};
+use powdr_autoprecompiles::{build, BasicBlock};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
@@ -38,9 +38,7 @@ impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
 const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-    fn event_to_row(&self, _: &ApcEvent, row: &mut [F]) {
-        unreachable!();
-    }
+    fn event_to_row(&self, _: &ApcEvent, _row: &mut [F]) {}
 }
 
 impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
@@ -97,7 +95,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
                 // Go through the original instructions of the APC and map the relevant rows to the APC row
                 // TODO: set this based on the APC
-                let original_instructions = vec![
+                let original_instructions = [
                     Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
                     Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
                 ];
@@ -141,7 +139,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                         // get poly_id from sub
                         let poly_id = sub.get(i).expect("Not in dummy");
                         // get index in apc from poly_id
-                        if let Some(index) = apc_poly_id_to_index.get(&poly_id) {
+                        if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::debug!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
@@ -152,7 +150,6 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
                 tracing::debug!("Final row: {row:?}");
 
-                self.event_to_row(event, &mut row);
                 row
             })
             .collect::<Vec<_>>();

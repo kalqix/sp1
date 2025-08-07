@@ -212,17 +212,6 @@ pub fn try_instruction_type_to_air_id(instruction_type: InstructionType) -> Opti
     }
 }
 
-fn is_load_air(air_id: &RiscvAirId) -> bool {
-    matches!(
-        air_id,
-        RiscvAirId::LoadByte
-            | RiscvAirId::LoadHalf
-            | RiscvAirId::LoadWord
-            | RiscvAirId::LoadDouble
-            | RiscvAirId::LoadX0
-    )
-}
-
 fn is_load_opcode(opcode: Opcode) -> bool {
     matches!(
         opcode,
