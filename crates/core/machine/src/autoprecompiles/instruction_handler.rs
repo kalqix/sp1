@@ -59,13 +59,12 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
         let machine = densify_ids(machine);
         let machine = sort_memory_interactions(machine);
 
-        let instruction_types =
-            if is_load_air(&riscv_air.id()) && riscv_air.id() == RiscvAirId::LoadX0 {
-                // For loads, LoadX0 handles all loads if rd == x0.
-                vec![InstructionType::LoadX0]
-            } else {
-                opcodes.into_iter().map(InstructionType::NonLoadX0).collect_vec()
-            };
+        let instruction_types = if riscv_air.id() == RiscvAirId::LoadX0 {
+            // For loads, LoadX0 handles all loads if rd == x0.
+            vec![InstructionType::LoadX0]
+        } else {
+            opcodes.into_iter().map(InstructionType::NonLoadX0).collect_vec()
+        };
 
         let idx = self.airs.len();
         // Cache stats of original airs so that we don't repeatedly calculated them during PGO.
@@ -161,17 +160,6 @@ fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
         RiscvAirId::StoreDouble => vec![Opcode::SD],
         _ => Default::default(),
     }
-}
-
-fn is_load_air(air_id: &RiscvAirId) -> bool {
-    matches!(
-        air_id,
-        RiscvAirId::LoadByte
-            | RiscvAirId::LoadHalf
-            | RiscvAirId::LoadWord
-            | RiscvAirId::LoadDouble
-            | RiscvAirId::LoadX0
-    )
 }
 
 fn is_load_opcode(opcode: Opcode) -> bool {
