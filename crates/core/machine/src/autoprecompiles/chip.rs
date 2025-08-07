@@ -9,15 +9,12 @@ use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
 use crate::utils::pad_rows_fixed;
 
-// TODO: We only prove the apc with id 0. Extend this to any number of apcs.
-const APC_ID: u64 = 0;
-
 #[derive(Default)]
-pub struct ApcChip<F: PrimeField32> {
+pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
     _marker: std::marker::PhantomData<F>,
 }
 
-impl<F: PrimeField32> ApcChip<F> {
+impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
     fn event_to_row(&self, _: &ApcEvent, row: &mut [F; 1]) {
         row[0] = F::one();
     }
@@ -25,13 +22,13 @@ impl<F: PrimeField32> ApcChip<F> {
 
 const NUM_APC_COLS: usize = 1; // TODO: Adjust this based on the actual number of columns needed for APC
 
-impl<F: PrimeField32> BaseAir<F> for ApcChip<F> {
+impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
     fn width(&self) -> usize {
         NUM_APC_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
+impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
     // this may have to be changed
     type Record = ExecutionRecord;
 
@@ -86,7 +83,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 }
 
-impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ApcChip<AB::F>
+impl<const APC_ID: u64, AB: SP1AirBuilder + PairBuilder> Air<AB> for ApcChip<APC_ID, AB::F>
 where
     AB::F: PrimeField32,
 {

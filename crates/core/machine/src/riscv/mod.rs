@@ -223,8 +223,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
-    /// A precompile for the APC.
-    Apc(ApcChip<F>),
+    /// A precompile for the first APC.
+    Apc0(ApcChip<0, F>),
+    /// A precompile for the second APC.
+    Apc1(ApcChip<1, F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -232,7 +234,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 66] {
+    pub fn airs() -> [RiscvAir<F>; 67] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -312,7 +314,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-            RiscvAir::Apc(ApcChip::default()),
+            RiscvAir::Apc0(ApcChip::default()),
+            RiscvAir::Apc1(ApcChip::default()),
         ]
     }
 
@@ -409,9 +412,10 @@ impl<F: PrimeField32> RiscvAir<F> {
                 StateBump,
                 MemoryLocal,
                 Global,
-                Apc, /* TODO: check that the APC actually belongs in the core cluster. It is
-                      * here because putting it in the autoprecompiles cluster led to
-                      * `smallest_cluster` failing. */
+                Apc0,
+                Apc1, /* TODO: check that the APCs actually belong in the core cluster. They are
+                       * here because putting them in the autoprecompiles cluster leads to
+                       * `smallest_cluster` failing. */
             ],
         );
 
@@ -925,7 +929,8 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
-            RiscvAirDiscriminants::Apc => RiscvAirId::Apc,
+            RiscvAirDiscriminants::Apc0 => RiscvAirId::Apc0,
+            RiscvAirDiscriminants::Apc1 => RiscvAirId::Apc1,
         }
     }
 }
