@@ -104,8 +104,6 @@ impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
     pub fn new(_: ()) -> Self {
         Self::default()
     }
-
-    fn event_to_row(&self, _: &ApcEvent, _row: &mut [F]) {}
 }
 
 impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
