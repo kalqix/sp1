@@ -163,8 +163,6 @@ impl PureRangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
             .collect::<BTreeMap<_, _>>();
         let expressions_by_num_bits = range_constraints
             .into_iter()
-            // TODO: This should be filtered by powdr already...
-            .filter(|(expr, _rc)| expr.try_to_number().is_none())
             .map(|(expr, rc)| {
                 (rc_to_num_bits.get(&rc).cloned().expect("Unknown range constraint"), expr)
             })
@@ -177,9 +175,8 @@ impl PureRangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
             .flat_map(|(num_bits, expressions)| {
                 if num_bits <= 8 {
                     // We can range-check two values at the same time via the byte bus!
-                    let factor = GroupedExpression::from_number(
-                        BabyBearField::one() / BabyBearField::from(1u64 << (8 - num_bits)),
-                    );
+                    let factor =
+                        GroupedExpression::from_number(BabyBearField::from(1u64 << (8 - num_bits)));
                     expressions
                         .into_iter()
                         .chunks(2)
