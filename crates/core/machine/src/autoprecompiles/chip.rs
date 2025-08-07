@@ -192,15 +192,3 @@ where
         builder.send_byte(*col, *col, *col, *col, *col);
     }
 }
-
-#[test]
-fn test_apc_chip_trace_generation() {
-    use crate::autoprecompiles::{tests::compile_program::GUEST_FIBONACCI, *};
-
-    // get apc machine
-    let config = sp1_powdr_config(1, 0);
-    let pgo_config = PgoConfig::None;
-    let compiled_program = compile_guest(GUEST_FIBONACCI, config, pgo_config);
-
-    // execute to get apc record
-}
