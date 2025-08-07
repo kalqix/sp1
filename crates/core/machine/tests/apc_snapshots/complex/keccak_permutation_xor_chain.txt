@@ -1,15 +1,125 @@
 Instructions:
-  xor        %x12       %x18       %x19      
-  xor        %x10       %x10       %x11      
-  xor        %x11       %x20       %x25      
-  xor        %x11       %x12       %x11      
+    0: xor        %x12       %x18       %x19      
+    1: xor        %x10       %x10       %x11      
+    2: xor        %x11       %x20       %x25      
+    3: xor        %x11       %x12       %x11      
 
 APC advantage:
   - Main columns: 208 -> 110 (1.89x reduction)
   - Bus interactions: 100 -> 64 (1.56x reduction)
   - Constraints: 80 -> 1 (80.00x reduction)
 
-// Symbolic machine using 110 unique main columns
+Symbolic machine using 110 unique main columns:
+  state__clk_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  adapter__op_a_memory__prev_value__0__0_0
+  adapter__op_a_memory__prev_value__0__1_0
+  adapter__op_a_memory__prev_value__0__2_0
+  adapter__op_a_memory__prev_value__0__3_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__prev_value__0__0_0
+  adapter__op_b_memory__prev_value__0__1_0
+  adapter__op_b_memory__prev_value__0__2_0
+  adapter__op_b_memory__prev_value__0__3_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  adapter__op_c_memory__prev_value__0__0_0
+  adapter__op_c_memory__prev_value__0__1_0
+  adapter__op_c_memory__prev_value__0__2_0
+  adapter__op_c_memory__prev_value__0__3_0
+  adapter__op_c_memory__access_timestamp__prev_low_0
+  adapter__op_c_memory__access_timestamp__diff_low_limb_0
+  bitwise_operation__b_low_bytes__low_bytes__0_0
+  bitwise_operation__b_low_bytes__low_bytes__1_0
+  bitwise_operation__b_low_bytes__low_bytes__2_0
+  bitwise_operation__b_low_bytes__low_bytes__3_0
+  bitwise_operation__c_low_bytes__low_bytes__0_0
+  bitwise_operation__c_low_bytes__low_bytes__1_0
+  bitwise_operation__c_low_bytes__low_bytes__2_0
+  bitwise_operation__c_low_bytes__low_bytes__3_0
+  bitwise_operation__bitwise_operation__result__1_0
+  bitwise_operation__bitwise_operation__result__3_0
+  bitwise_operation__bitwise_operation__result__5_0
+  bitwise_operation__bitwise_operation__result__7_0
+  adapter__op_b_memory__prev_value__0__0_1
+  adapter__op_b_memory__prev_value__0__1_1
+  adapter__op_b_memory__prev_value__0__2_1
+  adapter__op_b_memory__prev_value__0__3_1
+  adapter__op_b_memory__access_timestamp__prev_low_1
+  adapter__op_b_memory__access_timestamp__diff_low_limb_1
+  adapter__op_c_memory__access_timestamp__prev_low_1
+  adapter__op_c_memory__access_timestamp__diff_low_limb_1
+  bitwise_operation__b_low_bytes__low_bytes__0_1
+  bitwise_operation__b_low_bytes__low_bytes__1_1
+  bitwise_operation__b_low_bytes__low_bytes__2_1
+  bitwise_operation__b_low_bytes__low_bytes__3_1
+  bitwise_operation__c_low_bytes__low_bytes__0_1
+  bitwise_operation__c_low_bytes__low_bytes__1_1
+  bitwise_operation__c_low_bytes__low_bytes__2_1
+  bitwise_operation__c_low_bytes__low_bytes__3_1
+  bitwise_operation__bitwise_operation__result__0_1
+  bitwise_operation__bitwise_operation__result__1_1
+  bitwise_operation__bitwise_operation__result__2_1
+  bitwise_operation__bitwise_operation__result__3_1
+  bitwise_operation__bitwise_operation__result__4_1
+  bitwise_operation__bitwise_operation__result__5_1
+  bitwise_operation__bitwise_operation__result__6_1
+  bitwise_operation__bitwise_operation__result__7_1
+  adapter__op_a_memory__prev_value__0__0_2
+  adapter__op_a_memory__prev_value__0__1_2
+  adapter__op_a_memory__prev_value__0__2_2
+  adapter__op_a_memory__prev_value__0__3_2
+  adapter__op_b_memory__prev_value__0__0_2
+  adapter__op_b_memory__prev_value__0__1_2
+  adapter__op_b_memory__prev_value__0__2_2
+  adapter__op_b_memory__prev_value__0__3_2
+  adapter__op_b_memory__access_timestamp__prev_low_2
+  adapter__op_b_memory__access_timestamp__diff_low_limb_2
+  adapter__op_c_memory__prev_value__0__0_2
+  adapter__op_c_memory__prev_value__0__1_2
+  adapter__op_c_memory__prev_value__0__2_2
+  adapter__op_c_memory__prev_value__0__3_2
+  adapter__op_c_memory__access_timestamp__prev_low_2
+  adapter__op_c_memory__access_timestamp__diff_low_limb_2
+  bitwise_operation__b_low_bytes__low_bytes__0_2
+  bitwise_operation__b_low_bytes__low_bytes__1_2
+  bitwise_operation__b_low_bytes__low_bytes__2_2
+  bitwise_operation__b_low_bytes__low_bytes__3_2
+  bitwise_operation__c_low_bytes__low_bytes__0_2
+  bitwise_operation__c_low_bytes__low_bytes__1_2
+  bitwise_operation__c_low_bytes__low_bytes__2_2
+  bitwise_operation__c_low_bytes__low_bytes__3_2
+  bitwise_operation__bitwise_operation__result__1_2
+  bitwise_operation__bitwise_operation__result__3_2
+  bitwise_operation__bitwise_operation__result__5_2
+  bitwise_operation__bitwise_operation__result__7_2
+  adapter__op_b_memory__prev_value__0__0_3
+  adapter__op_b_memory__prev_value__0__1_3
+  adapter__op_b_memory__prev_value__0__2_3
+  adapter__op_b_memory__prev_value__0__3_3
+  adapter__op_c_memory__prev_value__0__0_3
+  adapter__op_c_memory__prev_value__0__1_3
+  adapter__op_c_memory__prev_value__0__2_3
+  adapter__op_c_memory__prev_value__0__3_3
+  bitwise_operation__b_low_bytes__low_bytes__0_3
+  bitwise_operation__b_low_bytes__low_bytes__1_3
+  bitwise_operation__b_low_bytes__low_bytes__2_3
+  bitwise_operation__b_low_bytes__low_bytes__3_3
+  bitwise_operation__c_low_bytes__low_bytes__0_3
+  bitwise_operation__c_low_bytes__low_bytes__1_3
+  bitwise_operation__c_low_bytes__low_bytes__2_3
+  bitwise_operation__c_low_bytes__low_bytes__3_3
+  bitwise_operation__bitwise_operation__result__0_3
+  bitwise_operation__bitwise_operation__result__1_3
+  bitwise_operation__bitwise_operation__result__2_3
+  bitwise_operation__bitwise_operation__result__3_3
+  bitwise_operation__bitwise_operation__result__4_3
+  bitwise_operation__bitwise_operation__result__5_3
+  bitwise_operation__bitwise_operation__result__6_3
+  bitwise_operation__bitwise_operation__result__7_3
+  is_valid
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_c_memory__access_timestamp__prev_low_0, 19, 0, 0, adapter__op_c_memory__prev_value__0__0_0, adapter__op_c_memory__prev_value__0__1_0, adapter__op_c_memory__prev_value__0__2_0, adapter__op_c_memory__prev_value__0__3_0]

@@ -6,7 +6,7 @@ use crate::autoprecompiles::{
     instruction_handler::Sp1InstructionHandler, memory_bus_interaction::Sp1MemoryBusInteraction,
     program::Sp1Program,
 };
-use powdr_autoprecompiles::adapter::Adapter;
+use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
@@ -31,5 +31,10 @@ impl Adapter for Sp1ApcAdapter {
 
     fn from_field(e: Self::Field) -> Self::PowdrField {
         Self::PowdrField::from_bytes_le(&e.as_canonical_u32().to_le_bytes())
+    }
+
+    fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
+        // Skip blocks with more than 1000 instructions
+        block.statements.len() > 1000
     }
 }

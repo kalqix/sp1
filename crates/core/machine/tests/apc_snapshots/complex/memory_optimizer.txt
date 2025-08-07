@@ -1,13 +1,37 @@
 Instructions:
-  addi       %x1        %x2        0         
-  add        %x1        %x1        %x2       
+    0: addi       %x1        %x2        0         
+    1: add        %x1        %x1        %x2       
 
 APC advantage:
   - Main columns: 63 -> 24 (2.62x reduction)
   - Bus interactions: 38 -> 20 (1.90x reduction)
   - Constraints: 29 -> 9 (3.22x reduction)
 
-// Symbolic machine using 24 unique main columns
+Symbolic machine using 24 unique main columns:
+  state__clk_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  adapter__op_a_memory__prev_value__0__0_0
+  adapter__op_a_memory__prev_value__0__1_0
+  adapter__op_a_memory__prev_value__0__2_0
+  adapter__op_a_memory__prev_value__0__3_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__prev_value__0__0_1
+  adapter__op_b_memory__prev_value__0__1_1
+  adapter__op_b_memory__prev_value__0__2_1
+  adapter__op_b_memory__prev_value__0__3_1
+  adapter__op_c_memory__prev_value__0__0_1
+  adapter__op_c_memory__prev_value__0__1_1
+  adapter__op_c_memory__prev_value__0__2_1
+  adapter__op_c_memory__prev_value__0__3_1
+  add_operation__value__0__0_1
+  add_operation__value__0__1_1
+  add_operation__value__0__2_1
+  add_operation__value__0__3_1
+  is_valid
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 2, 0, 0, adapter__op_c_memory__prev_value__0__0_1, adapter__op_c_memory__prev_value__0__1_1, adapter__op_c_memory__prev_value__0__2_1, adapter__op_c_memory__prev_value__0__3_1]

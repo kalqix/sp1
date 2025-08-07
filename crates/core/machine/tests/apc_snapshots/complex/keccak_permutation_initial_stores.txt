@@ -1,18 +1,161 @@
 Instructions:
-  sd         %x12       %x2        72        
-  sd         %x25       %x2        16        
-  sd         %x7        %x2        24        
-  sd         %x6        %x2        32        
-  sd         %x16       %x2        40        
-  sd         %x17       %x2        56        
-  sd         %x28       %x2        80        
+    0: sd         %x12       %x2        72        
+    1: sd         %x25       %x2        16        
+    2: sd         %x7        %x2        24        
+    3: sd         %x6        %x2        32        
+    4: sd         %x16       %x2        40        
+    5: sd         %x17       %x2        56        
+    6: sd         %x28       %x2        80        
 
 APC advantage:
   - Main columns: 273 -> 143 (1.91x reduction)
   - Bus interactions: 147 -> 92 (1.60x reduction)
   - Constraints: 161 -> 57 (2.82x reduction)
 
-// Symbolic machine using 143 unique main columns
+Symbolic machine using 143 unique main columns:
+  state__clk_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  adapter__op_a_memory__prev_value__0__0_0
+  adapter__op_a_memory__prev_value__0__1_0
+  adapter__op_a_memory__prev_value__0__2_0
+  adapter__op_a_memory__prev_value__0__3_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  address_operation__addr_word_operation__value__0_0
+  address_operation__addr_word_operation__value__1_0
+  address_operation__addr_word_operation__value__2_0
+  address_operation__top_two_limb_inv_0
+  memory_access__prev_value__0__0_0
+  memory_access__prev_value__0__1_0
+  memory_access__prev_value__0__2_0
+  memory_access__prev_value__0__3_0
+  memory_access__access_timestamp__prev_high_0
+  memory_access__access_timestamp__prev_low_0
+  memory_access__access_timestamp__compare_low_0
+  memory_access__access_timestamp__diff_low_limb_0
+  memory_access__access_timestamp__diff_high_limb_0
+  adapter__op_a_memory__prev_value__0__0_1
+  adapter__op_a_memory__prev_value__0__1_1
+  adapter__op_a_memory__prev_value__0__2_1
+  adapter__op_a_memory__prev_value__0__3_1
+  adapter__op_a_memory__access_timestamp__prev_low_1
+  adapter__op_a_memory__access_timestamp__diff_low_limb_1
+  address_operation__addr_word_operation__value__0_1
+  address_operation__addr_word_operation__value__1_1
+  address_operation__addr_word_operation__value__2_1
+  address_operation__top_two_limb_inv_1
+  memory_access__prev_value__0__0_1
+  memory_access__prev_value__0__1_1
+  memory_access__prev_value__0__2_1
+  memory_access__prev_value__0__3_1
+  memory_access__access_timestamp__prev_high_1
+  memory_access__access_timestamp__prev_low_1
+  memory_access__access_timestamp__compare_low_1
+  memory_access__access_timestamp__diff_low_limb_1
+  memory_access__access_timestamp__diff_high_limb_1
+  adapter__op_a_memory__prev_value__0__0_2
+  adapter__op_a_memory__prev_value__0__1_2
+  adapter__op_a_memory__prev_value__0__2_2
+  adapter__op_a_memory__prev_value__0__3_2
+  adapter__op_a_memory__access_timestamp__prev_low_2
+  adapter__op_a_memory__access_timestamp__diff_low_limb_2
+  address_operation__addr_word_operation__value__0_2
+  address_operation__addr_word_operation__value__1_2
+  address_operation__addr_word_operation__value__2_2
+  address_operation__top_two_limb_inv_2
+  memory_access__prev_value__0__0_2
+  memory_access__prev_value__0__1_2
+  memory_access__prev_value__0__2_2
+  memory_access__prev_value__0__3_2
+  memory_access__access_timestamp__prev_high_2
+  memory_access__access_timestamp__prev_low_2
+  memory_access__access_timestamp__compare_low_2
+  memory_access__access_timestamp__diff_low_limb_2
+  memory_access__access_timestamp__diff_high_limb_2
+  adapter__op_a_memory__prev_value__0__0_3
+  adapter__op_a_memory__prev_value__0__1_3
+  adapter__op_a_memory__prev_value__0__2_3
+  adapter__op_a_memory__prev_value__0__3_3
+  adapter__op_a_memory__access_timestamp__prev_low_3
+  adapter__op_a_memory__access_timestamp__diff_low_limb_3
+  address_operation__addr_word_operation__value__0_3
+  address_operation__addr_word_operation__value__1_3
+  address_operation__addr_word_operation__value__2_3
+  address_operation__top_two_limb_inv_3
+  memory_access__prev_value__0__0_3
+  memory_access__prev_value__0__1_3
+  memory_access__prev_value__0__2_3
+  memory_access__prev_value__0__3_3
+  memory_access__access_timestamp__prev_high_3
+  memory_access__access_timestamp__prev_low_3
+  memory_access__access_timestamp__compare_low_3
+  memory_access__access_timestamp__diff_low_limb_3
+  memory_access__access_timestamp__diff_high_limb_3
+  adapter__op_a_memory__prev_value__0__0_4
+  adapter__op_a_memory__prev_value__0__1_4
+  adapter__op_a_memory__prev_value__0__2_4
+  adapter__op_a_memory__prev_value__0__3_4
+  adapter__op_a_memory__access_timestamp__prev_low_4
+  adapter__op_a_memory__access_timestamp__diff_low_limb_4
+  address_operation__addr_word_operation__value__0_4
+  address_operation__addr_word_operation__value__1_4
+  address_operation__addr_word_operation__value__2_4
+  address_operation__top_two_limb_inv_4
+  memory_access__prev_value__0__0_4
+  memory_access__prev_value__0__1_4
+  memory_access__prev_value__0__2_4
+  memory_access__prev_value__0__3_4
+  memory_access__access_timestamp__prev_high_4
+  memory_access__access_timestamp__prev_low_4
+  memory_access__access_timestamp__compare_low_4
+  memory_access__access_timestamp__diff_low_limb_4
+  memory_access__access_timestamp__diff_high_limb_4
+  adapter__op_a_memory__prev_value__0__0_5
+  adapter__op_a_memory__prev_value__0__1_5
+  adapter__op_a_memory__prev_value__0__2_5
+  adapter__op_a_memory__prev_value__0__3_5
+  adapter__op_a_memory__access_timestamp__prev_low_5
+  adapter__op_a_memory__access_timestamp__diff_low_limb_5
+  adapter__op_b_memory__prev_value__0__0_5
+  adapter__op_b_memory__prev_value__0__1_5
+  adapter__op_b_memory__prev_value__0__2_5
+  adapter__op_b_memory__prev_value__0__3_5
+  address_operation__addr_word_operation__value__0_5
+  address_operation__addr_word_operation__value__1_5
+  address_operation__addr_word_operation__value__2_5
+  address_operation__top_two_limb_inv_5
+  memory_access__prev_value__0__0_5
+  memory_access__prev_value__0__1_5
+  memory_access__prev_value__0__2_5
+  memory_access__prev_value__0__3_5
+  memory_access__access_timestamp__prev_high_5
+  memory_access__access_timestamp__prev_low_5
+  memory_access__access_timestamp__compare_low_5
+  memory_access__access_timestamp__diff_low_limb_5
+  memory_access__access_timestamp__diff_high_limb_5
+  adapter__op_a_memory__prev_value__0__0_6
+  adapter__op_a_memory__prev_value__0__1_6
+  adapter__op_a_memory__prev_value__0__2_6
+  adapter__op_a_memory__prev_value__0__3_6
+  adapter__op_a_memory__access_timestamp__prev_low_6
+  adapter__op_a_memory__access_timestamp__diff_low_limb_6
+  address_operation__addr_word_operation__value__0_6
+  address_operation__addr_word_operation__value__1_6
+  address_operation__addr_word_operation__value__2_6
+  address_operation__top_two_limb_inv_6
+  memory_access__prev_value__0__0_6
+  memory_access__prev_value__0__1_6
+  memory_access__prev_value__0__2_6
+  memory_access__prev_value__0__3_6
+  memory_access__access_timestamp__prev_high_6
+  memory_access__access_timestamp__prev_low_6
+  memory_access__access_timestamp__compare_low_6
+  memory_access__access_timestamp__diff_low_limb_6
+  memory_access__access_timestamp__diff_high_limb_6
+  is_valid
 
 // Bus 1 (MEMORY):
 mult=is_valid * 1, args=[memory_access__access_timestamp__prev_high_0, memory_access__access_timestamp__prev_low_0, address_operation__addr_word_operation__value__0_0, address_operation__addr_word_operation__value__1_0, address_operation__addr_word_operation__value__2_0, memory_access__prev_value__0__0_0, memory_access__prev_value__0__1_0, memory_access__prev_value__0__2_0, memory_access__prev_value__0__3_0]

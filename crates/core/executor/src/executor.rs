@@ -1967,13 +1967,7 @@ impl<'a> Executor<'a> {
 
         // transfer the cpu_local_memory_access from the APC executor to the main executor
         for access in record.cpu_local_memory_access.drain(..) {
-            self.local_memory_access
-                .entry(access.addr)
-                .and_modify(|v| {
-                    v.final_mem_access = access.final_mem_access;
-                    v.initial_mem_access = access.initial_mem_access;
-                })
-                .or_insert(access);
+            self.local_memory_access.insert(access.addr, access);
         }
 
         // transfer the memory checkpoint from the APC executor to the main executor
