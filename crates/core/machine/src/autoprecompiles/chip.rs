@@ -120,7 +120,6 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
                 tracing::debug!("APC: {:#?}", apc);
 
-                // let mut offset = 0;
                 for (original_instruction, sub) in original_instructions.iter().zip_eq(apc.subs.iter()) {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(*original_instruction))
