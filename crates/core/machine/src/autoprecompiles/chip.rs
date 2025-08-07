@@ -1,6 +1,7 @@
 use std::{borrow::Borrow, collections::BTreeMap};
 
-use num::pow;
+use itertools::Itertools;
+use powdr_autoprecompiles::{build, BasicBlock, SymbolicMachine};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
@@ -10,66 +11,35 @@ use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Machine,
 };
-use powdr_autoprecompiles::{SymbolicMachine, BasicBlock, build};
-use itertools::Itertools;
 
 use crate::{
-    autoprecompiles::{instruction_handler::{try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler}, sp1_vm_config, Sp1ApcAdapter, DEFAULT_DEGREE_BOUND},
+    autoprecompiles::{
+        instruction_handler::{
+            try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
+        },
+        sp1_vm_config, Sp1ApcAdapter, DEFAULT_DEGREE_BOUND,
+    },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
 };
 use slop_baby_bear::BabyBear;
 
 pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
-    // /// Original instructions in the basic block
-    // original_instructions: Vec<Instruction>,
-    // /// The columns in arbitrary order
-    // columns: Vec<AlgebraicReference>,
-    // /// The mapping from poly_id id to the index in the list of columns.
-    // /// The values are always unique and contiguous
-    // column_index_by_poly_id: BTreeMap<u64, usize>,
-    // apc_machine: powdr_autoprecompiles::SymbolicMachine<F>,
-    // /// A machine to generate traces for the APC.
+    /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
 }
 
 impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
     fn default() -> Self {
-        Self { 
-            // original_instructions: Vec::new(),
-            // columns: Vec::new(),
-            // column_index_by_poly_id: BTreeMap::new(),
-            // apc_machine: SymbolicMachine { constraints: Vec::new(), bus_interactions: Vec::new() },
-            machine: RiscvAir::machine_without_apc()
-        }
+        Self { machine: RiscvAir::machine_without_apc() }
     }
 }
-
-// impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-//     pub fn new(apc_machine: powdr_autoprecompiles::SymbolicMachine<F>, original_instructions: Vec<Instruction>) -> Self {
-//         let (column_index_by_poly_id, columns): (BTreeMap<_, _>, Vec<_>) = apc_machine
-//             .main_columns()
-//             .enumerate()
-//             .map(|(index, c)| ((c.id, index), c.clone()))
-//             .unzip();
-
-//         let machine = RiscvAir::machine();
-
-//         Self {
-//             columns,
-//             column_index_by_poly_id,
-//             apc_machine,
-//             original_instructions,
-//             machine,
-//         }
-//     }
-// }
 
 const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
     fn event_to_row(&self, _: &ApcEvent, row: &mut [F]) {
-        row[0] = F::one();
+        unreachable!();
     }
 }
 
@@ -98,7 +68,6 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
         input: &Self::Record,
         _: &mut Self::Record,
     ) -> slop_matrix::dense::RowMajorMatrix<F> {
-        // let ncols = self.width();
         // Get all events for the given APC ID
         let events = input.get_apc_events(APC_ID);
         // Turn each event into a row
@@ -134,6 +103,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                 ];
 
                 // Hardcode APC
+                // TODO: make it a generic parameter when constructing ApcChip
                 let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
                 let vm_config = sp1_vm_config(&instruction_handler);
                 let block = BasicBlock {
@@ -142,8 +112,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                 };
                 let apc = build::<Sp1ApcAdapter>(block.clone(), vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
 
-                // contiguous index in apc
-                // TODO: create in constructor
+                // mapping from poly_id to contiguous index in apc
                 let apc_poly_id_to_index = apc
                     .machine
                     .main_columns()
@@ -151,14 +120,14 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                     .map(|(index, c)| (c.id, index))
                     .collect::<BTreeMap<_, _>>();
 
-                println!("APC: {:#?}", apc);
+                tracing::debug!("APC: {:#?}", apc);
 
                 // let mut offset = 0;
                 for (original_instruction, sub) in original_instructions.iter().zip_eq(apc.subs.iter()) {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(*original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    println!("Processing air_id: {air_id:?}");
+                    tracing::debug!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -166,24 +135,22 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    // let len = original_row.len();
-                    println!("Original row: {original_row:?}");
-                    // Map the row to the APC row. TODO: use the mapping returned by apc generation
+                    tracing::debug!("Original row: {original_row:?}");
+                    // Map the row to the APC row. TODO: use the mapping returned by apc generation.
                     for (i, value) in original_row.enumerate() {
                         // get poly_id from sub
                         let poly_id = sub.get(i).expect("Not in dummy");
+                        // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(&poly_id) {
-                            println!("Setting row[{index}] to {value:?}");
+                            tracing::debug!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            println!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
-                        // row[i + offset] = value;
                     }
-                    // offset += len;
                 }
 
-                println!("Final row: {row:?}");
+                tracing::debug!("Final row: {row:?}");
 
                 self.event_to_row(event, &mut row);
                 row
@@ -231,8 +198,7 @@ where
 
 #[test]
 fn test_apc_chip_trace_generation() {
-    use crate::autoprecompiles::*;
-    use crate::autoprecompiles::tests::compile_program::GUEST_FIBONACCI;
+    use crate::autoprecompiles::{tests::compile_program::GUEST_FIBONACCI, *};
 
     // get apc machine
     let config = sp1_powdr_config(1, 0);
@@ -240,6 +206,4 @@ fn test_apc_chip_trace_generation() {
     let compiled_program = compile_guest(GUEST_FIBONACCI, config, pgo_config);
 
     // execute to get apc record
-    
-
 }
