@@ -1,3 +1,3 @@
-mod compile_program;
+pub mod compile_program;
 mod machine_extraction;
 mod snapshot_tests;
