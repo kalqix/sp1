@@ -138,7 +138,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
         // Do nothing since this chip has no dependencies.
-        // TODO: Is this correct?
     }
 
     fn generate_trace(
