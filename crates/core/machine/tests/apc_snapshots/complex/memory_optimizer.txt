@@ -3,11 +3,11 @@ Instructions:
     1: add        %x1        %x1        %x2       
 
 APC advantage:
-  - Main columns: 63 -> 24 (2.62x reduction)
-  - Bus interactions: 38 -> 20 (1.90x reduction)
+  - Main columns: 63 -> 30 (2.10x reduction)
+  - Bus interactions: 38 -> 24 (1.58x reduction)
   - Constraints: 29 -> 9 (3.22x reduction)
 
-Symbolic machine using 24 unique main columns:
+Symbolic machine using 30 unique main columns:
   state__clk_high_0
   state__clk_16_24_0
   state__clk_0_16_0
@@ -17,16 +17,22 @@ Symbolic machine using 24 unique main columns:
   adapter__op_a_memory__prev_value__0__3_0
   adapter__op_a_memory__access_timestamp__prev_low_0
   adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__prev_value__0__0_0
+  adapter__op_b_memory__prev_value__0__1_0
+  adapter__op_b_memory__prev_value__0__2_0
+  adapter__op_b_memory__prev_value__0__3_0
   adapter__op_b_memory__access_timestamp__prev_low_0
   adapter__op_b_memory__access_timestamp__diff_low_limb_0
-  adapter__op_b_memory__prev_value__0__0_1
-  adapter__op_b_memory__prev_value__0__1_1
-  adapter__op_b_memory__prev_value__0__2_1
-  adapter__op_b_memory__prev_value__0__3_1
-  adapter__op_c_memory__prev_value__0__0_1
-  adapter__op_c_memory__prev_value__0__1_1
-  adapter__op_c_memory__prev_value__0__2_1
-  adapter__op_c_memory__prev_value__0__3_1
+  add_operation__value__0__0_0
+  add_operation__value__0__1_0
+  add_operation__value__0__2_0
+  add_operation__value__0__3_0
+  adapter__op_a_memory__access_timestamp__prev_low_1
+  adapter__op_a_memory__access_timestamp__diff_low_limb_1
+  adapter__op_b_memory__access_timestamp__prev_low_1
+  adapter__op_b_memory__access_timestamp__diff_low_limb_1
+  adapter__op_c_memory__access_timestamp__prev_low_1
+  adapter__op_c_memory__access_timestamp__diff_low_limb_1
   add_operation__value__0__0_1
   add_operation__value__0__1_1
   add_operation__value__0__2_1
@@ -34,22 +40,26 @@ Symbolic machine using 24 unique main columns:
   is_valid
 
 // Bus 1 (MEMORY):
-mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 2, 0, 0, adapter__op_c_memory__prev_value__0__0_1, adapter__op_c_memory__prev_value__0__1_1, adapter__op_c_memory__prev_value__0__2_1, adapter__op_c_memory__prev_value__0__3_1]
+mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 2, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0]
 mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 1, 0, 0, adapter__op_a_memory__prev_value__0__0_0, adapter__op_a_memory__prev_value__0__1_0, adapter__op_a_memory__prev_value__0__2_0, adapter__op_a_memory__prev_value__0__3_0]
-mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 9, 2, 0, 0, adapter__op_c_memory__prev_value__0__0_1, adapter__op_c_memory__prev_value__0__1_1, adapter__op_c_memory__prev_value__0__2_1, adapter__op_c_memory__prev_value__0__3_1]
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 9, 2, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0]
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 11, 1, 0, 0, add_operation__value__0__0_1, add_operation__value__0__1_1, add_operation__value__0__2_1, add_operation__value__0__3_1]
 
 // Bus 5 (BYTE):
-mult=is_valid * 1, args=[6, adapter__op_b_memory__prev_value__0__0_1, 16, 0]
-mult=is_valid * 1, args=[6, adapter__op_b_memory__prev_value__0__1_1, 16, 0]
-mult=is_valid * 1, args=[6, adapter__op_b_memory__prev_value__0__2_1, 16, 0]
-mult=is_valid * 1, args=[6, adapter__op_b_memory__prev_value__0__3_1, 16, 0]
+mult=is_valid * 1, args=[3, 0, 0, 0]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 307200)]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 276480), state__clk_16_24_0 + 30720 * adapter__op_c_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_c_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 245760)]
 mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
 mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
 mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__0_0, 16, 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__1_0, 16, 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__2_0, 16, 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__3_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_1, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_1, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_c_memory__access_timestamp__diff_low_limb_1, 16, 0]
 mult=is_valid * 1, args=[6, add_operation__value__0__0_1, 16, 0]
 mult=is_valid * 1, args=[6, add_operation__value__0__1_1, 16, 0]
 mult=is_valid * 1, args=[6, add_operation__value__0__2_1, 16, 0]
@@ -60,12 +70,12 @@ mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state_
 mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 16, 8, 0, 0]
 
 // Algebraic constraints:
-(30720 * adapter__op_b_memory__prev_value__0__0_1 - 30720 * adapter__op_c_memory__prev_value__0__0_1) * (30720 * adapter__op_b_memory__prev_value__0__0_1 - (30720 * adapter__op_c_memory__prev_value__0__0_1 + 1)) = 0
-(30720 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__0_1 - (943718400 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__1_1)) * (30720 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__0_1 - (943718400 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__1_1 + 1)) = 0
-(30720 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * adapter__op_c_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__1_1 - (14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * adapter__op_c_memory__prev_value__0__2_1)) * (30720 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * adapter__op_c_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__1_1 - (14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * adapter__op_c_memory__prev_value__0__2_1 + 1)) = 0
-(442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 14400 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__2_1 - (14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 442368000 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__3_1)) * (442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 14400 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__2_1 - (14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 442368000 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__3_1 + 1)) = 0
-(30720 * add_operation__value__0__0_1 - (30720 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__0_1)) * (30720 * add_operation__value__0__0_1 - (30720 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__0_1 + 1)) = 0
-(943718400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * add_operation__value__0__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * add_operation__value__0__0_1)) * (943718400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * add_operation__value__0__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_1 + 30720 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * add_operation__value__0__0_1 + 1)) = 0
-(14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 14400 * adapter__op_c_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__1_1 + 30720 * add_operation__value__0__2_1 - (30720 * adapter__op_b_memory__prev_value__0__2_1 + 30720 * adapter__op_c_memory__prev_value__0__2_1 + 14400 * add_operation__value__0__0_1 + 943718400 * add_operation__value__0__1_1)) * (14400 * adapter__op_b_memory__prev_value__0__0_1 + 943718400 * adapter__op_b_memory__prev_value__0__1_1 + 14400 * adapter__op_c_memory__prev_value__0__0_1 + 943718400 * adapter__op_c_memory__prev_value__0__1_1 + 30720 * add_operation__value__0__2_1 - (30720 * adapter__op_b_memory__prev_value__0__2_1 + 30720 * adapter__op_c_memory__prev_value__0__2_1 + 14400 * add_operation__value__0__0_1 + 943718400 * add_operation__value__0__1_1 + 1)) = 0
-(14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__2_1 + 442368000 * add_operation__value__0__0_1 + 30720 * add_operation__value__0__3_1 - (442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 442368000 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__3_1 + 14400 * add_operation__value__0__1_1 + 943718400 * add_operation__value__0__2_1)) * (14400 * adapter__op_b_memory__prev_value__0__1_1 + 943718400 * adapter__op_b_memory__prev_value__0__2_1 + 14400 * adapter__op_c_memory__prev_value__0__1_1 + 943718400 * adapter__op_c_memory__prev_value__0__2_1 + 442368000 * add_operation__value__0__0_1 + 30720 * add_operation__value__0__3_1 - (442368000 * adapter__op_b_memory__prev_value__0__0_1 + 30720 * adapter__op_b_memory__prev_value__0__3_1 + 442368000 * adapter__op_c_memory__prev_value__0__0_1 + 30720 * adapter__op_c_memory__prev_value__0__3_1 + 14400 * add_operation__value__0__1_1 + 943718400 * add_operation__value__0__2_1 + 1)) = 0
+(30720 * add_operation__value__0__0_0 - 30720 * adapter__op_b_memory__prev_value__0__0_0) * (30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 1)) = 0
+(943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) * (943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) * (14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0)) * (14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 1)) = 0
+(30720 * add_operation__value__0__0_1 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__0_0)) * (30720 * add_operation__value__0__0_1 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__0_0 + 1)) = 0
+(943718400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__0_1)) * (943718400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__1_1 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__0_1 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0 + 30720 * add_operation__value__0__2_1 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 30720 * add_operation__value__0__2_0 + 14400 * add_operation__value__0__0_1 + 943718400 * add_operation__value__0__1_1)) * (14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0 + 30720 * add_operation__value__0__2_1 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 30720 * add_operation__value__0__2_0 + 14400 * add_operation__value__0__0_1 + 943718400 * add_operation__value__0__1_1 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 442368000 * add_operation__value__0__0_1 + 30720 * add_operation__value__0__3_1 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 + 14400 * add_operation__value__0__1_1 + 943718400 * add_operation__value__0__2_1)) * (14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 442368000 * add_operation__value__0__0_1 + 30720 * add_operation__value__0__3_1 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 442368000 * add_operation__value__0__0_0 + 30720 * add_operation__value__0__3_0 + 14400 * add_operation__value__0__1_1 + 943718400 * add_operation__value__0__2_1 + 1)) = 0
 is_valid * (is_valid - 1) = 0

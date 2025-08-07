@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 44 -> 33 (1.33x reduction)
-  - Bus interactions: 22 -> 21 (1.05x reduction)
+  - Bus interactions: 22 -> 20 (1.10x reduction)
   - Constraints: 33 -> 15 (2.20x reduction)
 
 Symbolic machine using 33 unique main columns:
@@ -50,19 +50,18 @@ mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timesta
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 1, 0, 0, selected_word__0_0, selected_word__1_0, 65535 * msb__msb_0, 65535 * msb__msb_0]
 
 // Bus 5 (BYTE):
+mult=is_valid * 1, args=[3, 0, 0, 0]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), memory_access__access_timestamp__diff_high_limb_0]
+mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[6, 1006632960 * offset_bit_0 - 251658240 * address_operation__addr_word_operation__value__0_0, 13, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__0_0, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__1_0, 16, 0]
 mult=is_valid * 1, args=[6, address_operation__addr_word_operation__value__2_0, 16, 0]
-mult=is_valid * 1, args=[6, 1006632960 * offset_bit_0 - 251658240 * address_operation__addr_word_operation__value__0_0, 13, 0]
 mult=is_valid * 1, args=[6, memory_access__access_timestamp__diff_low_limb_0, 16, 0]
-mult=is_valid * 1, args=[3, 0, memory_access__access_timestamp__diff_high_limb_0, 0]
 mult=is_valid * 1, args=[6, 2 * selected_word__1_0 - 65536 * msb__msb_0, 16, 0]
-mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, 0]
-mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440), 0]
-mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
-mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
 
 // Bus 7 (EXECUTION_BRIDGE):
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0]
