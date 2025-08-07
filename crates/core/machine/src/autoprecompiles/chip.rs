@@ -1,12 +1,12 @@
 use std::{borrow::Borrow, collections::BTreeMap};
 
 use itertools::Itertools;
-use powdr_autoprecompiles::{build, BasicBlock};
+use powdr_autoprecompiles::adapter::AdapterApc;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Machine,
@@ -14,15 +14,12 @@ use sp1_stark::{
 
 use crate::{
     autoprecompiles::{
-        instruction_handler::{
-            try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
-        },
-        sp1_vm_config, Sp1ApcAdapter, DEFAULT_DEGREE_BOUND,
+        instruction_handler::{try_instruction_type_to_air_id, InstructionType},
+        Sp1ApcAdapter,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
 };
-use slop_baby_bear::BabyBear;
 
 pub struct MaybeApcChip<const APC_ID: u64, F: PrimeField32> {
     /// The chip for the APC, if it exists.
@@ -39,7 +36,7 @@ impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for MaybeApcChip<APC_ID, F> 
 }
 
 impl<const APC_ID: u64, F: PrimeField32> MaybeApcChip<APC_ID, F> {
-    pub fn new(apc: Option<()>) -> Self {
+    pub fn new(apc: Option<AdapterApc<Sp1ApcAdapter>>) -> Self {
         Self { apc_chip: apc.map(|apc| ApcChip::<APC_ID, F>::new(apc)) }
     }
 }
@@ -100,21 +97,16 @@ where
 }
 
 pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
+    apc: AdapterApc<Sp1ApcAdapter>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
-}
-
-impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
-    fn default() -> Self {
-        Self { machine: RiscvAir::machine() }
-    }
 }
 
 const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-    pub fn new(_: ()) -> Self {
-        Self::default()
+    pub fn new(apc: AdapterApc<Sp1ApcAdapter>) -> Self {
+        Self { apc, machine: RiscvAir::machine_without_apcs() }
     }
 }
 
@@ -172,34 +164,23 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
                 // Go through the original instructions of the APC and map the relevant rows to the APC row
                 // TODO: set this based on the APC
-                let original_instructions = [
-                    Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-                    Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
-                ];
+                let original_instructions = self.apc.block.statements.iter().map(|instr| instr.0);
 
-                // Hardcode APC
-                // TODO: make it a generic parameter when constructing ApcChip
-                let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
-                let vm_config = sp1_vm_config(&instruction_handler);
-                let block = BasicBlock {
-                    start_pc: 0,
-                    statements: original_instructions.iter().cloned().map(Into::into).collect(),
-                };
-                let apc = build::<Sp1ApcAdapter>(block.clone(), vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
+                tracing::debug!("Original instructions: {original_instructions:?}");
 
                 // mapping from poly_id to contiguous index in apc
-                let apc_poly_id_to_index = apc
+                let apc_poly_id_to_index = self.apc
                     .machine
                     .main_columns()
                     .enumerate()
                     .map(|(index, c)| (c.id, index))
                     .collect::<BTreeMap<_, _>>();
 
-                tracing::debug!("APC: {:#?}", apc);
+                tracing::debug!("APC: {:#?}", self.apc);
 
-                for (original_instruction, sub) in original_instructions.iter().zip_eq(apc.subs.iter()) {
+                for (original_instruction, sub) in original_instructions.zip_eq(self.apc.subs.iter()) {
                     // Get the air ID for the instruction
-                    let air_id = try_instruction_type_to_air_id(InstructionType::from(*original_instruction))
+                    let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
                     tracing::debug!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID

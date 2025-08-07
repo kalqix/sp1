@@ -1,3 +1,4 @@
+use powdr_autoprecompiles::adapter::AdapterApc;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
@@ -7,7 +8,7 @@ use std::collections::BTreeSet;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{ExecutionRecord, RiscvAirId};
+use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
     air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
@@ -17,7 +18,9 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::chip::MaybeApcChip,
+    autoprecompiles::{
+        adapter::Sp1ApcAdapter, chip::MaybeApcChip, utils::create_apc_from_instructions,
+    },
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -238,7 +241,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         Self::airs_with_apcs(vec![])
     }
 
-    pub fn airs_with_apcs(apcs: Vec<()>) -> [RiscvAir<F>; 67] {
+    pub fn airs_with_apcs(apcs: Vec<AdapterApc<Sp1ApcAdapter>>) -> [RiscvAir<F>; 67] {
         let mut apcs = apcs.into_iter();
 
         // The order of the chips is used to determine the order of trace generation.
@@ -326,10 +329,27 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     pub fn machine() -> Machine<F, Self> {
+        // Hardcode APC for `test_add_apc_prove()`.
+        // TODO: make it a generic parameter when constructing ApcChip
+        let test_apcs = vec![
+            create_apc_from_instructions(&[
+                Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            ]),
+            create_apc_from_instructions(&[
+                Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+                Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            ]),
+        ];
+
+        Self::machine_with_apcs(test_apcs)
+    }
+
+    pub fn machine_without_apcs() -> Machine<F, Self> {
         Self::machine_with_apcs(vec![])
     }
 
-    pub fn machine_with_apcs(apcs: Vec<()>) -> Machine<F, Self> {
+    pub fn machine_with_apcs(apcs: Vec<AdapterApc<Sp1ApcAdapter>>) -> Machine<F, Self> {
         use RiscvAirDiscriminants::*;
 
         let chips = Self::airs_with_apcs(apcs).into_iter().map(Chip::new).collect::<Vec<_>>();
