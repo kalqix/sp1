@@ -199,6 +199,10 @@ pub enum RiscvAirId {
     Mprotect = 65,
     /// The poseidon2 chip.
     Poseidon2 = 66,
+    /// The first APC chip. *Not* a core AIR.
+    Apc0 = 67,
+    /// The second APC chip. *Not* a core AIR.
+    Apc1 = 68,
 }
 
 impl RiscvAirId {
