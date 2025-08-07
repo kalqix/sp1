@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 45 -> 30 (1.50x reduction)
-  - Bus interactions: 20 -> 16 (1.25x reduction)
+  - Bus interactions: 20 -> 15 (1.33x reduction)
   - Constraints: 42 -> 14 (3.00x reduction)
 
 Symbolic machine using 30 unique main columns:
@@ -47,7 +47,6 @@ mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timesta
 mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 1, 0, 0, lt_operation__result__u16_compare_operation__bit_0, 0, 0, 0]
 
 // Bus 5 (BYTE):
-mult=is_valid * 1, args=[3, 0, 0, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), state__clk_16_24_0 + 30720 * adapter__op_c_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_c_memory__access_timestamp__diff_low_limb_0 - 30720 * state__clk_0_16_0]
 mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]

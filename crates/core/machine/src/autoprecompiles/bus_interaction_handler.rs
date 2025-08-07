@@ -164,6 +164,8 @@ impl PureRangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
             .collect::<BTreeMap<_, _>>();
         let expressions_by_num_bits = range_constraints
             .into_iter()
+            // TODO: This should be filtered by powdr already...
+            .filter(|(expr, _rc)| expr.try_to_number().is_none())
             .map(|(expr, rc)| {
                 (rc_to_num_bits.get(&rc).cloned().expect("Unknown range constraint"), expr)
             })

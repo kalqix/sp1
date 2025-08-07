@@ -5,7 +5,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 186 -> 50 (3.72x reduction)
-  - Bus interactions: 81 -> 41 (1.98x reduction)
+  - Bus interactions: 81 -> 40 (2.02x reduction)
   - Constraints: 166 -> 1 (166.00x reduction)
 
 Symbolic machine using 50 unique main columns:
@@ -77,7 +77,6 @@ mult=is_valid * 1, args=[1, bitwise_operation__bitwise_operation__result__4_2, b
 mult=is_valid * 1, args=[1, bitwise_operation__bitwise_operation__result__5_2, 7864320 * bitwise_operation__b_low_bytes__low_bytes__2_2 - 7864320 * a__0__2_1, 0]
 mult=is_valid * 1, args=[1, bitwise_operation__bitwise_operation__result__6_2, bitwise_operation__b_low_bytes__low_bytes__3_2, 0]
 mult=is_valid * 1, args=[1, bitwise_operation__bitwise_operation__result__7_2, 7864320 * bitwise_operation__b_low_bytes__low_bytes__3_2 - 7864320 * a__0__3_1, 0]
-mult=is_valid * 1, args=[3, 0, 0, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 307200)]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 276480), state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_2 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_2 - (30720 * state__clk_0_16_0 + 552960)]

@@ -265,7 +265,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 13848 -> 4403 (3.15x reduction)
-  - Bus interactions: 6523 -> 2846 (2.29x reduction)
+  - Bus interactions: 6523 -> 2845 (2.29x reduction)
   - Constraints: 8480 -> 286 (29.65x reduction)
 
 Symbolic machine using 4403 unique main columns:
@@ -6036,7 +6036,6 @@ mult=is_valid * 1, args=[2, bitwise_operation__bitwise_operation__result__4_260,
 mult=is_valid * 1, args=[2, bitwise_operation__bitwise_operation__result__5_260, bitwise_operation__bitwise_operation__result__5_189 + 7864320 * bitwise_operation__b_low_bytes__low_bytes__2_260 - 7864320 * bitwise_operation__bitwise_operation__result__4_189, bitwise_operation__bitwise_operation__result__5_176 + 7864320 * bitwise_operation__c_low_bytes__low_bytes__2_260 - 7864320 * bitwise_operation__bitwise_operation__result__4_176]
 mult=is_valid * 1, args=[2, bitwise_operation__bitwise_operation__result__6_260, bitwise_operation__b_low_bytes__low_bytes__3_260, bitwise_operation__c_low_bytes__low_bytes__3_260]
 mult=is_valid * 1, args=[2, bitwise_operation__bitwise_operation__result__7_260, bitwise_operation__bitwise_operation__result__7_189 + 7864320 * bitwise_operation__b_low_bytes__low_bytes__3_260 - 7864320 * bitwise_operation__bitwise_operation__result__6_189, bitwise_operation__bitwise_operation__result__7_176 + 7864320 * bitwise_operation__c_low_bytes__low_bytes__3_260 - 7864320 * bitwise_operation__bitwise_operation__result__6_176]
-mult=is_valid * 1, args=[3, 0, 0, 0]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 307200)]
 mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_1 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_1 - (30720 * state__clk_0_16_0 + 276480), state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_2 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_2 - (30720 * state__clk_0_16_0 + 552960)]
