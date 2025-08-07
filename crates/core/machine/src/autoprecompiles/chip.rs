@@ -14,9 +14,7 @@ use sp1_stark::{
 
 use crate::{
     autoprecompiles::{
-        instruction_handler::{
-            try_instruction_type_to_air_id, InstructionType,
-        },
+        instruction_handler::{try_instruction_type_to_air_id, InstructionType},
         Sp1ApcAdapter,
     },
     riscv::RiscvAir,
@@ -104,20 +102,11 @@ pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
     machine: Machine<F, RiscvAir<F>>,
 }
 
-// impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
-//     fn default() -> Self {
-//         Self { machine: RiscvAir::machine() }
-//     }
-// }
-
 const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
     pub fn new(apc: AdapterApc<Sp1ApcAdapter>) -> Self {
-        Self {
-            apc,
-            machine: RiscvAir::machine(),
-        }
+        Self { apc, machine: RiscvAir::machine_without_apcs() }
     }
 }
 
@@ -177,7 +166,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                 // TODO: set this based on the APC
                 let original_instructions = self.apc.block.statements.iter().map(|instr| instr.0);
 
-                println!("Original instructions: {original_instructions:?}");
+                tracing::debug!("Original instructions: {original_instructions:?}");
 
                 // mapping from poly_id to contiguous index in apc
                 let apc_poly_id_to_index = self.apc
@@ -187,13 +176,13 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                     .map(|(index, c)| (c.id, index))
                     .collect::<BTreeMap<_, _>>();
 
-                println!("APC: {:#?}", self.apc);
+                tracing::debug!("APC: {:#?}", self.apc);
 
                 for (original_instruction, sub) in original_instructions.zip_eq(self.apc.subs.iter()) {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    println!("Processing air_id: {air_id:?}");
+                    tracing::debug!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -201,22 +190,22 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    println!("Original row: {original_row:?}");
+                    tracing::debug!("Original row: {original_row:?}");
                     // Map the row to the APC row. TODO: use the mapping returned by apc generation.
                     for (i, value) in original_row.enumerate() {
                         // get poly_id from sub
                         let poly_id = sub.get(i).expect("Not in dummy");
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            println!("Setting row[{index}] to {value:?}");
+                            tracing::debug!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            println!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
                 }
 
-                println!("Final row: {row:?}");
+                tracing::debug!("Final row: {row:?}");
 
                 row
             })

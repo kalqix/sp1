@@ -9,9 +9,9 @@ pub mod instruction_handler;
 pub mod interaction_builder;
 pub mod memory_bus_interaction;
 pub mod program;
-pub mod utils;
 #[cfg(test)]
 mod tests;
+pub mod utils;
 
 use powdr_autoprecompiles::{
     adapter::AdapterApc,

@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{ExecutionRecord, Instruction, RiscvAirId, Opcode};
+use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
     air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
@@ -18,7 +18,9 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{adapter::Sp1ApcAdapter, chip::MaybeApcChip, utils::create_apc_from_instructions},
+    autoprecompiles::{
+        adapter::Sp1ApcAdapter, chip::MaybeApcChip, utils::create_apc_from_instructions,
+    },
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -339,7 +341,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
             ]),
         ];
-        // let test_apcs = vec![];
 
         Self::machine_with_apcs(test_apcs)
     }
