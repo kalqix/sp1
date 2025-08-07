@@ -1,5 +1,6 @@
 use std::{borrow::Borrow, collections::BTreeMap};
 
+use num::pow;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
@@ -9,6 +10,7 @@ use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Machine,
 };
+use powdr_autoprecompiles::SymbolicMachine;
 
 use crate::{
     autoprecompiles::instruction_handler::{try_instruction_type_to_air_id, InstructionType},
@@ -17,27 +19,59 @@ use crate::{
 };
 
 pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
+    /// Original instructions in the basic block
+    original_instructions: Vec<Instruction>,
+    /// The columns in arbitrary order
+    columns: Vec<AlgebraicReference>,
+    /// The mapping from poly_id id to the index in the list of columns.
+    /// The values are always unique and contiguous
+    column_index_by_poly_id: BTreeMap<u64, usize>,
+    apc_machine: powdr_autoprecompiles::SymbolicMachine<F>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
 }
 
 impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
     fn default() -> Self {
-        Self { machine: RiscvAir::machine_without_apc() }
+        Self { 
+            original_instructions: Vec::new(),
+            columns: Vec::new(),
+            column_index_by_poly_id: BTreeMap::new(),
+            apc_machine: SymbolicMachine { constraints: Vec::new(), bus_interactions: Vec::new() },
+            machine: RiscvAir::machine_without_apc()
+        }
     }
 }
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-    fn event_to_row(&self, _: &ApcEvent, row: &mut [F; NUM_APC_COLS]) {
+    pub fn new(apc_machine: powdr_autoprecompiles::SymbolicMachine<F>, original_instructions: Vec<Instruction>) -> Self {
+        let (column_index_by_poly_id, columns): (BTreeMap<_, _>, Vec<_>) = apc_machine
+            .main_columns()
+            .enumerate()
+            .map(|(index, c)| ((c.id, index), c.clone()))
+            .unzip();
+
+        let machine = RiscvAir::machine();
+
+        Self {
+            columns,
+            column_index_by_poly_id,
+            apc_machine,
+            original_instructions,
+            machine,
+        }
+    }
+}
+
+impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
+    fn event_to_row(&self, _: &ApcEvent, row: &mut [F]) {
         row[0] = F::one();
     }
 }
 
-const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
-
 impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
     fn width(&self) -> usize {
-        NUM_APC_COLS
+        self.columns.len()
     }
 }
 
@@ -60,6 +94,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
         input: &Self::Record,
         _: &mut Self::Record,
     ) -> slop_matrix::dense::RowMajorMatrix<F> {
+        let ncols = self.width();
         // Get all events for the given APC ID
         let events = input.get_apc_events(APC_ID);
         // Turn each event into a row
@@ -85,16 +120,16 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                     .map(|(chip, trace)| (chip.air.id(), trace.rows()))
                     .collect::<BTreeMap<_, _>>();
 
-                let mut row = [F::zero(); NUM_APC_COLS];
+                let mut row = [F::zero(); ncols];
 
-                // Go through the original instructions of the APC and map the relevant rows to the APC row
-                // TODO: set this based on the APC
-                let original_instructions = vec![
-                    Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-                    Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
-                ];
+                // // Go through the original instructions of the APC and map the relevant rows to the APC row
+                // // TODO: set this based on the APC
+                // let original_instructions = vec![
+                //     Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+                //     Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+                // ];
                 let mut offset = 0;
-                for original_instruction in &original_instructions {
+                for original_instruction in &self.original_instructions {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(*original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
@@ -124,12 +159,12 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
         pad_rows_fixed(
             &mut rows,
-            || [F::zero(); NUM_APC_COLS],
+            || [F::zero(); ncols],
             input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_APC_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), ncols)
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
