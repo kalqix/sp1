@@ -199,8 +199,6 @@ pub enum RiscvAirId {
     Mprotect = 65,
     /// The poseidon2 chip.
     Poseidon2 = 66,
-    /// The APC chip.
-    Apc = 67,
 }
 
 impl RiscvAirId {
@@ -289,7 +287,6 @@ impl RiscvAirId {
                 | RiscvAirId::Bn254Fp2MulAssign
                 | RiscvAirId::Bls12381Decompress
                 | RiscvAirId::Poseidon2
-                | RiscvAirId::Apc
         )
     }
 

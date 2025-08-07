@@ -1501,9 +1501,9 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an APC event.
-    fn emit_apc_event(&mut self, b: u64, record: ExecutionRecord) {
-        let event = ApcEvent { id: b, record };
-        self.record.apc_events.push(event);
+    fn emit_apc_event(&mut self, apc_id: u64, record: ExecutionRecord) {
+        let event = ApcEvent { id: apc_id, record };
+        self.record.apc_events.add_event(apc_id, event);
         // We assume that there are no dependencies for APC events.
     }
 
@@ -1952,22 +1952,43 @@ impl<'a> Executor<'a> {
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
-            apc.executor.execute_cycle::<E>()?;
+            let instruction = apc.executor.fetch::<E>();
+            apc.executor.execute_instruction::<E>(&instruction)?;
         }
 
         // The pc of the apc executor is the next pc in the main execution
         let next_pc = apc.executor.state.pc;
 
-        // After apc execution, the state of the main execution is that of the apc executor, except
-        // for the pc which is the original pc.
-        self.state = std::mem::take(&mut apc.executor.state);
-        self.state.pc = original_pc;
-
-        // TODO: maybe this is not necessary and we can just rely on apc.executor.records?
+        // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
         assert_eq!(apc.executor.records.len(), 0);
         apc.executor.bump_record::<E>();
         assert_eq!(apc.executor.records.len(), 1);
-        let record = apc.executor.records.pop().unwrap();
+        let mut record = apc.executor.records.pop().unwrap();
+
+        // transfer the cpu_local_memory_access from the APC executor to the main executor
+        for access in record.cpu_local_memory_access.drain(..) {
+            self.local_memory_access.insert(access.addr, access);
+        }
+
+        // transfer the memory checkpoint from the APC executor to the main executor
+        for (addr, value) in std::mem::take(&mut apc.executor.memory_checkpoint) {
+            self.memory_checkpoint.insert(addr, value);
+        }
+
+        // transfer the uninitialized memory checkpoint from the APC executor to the main executor
+        for (addr, value) in std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint) {
+            self.uninitialized_memory_checkpoint.insert(addr, value);
+        }
+
+        // After apc execution state of the main execution is that of the apc executor, except for
+        // the pc which is the original pc.
+        self.state = std::mem::take(&mut apc.executor.state);
+        self.state.pc = original_pc;
+
+        // In total, the clock must be incremented by 8 for each instruction. However, this function
+        // is called by `execute_instruction` which also increments it by 8. So we need to
+        // decrement it by 8 here.
+        self.state.clk -= 8;
 
         Ok((0, apc.id, 0, next_pc, *record))
     }

@@ -250,6 +250,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             let pc = event.0.pc;
             instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
+        // Note: We do not process the APC events here, since APCs do *not* interact with the
+        // program chip.
 
         let mut rows = input
             .program
