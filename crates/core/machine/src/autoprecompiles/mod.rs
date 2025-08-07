@@ -18,6 +18,7 @@ use powdr_autoprecompiles::{
     execution_profile::execution_profile,
     DegreeBound, PgoConfig, PowdrConfig,
 };
+use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
 use sp1_core_executor::{Executor, Program, SP1CoreOpts};
@@ -90,17 +91,17 @@ pub fn execution_profile_from_guest(
 ) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
-    let program = Program::from(&elf).unwrap();
+    let program = Arc::new(Program::from(&elf).unwrap());
 
     execution_profile_from_program(program, sp1_opts, stdin)
 }
 
 pub fn execution_profile_from_program(
-    program: Program,
+    program: Arc<Program>,
     sp1_opts: SP1CoreOpts,
     stdin: Option<SP1Stdin>,
 ) -> HashMap<u64, u32> {
-    let mut executor = Executor::new(Arc::new(program.clone()), sp1_opts);
+    let mut executor = Executor::new(program.clone(), sp1_opts);
     if let Some(input) = stdin {
         executor.write_vecs(&input.buffer)
     }
@@ -114,20 +115,21 @@ pub fn powdr_default_build_args() -> BuildArgs {
     BuildArgs { build_target: DEFAULT_TARGET_64.to_string(), ..Default::default() }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct CompiledProgram {
     pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
 }
 
 impl CompiledProgram {
     pub fn new(elf: &[u8], config: PowdrConfig, pgo_config: PgoConfig) -> Self {
-        let program = Sp1Program::from(Program::from(elf).unwrap());
+        let program = Sp1Program::from(Arc::new(Program::from(elf).unwrap()));
         let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
         let airs = Sp1InstructionHandler::<BabyBear>::new();
         let vm_config = sp1_vm_config(&airs);
 
         // Currently we don't support the max_total_apc_columns option for cell PGO
-        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_), _)));
+        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
 
         // Collect basic blocks
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);

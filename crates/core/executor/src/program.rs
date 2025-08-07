@@ -116,8 +116,9 @@ impl From<&(usize, usize)> for ApcRange {
     }
 }
 
-/// Apply the APCs to the instructions, replacing the original instructions in the APC ranges with
-/// Assumes the ranges are non-overlapping and sorted.
+/// Apply the APCs to the instructions, returning a new set of instructions where the instructions
+/// in the APC ranges are replaced with APC instructions. Assumes the ranges are non-overlapping and
+/// sorted.
 fn apply_apcs(instructions: &[Instruction], apc_ranges: &[ApcRange]) -> Vec<Instruction> {
     let mut non_empty_apc_ranges_iter =
         apc_ranges.iter().filter(|range| !range.is_empty()).enumerate();

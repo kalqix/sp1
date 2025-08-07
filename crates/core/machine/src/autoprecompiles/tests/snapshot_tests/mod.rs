@@ -23,8 +23,12 @@ fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_
 
     let apc = build::<Sp1ApcAdapter>(block.clone(), vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
 
-    let basic_block_str =
-        basic_block.iter().map(|inst| format!("  {inst:?}")).collect::<Vec<_>>().join("\n");
+    let basic_block_str = basic_block
+        .iter()
+        .enumerate()
+        .map(|(i, inst)| format!("  {i:>3}: {inst:?}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let evaluation = evaluate_apc(&block.statements, &instruction_handler, &apc.machine);
     let actual = format!(
         "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
