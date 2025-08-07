@@ -24,6 +24,69 @@ use crate::{
 };
 use slop_baby_bear::BabyBear;
 
+pub struct MaybeApcChip<const APC_ID: u64, F: PrimeField32> {
+    /// The chip for the APC, if it exists.
+    apc_chip: Option<ApcChip<APC_ID, F>>,
+}
+
+impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for MaybeApcChip<APC_ID, F> {
+    fn width(&self) -> usize {
+        self.apc_chip.as_ref().map_or(0, |chip| chip.width())
+    }
+}
+
+impl<const APC_ID: u64, F: PrimeField32> MaybeApcChip<APC_ID, F> {
+    pub fn new(apc: Option<()>) -> Self {
+        Self { apc_chip: apc.map(|apc| ApcChip::<APC_ID, F>::new(apc)) }
+    }
+}
+
+impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for MaybeApcChip<APC_ID, F> {
+    type Record = ExecutionRecord;
+
+    type Program = Program;
+
+    fn name(&self) -> String {
+        "MaybeApc".to_string()
+    }
+
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        self.apc_chip.as_ref().and_then(|chip| chip.num_rows(input))
+    }
+
+    fn generate_trace(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+    ) -> slop_matrix::dense::RowMajorMatrix<F> {
+        self.apc_chip.as_ref().map_or_else(
+            || RowMajorMatrix::new(vec![], 0),
+            |chip| chip.generate_trace(input, output),
+        )
+    }
+
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        if let Some(chip) = &self.apc_chip {
+            chip.generate_dependencies(input, output);
+        }
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.apc_chip.as_ref().is_some_and(|chip| chip.included(shard))
+    }
+}
+
+impl<const APC_ID: u64, AB: SP1AirBuilder + PairBuilder> Air<AB> for MaybeApcChip<APC_ID, AB::F>
+where
+    AB::F: PrimeField32,
+{
+    fn eval(&self, builder: &mut AB) {
+        if let Some(chip) = &self.apc_chip {
+            chip.eval(builder);
+        }
+    }
+}
+
 pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
@@ -31,13 +94,17 @@ pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
 
 impl<const APC_ID: u64, F: PrimeField32> Default for ApcChip<APC_ID, F> {
     fn default() -> Self {
-        Self { machine: RiscvAir::machine_without_apc() }
+        Self { machine: RiscvAir::machine() }
     }
 }
 
 const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
 
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
+    pub fn new(_: ()) -> Self {
+        Self::default()
+    }
+
     fn event_to_row(&self, _: &ApcEvent, _row: &mut [F]) {}
 }
 
