@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{estimator::RecordEstimator, NUM_REGISTERS};
+use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -119,6 +119,8 @@ pub struct Executor<'a> {
     /// The maximum number of shards to execute at once.
     pub shard_batch_size: u32,
 
+    /// The APCs that are available for this execution.
+    apcs: Apcs<'a>,
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 
@@ -324,6 +326,10 @@ pub enum ExecutionError {
     /// The unconstrained cycle limit was exceeded.
     #[error("unconstrained cycle limit exceeded")]
     UnconstrainedCycleLimitExceeded(u64),
+
+    /// The execution failed with an unimplemented apc
+    #[error("unimplemented apc {0}")]
+    UnsupportedApc(u64),
 }
 
 impl<'a> Executor<'a> {
@@ -376,6 +382,8 @@ impl<'a> Executor<'a> {
     /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
+        let apcs = Apcs::new(&program, &opts, &context);
+
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
 
@@ -443,6 +451,7 @@ impl<'a> Executor<'a> {
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HashMap::new(),
             opts,
+            apcs,
         }
     }
 
@@ -1146,6 +1155,7 @@ impl<'a> Executor<'a> {
         op_a_0: bool,
         record: MemoryAccessRecord,
         exit_code: u32,
+        apc_record: ExecutionRecord,
     ) {
         self.record.pc_start.get_or_insert(self.state.pc);
         self.record.next_pc = next_pc;
@@ -1204,6 +1214,8 @@ impl<'a> Executor<'a> {
                 exit_code,
                 instruction,
             );
+        } else if instruction.is_apc_instruction() {
+            self.emit_apc_event(b, apc_record);
         } else {
             unreachable!()
         }
@@ -1488,6 +1500,13 @@ impl<'a> Executor<'a> {
         self.record.syscall_events.push((syscall_event, record));
     }
 
+    /// Emit an APC event.
+    fn emit_apc_event(&mut self, b: u64, record: ExecutionRecord) {
+        let event = ApcEvent { id: b, record };
+        self.record.apc_events.push(event);
+        // We assume that there are no dependencies for APC events.
+    }
+
     /// Fetch the destination register and input operand values for an ALU instruction.
     fn alu_rr<E: ExecutorConfig>(&mut self, instruction: &Instruction) -> (Register, u64, u64) {
         if !instruction.imm_c {
@@ -1593,6 +1612,7 @@ impl<'a> Executor<'a> {
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
+        let mut apc_record = ExecutionRecord::default();
         // Will be set to a non-default value if the instruction is a syscall.
 
         let (mut a, b, c): (u64, u64, u64);
@@ -1632,6 +1652,8 @@ impl<'a> Executor<'a> {
             self.rw_cpu::<E>(rd, a);
         } else if instruction.is_ecall_instruction() {
             (a, b, c, clk, next_pc, syscall, exit_code) = self.execute_ecall::<E>()?;
+        } else if instruction.is_apc_instruction() {
+            (a, b, c, next_pc, apc_record) = self.execute_apc::<E>(instruction)?;
         } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.is_unimp_instruction() {
@@ -1673,6 +1695,7 @@ impl<'a> Executor<'a> {
                 op_a_0,
                 self.memory_accesses,
                 exit_code,
+                apc_record,
             );
         }
 
@@ -1895,6 +1918,58 @@ impl<'a> Executor<'a> {
             next_pc = self.state.pc.wrapping_add(c);
         }
         (a, b, c, next_pc)
+    }
+
+    /// Execute an APC instruction.
+    /// Returns a, b, c, the next pc and the execution record of the APC.
+    /// a and c are always 0 for APC instructions.
+    /// b is the id of the APC being executed.
+    /// The next pc is the pc obtained after executing the original instructions of the APC.
+    #[allow(clippy::type_complexity)]
+    fn execute_apc<E: ExecutorConfig>(
+        &mut self,
+        instruction: &Instruction,
+    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ExecutionError> {
+        let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
+        assert_eq!(*opcode, Opcode::APC);
+        assert!(*imm_b);
+        assert!(*imm_c);
+        assert_eq!(*op_a, 0);
+        assert_eq!(*op_c, 0);
+
+        // select the APC using op_b
+        let apc = self
+            .apcs
+            .get_mut(*op_b)
+            // If the APC is not found, return an error.
+            .ok_or(ExecutionError::UnsupportedApc(*op_b))?;
+
+        // Save the pc before executing the APC.
+        let original_pc = self.state.pc;
+
+        // Pass all the necessary execution state to the APC
+        apc.executor.state = std::mem::take(&mut self.state);
+
+        // Execute as many cycles as the APC has original instructions.
+        for _ in 0..apc.original_instructions_count {
+            apc.executor.execute_cycle::<E>()?;
+        }
+
+        // The pc of the apc executor is the next pc in the main execution
+        let next_pc = apc.executor.state.pc;
+
+        // After apc execution, the state of the main execution is that of the apc executor, except
+        // for the pc which is the original pc.
+        self.state = std::mem::take(&mut apc.executor.state);
+        self.state.pc = original_pc;
+
+        // TODO: maybe this is not necessary and we can just rely on apc.executor.records?
+        assert_eq!(apc.executor.records.len(), 0);
+        apc.executor.bump_record::<E>();
+        assert_eq!(apc.executor.records.len(), 1);
+        let record = apc.executor.records.pop().unwrap();
+
+        Ok((0, apc.id, 0, next_pc, *record))
     }
 
     /// Execute an ecall instruction.
@@ -2707,7 +2782,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, SP1Context, SP1CoreOpts, Simple};
+    use crate::{Register, SP1Context, SP1CoreOpts, Simple, Trace};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2800,6 +2875,47 @@ mod tests {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run::<Simple>().unwrap();
         assert_eq!(runtime.register::<Simple>(Register::X31), 42);
+    }
+
+    #[test]
+    fn test_add_apc() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
+        // This is found somewhere else in the codebase
+        // Without this change, `Trace` mode fails.
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Test with different APC ranges
+        for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
+            let should_execute_apcs = !apcs.is_empty();
+            let program = program_without_apcs.clone().with_apcs(apcs);
+
+            let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+            runtime.run::<Trace>().unwrap();
+            assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+            assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+            assert_eq!(runtime.records.len(), 1);
+            // Check that the APCs were executed iff there were any
+            assert_eq!(!runtime.records[0].apc_events.is_empty(), should_execute_apcs);
+        }
     }
 
     #[test]

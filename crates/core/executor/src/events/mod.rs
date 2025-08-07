@@ -1,5 +1,6 @@
 //! Type definitions for the events emitted by the [`crate::Executor`] during execution.
 
+mod apc;
 mod byte;
 mod cpu;
 mod global;
@@ -9,6 +10,7 @@ mod precompiles;
 mod syscall;
 mod utils;
 
+pub use apc::*;
 pub use byte::*;
 pub use cpu::*;
 pub use global::*;

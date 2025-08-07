@@ -1,11 +1,16 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{fs::File, io::Read, str::FromStr};
+use std::{
+    cmp::Ordering::{Equal, Greater, Less},
+    fs::File,
+    io::Read,
+    str::FromStr,
+};
 
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    RiscvAirId,
+    Opcode, RiscvAirId,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -26,7 +31,7 @@ use sp1_stark::{
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     /// The instructions of the program.
-    pub instructions: Vec<Instruction>,
+    pub instructions: Instructions,
     /// The encoded instructions of the program. Only used if program is untrusted
     pub instructions_encoded: Option<Vec<u32>>,
     /// The start address of the program. It is absolute, meaning not relative to `pc_base`.
@@ -39,12 +44,193 @@ pub struct Program {
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
 }
 
+/// Instructions of a program, including the proving instructions (which end up in the Program
+/// chip), the ranges which have APC chips, and the execution instructions used by the executor.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Instructions {
+    /// The original instructions of the program.
+    proving: Vec<Instruction>,
+    /// The ranges of instructions that have APC chips.
+    apcs: Vec<ApcRange>,
+    /// The execution instructions, which replace the original instructions in the APC ranges with
+    /// APC instructions.
+    execution: Vec<Instruction>,
+}
+
+impl From<Vec<Instruction>> for Instructions {
+    fn from(original: Vec<Instruction>) -> Self {
+        // We execute and prove the same instructions
+        Self { proving: original.clone(), apcs: Vec::new(), execution: original }
+    }
+}
+
+fn apc_instruction(apc_index: usize) -> Instruction {
+    Instruction::new(Opcode::APC, 0, apc_index as u64, 0, true, true)
+}
+
+/// Represents a APC range.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ApcRange {
+    start: usize,
+    len: usize,
+}
+
+impl ApcRange {
+    /// Returns the first value included in the range
+    #[must_use]
+    pub fn start(&self) -> Option<usize> {
+        if self.len > 0 {
+            Some(self.start)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the last value included in the range
+    #[must_use]
+    pub fn end(&self) -> Option<usize> {
+        if self.len > 0 {
+            Some(self.start + self.len - 1)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the length of the range
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns true if the range is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+/// Convert a rust range (upper exclusive) to an APC range.
+impl From<&(usize, usize)> for ApcRange {
+    fn from((start, end): &(usize, usize)) -> Self {
+        Self { start: *start, len: *end - *start }
+    }
+}
+
+/// Apply the APCs to the instructions, returning a new set of instructions where the instructions
+/// in the APC ranges are replaced with APC instructions. Assumes the ranges are non-overlapping and
+/// sorted.
+fn apply_apcs(instructions: &[Instruction], apc_ranges: &[ApcRange]) -> Vec<Instruction> {
+    let mut non_empty_apc_ranges_iter =
+        apc_ranges.iter().filter(|range| !range.is_empty()).enumerate();
+    instructions
+        .iter()
+        .enumerate()
+        .scan(non_empty_apc_ranges_iter.next(), move |r, (index, instruction)| {
+            let instruction = if let Some((apc_index, range)) = r {
+                let instruction = match index.cmp(&range.start().unwrap()) {
+                    Less => {
+                        // If the index is before the start of the range, we keep the original
+                        // instruction
+                        *instruction
+                    }
+                    Equal => {
+                        // If the index is at the start of the range, we replace it with an APC
+                        // instruction
+                        apc_instruction(*apc_index)
+                    }
+                    Greater => {
+                        // Sanity check that we do not overflow the range
+                        assert!(index <= range.end().unwrap());
+                        // If the index is in the middle of the range, we replace it with an
+                        // unimplemented instruction
+                        Instruction::unimp()
+                    }
+                };
+
+                if index == range.end().unwrap() {
+                    // If the index is at the end of the range, we move to the next range
+                    *r = non_empty_apc_ranges_iter.next();
+                }
+
+                instruction
+            } else {
+                // If there are no more ranges, we keep the original instruction
+                *instruction
+            };
+
+            Some(instruction)
+        })
+        .collect()
+}
+
+impl Instructions {
+    #[must_use]
+    fn with_apcs(mut self, apc_ranges: Vec<ApcRange>) -> Self {
+        self.execution = apply_apcs(&self.proving, &apc_ranges);
+        self.apcs = apc_ranges;
+
+        self
+    }
+
+    /// The number of instructions
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.proving.len()
+    }
+
+    /// Check if there are no instructions.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.proving.is_empty()
+    }
+
+    /// Get the proving instruction at the given index.
+    #[must_use]
+    pub fn get_proving(&self, index: usize) -> Option<&Instruction> {
+        self.proving.get(index)
+    }
+
+    /// Get the execution instruction at the given index.
+    #[must_use]
+    pub fn get_execution(&self, index: usize) -> Option<&Instruction> {
+        self.execution.get(index)
+    }
+
+    /// Remove the apc ranges and modified instructions.
+    pub(crate) fn clear_apcs(&mut self) {
+        self.apcs.clear();
+        self.execution = self.proving.clone();
+    }
+
+    /// Get the original instructions as an iterator.
+    pub fn proving(&self) -> impl Iterator<Item = &Instruction> {
+        self.proving.iter()
+    }
+
+    /// Get the apcs as an iterator.
+    pub(crate) fn apcs(&self) -> impl Iterator<Item = &ApcRange> {
+        self.apcs.iter()
+    }
+}
+
 impl Program {
+    /// Set the APC ranges for this program.
+    /// Assumes the ranges are non-overlapping and sorted.
+    /// This will also compute the modified instructions based on the original instructions and the
+    /// APC ranges.
+    /// Panics if the APC ranges are already set or if the modified instructions are already set.
+    #[must_use]
+    pub fn with_apcs<R: Into<ApcRange>>(mut self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
+        let apc_ranges: Vec<ApcRange> = apc_ranges.into_iter().map(Into::into).collect();
+        self.instructions = self.instructions.with_apcs(apc_ranges);
+        self
+    }
+
     /// Create a new [Program].
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
         Self {
-            instructions,
+            instructions: instructions.into(),
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
@@ -66,11 +252,12 @@ impl Program {
 
         // Transpile the RV32IM instructions.
         let instruction_pair = transpile(&elf.instructions);
-        let (instructions, instructions_encoded) = instruction_pair.into_iter().unzip();
+        let (instructions, instructions_encoded): (Vec<Instruction>, _) =
+            instruction_pair.into_iter().unzip();
 
         // Return the program.
         Ok(Program {
-            instructions,
+            instructions: instructions.into(),
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
@@ -105,7 +292,7 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(&self.instructions[idx])
+            Some(self.instructions.get_execution(idx).unwrap())
         } else {
             None
         }
