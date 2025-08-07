@@ -30,7 +30,10 @@ pub struct MaybeApcChip<const APC_ID: u64, F: PrimeField32> {
 
 impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for MaybeApcChip<APC_ID, F> {
     fn width(&self) -> usize {
-        self.apc_chip.as_ref().map_or(0, |chip| chip.width())
+        match &self.apc_chip {
+            Some(chip) => chip.width(),
+            None => 1, // Default width if no APC chip is present
+        }
     }
 }
 
@@ -82,6 +85,15 @@ where
     fn eval(&self, builder: &mut AB) {
         if let Some(chip) = &self.apc_chip {
             chip.eval(builder);
+        } else {
+            // If there is no APC chip, we can just assert a dummy condition
+            let main = builder.main();
+            let col = main.row_slice(0);
+            let col: &AB::Var = col[0].borrow();
+            builder.assert_bool(*col);
+            // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30`
+            // fails
+            builder.send_byte(*col, *col, *col, *col, *col);
         }
     }
 }
