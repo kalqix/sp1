@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use itertools::{repeat_n, Itertools};
 use powdr_autoprecompiles::{
     constraint_optimizer::IsBusStateful,
@@ -14,6 +12,7 @@ use powdr_number::{BabyBearField, FieldElement, LargeInt};
 use sp1_core_executor::ByteOpcode;
 use sp1_curves::{One, Zero};
 use sp1_stark::InteractionKind;
+use std::{collections::BTreeMap, fmt::Display};
 
 #[derive(Clone)]
 pub struct Sp1BusInteractionHandler {
@@ -151,7 +150,7 @@ impl PureRangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
         }
     }
 
-    fn make_range_constraints<V: Ord + Clone + Eq>(
+    fn make_range_constraints<V: Ord + Clone + Eq + Display>(
         &self,
         range_constraints: RangeConstraintMap<BabyBearField, V>,
     ) -> Vec<BusInteraction<GroupedExpression<BabyBearField, V>>> {
