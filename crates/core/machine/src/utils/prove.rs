@@ -1,3 +1,4 @@
+use powdr_autoprecompiles::adapter::AdapterApc;
 use std::{
     borrow::Borrow,
     collections::BTreeMap,
@@ -7,7 +8,9 @@ use std::{
 };
 use tokio::sync::mpsc::{self, Receiver, Sender, UnboundedSender};
 
-use crate::{executor::MachineExecutorBuilder, riscv::RiscvAir};
+use crate::{
+    autoprecompiles::adapter::Sp1ApcAdapter, executor::MachineExecutorBuilder, riscv::RiscvAir,
+};
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
@@ -173,6 +176,7 @@ pub fn generate_records<F: PrimeField32>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn prove_core<F, PC>(
     verifier: ShardVerifier<PC::Config, RiscvAir<F>>,
     prover: Arc<PC::Prover>,
@@ -181,6 +185,7 @@ pub async fn prove_core<F, PC>(
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
+    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
 ) -> Result<(MachineProof<PC::Config>, u64), SP1CoreProverError>
 where
     PC: MachineProverComponents<F = F, Air = RiscvAir<F>>,
@@ -188,10 +193,11 @@ where
 {
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (_, cycles) =
-        prove_core_stream::<F, PC>(verifier, prover, pk, program, stdin, opts, context, proof_tx)
-            .await
-            .unwrap();
+    let (_, cycles) = prove_core_stream::<F, PC>(
+        verifier, prover, pk, program, stdin, opts, context, proof_tx, apcs,
+    )
+    .await
+    .unwrap();
 
     let mut shard_proofs = BTreeMap::new();
     while let Some(proof) = proof_rx.recv().await {
@@ -216,6 +222,7 @@ pub(crate) async fn prove_core_stream<F, PC>(
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
     proof_tx: UnboundedSender<ShardProof<PC::Config>>,
+    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     PC: MachineProverComponents<F = F, Air = RiscvAir<F>>,
@@ -227,7 +234,7 @@ where
     let (records_tx, mut records_rx) = mpsc::channel::<ExecutionRecord>(num_record_workers);
 
     let machine_executor =
-        MachineExecutorBuilder::<F>::new(opts.clone(), num_record_workers).build();
+        MachineExecutorBuilder::<F>::new(opts.clone(), num_record_workers, apcs).build();
 
     let prover_permits = ProverSemaphore::new(opts.shard_batch_size);
     let prover = MachineProverBuilder::<PC>::new(verifier, vec![prover_permits], vec![prover])

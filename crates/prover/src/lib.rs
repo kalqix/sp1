@@ -24,9 +24,11 @@ pub mod utils;
 pub mod verify;
 
 use core::SP1CoreProver;
+use powdr_autoprecompiles::adapter::AdapterApc;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use sp1_core_executor::Program;
+use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 use std::{collections::BTreeMap, sync::Arc};
 
 use slop_baby_bear::BabyBear;
@@ -111,8 +113,9 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
         nums_wrap_workers: Vec<usize>,
         normalize_programs_cache_size: usize,
         max_compose_arity: usize,
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
     ) -> Self {
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(apcs);
         let core_prover_builder = MachineProverBuilder::new(
             core_verifier.shard_verifier().clone(),
             core_prover_permits,
@@ -175,6 +178,7 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
         num_wrap_workers: usize,
         normalize_programs_cache_size: usize,
         maximum_compose_arity: usize,
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
     ) -> Self {
         Self::new_multi_permits(
             vec![Arc::new(core_prover)],
@@ -191,6 +195,7 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
             vec![num_wrap_workers],
             normalize_programs_cache_size,
             maximum_compose_arity,
+            apcs,
         )
     }
 
@@ -332,8 +337,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
+impl Default for SP1ProverBuilder<CpuSP1ProverComponents> {
+    fn default() -> Self {
+        SP1ProverBuilder::new(vec![])
+    }
+}
+
 impl SP1ProverBuilder<CpuSP1ProverComponents> {
-    pub fn new() -> Self {
+    pub fn new(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
         let cpu_ram_gb = sysinfo::System::new_all().total_memory() / (1024 * 1024 * 1024);
         let num_workers = match cpu_ram_gb {
             0..33 => 1,
@@ -345,7 +356,7 @@ impl SP1ProverBuilder<CpuSP1ProverComponents> {
 
         let prover_permits = ProverSemaphore::new(num_workers);
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier();
+        let core_verifier = CpuSP1ProverComponents::core_verifier(apcs.clone());
         let cpu_shard_prover = CpuShardProver::new(core_verifier.shard_verifier().clone());
 
         let compress_verifier = CpuSP1ProverComponents::compress_verifier();
@@ -379,6 +390,7 @@ impl SP1ProverBuilder<CpuSP1ProverComponents> {
             num_wrap_workers,
             normalize_programs_cache_size,
             max_compose_arity,
+            apcs,
         )
     }
 }

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use powdr_autoprecompiles::adapter::AdapterApc;
 use slop_baby_bear::BabyBear;
 use slop_futures::handle::TaskHandle;
 use slop_jagged::JaggedConfig;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::{autoprecompiles::adapter::Sp1ApcAdapter, riscv::RiscvAir};
 use sp1_stark::{
     prover::{
         CoreProofShape, MachineProver, MachineProverComponents, MachineProverError,
@@ -38,12 +39,14 @@ pub trait CoreProverComponents:
     /// The default verifier for the core prover.
     ///
     /// Thew verifier fixes the parameters of the underlying proof system.
-    fn verifier() -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
+    fn verifier(
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    ) -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
         let core_log_blowup = CORE_LOG_BLOWUP;
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
 
-        let machine = RiscvAir::machine();
+        let machine = RiscvAir::machine_with_apcs(apcs);
 
         let core_verifier = ShardVerifier::from_basefold_parameters(
             core_log_blowup,

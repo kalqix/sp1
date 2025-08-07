@@ -3,12 +3,12 @@ pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
 use core::fmt;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, RiscvAirId};
+use sp1_core_executor::{ExecutionRecord, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
     air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
@@ -18,9 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{
-        adapter::Sp1ApcAdapter, chip::MaybeApcChip, utils::create_apc_from_instructions,
-    },
+    autoprecompiles::{adapter::Sp1ApcAdapter, chip::MaybeApcChip},
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -241,7 +239,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         Self::airs_with_apcs(vec![])
     }
 
-    pub fn airs_with_apcs(apcs: Vec<AdapterApc<Sp1ApcAdapter>>) -> [RiscvAir<F>; 67] {
+    pub fn airs_with_apcs(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> [RiscvAir<F>; 67] {
         let mut apcs = apcs.into_iter();
 
         // The order of the chips is used to determine the order of trace generation.
@@ -328,28 +326,11 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub fn machine() -> Machine<F, Self> {
-        // Hardcode APC for `test_add_apc_prove()`.
-        // TODO: make it a generic parameter when constructing ApcChip
-        let test_apcs = vec![
-            create_apc_from_instructions(&[
-                Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
-            ]),
-            create_apc_from_instructions(&[
-                Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
-                Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
-            ]),
-        ];
-
-        Self::machine_with_apcs(test_apcs)
-    }
-
     pub fn machine_without_apcs() -> Machine<F, Self> {
         Self::machine_with_apcs(vec![])
     }
 
-    pub fn machine_with_apcs(apcs: Vec<AdapterApc<Sp1ApcAdapter>>) -> Machine<F, Self> {
+    pub fn machine_with_apcs(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Machine<F, Self> {
         use RiscvAirDiscriminants::*;
 
         let chips = Self::airs_with_apcs(apcs).into_iter().map(Chip::new).collect::<Vec<_>>();
@@ -972,7 +953,12 @@ pub mod tests {
     use slop_baby_bear::BabyBear;
     use sp1_core_executor::{Instruction, Opcode, Program};
 
-    use crate::{programs::tests::*, riscv::RiscvAir, utils::setup_logger};
+    use crate::{
+        autoprecompiles::utils::create_apcs,
+        programs::tests::*,
+        riscv::RiscvAir,
+        utils::{run_test_with_apcs, setup_logger},
+    };
     use sp1_core_executor::add_halt;
     use sp1_stark::InteractionKind;
     //     use slop_baby_bear::BabyBear;
@@ -1123,9 +1109,15 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
         ];
         add_halt(&mut instructions);
-        let program = Program::new(instructions, 0, 0).with_apcs(&[(0, 2), (3, 5)]);
+        let apc_ranges = vec![(0, 2), (3, 5)];
+        let program = Program::new(instructions, 0, 0);
+        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
+        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
+        // instead of passing them here to `run_test_with_apcs`
+        let apcs = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(&apc_ranges);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test_with_apcs(program, stdin, apcs).await.unwrap();
     }
 
     #[test]

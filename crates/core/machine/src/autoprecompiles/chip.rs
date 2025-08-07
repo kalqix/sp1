@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::BTreeMap};
+use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::adapter::AdapterApc;
@@ -36,7 +36,7 @@ impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for MaybeApcChip<APC_ID, F> 
 }
 
 impl<const APC_ID: u64, F: PrimeField32> MaybeApcChip<APC_ID, F> {
-    pub fn new(apc: Option<AdapterApc<Sp1ApcAdapter>>) -> Self {
+    pub fn new(apc: Option<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
         Self { apc_chip: apc.map(|apc| ApcChip::<APC_ID, F>::new(apc)) }
     }
 }
@@ -97,22 +97,20 @@ where
 }
 
 pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
-    apc: AdapterApc<Sp1ApcAdapter>,
+    apc: Arc<AdapterApc<Sp1ApcAdapter>>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
 }
 
-const NUM_APC_COLS: usize = 100; // TODO: make this dynamic to fit the width of the apc
-
 impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-    pub fn new(apc: AdapterApc<Sp1ApcAdapter>) -> Self {
+    pub fn new(apc: Arc<AdapterApc<Sp1ApcAdapter>>) -> Self {
         Self { apc, machine: RiscvAir::machine_without_apcs() }
     }
 }
 
 impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
     fn width(&self) -> usize {
-        NUM_APC_COLS
+        self.apc.machine.main_columns().count()
     }
 }
 
@@ -160,13 +158,10 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                     .map(|(chip, trace)| (chip.air.id(), trace.rows()))
                     .collect::<BTreeMap<_, _>>();
 
-                let mut row = [F::zero(); NUM_APC_COLS];
+                let mut row = vec![F::zero(); self.width()];
 
                 // Go through the original instructions of the APC and map the relevant rows to the APC row
-                // TODO: set this based on the APC
                 let original_instructions = self.apc.block.statements.iter().map(|instr| instr.0);
-
-                tracing::debug!("Original instructions: {original_instructions:?}");
 
                 // mapping from poly_id to contiguous index in apc
                 let apc_poly_id_to_index = self.apc
@@ -176,13 +171,11 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                     .map(|(index, c)| (c.id, index))
                     .collect::<BTreeMap<_, _>>();
 
-                tracing::debug!("APC: {:#?}", self.apc);
-
                 for (original_instruction, sub) in original_instructions.zip_eq(self.apc.subs.iter()) {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    tracing::debug!("Processing air_id: {air_id:?}");
+                    tracing::error!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -190,22 +183,22 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    tracing::debug!("Original row: {original_row:?}");
+                    tracing::error!("Original row: {original_row:?}");
                     // Map the row to the APC row. TODO: use the mapping returned by apc generation.
                     for (i, value) in original_row.enumerate() {
                         // get poly_id from sub
                         let poly_id = sub.get(i).expect("Not in dummy");
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            tracing::debug!("Setting row[{index}] to {value:?}");
+                            tracing::error!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::error!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
                 }
 
-                tracing::debug!("Final row: {row:?}");
+                tracing::error!("Final row: {row:?}");
 
                 row
             })
@@ -213,12 +206,12 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
 
         pad_rows_fixed(
             &mut rows,
-            || [F::zero(); NUM_APC_COLS],
+            || vec![F::zero(); self.width()],
             input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_APC_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

@@ -30,7 +30,7 @@ async fn main() {
     let start = args.start;
     let end = args.end;
 
-    let prover = Arc::new(SP1ProverBuilder::new().build().await);
+    let prover = Arc::new(SP1ProverBuilder::default().build().await);
 
     build_vk_map_to_file::<CpuSP1ProverComponents>(
         build_dir.clone(),

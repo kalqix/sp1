@@ -6,6 +6,7 @@ use std::{
 };
 
 use futures::stream::{AbortHandle, AbortRegistration};
+use powdr_autoprecompiles::adapter::AdapterApc;
 use slop_algebra::PrimeField32;
 use slop_futures::{handle::TaskHandle, queue::WorkerQueue};
 use sp1_core_executor::{
@@ -17,7 +18,10 @@ use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tracing::Span;
 
-use crate::{io::SP1Stdin, riscv::RiscvAir, utils::concurrency::TurnBasedSync};
+use crate::{
+    autoprecompiles::adapter::Sp1ApcAdapter, io::SP1Stdin, riscv::RiscvAir,
+    utils::concurrency::TurnBasedSync,
+};
 
 pub struct MachineExecutor<F: PrimeField32> {
     task_tx: mpsc::UnboundedSender<ExecuteTask>,
@@ -139,8 +143,12 @@ pub fn trace_checkpoint(
 }
 
 impl<F: PrimeField32> MachineExecutorBuilder<F> {
-    pub fn new(opts: SP1CoreOpts, num_record_workers: usize) -> Self {
-        let machine = RiscvAir::machine();
+    pub fn new(
+        opts: SP1CoreOpts,
+        num_record_workers: usize,
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    ) -> Self {
+        let machine = RiscvAir::machine_with_apcs(apcs);
 
         Self { machine, num_record_workers, opts }
     }

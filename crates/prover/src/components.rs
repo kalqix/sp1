@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
+use powdr_autoprecompiles::adapter::AdapterApc;
 use slop_baby_bear::BabyBear;
 use slop_jagged::{
     JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents,
     Poseidon2Bn254JaggedCpuProverComponents,
 };
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::{autoprecompiles::adapter::Sp1ApcAdapter, riscv::RiscvAir};
 use sp1_recursion_circuit::machine::InnerVal;
 use sp1_stark::{
     prover::{CpuMachineProverComponents, MachineProverComponents},
@@ -34,8 +37,10 @@ pub trait SP1ProverComponents: Send + Sync + 'static {
     type RecursionComponents: RecursionProverComponents;
     type WrapComponents: WrapProverComponents;
 
-    fn core_verifier() -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
-        <Self::CoreComponents as CoreProverComponents>::verifier()
+    fn core_verifier(
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    ) -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
+        <Self::CoreComponents as CoreProverComponents>::verifier(apcs)
     }
 
     fn compress_verifier() -> MachineVerifier<InnerSC, CompressAir<InnerVal>> {

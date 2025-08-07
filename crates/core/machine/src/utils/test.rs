@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use powdr_autoprecompiles::adapter::AdapterApc;
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_primitives::io::SP1PublicValues;
@@ -9,7 +10,7 @@ use sp1_stark::{
 };
 use tracing::Instrument;
 
-use crate::{io::SP1Stdin, riscv::RiscvAir};
+use crate::{autoprecompiles::adapter::Sp1ApcAdapter, io::SP1Stdin, riscv::RiscvAir};
 
 use super::prove_core;
 
@@ -19,17 +20,25 @@ use super::prove_core;
 //     Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
-pub async fn run_test(
+pub async fn run_test_with_apcs(
     program: Program,
     inputs: SP1Stdin,
+    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
     let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let _ = run_test_core(runtime, inputs).await?;
+    let _ = run_test_core_with_apcs(runtime, inputs, apcs).await?;
     Ok(public_values)
+}
+
+pub async fn run_test(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    run_test_with_apcs(program, inputs, vec![]).await
 }
 
 // pub fn run_malicious_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
@@ -67,15 +76,23 @@ pub async fn run_test(
 //     }
 // }
 
-#[allow(unused_variables)]
 pub async fn run_test_core(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    run_test_core_with_apcs(runtime, inputs, Vec::new()).await
+}
+
+#[allow(unused_variables)]
+pub async fn run_test_core_with_apcs(
+    runtime: Executor<'static>,
+    inputs: SP1Stdin,
+    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerifierConfigError<BabyBearPoseidon2>> {
     let log_blowup = 1;
     let log_stacking_height = 21;
     let max_log_row_count = 22;
-    let machine = RiscvAir::machine();
+    let machine = RiscvAir::machine_with_apcs(apcs.clone());
     slop_futures::rayon::spawn(move || {
         let x = 1;
     });
@@ -109,6 +126,7 @@ pub async fn run_test_core(
         inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
+        apcs,
     )
     .instrument(tracing::debug_span!("prove core"))
     .await

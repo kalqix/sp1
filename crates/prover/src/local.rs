@@ -113,7 +113,9 @@ impl<C: SP1ProverComponents> LocalProver<C> {
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
         let prover_task_capacity =
             prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        let executor = MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers).build();
+        // TODO: Hopefully we're not using this because apcs are not used here
+        let executor =
+            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, vec![]).build();
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -1034,7 +1036,7 @@ pub mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::default()
             .without_vk_verification()
             .build()
             .await;
@@ -1056,7 +1058,7 @@ pub mod tests {
     async fn test_deferred_compress() -> Result<()> {
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::default()
             .without_vk_verification()
             .build()
             .await;

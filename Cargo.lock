@@ -5288,6 +5288,7 @@ dependencies = [
  "itertools 0.13.0",
  "lru",
  "num-bigint 0.4.6",
+ "powdr-autoprecompiles",
  "serde",
  "serde_json",
  "serial_test",

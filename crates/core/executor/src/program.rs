@@ -211,6 +211,17 @@ impl Instructions {
     pub(crate) fn apcs(&self) -> impl Iterator<Item = &ApcRange> {
         self.apcs.iter()
     }
+
+    /// Get a range of proving instructions.
+    #[must_use]
+    pub fn get_proving_range(&self, start: usize, end: usize) -> &[Instruction] {
+        assert!(start <= end, "start must be less than or equal to end");
+        assert!(
+            end <= self.proving.len(),
+            "end must be less than or equal to the number of instructions"
+        );
+        &self.proving[start..end]
+    }
 }
 
 impl Program {

@@ -77,8 +77,10 @@ async fn main() {
     let elf: Elf = elf.into();
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
-    let prover =
-        SP1ProverBuilder::<CpuSP1ProverComponents>::new().without_vk_verification().build().await;
+    let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::default()
+        .without_vk_verification()
+        .build()
+        .await;
 
     let opts = LocalProverOpts::default();
     let prover = Arc::new(LocalProver::new(prover, opts));
