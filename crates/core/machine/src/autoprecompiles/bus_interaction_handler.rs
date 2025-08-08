@@ -124,7 +124,7 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                     }
                     // Range: assert(a <= 2**b && c == 0)
                     ByteOpcode::Range => {
-                        // Note that we return None if the number of bytes is unknown, because
+                        // Note that we return None if the number of bits is unknown, because
                         // then, it's not a pure range constraint.
                         let b = b.try_to_number()?;
                         let num_bits = b.to_degree();
