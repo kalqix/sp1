@@ -130,7 +130,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
         AirStats {
             main_columns: 256,
             constraints: 61,
-            bus_interactions: 245,
+            bus_interactions: 225,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);

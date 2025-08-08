@@ -1,15 +1,21 @@
-use std::collections::BTreeMap;
-
-use itertools::repeat_n;
-use powdr_autoprecompiles::constraint_optimizer::IsBusStateful;
+use itertools::{repeat_n, Itertools};
+use powdr_autoprecompiles::{
+    constraint_optimizer::IsBusStateful,
+    range_constraint_optimizer::{
+        utils::{filter_byte_constraints, range_constraint_to_num_bits},
+        RangeConstraintHandler, RangeConstraints,
+    },
+};
 use powdr_constraint_solver::{
     constraint_system::{BusInteraction, BusInteractionHandler},
+    grouped_expression::GroupedExpression,
     range_constraint::RangeConstraint,
 };
 use powdr_number::{BabyBearField, FieldElement, LargeInt};
 use sp1_core_executor::ByteOpcode;
 use sp1_curves::{One, Zero};
 use sp1_stark::InteractionKind;
+use std::{collections::BTreeMap, fmt::Display, hash::Hash};
 
 #[derive(Clone)]
 pub struct Sp1BusInteractionHandler {
@@ -80,6 +86,115 @@ impl BusInteractionHandler<BabyBearField> for Sp1BusInteractionHandler {
         };
 
         BusInteraction { payload: payload_constraints, ..bus_interaction }
+    }
+}
+
+impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
+    fn pure_range_constraints<V: Ord + Clone + Eq>(
+        &self,
+        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
+    ) -> Option<RangeConstraints<BabyBearField, V>> {
+        let bus_id = bus_interaction.bus_id.try_to_number()?;
+        match self.bus_id_to_interaction_kind.get(&bus_id) {
+            // Stateful bus interactions are never pure range constraints.
+            Some(InteractionKind::Memory)
+            | Some(InteractionKind::Program)
+            | Some(InteractionKind::State) => None,
+            Some(InteractionKind::Byte) => {
+                // Byte bus fields: (opcode, a, b, c)
+                let [opcode, a, b, c] = bus_interaction.payload.as_slice() else {
+                    panic!("Invalid byte bus payload length");
+                };
+                let opcode_value = opcode.try_to_number()?;
+                let byte_opcode = self
+                    .byte_operation_id_to_opcode
+                    .get(&opcode_value)
+                    .unwrap_or_else(|| panic!("Unknown byte opcode: {opcode_value}"));
+
+                match byte_opcode {
+                    // U8Range: assert(a == 0 && b < 256 && c < 256)
+                    ByteOpcode::U8Range => {
+                        let zero = RangeConstraint::from_value(BabyBearField::zero());
+                        let byte = RangeConstraint::from_mask(0xffu64);
+                        Some(
+                            [(a.clone(), zero), (b.clone(), byte.clone()), (c.clone(), byte)]
+                                .into_iter()
+                                .collect(),
+                        )
+                    }
+                    // Range: assert(a <= 2**b && c == 0)
+                    ByteOpcode::Range => {
+                        // Note that we return None if the number of bits is unknown, because
+                        // then, it's not a pure range constraint.
+                        let b = b.try_to_number()?;
+                        let num_bits = b.to_degree();
+                        let rc = RangeConstraint::from_mask((1u64 << num_bits) - 1);
+                        let zero = RangeConstraint::from_value(BabyBearField::zero());
+                        Some([(a.clone(), rc), (c.clone(), zero)].into_iter().collect())
+                    }
+                    _ => None,
+                }
+            }
+            _ => {
+                // All instruction AIRs only use the four buses above.
+                unreachable!("Unexpected bus ID: {bus_id}");
+            }
+        }
+    }
+
+    fn batch_make_range_constraints<V: Ord + Clone + Eq + Display + Hash>(
+        &self,
+        mut range_constraints: RangeConstraints<BabyBearField, V>,
+    ) -> Vec<BusInteraction<GroupedExpression<BabyBearField, V>>> {
+        let byte_bus_id = BabyBearField::from(InteractionKind::Byte as u64);
+        let byte_constraints = filter_byte_constraints(&mut range_constraints);
+
+        let byte_constraints = byte_constraints
+            .into_iter()
+            .chunks(2)
+            .into_iter()
+            .map(|mut bytes| {
+                // Use the byte bus to check two bytes at once.
+                let byte1 = bytes.next().unwrap();
+                let byte2 =
+                    bytes.next().unwrap_or(GroupedExpression::from_number(BabyBearField::zero()));
+
+                BusInteraction {
+                    bus_id: GroupedExpression::from_number(byte_bus_id),
+                    multiplicity: GroupedExpression::from_number(BabyBearField::one()),
+                    payload: vec![
+                        // Opcode
+                        GroupedExpression::from_number(BabyBearField::from(
+                            ByteOpcode::U8Range as u64,
+                        )),
+                        // a: Always zero
+                        GroupedExpression::from_number(BabyBearField::zero()),
+                        // b: The first byte being checked
+                        byte1.clone(),
+                        // c: The second byte being checked
+                        byte2.clone(),
+                    ],
+                }
+            })
+            .collect::<Vec<_>>();
+        let other_constraints = range_constraints.into_iter().map(|(expr, rc)| {
+            let num_bits = range_constraint_to_num_bits(&rc).unwrap();
+            BusInteraction {
+                bus_id: GroupedExpression::from_number(byte_bus_id),
+                multiplicity: GroupedExpression::from_number(BabyBearField::one()),
+                payload: vec![
+                    // Opcode
+                    GroupedExpression::from_number(BabyBearField::from(ByteOpcode::Range as u64)),
+                    // a: The expression being range-checked
+                    expr,
+                    // b: The number of bits being checked
+                    GroupedExpression::from_number(BabyBearField::from(num_bits as u64)),
+                    // c: Always zero
+                    GroupedExpression::from_number(BabyBearField::zero()),
+                ],
+            }
+        });
+        byte_constraints.into_iter().chain(other_constraints).collect::<Vec<_>>()
     }
 }
 
