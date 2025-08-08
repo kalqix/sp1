@@ -149,18 +149,24 @@ fn test_compile_program_fibonacci() {
 fn test_collect_basic_blocks_keccak256_software() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, expect![[r#"
+    test_collect_basic_blocks(
+        GUEST_KECCAK256_SOFTWARE,
+        expect![[r#"
         1870
-    "#]]);
+    "#]],
+    );
 }
 
 #[test]
 fn test_collect_basic_blocks_fibonacci() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_FIBONACCI, expect![[r#"
+    test_collect_basic_blocks(
+        GUEST_FIBONACCI,
+        expect![[r#"
         1628
-    "#]]);
+    "#]],
+    );
 }
 
 fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
