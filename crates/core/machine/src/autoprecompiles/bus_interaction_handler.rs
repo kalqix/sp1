@@ -94,17 +94,9 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
         &self,
         bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
     ) -> Option<RangeConstraints<BabyBearField, V>> {
-        let (Some(bus_id), Some(multiplicity)) =
-            (bus_interaction.bus_id.try_to_number(), bus_interaction.multiplicity.try_to_number())
-        else {
-            return None;
-        };
-
-        if multiplicity.is_zero() {
-            return None;
-        }
-
+        let bus_id = bus_interaction.bus_id.try_to_number()?;
         match self.bus_id_to_interaction_kind.get(&bus_id) {
+            // Stateful bus interactions are never pure range constraints.
             Some(InteractionKind::Memory)
             | Some(InteractionKind::Program)
             | Some(InteractionKind::State) => None,
@@ -113,16 +105,15 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                 let [opcode, a, b, c] = bus_interaction.payload.as_slice() else {
                     panic!("Invalid byte bus payload length");
                 };
-                let opcode_value = opcode.try_to_number();
-                let byte_opcode = opcode_value.map(|opcode| {
-                    self.byte_operation_id_to_opcode
-                        .get(&opcode)
-                        .unwrap_or_else(|| panic!("Unknown byte opcode: {opcode}"))
-                });
+                let opcode_value = opcode.try_to_number()?;
+                let byte_opcode = self
+                    .byte_operation_id_to_opcode
+                    .get(&opcode_value)
+                    .unwrap_or_else(|| panic!("Unknown byte opcode: {opcode_value}"));
 
                 match byte_opcode {
                     // U8Range: assert(a == 0 && b < 256 && c < 256)
-                    Some(ByteOpcode::U8Range) => {
+                    ByteOpcode::U8Range => {
                         let zero = RangeConstraint::from_value(BabyBearField::zero());
                         let byte = RangeConstraint::from_mask(0xffu64);
                         Some(
@@ -132,16 +123,14 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                         )
                     }
                     // Range: assert(a <= 2**b && c == 0)
-                    Some(ByteOpcode::Range) => {
-                        if let Some(b) = b.try_to_number() {
-                            let num_bits = b.to_degree();
-                            let rc = RangeConstraint::from_mask((1u64 << num_bits) - 1);
-                            let zero = RangeConstraint::from_value(BabyBearField::zero());
-                            Some([(a.clone(), rc), (c.clone(), zero)].into_iter().collect())
-                        } else {
-                            // We don't know the number of bits (yet), do nothing for now.
-                            None
-                        }
+                    ByteOpcode::Range => {
+                        // Note that we return None if the number of bytes is unknown, because
+                        // then, it's not a pure range constraint.
+                        let b = b.try_to_number()?;
+                        let num_bits = b.to_degree();
+                        let rc = RangeConstraint::from_mask((1u64 << num_bits) - 1);
+                        let zero = RangeConstraint::from_value(BabyBearField::zero());
+                        Some([(a.clone(), rc), (c.clone(), zero)].into_iter().collect())
                     }
                     _ => None,
                 }
@@ -157,9 +146,9 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
         &self,
         mut range_constraints: RangeConstraints<BabyBearField, V>,
     ) -> Vec<BusInteraction<GroupedExpression<BabyBearField, V>>> {
+        let byte_bus_id = BabyBearField::from(InteractionKind::Byte as u64);
         let byte_constraints = filter_byte_constraints(&mut range_constraints);
 
-        let byte_bus_id = BabyBearField::from(InteractionKind::Byte as u64);
         let byte_constraints = byte_constraints
             .into_iter()
             .chunks(2)
