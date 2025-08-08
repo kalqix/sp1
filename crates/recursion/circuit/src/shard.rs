@@ -534,6 +534,7 @@ mod tests {
                 slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
                 RiscvAir<BabyBear>,
             >,
+            RiscvAir<BabyBear>,
         >(
             verifier.clone(),
             prover,

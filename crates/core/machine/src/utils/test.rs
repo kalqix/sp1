@@ -10,7 +10,11 @@ use sp1_stark::{
 };
 use tracing::Instrument;
 
-use crate::{autoprecompiles::adapter::Sp1ApcAdapter, io::SP1Stdin, riscv::RiscvAir};
+use crate::{
+    autoprecompiles::adapter::Sp1ApcAdapter,
+    io::SP1Stdin,
+    riscv::{RiscvAir, RiscvAirWithApcs},
+};
 
 use super::prove_core;
 
@@ -116,8 +120,9 @@ pub async fn run_test_core_with_apcs(
         BabyBear,
         CpuMachineProverComponents<
             slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
-            RiscvAir<BabyBear>,
+            RiscvAirWithApcs<BabyBear>,
         >,
+        RiscvAirWithApcs<BabyBear>,
     >(
         verifier.clone(),
         Arc::new(prover),

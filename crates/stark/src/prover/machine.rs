@@ -492,7 +492,7 @@ impl<C: MachineProverComponents> MachineProver<C> {
     #[allow(clippy::type_complexity)]
     pub fn setup_and_prove_shard(
         &self,
-        program: Arc<Program<C>>,
+        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<C::F>>::Program>,
         vk: Option<MachineVerifyingKey<C::Config>>,
         record: Record<C>,
     ) -> TaskHandle<(MachineVerifyingKey<C::Config>, ShardProof<C::Config>), MachineProverError>

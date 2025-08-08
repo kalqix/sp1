@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use slop_air::Air;
 use slop_algebra::{extension::BinomialExtensionField, AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
 use slop_futures::handle::TaskHandle;
@@ -30,10 +31,11 @@ use sp1_recursion_circuit::{
     },
     shard::RecursiveShardVerifier,
     witness::Witnessable,
+    zerocheck::RecursiveVerifierConstraintFolder,
     BabyBearFriConfigVariable, CircuitConfig, WrapConfig as CircuitWrapConfig,
 };
 use sp1_recursion_compiler::{
-    circuit::AsmCompiler,
+    circuit::{AsmCompiler, AsmConfig},
     config::InnerConfig,
     ir::{Builder, DslIrProgram},
 };
@@ -72,8 +74,10 @@ pub struct SP1RecursionProver<C: SP1ProverComponents> {
     pub(crate) prover: MachineProver<C::RecursionComponents>,
     pub(crate) shrink_prover: MachineProver<C::RecursionComponents>,
     wrap_prover: MachineProver<C::WrapComponents>,
-    pub(crate) core_verifier: MachineVerifier<CoreSC, RiscvAir<BabyBear>>,
-    pub(crate) normalize_program_cache: SP1NormalizeCache,
+    pub(crate) core_verifier:
+        MachineVerifier<CoreSC, <C::CoreComponents as MachineProverComponents>::Air>,
+    pub(crate) normalize_program_cache:
+        SP1NormalizeCache<<C::CoreComponents as MachineProverComponents>::Air>,
     reduce_shape: SP1RecursionProofShape,
     compose_programs: BTreeMap<usize, Arc<RecursionProgram<BabyBear>>>,
     compose_keys: BTreeMap<
@@ -96,8 +100,12 @@ pub struct SP1RecursionProver<C: SP1ProverComponents> {
     wrap_keys: Mutex<
         Option<(Arc<MachineProvingKey<C::WrapComponents>>, MachineVerifyingKey<WrapConfig<C>>)>,
     >,
-    pub recursive_core_verifier:
-        RecursiveShardVerifier<RiscvAir<BabyBear>, CoreSC, InnerConfig, JC<InnerConfig, CoreSC>>,
+    pub recursive_core_verifier: RecursiveShardVerifier<
+        <C::CoreComponents as MachineProverComponents>::Air,
+        CoreSC,
+        InnerConfig,
+        JC<InnerConfig, CoreSC>,
+    >,
     pub(crate) recursive_compress_verifier: RecursiveShardVerifier<
         CompressAir<InnerVal>,
         InnerSC,
@@ -116,14 +124,26 @@ pub struct SP1RecursionProver<C: SP1ProverComponents> {
     normalize_batch_size: usize,
 }
 
-impl<C: SP1ProverComponents> SP1RecursionProver<C> {
+impl<C: SP1ProverComponents> SP1RecursionProver<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air:
+        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+{
     pub async fn new(
-        core_verifier: ShardVerifier<CoreSC, RiscvAir<BabyBear>>,
+        core_verifier: ShardVerifier<
+            CoreSC,
+            <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
+        >,
         prover: MachineProver<C::RecursionComponents>,
         shrink_prover: MachineProver<C::RecursionComponents>,
         wrap_prover: MachineProver<C::WrapComponents>,
         normalize_programs_cache_size: usize,
-        normalize_programs: BTreeMap<SP1NormalizeInputShape, Arc<RecursionProgram<BabyBear>>>,
+        normalize_programs: BTreeMap<
+            SP1NormalizeInputShape<
+                <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
+            >,
+            Arc<RecursionProgram<BabyBear>>,
+        >,
         max_compose_arity: usize,
         vk_verification: bool,
         vk_map_path: Option<String>,
@@ -626,13 +646,10 @@ impl<C: SP1ProverComponents> SP1RecursionProver<C> {
 
 /// The program that proves the correct execution of the verifier of a single shard of the core
 /// (RISC-V) machine.
-pub fn normalize_program_from_input(
-    recursive_verifier: &RecursiveShardVerifier<
-        RiscvAir<BabyBear>,
-        CoreSC,
-        InnerConfig,
-        JC<InnerConfig, CoreSC>,
-    >,
+pub fn normalize_program_from_input<
+    A: MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+>(
+    recursive_verifier: &RecursiveShardVerifier<A, CoreSC, InnerConfig, JC<InnerConfig, CoreSC>>,
     input: &SP1NormalizeWitnessValues<CoreSC>,
 ) -> RecursionProgram<BabyBear> {
     // Get the operations.

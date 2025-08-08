@@ -18,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{adapter::Sp1ApcAdapter, chip::MaybeApcChip},
+    autoprecompiles::{adapter::Sp1ApcAdapter, chip::ApcChip},
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -224,10 +224,12 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
-    /// A precompile for the first APC.
-    Apc0(MaybeApcChip<0, F>),
-    /// A precompile for the second APC.
-    Apc1(MaybeApcChip<1, F>),
+}
+
+#[derive(sp1_derive::MachineAir, Debug)]
+pub enum RiscvAirWithApcs<F: PrimeField32> {
+    Riscv(RiscvAir<F>),
+    Apc(ApcChip<F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -235,13 +237,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 67] {
-        Self::airs_with_apcs(vec![])
-    }
-
-    pub fn airs_with_apcs(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> [RiscvAir<F>; 67] {
-        let mut apcs = apcs.into_iter();
-
+    pub fn airs() -> [RiscvAir<F>; 65] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -321,36 +317,73 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-            RiscvAir::Apc0(MaybeApcChip::new(apcs.next())),
-            RiscvAir::Apc1(MaybeApcChip::new(apcs.next())),
         ]
     }
 
-    pub fn machine_without_apcs() -> Machine<F, Self> {
-        Self::machine_with_apcs(vec![])
+    pub fn machine_without_apcs() -> Machine<F, RiscvAir<F>> {
+        // Self::machine_with_apcs(vec![])
+        unimplemented!()
     }
 
-    pub fn machine_with_apcs(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Machine<F, Self> {
+    pub fn machine_with_apcs(
+        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    ) -> Machine<F, RiscvAirWithApcs<F>> {
+        let apcs_len = apcs.len();
+
         use RiscvAirDiscriminants::*;
 
-        let chips = Self::airs_with_apcs(apcs).into_iter().map(Chip::new).collect::<Vec<_>>();
+        let chips = Self::airs()
+            .into_iter()
+            .map(RiscvAirWithApcs::Riscv)
+            .chain(
+                apcs.into_iter()
+                    .enumerate()
+                    .map(|(i, apc)| ApcChip::new(apc, i as usize))
+                    .map(RiscvAirWithApcs::Apc),
+            )
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+
+        #[derive(PartialEq, Eq, Hash, Clone, Debug, PartialOrd, Ord)]
+        enum RiscvAirWithApcDiscriminants {
+            Riscv(RiscvAirDiscriminants),
+            Apc(u64),
+        }
+
+        impl From<RiscvAirDiscriminants> for RiscvAirWithApcDiscriminants {
+            fn from(d: RiscvAirDiscriminants) -> Self {
+                RiscvAirWithApcDiscriminants::Riscv(d)
+            }
+        }
 
         let chips_map = chips
             .iter()
-            .map(|c| (c.air.as_ref().into(), c))
-            .collect::<HashMap<RiscvAirDiscriminants, &Chip<F, RiscvAir<F>>>>();
+            .map(|c| {
+                (
+                    match c.air.as_ref() {
+                        RiscvAirWithApcs::Riscv(ref d) => {
+                            RiscvAirWithApcDiscriminants::Riscv(d.into())
+                        }
+                        RiscvAirWithApcs::Apc(ref apc) => {
+                            RiscvAirWithApcDiscriminants::Apc(apc.id() as u64)
+                        }
+                    },
+                    c,
+                )
+            })
+            .collect::<HashMap<RiscvAirWithApcDiscriminants, &Chip<F, RiscvAirWithApcs<F>>>>();
         // Check that we listed all chips.
-        assert_eq!(chips_map.len(), RiscvAirDiscriminants::iter().len());
+        assert_eq!(chips_map.len(), RiscvAirDiscriminants::iter().len() + apcs_len);
         assert_eq!(chips_map.len(), chips.len());
 
         // Now that the chips are prepared, we can define clusters in terms of IDs.
 
-        fn extend_base<T: Clone + Ord>(
+        fn extend_base<T: Clone + Ord, U: Into<T>>(
             base: &BTreeSet<T>,
-            elts: impl IntoIterator<Item = T>,
+            elts: impl IntoIterator<Item = U>,
         ) -> BTreeSet<T> {
             let mut base = base.to_owned();
-            base.extend(elts);
+            base.extend(elts.into_iter().map(Into::into));
             base
         }
 
@@ -423,12 +456,12 @@ impl<F: PrimeField32> RiscvAir<F> {
                 StateBump,
                 MemoryLocal,
                 Global,
-                Apc0,
-                Apc1, /* TODO: check that the APCs actually belong in the core cluster. They are
-                       * here because putting them in the autoprecompiles cluster leads to
-                       * `smallest_cluster` failing. */
             ],
-        );
+        )
+        .into_iter()
+        .map(RiscvAirWithApcDiscriminants::Riscv)
+        .chain((0..apcs_len).map(|i| RiscvAirWithApcDiscriminants::Apc(i as u64)))
+        .collect::<BTreeSet<_>>();
 
         let memory_boundary_cluster =
             extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
@@ -453,6 +486,22 @@ impl<F: PrimeField32> RiscvAir<F> {
             .flat_map(|k| core_cluster_exts.into_iter().combinations(k))
             .map(|ext_set| extend_base(&core_cluster, ext_set.into_iter().flatten().cloned()));
 
+        let core_cluster = extend_base(
+            &core_cluster,
+            [
+                MemoryGlobalInit,
+                MemoryGlobalFinal,
+                Sha256Extend,
+                Sha256ExtendControl,
+                Sha256Compress,
+                Sha256CompressControl,
+                Uint256Ops,
+            ],
+        )
+        .into_iter()
+        .chain((0..apcs_len as u64).map(RiscvAirWithApcDiscriminants::Apc))
+        .collect::<BTreeSet<_>>();
+
         // Collect all clusters and replace the IDs by chips.
         let chip_clusters = core_clusters
             .chain(core::iter::once(extend_base(
@@ -467,9 +516,14 @@ impl<F: PrimeField32> RiscvAir<F> {
                     Uint256Ops,
                 ],
             )))
-            .chain(core::iter::once(memory_boundary_cluster))
-            .chain(precompile_clusters)
-            .map(|ids| ids.into_iter().map(|id| chips_map[&id].clone()).collect())
+            .chain(core::iter::once(memory_boundary_cluster).chain(precompile_clusters).map(
+                |ids| {
+                    ids.into_iter().map(RiscvAirWithApcDiscriminants::from).collect::<BTreeSet<_>>()
+                },
+            ))
+            .map(|ids: BTreeSet<RiscvAirWithApcDiscriminants>| {
+                ids.into_iter().map(|id| chips_map[&id].clone()).collect()
+            })
             .collect::<Vec<_>>();
 
         // Stop borrowing `chips`.
@@ -940,8 +994,6 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
-            RiscvAirDiscriminants::Apc0 => RiscvAirId::Apc0,
-            RiscvAirDiscriminants::Apc1 => RiscvAirId::Apc1,
         }
     }
 }
@@ -954,7 +1006,7 @@ pub mod tests {
     use sp1_core_executor::{Instruction, Opcode, Program};
 
     use crate::{
-        autoprecompiles::utils::create_apcs,
+        autoprecompiles::create_apcs,
         programs::tests::*,
         riscv::RiscvAir,
         utils::{run_test_with_apcs, setup_logger},

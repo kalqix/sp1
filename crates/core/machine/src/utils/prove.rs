@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use slop_algebra::PrimeField32;
 use sp1_stark::{
-    air::PublicValues,
+    air::{MachineAir, PublicValues},
     prover::{MachineProverBuilder, MachineProverComponents, MachineProvingKey, ProverSemaphore},
     Machine, MachineProof, MachineRecord, ShardProof, ShardVerifier,
 };
@@ -177,8 +177,8 @@ pub fn generate_records<F: PrimeField32>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn prove_core<F, PC>(
-    verifier: ShardVerifier<PC::Config, RiscvAir<F>>,
+pub async fn prove_core<F, PC, A>(
+    verifier: ShardVerifier<PC::Config, A>,
     prover: Arc<PC::Prover>,
     pk: Arc<MachineProvingKey<PC>>,
     program: Arc<Program>,
@@ -188,12 +188,13 @@ pub async fn prove_core<F, PC>(
     apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
 ) -> Result<(MachineProof<PC::Config>, u64), SP1CoreProverError>
 where
-    PC: MachineProverComponents<F = F, Air = RiscvAir<F>>,
+    A: MachineAir<F, Record = ExecutionRecord>,
+    PC: MachineProverComponents<F = F, Air = A>,
     F: PrimeField32,
 {
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (_, cycles) = prove_core_stream::<F, PC>(
+    let (_, cycles) = prove_core_stream::<F, PC, A>(
         verifier, prover, pk, program, stdin, opts, context, proof_tx, apcs,
     )
     .await
@@ -212,9 +213,9 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn prove_core_stream<F, PC>(
+pub(crate) async fn prove_core_stream<F, PC, A>(
     // TODO: clean this up
-    verifier: ShardVerifier<PC::Config, RiscvAir<F>>,
+    verifier: ShardVerifier<PC::Config, A>,
     prover: Arc<PC::Prover>,
     pk: Arc<MachineProvingKey<PC>>,
     program: Arc<Program>,
@@ -225,7 +226,8 @@ pub(crate) async fn prove_core_stream<F, PC>(
     apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
-    PC: MachineProverComponents<F = F, Air = RiscvAir<F>>,
+    A: MachineAir<F, Record = ExecutionRecord>,
+    PC: MachineProverComponents<F = F, Air = A>,
     F: PrimeField32,
 {
     // TODO: get this from input

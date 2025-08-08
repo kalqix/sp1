@@ -19,7 +19,9 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::Span;
 
 use crate::{
-    autoprecompiles::adapter::Sp1ApcAdapter, io::SP1Stdin, riscv::RiscvAir,
+    autoprecompiles::adapter::Sp1ApcAdapter,
+    io::SP1Stdin,
+    riscv::{RiscvAir, RiscvAirWithApcs},
     utils::concurrency::TurnBasedSync,
 };
 
@@ -50,7 +52,7 @@ impl<F: PrimeField32> MachineExecutor<F> {
 }
 
 pub struct MachineExecutorBuilder<F: PrimeField32> {
-    machine: Machine<F, RiscvAir<F>>,
+    machine: Machine<F, RiscvAirWithApcs<F>>,
     num_record_workers: usize,
     opts: SP1CoreOpts,
 }

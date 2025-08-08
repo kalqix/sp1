@@ -27,7 +27,7 @@ use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
 use sp1_stark::{
-    prover::{MachineProverError, MachineProvingKey},
+    prover::{MachineProverError, MachineProvingKey, Record},
     BabyBearPoseidon2, MachineVerifierConfigError, MachineVerifyingKey, ShardProof,
 };
 use std::{
@@ -107,7 +107,17 @@ pub struct LocalProver<C: SP1ProverComponents> {
     num_recursion_executors: usize,
 }
 
-impl<C: SP1ProverComponents> LocalProver<C> {
+impl<C: SP1ProverComponents> LocalProver<C>
+where
+    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
+        sp1_stark::air::MachineAir<BabyBear>
+            + for<'b> slop_air::Air<
+                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                    'b,
+                    sp1_recursion_compiler::config::InnerConfig,
+                >,
+            >,
+{
     pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
         let records_task_capacity =
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
@@ -192,7 +202,7 @@ impl<C: SP1ProverComponents> LocalProver<C> {
         context.subproof_verifier = Some(Arc::new(self.clone()));
 
         let (records_tx, mut records_rx) =
-            mpsc::channel::<ExecutionRecord>(self.records_task_capacity);
+            mpsc::channel::<Record<C::CoreComponents>>(self.records_task_capacity);
 
         let prover = self.clone();
 

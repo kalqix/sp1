@@ -89,4 +89,8 @@ pub trait MachineProgram<F>: Send + Sync {
     fn pc_start(&self) -> [F; 3];
     /// Gets the initial global cumulative sum.
     fn initial_global_cumulative_sum(&self) -> SepticDigest<F>;
+    /// Gets a program from an elf
+    fn from_elf(elf: &[u8]) -> Result<Self, String>
+    where
+        Self: Sized;
 }

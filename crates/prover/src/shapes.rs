@@ -43,7 +43,10 @@ use sp1_recursion_machine::chips::{
 use sp1_stark::{
     air::MachineAir,
     log2_ceil_usize,
-    prover::{CoreProofShape, DefaultTraceGenerator, ProverSemaphore, TraceGenerator},
+    prover::{
+        CoreProofShape, DefaultTraceGenerator, MachineProverComponents, ProverSemaphore,
+        TraceGenerator,
+    },
     Chip, ChipDimensions, Machine, MachineShape,
 };
 use thiserror::Error;
@@ -64,18 +67,42 @@ pub const DEFAULT_ARITY: usize = 4;
 
 /// The shape of the "normalize" program, which proves the correct execution for the verifier of a
 /// single core shard proof.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct SP1NormalizeInputShape {
-    pub proof_shapes: Vec<CoreProofShape<BabyBear, RiscvAir<BabyBear>>>,
+pub struct SP1NormalizeInputShape<A: MachineAir<BabyBear>> {
+    pub proof_shapes: Vec<CoreProofShape<BabyBear, A>>,
     pub max_log_row_count: usize,
     pub log_blowup: usize,
     pub log_stacking_height: usize,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
-pub enum SP1RecursionProgramShape {
+impl<A: MachineAir<BabyBear>> std::hash::Hash for SP1NormalizeInputShape<A> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> PartialEq for SP1NormalizeInputShape<A> {
+    fn eq(&self, other: &Self) -> bool {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> Eq for SP1NormalizeInputShape<A> {}
+
+impl<A: MachineAir<BabyBear>> PartialOrd for SP1NormalizeInputShape<A> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> Ord for SP1NormalizeInputShape<A> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        unimplemented!()
+    }
+}
+
+pub enum SP1RecursionProgramShape<A: MachineAir<BabyBear>> {
     // The program that verifies a core shard proof.
-    Normalize(CoreProofShape<BabyBear, RiscvAir<BabyBear>>),
+    Normalize(CoreProofShape<BabyBear, A>),
     // Compose(arity) is the program that verifies a batch of Normalize proofs of size arity.
     Compose(usize),
     // The deferred proof program.
@@ -83,6 +110,39 @@ pub enum SP1RecursionProgramShape {
     // The shrink program that verifies the the root of the recursion tree.
     Shrink,
 }
+
+impl<A: MachineAir<BabyBear>> Clone for SP1RecursionProgramShape<A> {
+    fn clone(&self) -> Self {
+        match self {
+            SP1RecursionProgramShape::Normalize(shape) => {
+                SP1RecursionProgramShape::Normalize(shape.clone())
+            }
+            SP1RecursionProgramShape::Compose(arity) => SP1RecursionProgramShape::Compose(*arity),
+            SP1RecursionProgramShape::Deferred => SP1RecursionProgramShape::Deferred,
+            SP1RecursionProgramShape::Shrink => SP1RecursionProgramShape::Shrink,
+        }
+    }
+}
+
+impl<A: MachineAir<BabyBear>> std::fmt::Debug for SP1RecursionProgramShape<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> std::hash::Hash for SP1RecursionProgramShape<A> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> PartialEq for SP1RecursionProgramShape<A> {
+    fn eq(&self, other: &Self) -> bool {
+        unimplemented!()
+    }
+}
+
+impl<A: MachineAir<BabyBear>> Eq for SP1RecursionProgramShape<A> {}
 
 #[derive(Debug, Error)]
 pub enum VkBuildError {
@@ -92,7 +152,7 @@ pub enum VkBuildError {
     Bincode(#[from] bincode::Error),
 }
 
-impl SP1NormalizeInputShape {
+impl<A: MachineAir<BabyBear>> SP1NormalizeInputShape<A> {
     pub fn dummy_input(&self, vk: SP1VerifyingKey) -> SP1NormalizeWitnessValues<CoreSC> {
         let shard_proofs = self
             .proof_shapes
@@ -120,13 +180,13 @@ impl SP1NormalizeInputShape {
     }
 }
 
-pub struct SP1NormalizeCache {
-    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape, Arc<RecursionProgram<BabyBear>>>>>,
+pub struct SP1NormalizeCache<A: MachineAir<BabyBear>> {
+    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<BabyBear>>>>>,
     total_calls: AtomicUsize,
     hits: AtomicUsize,
 }
 
-impl SP1NormalizeCache {
+impl<A: MachineAir<BabyBear>> SP1NormalizeCache<A> {
     pub fn new(size: usize) -> Self {
         let size = NonZero::new(size).expect("size must be non-zero");
         let lru = LruCache::new(size);
@@ -134,7 +194,10 @@ impl SP1NormalizeCache {
         Self { lru, total_calls: AtomicUsize::new(0), hits: AtomicUsize::new(0) }
     }
 
-    pub fn get(&self, shape: &SP1NormalizeInputShape) -> Option<Arc<RecursionProgram<BabyBear>>> {
+    pub fn get(
+        &self,
+        shape: &SP1NormalizeInputShape<A>,
+    ) -> Option<Arc<RecursionProgram<BabyBear>>> {
         self.total_calls.fetch_add(1, Ordering::Relaxed);
         if let Some(program) = self.lru.lock().unwrap().get(shape).cloned() {
             self.hits.fetch_add(1, Ordering::Relaxed);
@@ -144,7 +207,7 @@ impl SP1NormalizeCache {
         }
     }
 
-    pub fn push(&self, shape: SP1NormalizeInputShape, program: Arc<RecursionProgram<BabyBear>>) {
+    pub fn push(&self, shape: SP1NormalizeInputShape<A>, program: Arc<RecursionProgram<BabyBear>>) {
         self.lru.lock().unwrap().push(shape, program);
     }
 
@@ -275,7 +338,17 @@ impl SP1RecursionProofShape {
     }
 
     #[allow(dead_code)]
-    async fn max_arity<C: SP1ProverComponents>(&self, prover: &SP1RecursionProver<C>) -> usize {
+    async fn max_arity<C: SP1ProverComponents>(&self, prover: &SP1RecursionProver<C>) -> usize
+    where
+        <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
+            sp1_stark::air::MachineAir<BabyBear>
+                + for<'b> slop_air::Air<
+                    sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                        'b,
+                        sp1_recursion_compiler::config::InnerConfig,
+                    >,
+                >,
+    {
         let mut arity = 0;
         for possible_arity in 1.. {
             let input = prover.dummy_reduce_input_with_shape(possible_arity, self);
@@ -298,7 +371,17 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     indices: Option<Vec<usize>>,
     max_arity: usize,
     prover: Arc<SP1Prover<C>>,
-) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>) {
+) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>)
+where
+    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
+        sp1_stark::air::MachineAir<BabyBear>
+            + for<'b> slop_air::Air<
+                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                    'b,
+                    sp1_recursion_compiler::config::InnerConfig,
+                >,
+            >,
+{
     if dummy {
         let dummy_set = dummy_vk_map(&prover).into_keys().collect::<BTreeSet<_>>();
         return (dummy_set, vec![]);
@@ -307,8 +390,10 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     // Setup the channels.
     let (vk_tx, mut vk_rx) =
         tokio::sync::mpsc::unbounded_channel::<(usize, [BabyBear; DIGEST_SIZE])>();
-    let (shape_tx, shape_rx) =
-        tokio::sync::mpsc::channel::<(usize, SP1RecursionProgramShape)>(num_compiler_workers);
+    let (shape_tx, shape_rx) = tokio::sync::mpsc::channel::<(
+        usize,
+        SP1RecursionProgramShape<<C::CoreComponents as MachineProverComponents>::Air>,
+    )>(num_compiler_workers);
     let (program_tx, program_rx) = tokio::sync::mpsc::channel(num_setup_workers);
     let (panic_tx, mut panic_rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -524,7 +609,7 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     }
     for (i, shape) in subset_shapes {
         if panic_indices.contains(&i) {
-            tracing::info!("panic shape {}: {:?}", i, shape);
+            // tracing::info!("panic shape {}: {:?}", i, shape);
         }
     }
 
@@ -539,7 +624,17 @@ pub async fn build_vk_map_to_file<C: SP1ProverComponents + 'static>(
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
     prover: Arc<SP1Prover<C>>,
-) -> Result<(), VkBuildError> {
+) -> Result<(), VkBuildError>
+where
+    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
+        sp1_stark::air::MachineAir<BabyBear>
+            + for<'b> slop_air::Air<
+                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                    'b,
+                    sp1_recursion_compiler::config::InnerConfig,
+                >,
+            >,
+{
     // Create the build directory if it doesn't exist.
     std::fs::create_dir_all(&build_dir)?;
 
@@ -571,15 +666,15 @@ fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> 
         .div_ceil(1 << CORE_LOG_STACKING_HEIGHT as u64) as usize
 }
 
-fn create_all_input_shapes(
-    core_shape: &MachineShape<BabyBear, RiscvAir<BabyBear>>,
+fn create_all_input_shapes<A: MachineAir<BabyBear>>(
+    core_shape: &MachineShape<BabyBear, A>,
     max_arity: usize,
-) -> Vec<SP1RecursionProgramShape> {
+) -> Vec<SP1RecursionProgramShape<A>> {
     let (max_preprocessed_multiple, _, capacity) = normalize_program_parameter_space();
     let max_num_padding_cols =
         ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
 
-    let mut result: Vec<SP1RecursionProgramShape> = Vec::with_capacity(capacity);
+    let mut result: Vec<SP1RecursionProgramShape<_>> = Vec::with_capacity(capacity);
     for preprocessed_multiple in 1..=max_preprocessed_multiple {
         for main_multiple in 1..=max_main_multiple_for_preprocessed_multiple(preprocessed_multiple)
         {
@@ -648,7 +743,7 @@ mod tests {
     use sp1_core_machine::{
         bytes::columns::NUM_BYTE_PREPROCESSED_COLS, io::SP1Stdin,
         program::NUM_PROGRAM_PREPROCESSED_COLS, range::columns::NUM_RANGE_PREPROCESSED_COLS,
-        utils::setup_logger,
+        riscv::RiscvAir, utils::setup_logger,
     };
 
     use sp1_recursion_executor::RecursionAirEventCount;
@@ -741,7 +836,7 @@ mod tests {
 
     fn create_test_shape(
         cluster: &BTreeSet<Chip<BabyBear, RiscvAir<BabyBear>>>,
-    ) -> SP1NormalizeInputShape {
+    ) -> SP1NormalizeInputShape<RiscvAir<BabyBear>> {
         let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
             + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
             + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)

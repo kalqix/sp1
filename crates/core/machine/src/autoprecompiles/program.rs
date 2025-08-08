@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::autoprecompiles::instruction::Sp1Instruction;
 use powdr_autoprecompiles::blocks::Program;
 
+#[derive(Default)]
 pub struct Sp1Program(Arc<sp1_core_executor::Program>);
 
 impl Program<Sp1Instruction> for Sp1Program {

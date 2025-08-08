@@ -212,15 +212,15 @@ impl Instructions {
         self.apcs.iter()
     }
 
-    /// Get a range of proving instructions.
+    /// Get a range of proving instructions based on pc indices.
     #[must_use]
-    pub fn get_proving_range(&self, start: usize, end: usize) -> &[Instruction] {
-        assert!(start <= end, "start must be less than or equal to end");
+    pub fn get_proving_range(&self, start_idx: usize, end_idx: usize) -> &[Instruction] {
+        assert!(start_idx <= end_idx, "start must be less than or equal to end");
         assert!(
-            end <= self.proving.len(),
+            end_idx <= self.proving.len(),
             "end must be less than or equal to the number of instructions"
         );
-        &self.proving[start..end]
+        &self.proving[start_idx..end_idx]
     }
 }
 
@@ -357,5 +357,9 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
         SepticDigest(
             digests.into_par_iter().reduce(|| SepticCurveComplete::Infinity, |a, b| a + b).point(),
         )
+    }
+
+    fn from_elf(elf: &[u8]) -> Result<Self, String> {
+        Program::from(elf).map_err(|e| e.to_string())
     }
 }

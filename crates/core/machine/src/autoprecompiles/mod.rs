@@ -11,14 +11,13 @@ pub mod memory_bus_interaction;
 pub mod program;
 #[cfg(test)]
 mod tests;
-pub mod utils;
 
 use powdr_autoprecompiles::{
     adapter::AdapterApc,
-    blocks::{collect_basic_blocks, generate_apcs_with_pgo},
+    blocks::{collect_basic_blocks, generate_apcs_with_pgo, Program as _},
     evaluation::EvaluationResult,
     execution_profile::execution_profile,
-    DegreeBound, PgoConfig, PowdrConfig,
+    BasicBlock, DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
@@ -31,6 +30,7 @@ use crate::{
         adapter::Sp1ApcAdapter,
         bus_interaction_handler::Sp1BusInteractionHandler,
         bus_map::{sp1_bus_map, Sp1SpecificBuses},
+        instruction::Sp1Instruction,
         instruction_handler::Sp1InstructionHandler,
         program::Sp1Program,
     },
@@ -38,7 +38,7 @@ use crate::{
 };
 
 const SP1_DEGREE_BOUND: usize = 3;
-pub const DEFAULT_DEGREE_BOUND: DegreeBound =
+const DEFAULT_DEGREE_BOUND: DegreeBound =
     DegreeBound { identities: SP1_DEGREE_BOUND, bus_interactions: 1 };
 
 pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
@@ -143,4 +143,40 @@ impl CompiledProgram {
 
         Self { apcs_and_stats }
     }
+}
+
+/// Create APCs from the given program and ranges.
+pub fn create_apcs(
+    program: &Program,
+    pc_idx_ranges: &[(usize, usize)],
+) -> Vec<Arc<AdapterApc<Sp1ApcAdapter>>> {
+    pc_idx_ranges
+        .iter()
+        .map(|(start_idx, end_idx)| {
+            let instructions = program
+                .instructions
+                .get_proving_range(*start_idx, *end_idx)
+                .iter()
+                .cloned()
+                .map(Sp1Instruction::from)
+                .collect();
+
+            // TODO: turn `pc_step` into a constant in the `Program` trait
+            let pc_step = Sp1Program::default().pc_step() as u64;
+            let start_pc = (*start_idx as u64) * pc_step + program.pc_base;
+
+            // Create a dummy basic block with the original instructions
+            let block = BasicBlock { start_pc, statements: instructions };
+
+            // Build the APC from the block
+            powdr_autoprecompiles::build::<Sp1ApcAdapter>(
+                block,
+                sp1_vm_config(&Sp1InstructionHandler::<BabyBear>::new()),
+                DEFAULT_DEGREE_BOUND,
+                None,
+            )
+            .expect("Failed to build APC")
+        })
+        .map(Arc::new)
+        .collect()
 }

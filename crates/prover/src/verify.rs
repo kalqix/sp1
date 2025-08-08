@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use num_bigint::BigUint;
+use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField, PrimeField64};
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::{subproof::SubproofVerifier, SP1RecursionProof};
@@ -17,6 +18,7 @@ use sp1_recursion_gnark_ffi::{
 };
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    prover::MachineProverComponents,
     BabyBearPoseidon2, Bn254JaggedConfig, MachineVerifierConfigError, MachineVerifierError,
 };
 use thiserror::Error;
@@ -48,7 +50,11 @@ bn254 proof"
     InvalidPublicValues,
 }
 
-impl<C: SP1ProverComponents> SP1Prover<C> {
+impl<C: SP1ProverComponents> SP1Prover<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air:
+        for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, C>>,
+{
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
     /// shards are contiguous and complete.
     pub fn verify(
