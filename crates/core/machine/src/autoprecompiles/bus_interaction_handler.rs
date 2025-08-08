@@ -2,8 +2,8 @@ use itertools::{repeat_n, Itertools};
 use powdr_autoprecompiles::{
     constraint_optimizer::IsBusStateful,
     range_constraint_optimizer::{
-        filter_byte_constraints, range_constraint_to_num_bits, RangeConstraintHandler,
-        RangeConstraintMap,
+        utils::{filter_byte_constraints, range_constraint_to_num_bits},
+        RangeConstraintHandler, RangeConstraintMap,
     },
 };
 use powdr_constraint_solver::{
