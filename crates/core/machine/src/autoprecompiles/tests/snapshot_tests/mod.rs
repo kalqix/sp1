@@ -42,24 +42,24 @@ fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_
         .join(module_name)
         .join(format!("{test_name}.txt"));
 
-    match fs::read_to_string(&expected_path) {
-        Ok(expected) => {
-            assert_eq!(
-                expected.trim(),
-                actual.trim(),
-                "The output of `{test_name}` does not match the expected output. \
-                 To re-generate the expected output, delete the file `{}` and re-run the test.",
-                expected_path.display()
-            );
-        }
-        _ => {
-            // Write the new expected output to the file
-            fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
-            fs::write(&expected_path, actual).unwrap();
+    let expected = fs::read_to_string(&expected_path).ok();
+    let should_update = expected.is_none()
+        || std::env::var("UPDATE_EXPECT").map(|v| v.as_str() == "1").unwrap_or(false);
 
-            tracing::info!(
-                "Expected output for `{test_name}` was updated. Re-run the test to confirm."
-            );
-        }
+    if should_update {
+        // Write the new expected output to the file
+        fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
+        fs::write(&expected_path, actual).unwrap();
+
+        tracing::info!(
+            "Expected output for `{test_name}` was updated. Re-run the test to confirm."
+        );
+    } else {
+        assert_eq!(
+            expected.unwrap().trim(),
+            actual.trim(),
+            "The output of `{test_name}` does not match the expected output. \
+             To re-generate the expected output, run with `UPDATE_EXPECT=1`."
+        );
     }
 }
