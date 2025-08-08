@@ -9,6 +9,7 @@ use crate::{
     io::SP1Stdin,
     utils::setup_logger,
 };
+use expect_test::{expect, Expect};
 use powdr_autoprecompiles::{
     blocks::{collect_basic_blocks, Program as PowdrProgram},
     evaluation::AirStats,
@@ -116,14 +117,23 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     let apc_stats_before = apc_stats_before.into_iter().sum::<AirStats>();
     let apc_stats_after = apc_stats_after.into_iter().sum::<AirStats>();
 
-    assert_eq!(
-        apc_stats_before,
-        AirStats { main_columns: 1107, constraints: 787, bus_interactions: 515 }
-    );
-    assert_eq!(
-        apc_stats_after,
-        AirStats { main_columns: 256, constraints: 61, bus_interactions: 245 }
-    );
+    expect![[r#"
+        AirStats {
+            main_columns: 1107,
+            constraints: 787,
+            bus_interactions: 515,
+        }
+    "#]]
+    .assert_debug_eq(&apc_stats_before);
+
+    expect![[r#"
+        AirStats {
+            main_columns: 256,
+            constraints: 61,
+            bus_interactions: 245
+        }
+    "#]]
+    .assert_debug_eq(&apc_stats_after);
 }
 
 #[test]
@@ -139,17 +149,21 @@ fn test_compile_program_fibonacci() {
 fn test_collect_basic_blocks_keccak256_software() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, 1870);
+    test_collect_basic_blocks(GUEST_KECCAK256_SOFTWARE, expect![[r#"
+        1870
+    "#]]);
 }
 
 #[test]
 fn test_collect_basic_blocks_fibonacci() {
     setup_logger();
 
-    test_collect_basic_blocks(GUEST_FIBONACCI, 1628);
+    test_collect_basic_blocks(GUEST_FIBONACCI, expect![[r#"
+        1628
+    "#]]);
 }
 
-fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: usize) {
+fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
     let elf = build_elf(guest_path);
 
     let sp1_program = Sp1Program::from(Arc::new(Program::from(&elf).unwrap()));
@@ -160,7 +174,7 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: usize) {
     let basic_blocks =
         collect_basic_blocks::<Sp1ApcAdapter>(&sp1_program, &jumpdest_set, &instruction_handler);
     let basic_blocks_length = basic_blocks.len();
-    assert_eq!(basic_blocks_length, expected_bb_len);
+    expected_bb_len.assert_debug_eq(&basic_blocks_length);
 
     // Check the validity of each basic block
     basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {

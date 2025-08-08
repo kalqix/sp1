@@ -13,20 +13,19 @@ use powdr_expression::{
 };
 
 use powdr_number::{BabyBearField, ExpressionConvertible, FieldElement};
-use slop_air::{Air, BaseAir};
+use slop_air::Air;
 use slop_algebra::PrimeField32;
-use slop_uni_stark::{get_symbolic_constraints, Entry, SymbolicExpression, SymbolicVariable};
+use slop_uni_stark::{
+    get_symbolic_constraints, Entry, SymbolicAirBuilder, SymbolicExpression, SymbolicVariable,
+};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
     PROOF_MAX_NUM_PVS,
 };
 
-use crate::{
-    autoprecompiles::{
-        bus_map::sp1_bus_map,
-        interaction_builder::{Interaction, InteractionBuilder},
-    },
-    riscv::RiscvAir,
+use crate::autoprecompiles::{
+    bus_map::sp1_bus_map,
+    interaction_builder::{Interaction, InteractionBuilder},
 };
 
 /// Reorders bus interactions such that they are sorted chronologically, assuming all clk_low
@@ -168,8 +167,11 @@ fn densify_ids_bus_interaction<F>(
     }
 }
 
-pub fn air_to_symbolic_machine<F: PrimeField32>(
-    air: &RiscvAir<F>,
+pub fn air_to_symbolic_machine<
+    F: PrimeField32,
+    A: MachineAir<F> + Air<SymbolicAirBuilder<F>> + Air<InteractionBuilder<F>>,
+>(
+    air: &A,
 ) -> Result<SymbolicMachine<F>, UnsupportedConstraintError> {
     let column_names = air.column_names().into_iter().map(Arc::new).collect::<Vec<_>>();
 
