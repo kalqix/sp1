@@ -3,7 +3,7 @@ use powdr_autoprecompiles::{
     constraint_optimizer::IsBusStateful,
     range_constraint_optimizer::{
         utils::{filter_byte_constraints, range_constraint_to_num_bits},
-        RangeConstraintHandler, RangeConstraintMap,
+        RangeConstraintHandler, RangeConstraints,
     },
 };
 use powdr_constraint_solver::{
@@ -93,7 +93,7 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
     fn pure_range_constraints<V: Ord + Clone + Eq>(
         &self,
         bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
-    ) -> Option<RangeConstraintMap<BabyBearField, V>> {
+    ) -> Option<RangeConstraints<BabyBearField, V>> {
         let (Some(bus_id), Some(multiplicity)) =
             (bus_interaction.bus_id.try_to_number(), bus_interaction.multiplicity.try_to_number())
         else {
@@ -155,10 +155,7 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
 
     fn batch_make_range_constraints<V: Ord + Clone + Eq + Display + Hash>(
         &self,
-        mut range_constraints: BTreeMap<
-            GroupedExpression<BabyBearField, V>,
-            RangeConstraint<BabyBearField>,
-        >,
+        mut range_constraints: RangeConstraints<BabyBearField, V>,
     ) -> Vec<BusInteraction<GroupedExpression<BabyBearField, V>>> {
         let byte_constraints = filter_byte_constraints(&mut range_constraints);
 
