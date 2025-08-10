@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use slop_air::Air;
 use slop_algebra::extension::BinomialExtensionField;
@@ -8,7 +8,9 @@ use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreO
 use sp1_primitives::io::SP1PublicValues;
 use sp1_stark::{
     air::MachineAir,
-    prover::{AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore},
+    prover::{
+        AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore, ZerocheckAir,
+    },
     BabyBearPoseidon2, Machine, MachineProof, MachineVerifier, MachineVerifierConfigError,
     ShardVerifier, VerifierConstraintFolder,
 };
@@ -26,9 +28,9 @@ use super::prove_core;
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
 pub async fn run_test_with_machine<
     A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
-        + std::fmt::Debug
+        + Debug
         + Air<SymbolicAirBuilder<BabyBear>>
-        + sp1_stark::prover::ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
         + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
 >(
     program: Program,
@@ -89,9 +91,9 @@ pub async fn run_test(
 #[allow(unused_variables)]
 pub async fn run_test_core<
     A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
-        + std::fmt::Debug
+        + Debug
         + Air<SymbolicAirBuilder<BabyBear>>
-        + sp1_stark::prover::ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
         + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
 >(
     runtime: Executor<'static>,

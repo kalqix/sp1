@@ -191,7 +191,7 @@ where
 {
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (_, cycles) = prove_core_stream::<F, PC, A>(
+    let (_, cycles) = prove_core_stream::<_, PC, _>(
         verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
     )
     .await

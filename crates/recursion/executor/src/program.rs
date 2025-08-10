@@ -78,9 +78,7 @@ impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
     }
 
     fn from_elf(_: &[u8]) -> Result<Self, String> {
-        unreachable!(
-            "RecursionProgram does not support from_elf, use RecursionProgram::try_new instead"
-        )
+        unreachable!("RecursionProgram does not support from_elf")
     }
 }
 
