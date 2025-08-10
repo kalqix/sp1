@@ -62,7 +62,6 @@ fn main() {
 #[allow(clippy::print_stdout)]
 #[allow(clippy::uninlined_format_args)]
 fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
-    // We do not include apcs here, since this is used to compile one of the original riscv chip.
     let machine = RiscvAir::<F>::machine();
     let chip =
         machine.chips().iter().find(|c| c.name() == chip_name).cloned().unwrap_or_else(|| {
@@ -132,7 +131,6 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
 #[allow(clippy::uninlined_format_args)]
 fn compile_operation(chip_name: &str, operation_name: &str, output_format: &OutputFormat) {
     // Step 1: Compile the chip normally to register all operations
-    // We do not include apcs here, since this is used to compile one of the original riscv chip.
     let machine = RiscvAir::<F>::machine();
     let air = machine
         .chips()
