@@ -12,7 +12,6 @@ use slop_futures::handle::TaskHandle;
 use slop_jagged::JaggedConfig;
 use slop_merkle_tree::my_bb_16_perm;
 use sp1_core_executor::SP1RecursionProof;
-use sp1_core_machine::riscv::RiscvAir;
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::{
     basefold::{
@@ -35,7 +34,7 @@ use sp1_recursion_circuit::{
     BabyBearFriConfigVariable, CircuitConfig, WrapConfig as CircuitWrapConfig,
 };
 use sp1_recursion_compiler::{
-    circuit::{AsmCompiler, AsmConfig},
+    circuit::AsmCompiler,
     config::InnerConfig,
     ir::{Builder, DslIrProgram},
 };
@@ -127,7 +126,7 @@ pub struct SP1RecursionProver<C: SP1ProverComponents> {
 impl<C: SP1ProverComponents> SP1RecursionProver<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air:
-        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+        for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     pub async fn new(
         core_verifier: ShardVerifier<

@@ -11,6 +11,8 @@ use std::{
 };
 // use tokio::sync::Mutex;
 
+use derive_where::derive_where;
+
 use hashbrown::HashSet;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -21,7 +23,7 @@ use slop_jagged::JaggedConfig;
 use sp1_core_executor::{ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
 use sp1_core_machine::{
     bytes::columns::NUM_BYTE_PREPROCESSED_COLS, program::NUM_PROGRAM_PREPROCESSED_COLS,
-    range::columns::NUM_RANGE_PREPROCESSED_COLS, riscv::RiscvAir,
+    range::columns::NUM_RANGE_PREPROCESSED_COLS,
 };
 use sp1_recursion_circuit::{
     dummy::{dummy_shard_proof, dummy_vk},
@@ -67,6 +69,7 @@ pub const DEFAULT_ARITY: usize = 4;
 
 /// The shape of the "normalize" program, which proves the correct execution for the verifier of a
 /// single core shard proof.
+#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SP1NormalizeInputShape<A: MachineAir<BabyBear>> {
     pub proof_shapes: Vec<CoreProofShape<BabyBear, A>>,
     pub max_log_row_count: usize,
@@ -74,32 +77,7 @@ pub struct SP1NormalizeInputShape<A: MachineAir<BabyBear>> {
     pub log_stacking_height: usize,
 }
 
-impl<A: MachineAir<BabyBear>> std::hash::Hash for SP1NormalizeInputShape<A> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> PartialEq for SP1NormalizeInputShape<A> {
-    fn eq(&self, other: &Self) -> bool {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> Eq for SP1NormalizeInputShape<A> {}
-
-impl<A: MachineAir<BabyBear>> PartialOrd for SP1NormalizeInputShape<A> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> Ord for SP1NormalizeInputShape<A> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        unimplemented!()
-    }
-}
-
+#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum SP1RecursionProgramShape<A: MachineAir<BabyBear>> {
     // The program that verifies a core shard proof.
     Normalize(CoreProofShape<BabyBear, A>),
@@ -110,39 +88,6 @@ pub enum SP1RecursionProgramShape<A: MachineAir<BabyBear>> {
     // The shrink program that verifies the the root of the recursion tree.
     Shrink,
 }
-
-impl<A: MachineAir<BabyBear>> Clone for SP1RecursionProgramShape<A> {
-    fn clone(&self) -> Self {
-        match self {
-            SP1RecursionProgramShape::Normalize(shape) => {
-                SP1RecursionProgramShape::Normalize(shape.clone())
-            }
-            SP1RecursionProgramShape::Compose(arity) => SP1RecursionProgramShape::Compose(*arity),
-            SP1RecursionProgramShape::Deferred => SP1RecursionProgramShape::Deferred,
-            SP1RecursionProgramShape::Shrink => SP1RecursionProgramShape::Shrink,
-        }
-    }
-}
-
-impl<A: MachineAir<BabyBear>> std::fmt::Debug for SP1RecursionProgramShape<A> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> std::hash::Hash for SP1RecursionProgramShape<A> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> PartialEq for SP1RecursionProgramShape<A> {
-    fn eq(&self, other: &Self) -> bool {
-        unimplemented!()
-    }
-}
-
-impl<A: MachineAir<BabyBear>> Eq for SP1RecursionProgramShape<A> {}
 
 #[derive(Debug, Error)]
 pub enum VkBuildError {
@@ -373,14 +318,12 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     prover: Arc<SP1Prover<C>>,
 ) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>)
 where
-    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
-        sp1_stark::air::MachineAir<BabyBear>
-            + for<'b> slop_air::Air<
-                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                    'b,
-                    sp1_recursion_compiler::config::InnerConfig,
-                >,
-            >,
+    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air: for<'b> slop_air::Air<
+        sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+            'b,
+            sp1_recursion_compiler::config::InnerConfig,
+        >,
+    >,
 {
     if dummy {
         let dummy_set = dummy_vk_map(&prover).into_keys().collect::<BTreeSet<_>>();
@@ -609,7 +552,7 @@ where
     }
     for (i, shape) in subset_shapes {
         if panic_indices.contains(&i) {
-            // tracing::info!("panic shape {}: {:?}", i, shape);
+            tracing::info!("panic shape {}: {:?}", i, shape);
         }
     }
 
@@ -760,7 +703,7 @@ mod tests {
     #[allow(clippy::ignore_without_reason)]
     async fn test_max_arity() {
         setup_logger();
-        let prover = SP1ProverBuilder::default().build().await;
+        let prover = SP1ProverBuilder::new().build().await;
         // arity 3:
         // let shape = [
         //     (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 154816),
@@ -902,7 +845,7 @@ mod tests {
     async fn test_core_shape_fit() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover = SP1ProverBuilder::default().build().await;
+        let prover = SP1ProverBuilder::new().build().await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
         let machine = RiscvAir::<BabyBear>::machine_without_apcs();
@@ -934,7 +877,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_vk_map() {
         setup_logger();
-        let prover = SP1ProverBuilder::default().build().await;
+        let prover = SP1ProverBuilder::new().build().await;
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, program, vk) = prover.core().setup(&elf).await;
@@ -966,7 +909,7 @@ mod tests {
         }
 
         // Build the vk map that includes all of the proof shapes in the proof.
-        let prover = Arc::new(SP1ProverBuilder::default().build().await);
+        let prover = Arc::new(SP1ProverBuilder::new().build().await);
 
         let shape_indices =
             shape_indices.into_iter().chain(shapes.len() - 12..shapes.len()).collect::<Vec<_>>();
@@ -988,10 +931,8 @@ mod tests {
         tracing::info!("Built vk map with {} shapes", shape_indices_len);
 
         // Build a new prover that performs the vk verification check using the built vk map.
-        let prover = SP1ProverBuilder::default()
-            .with_vk_map_path("../../../vk_map.bin".into())
-            .build()
-            .await;
+        let prover =
+            SP1ProverBuilder::new().with_vk_map_path("../../../vk_map.bin".into()).build().await;
 
         tracing::info!("Rebuilt prover with vk map.");
 

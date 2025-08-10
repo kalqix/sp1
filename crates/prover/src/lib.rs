@@ -24,13 +24,13 @@ pub mod utils;
 pub mod verify;
 
 use core::SP1CoreProver;
-use powdr_autoprecompiles::adapter::AdapterApc;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use slop_air::Air;
 use sp1_core_executor::Program;
-use sp1_core_machine::{autoprecompiles::adapter::Sp1ApcAdapter, riscv::RiscvAir};
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
+use sp1_recursion_compiler::config::InnerConfig;
 use std::{collections::BTreeMap, sync::Arc};
 
 use slop_baby_bear::BabyBear;
@@ -107,14 +107,8 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
 
 impl<C: SP1ProverComponents> SP1ProverBuilder<C>
 where
-    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
-        sp1_stark::air::MachineAir<BabyBear>
-            + for<'b> slop_air::Air<
-                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                    'b,
-                    sp1_recursion_compiler::config::InnerConfig,
-                >,
-            >,
+    <C::CoreComponents as MachineProverComponents>::Air:
+        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new_multi_permits(

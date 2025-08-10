@@ -77,7 +77,7 @@ impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
         SepticDigest::<F>::zero()
     }
 
-    fn from_elf(elf: &[u8]) -> Result<Self, String> {
+    fn from_elf(_: &[u8]) -> Result<Self, String> {
         unreachable!(
             "RecursionProgram does not support from_elf, use RecursionProgram::try_new instead"
         )

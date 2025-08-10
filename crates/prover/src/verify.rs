@@ -11,7 +11,9 @@ use slop_algebra::{AbstractField, PrimeField, PrimeField64};
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::{subproof::SubproofVerifier, SP1RecursionProof};
 use sp1_primitives::io::{blake3_hash, SP1PublicValues};
-use sp1_recursion_circuit::machine::RootPublicValues;
+use sp1_recursion_circuit::{
+    machine::RootPublicValues, zerocheck::RecursiveVerifierConstraintFolder,
+};
 use sp1_recursion_executor::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
@@ -52,8 +54,9 @@ bn254 proof"
 
 impl<C: SP1ProverComponents> SP1Prover<C>
 where
-    <C::CoreComponents as MachineProverComponents>::Air:
-        for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, C>>,
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
+            RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
+        > + for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
 {
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
     /// shards are contiguous and complete.
@@ -587,7 +590,12 @@ use crate::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
 };
 
-impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C> {
+impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
+            RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
+        > + for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+{
     fn verify_deferred_proof(
         &self,
         proof: &sp1_core_machine::recursion::SP1RecursionProof<InnerSC>,

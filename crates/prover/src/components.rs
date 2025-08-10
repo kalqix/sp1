@@ -1,15 +1,8 @@
-use std::sync::Arc;
-
-use powdr_autoprecompiles::adapter::AdapterApc;
-use slop_baby_bear::BabyBear;
 use slop_jagged::{
     JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents,
     Poseidon2Bn254JaggedCpuProverComponents,
 };
-use sp1_core_machine::{
-    autoprecompiles::adapter::Sp1ApcAdapter,
-    riscv::{RiscvAir, RiscvAirWithApcs},
-};
+use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_recursion_circuit::machine::InnerVal;
 use sp1_stark::{
     prover::{CpuMachineProverComponents, MachineProverComponents},

@@ -8,8 +8,8 @@ use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
 use slop_futures::queue::WorkerQueue;
 use sp1_core_executor::{
-    subproof::SubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
-    Program, SP1Context, SP1CoreOpts, SP1RecursionProof,
+    subproof::SubproofVerifier, ExecutionError, ExecutionReport, Executor, Program, SP1Context,
+    SP1CoreOpts, SP1RecursionProof,
 };
 use sp1_core_machine::{
     executor::{MachineExecutor, MachineExecutorBuilder},
@@ -27,7 +27,7 @@ use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
 use sp1_stark::{
-    prover::{MachineProverError, MachineProvingKey, Record},
+    prover::{MachineProverComponents, MachineProverError, MachineProvingKey, Record},
     BabyBearPoseidon2, MachineVerifierConfigError, MachineVerifyingKey, ShardProof,
 };
 use std::{
@@ -109,14 +109,12 @@ pub struct LocalProver<C: SP1ProverComponents> {
 
 impl<C: SP1ProverComponents> LocalProver<C>
 where
-    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
-        sp1_stark::air::MachineAir<BabyBear>
-            + for<'b> slop_air::Air<
-                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                    'b,
-                    sp1_recursion_compiler::config::InnerConfig,
-                >,
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
+            sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                'b,
+                sp1_recursion_compiler::config::InnerConfig,
             >,
+        > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
 {
     pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
         let records_task_capacity =
@@ -707,7 +705,15 @@ where
     }
 }
 
-impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C> {
+impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
+            sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                'b,
+                sp1_recursion_compiler::config::InnerConfig,
+            >,
+        > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+{
     fn verify_deferred_proof(
         &self,
         proof: &SP1RecursionProof<BabyBearPoseidon2>,
@@ -1046,7 +1052,7 @@ pub mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::default()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
             .without_vk_verification()
             .build()
             .await;
@@ -1068,7 +1074,7 @@ pub mod tests {
     async fn test_deferred_compress() -> Result<()> {
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::default()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
             .without_vk_verification()
             .build()
             .await;
