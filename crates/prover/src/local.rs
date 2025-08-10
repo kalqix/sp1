@@ -963,7 +963,17 @@ pub mod tests {
         elf: &[u8],
         stdin: SP1Stdin,
         test_kind: Test,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
+                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
+                    'b,
+                    sp1_recursion_compiler::config::InnerConfig,
+                >,
+            > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+        <C::CoreComponents as MachineProverComponents>::Air:
+            sp1_stark::air::MachineAir<<CoreSC as slop_jagged::JaggedConfig>::F, Program = Program>,
+    {
         let (pk, program, vk) = prover
             .prover()
             .core()

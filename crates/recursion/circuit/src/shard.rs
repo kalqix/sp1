@@ -512,7 +512,7 @@ mod tests {
         let log_blowup = 1;
         let log_stacking_height = 21;
         let max_log_row_count = 22;
-        let machine = RiscvAir::machine_without_apcs();
+        let machine = RiscvAir::machine();
         let verifier = ShardVerifier::from_basefold_parameters(
             log_blowup,
             log_stacking_height,

@@ -365,7 +365,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
 impl SP1ProverBuilder<CpuSP1ProverComponents> {
     pub fn new() -> Self {
-        let machine = RiscvAir::<BabyBear>::machine_without_apcs();
+        let machine = RiscvAir::<BabyBear>::machine();
         let cpu_ram_gb = sysinfo::System::new_all().total_memory() / (1024 * 1024 * 1024);
         let num_workers = match cpu_ram_gb {
             0..33 => 1,

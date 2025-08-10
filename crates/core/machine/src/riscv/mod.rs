@@ -320,7 +320,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub fn machine_without_apcs() -> Machine<F, RiscvAir<F>> {
+    pub fn machine() -> Machine<F, RiscvAir<F>> {
         // Self::machine_with_apcs(vec![])
         unimplemented!()
     }

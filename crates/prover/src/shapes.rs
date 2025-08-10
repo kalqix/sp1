@@ -14,7 +14,6 @@ use std::{
 use derive_where::derive_where;
 
 use hashbrown::HashSet;
-use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use slop_air::BaseAir;
 use slop_algebra::AbstractField;
@@ -125,8 +124,9 @@ impl<A: MachineAir<BabyBear>> SP1NormalizeInputShape<A> {
     }
 }
 
+type LruCache<A> = lru::LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<BabyBear>>>;
 pub struct SP1NormalizeCache<A: MachineAir<BabyBear>> {
-    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<BabyBear>>>>>,
+    lru: Arc<Mutex<LruCache<A>>>,
     total_calls: AtomicUsize,
     hits: AtomicUsize,
 }
@@ -848,7 +848,7 @@ mod tests {
         let prover = SP1ProverBuilder::new().build().await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
-        let machine = RiscvAir::<BabyBear>::machine_without_apcs();
+        let machine = RiscvAir::<BabyBear>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
 

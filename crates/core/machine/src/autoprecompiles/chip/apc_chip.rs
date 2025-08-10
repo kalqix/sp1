@@ -48,7 +48,7 @@ pub struct ApcChip<F: PrimeField32> {
 
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<AdapterApc<Sp1ApcAdapter>>, id: usize) -> Self {
-        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine_without_apcs() }
+        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
     }
 
     pub fn apc(&self) -> &Arc<AdapterApc<Sp1ApcAdapter>> {
