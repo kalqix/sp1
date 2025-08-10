@@ -508,7 +508,6 @@ mod tests {
     #[tokio::test]
     async fn test_verify_shard() {
         setup_logger();
-        let apcs = vec![];
         let log_blowup = 1;
         let log_stacking_height = 21;
         let max_log_row_count = 22;
@@ -543,7 +542,7 @@ mod tests {
             SP1Stdin::default(),
             SP1CoreOpts::default(),
             SP1Context::default(),
-            apcs,
+            machine.clone(),
         )
         .await
         .unwrap();

@@ -1,4 +1,3 @@
-use powdr_autoprecompiles::adapter::AdapterApc;
 use std::{
     borrow::Borrow,
     collections::BTreeMap,
@@ -8,9 +7,7 @@ use std::{
 };
 use tokio::sync::mpsc::{self, Receiver, Sender, UnboundedSender};
 
-use crate::{
-    autoprecompiles::adapter::Sp1ApcAdapter, executor::MachineExecutorBuilder, riscv::RiscvAir,
-};
+use crate::{executor::MachineExecutorBuilder, riscv::RiscvAir};
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
@@ -185,7 +182,7 @@ pub async fn prove_core<F, PC, A>(
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
-    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    machine: Machine<F, A>,
 ) -> Result<(MachineProof<PC::Config>, u64), SP1CoreProverError>
 where
     A: MachineAir<F, Record = ExecutionRecord>,
@@ -195,7 +192,7 @@ where
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let (_, cycles) = prove_core_stream::<F, PC, A>(
-        verifier, prover, pk, program, stdin, opts, context, proof_tx, apcs,
+        verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
     )
     .await
     .unwrap();
@@ -223,7 +220,7 @@ pub(crate) async fn prove_core_stream<F, PC, A>(
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
     proof_tx: UnboundedSender<ShardProof<PC::Config>>,
-    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+    machine: Machine<F, A>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     A: MachineAir<F, Record = ExecutionRecord>,
@@ -236,7 +233,7 @@ where
     let (records_tx, mut records_rx) = mpsc::channel::<ExecutionRecord>(num_record_workers);
 
     let machine_executor =
-        MachineExecutorBuilder::<F>::new(opts.clone(), num_record_workers, apcs).build();
+        MachineExecutorBuilder::new(opts.clone(), num_record_workers, machine).build();
 
     let prover_permits = ProverSemaphore::new(opts.shard_batch_size);
     let prover = MachineProverBuilder::<PC>::new(verifier, vec![prover_permits], vec![prover])

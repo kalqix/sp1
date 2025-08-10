@@ -882,7 +882,8 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, program, vk) = prover.core().setup(&elf).await;
 
-        let local_prover = Arc::new(LocalProver::new(prover, Default::default()));
+        let local_prover =
+            Arc::new(LocalProver::new(prover, Default::default(), RiscvAir::machine()));
 
         let pk = unsafe { pk.into_inner() };
 
@@ -936,7 +937,8 @@ mod tests {
 
         tracing::info!("Rebuilt prover with vk map.");
 
-        let local_prover = Arc::new(LocalProver::new(prover, Default::default()));
+        let local_prover =
+            Arc::new(LocalProver::new(prover, Default::default(), RiscvAir::machine()));
 
         local_prover.prover().verify(&proof.proof, &vk).expect("Failed to verify proof");
 

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use prove::CpuProveBuilder;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 use sp1_primitives::Elf;
 use sp1_prover::{
     components::CpuSP1ProverComponents,
@@ -109,7 +109,7 @@ impl CpuProver {
     pub async fn new() -> Self {
         let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new().build().await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(prover, opts));
+        let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
 
         Self { prover }
     }

@@ -4,7 +4,7 @@ use itertools::Itertools;
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1ShapedWitnessValues, SP1WrapVerifier},
@@ -160,7 +160,7 @@ pub async fn dummy_proof() -> (MachineVerifyingKey<OuterSC>, ShardProof<OuterSC>
 
     tracing::info!("initializing prover");
     let prover = SP1ProverBuilder::new().build().await;
-    let local_prover = LocalProver::new(prover, LocalProverOpts::default());
+    let local_prover = LocalProver::new(prover, LocalProverOpts::default(), RiscvAir::machine());
     let prover = std::sync::Arc::new(local_prover);
 
     tracing::info!("setup elf");

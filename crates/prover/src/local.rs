@@ -116,14 +116,17 @@ where
             >,
         > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
 {
-    pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
+    pub fn new(
+        prover: SP1Prover<C>,
+        opts: LocalProverOpts,
+        machine: sp1_stark::Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air>,
+    ) -> Self {
         let records_task_capacity =
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
         let prover_task_capacity =
             prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        // TODO: Hopefully we're not using this because apcs are not used here
         let executor =
-            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, vec![]).build();
+            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, machine).build();
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -930,6 +933,7 @@ struct ProveTask<C: SP1ProverComponents> {
 #[cfg(all(test, feature = "unsound"))]
 pub mod tests {
     use sp1_core_executor::RetainedEventsPreset;
+    use sp1_core_machine::riscv::RiscvAir;
     use tracing::Instrument;
 
     use slop_algebra::PrimeField32;
@@ -1073,7 +1077,7 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
 
         test_e2e_prover::<CpuSP1ProverComponents>(prover, &elf, SP1Stdin::default(), Test::OnChain)
             .await
@@ -1089,7 +1093,7 @@ pub mod tests {
             .build()
             .await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;
