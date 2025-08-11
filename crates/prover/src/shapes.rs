@@ -15,7 +15,7 @@ use derive_where::derive_where;
 
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use slop_air::BaseAir;
+use slop_air::{Air, BaseAir};
 use slop_algebra::AbstractField;
 use slop_baby_bear::BabyBear;
 use slop_jagged::JaggedConfig;
@@ -30,7 +30,9 @@ use sp1_recursion_circuit::{
         SP1CompressWithVKeyWitnessValues, SP1MerkleProofWitnessValues, SP1NormalizeWitnessValues,
         SP1ShapedWitnessValues,
     },
+    zerocheck::RecursiveVerifierConstraintFolder,
 };
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{shape::RecursionShape, RecursionProgram, DIGEST_SIZE};
 use sp1_recursion_machine::chips::{
     alu_base::BaseAluChip,
@@ -285,14 +287,8 @@ impl SP1RecursionProofShape {
     #[allow(dead_code)]
     async fn max_arity<C: SP1ProverComponents>(&self, prover: &SP1RecursionProver<C>) -> usize
     where
-        <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
-            sp1_stark::air::MachineAir<BabyBear>
-                + for<'b> slop_air::Air<
-                    sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                        'b,
-                        sp1_recursion_compiler::config::InnerConfig,
-                    >,
-                >,
+        <C::CoreComponents as MachineProverComponents>::Air: MachineAir<BabyBear>
+            + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
     {
         let mut arity = 0;
         for possible_arity in 1.. {
@@ -318,12 +314,8 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     prover: Arc<SP1Prover<C>>,
 ) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>)
 where
-    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air: for<'b> slop_air::Air<
-        sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-            'b,
-            sp1_recursion_compiler::config::InnerConfig,
-        >,
-    >,
+    <C::CoreComponents as MachineProverComponents>::Air:
+        for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     if dummy {
         let dummy_set = dummy_vk_map(&prover).into_keys().collect::<BTreeSet<_>>();
@@ -569,14 +561,8 @@ pub async fn build_vk_map_to_file<C: SP1ProverComponents + 'static>(
     prover: Arc<SP1Prover<C>>,
 ) -> Result<(), VkBuildError>
 where
-    <C::CoreComponents as sp1_stark::prover::MachineProverComponents>::Air:
-        sp1_stark::air::MachineAir<BabyBear>
-            + for<'b> slop_air::Air<
-                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                    'b,
-                    sp1_recursion_compiler::config::InnerConfig,
-                >,
-            >,
+    <C::CoreComponents as MachineProverComponents>::Air: MachineAir<BabyBear>
+        + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     // Create the build directory if it doesn't exist.
     std::fs::create_dir_all(&build_dir)?;
