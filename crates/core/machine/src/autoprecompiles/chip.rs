@@ -219,6 +219,16 @@ where
             builder.assert_zero(e);
         }
 
+        for interaction in &self.cached_apc.apc.machine().bus_interactions {
+            let powdr_autoprecompiles::SymbolicBusInteraction { id, mult, args, .. } = interaction;
+
+            let mult = witness_evaluator.eval_expr(mult);
+            let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+
+            // TODO: parse different kinds of bus interactions (by id/args?) and then invoke the
+            // corresponding SP1 API for adding bus interactions.
+        }
+
         // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30` fails
         let col = main.row_slice(0);
         let col: &AB::Var = col[0].borrow();
