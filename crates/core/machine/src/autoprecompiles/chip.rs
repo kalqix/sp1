@@ -1,34 +1,72 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use itertools::Itertools;
+use powdr_autoprecompiles::adapter::AdapterApc;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ApcEvent, ExecutionRecord, Program};
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    Machine,
+};
 
-use crate::utils::pad_rows_fixed;
+use crate::{
+    autoprecompiles::{
+        adapter::Sp1ApcAdapter,
+        instruction_handler::{try_instruction_type_to_air_id, InstructionType},
+    },
+    riscv::RiscvAir,
+    utils::pad_rows_fixed,
+};
 
-#[derive(Default)]
-pub struct ApcChip<const APC_ID: u64, F: PrimeField32> {
-    _marker: std::marker::PhantomData<F>,
+#[derive(Debug)]
+struct CachedApc {
+    /// The APC
+    apc: Arc<AdapterApc<Sp1ApcAdapter>>,
+    /// The cached width of the APC.
+    width: usize,
 }
 
-impl<const APC_ID: u64, F: PrimeField32> ApcChip<APC_ID, F> {
-    fn event_to_row(&self, _: &ApcEvent, row: &mut [F; 1]) {
-        row[0] = F::one();
+impl From<Arc<AdapterApc<Sp1ApcAdapter>>> for CachedApc {
+    fn from(apc: Arc<AdapterApc<Sp1ApcAdapter>>) -> Self {
+        let width = apc.machine.main_columns().count();
+        Self { apc, width }
     }
 }
 
-const NUM_APC_COLS: usize = 1; // TODO: Adjust this based on the actual number of columns needed for APC
+#[derive(Debug)]
+pub struct ApcChip<F: PrimeField32> {
+    /// The ID of the APC.
+    id: u64,
+    /// The cached APC.
+    cached_apc: CachedApc,
+    /// A machine to generate traces for the APC.
+    machine: Machine<F, RiscvAir<F>>,
+}
 
-impl<const APC_ID: u64, F: PrimeField32> BaseAir<F> for ApcChip<APC_ID, F> {
+impl<F: PrimeField32> ApcChip<F> {
+    pub fn new(apc: Arc<AdapterApc<Sp1ApcAdapter>>, id: usize) -> Self {
+        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
+    }
+
+    pub fn apc(&self) -> &Arc<AdapterApc<Sp1ApcAdapter>> {
+        &self.cached_apc.apc
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+}
+
+impl<F: PrimeField32> BaseAir<F> for ApcChip<F> {
     fn width(&self) -> usize {
-        NUM_APC_COLS
+        self.cached_apc.width
     }
 }
 
-impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
+impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     // this may have to be changed
     type Record = ExecutionRecord;
 
@@ -39,39 +77,97 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        Some(input.get_apc_events(APC_ID).len())
+        Some(input.get_apc_events(self.id).len())
     }
 
-    fn generate_trace(
-        &self,
-        input: &Self::Record,
-        _: &mut Self::Record,
-    ) -> slop_matrix::dense::RowMajorMatrix<F> {
+    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Get all events for the given APC ID
-        let events = input.get_apc_events(APC_ID);
+        let events = input.get_apc_events(self.id);
         // Turn each event into a row
+        // TODO: can we do this for all events at the same time? Basically combine all events into a
+        // single record, and run trace generation for that?
         let mut rows = events
             .par_iter()
             .map(|event| {
-                assert!(event.id == APC_ID, "APC ID mismatch");
-                let mut row = [F::zero(); NUM_APC_COLS];
-                self.event_to_row(event, &mut row);
+                assert!(event.id == self.id, "APC ID mismatch");
+                let airs = self.machine.chips().to_vec();
+
+                // Generate traces for each included air in parallel
+                let chips_and_traces = airs
+                    .into_par_iter()
+                    .filter(|air| air.included(&event.record))
+                    .map(|air| {
+                        let trace = air.generate_trace(&event.record, &mut Default::default());
+                        (air, trace)
+                    })
+                    .collect::<BTreeMap<_, _>>();
+
+                // Create iterators over the rows of the traces
+                let mut iterators = chips_and_traces
+                    .iter()
+                    .map(|(chip, trace)| (chip.air.id(), trace.rows()))
+                    .collect::<BTreeMap<_, _>>();
+
+                // Create a row for the APC
+                let mut row = vec![F::zero(); self.width()];
+
+                // Go through the original instructions of the APC and map the relevant rows to the APC row
+                let original_instructions = self.apc().block.statements.iter().map(|instr| instr.0);
+
+                // mapping from poly_id to contiguous index in apc
+                let apc_poly_id_to_index = self.apc()
+                    .machine
+                    .main_columns()
+                    .enumerate()
+                    .map(|(index, c)| (c.id, index))
+                    .collect::<BTreeMap<_, _>>();
+
+                for (original_instruction, sub) in original_instructions.zip_eq(&self.apc().subs) {
+                    // Get the air ID for the instruction
+                    let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
+                        .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
+                    tracing::error!("Processing air_id: {air_id:?}");
+                    // Get the next row for this air ID
+                    let original_row = iterators
+                        .get_mut(&air_id)
+                        .and_then(|iter| iter.next())
+                        .unwrap_or_else(|| {
+                            panic!("No row found for air ID: {air_id:?}");
+                        });
+                    tracing::error!("Original row: {original_row:?}");
+                    // Map the row to the APC row. TODO: use the mapping returned by apc generation.
+                    for (i, value) in original_row.enumerate() {
+                        // get poly_id from sub
+                        let poly_id = sub.get(i).expect("Not in dummy");
+                        // get index in apc from poly_id
+                        if let Some(index) = apc_poly_id_to_index.get(poly_id) {
+                            tracing::error!("Setting row[{index}] to {value:?}");
+                            row[*index] = value;
+                        } else {
+                            tracing::error!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                        }
+                    }
+                }
+
+                tracing::error!("Final row: {row:?}");
+
                 row
             })
             .collect::<Vec<_>>();
 
         pad_rows_fixed(
             &mut rows,
-            || [F::zero(); NUM_APC_COLS],
+            || vec![F::zero(); self.width()],
             input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_APC_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
-        // APC dependencies are not implemented yet.
+        // TODO: here we should probably only generate the dependencies which were not optimised
+        // away in the APC
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -83,7 +179,7 @@ impl<const APC_ID: u64, F: PrimeField32> MachineAir<F> for ApcChip<APC_ID, F> {
     }
 }
 
-impl<const APC_ID: u64, AB: SP1AirBuilder + PairBuilder> Air<AB> for ApcChip<APC_ID, AB::F>
+impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ApcChip<AB::F>
 where
     AB::F: PrimeField32,
 {

@@ -533,6 +533,7 @@ mod tests {
                 slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
                 RiscvAir<BabyBear>,
             >,
+            RiscvAir<BabyBear>,
         >(
             verifier.clone(),
             prover,
@@ -541,6 +542,7 @@ mod tests {
             SP1Stdin::default(),
             SP1CoreOpts::default(),
             SP1Context::default(),
+            machine.clone(),
         )
         .await
         .unwrap();

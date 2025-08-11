@@ -120,7 +120,7 @@ pub struct Executor<'a> {
     pub shard_batch_size: u32,
 
     /// The APCs that are available for this execution.
-    apcs: Apcs<'a>,
+    pub apcs: Apcs<'a>,
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 

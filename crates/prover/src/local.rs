@@ -3,13 +3,14 @@ use futures::{
     prelude::*,
     stream::{FuturesOrdered, FuturesUnordered},
 };
+use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
 use slop_futures::queue::WorkerQueue;
 use sp1_core_executor::{
-    subproof::SubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
-    Program, SP1Context, SP1CoreOpts, SP1RecursionProof,
+    subproof::SubproofVerifier, ExecutionError, ExecutionReport, Executor, Program, SP1Context,
+    SP1CoreOpts, SP1RecursionProof,
 };
 use sp1_core_machine::{
     executor::{MachineExecutor, MachineExecutorBuilder},
@@ -20,15 +21,18 @@ use sp1_recursion_circuit::{
     machine::{SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1ShapedWitnessValues},
     utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
     witness::{OuterWitness, Witnessable},
+    zerocheck::RecursiveVerifierConstraintFolder,
     InnerSC,
 };
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{ExecutionRecord as RecursionRecord, RecursionPublicValues};
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
 use sp1_stark::{
-    prover::{MachineProverError, MachineProvingKey},
+    prover::{MachineProverComponents, MachineProverError, MachineProvingKey, Record},
     BabyBearPoseidon2, MachineVerifierConfigError, MachineVerifyingKey, ShardProof,
+    VerifierConstraintFolder,
 };
 use std::{
     borrow::Borrow,
@@ -107,13 +111,22 @@ pub struct LocalProver<C: SP1ProverComponents> {
     num_recursion_executors: usize,
 }
 
-impl<C: SP1ProverComponents> LocalProver<C> {
-    pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
+impl<C: SP1ProverComponents> LocalProver<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
+{
+    pub fn new(
+        prover: SP1Prover<C>,
+        opts: LocalProverOpts,
+        machine: sp1_stark::Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air>,
+    ) -> Self {
         let records_task_capacity =
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
         let prover_task_capacity =
             prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        let executor = MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers).build();
+        let executor =
+            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, machine).build();
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -190,7 +203,7 @@ impl<C: SP1ProverComponents> LocalProver<C> {
         context.subproof_verifier = Some(Arc::new(self.clone()));
 
         let (records_tx, mut records_rx) =
-            mpsc::channel::<ExecutionRecord>(self.records_task_capacity);
+            mpsc::channel::<Record<C::CoreComponents>>(self.records_task_capacity);
 
         let prover = self.clone();
 
@@ -695,7 +708,11 @@ impl<C: SP1ProverComponents> LocalProver<C> {
     }
 }
 
-impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C> {
+impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
+{
     fn verify_deferred_proof(
         &self,
         proof: &SP1RecursionProof<BabyBearPoseidon2>,
@@ -911,7 +928,10 @@ struct ProveTask<C: SP1ProverComponents> {
 
 #[cfg(all(test, feature = "unsound"))]
 pub mod tests {
+    use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
+    use sp1_core_machine::riscv::RiscvAir;
+    use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
     use slop_algebra::PrimeField32;
@@ -945,7 +965,13 @@ pub mod tests {
         elf: &[u8],
         stdin: SP1Stdin,
         test_kind: Test,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+            + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
+        <C::CoreComponents as MachineProverComponents>::Air:
+            MachineAir<<CoreSC as JaggedConfig>::F, Program = Program>,
+    {
         let (pk, program, vk) = prover
             .prover()
             .core()
@@ -1045,7 +1071,7 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
 
         test_e2e_prover::<CpuSP1ProverComponents>(prover, &elf, SP1Stdin::default(), Test::OnChain)
             .await
@@ -1061,7 +1087,7 @@ pub mod tests {
             .build()
             .await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

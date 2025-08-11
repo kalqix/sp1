@@ -76,6 +76,10 @@ impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
     fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
         SepticDigest::<F>::zero()
     }
+
+    fn from_elf(_: &[u8]) -> Result<Self, String> {
+        unreachable!("RecursionProgram does not support from_elf")
+    }
 }
 
 #[cfg(any(test, feature = "program_validation"))]

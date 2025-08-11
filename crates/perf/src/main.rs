@@ -6,6 +6,7 @@ use std::{
 
 use clap::{command, Parser};
 use sp1_core_executor::Program;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver;
 use sp1_prover::{
     local::{LocalProver, LocalProverOpts},
@@ -81,7 +82,7 @@ async fn main() {
         SP1ProverBuilder::<CpuSP1ProverComponents>::new().without_vk_verification().build().await;
 
     let opts = LocalProverOpts::default();
-    let prover = Arc::new(LocalProver::new(prover, opts));
+    let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
 
     let (pk, _, vk) = prover.prover().core().setup(&elf).await;
     let pk = unsafe { pk.into_inner() };

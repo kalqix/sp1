@@ -10,7 +10,7 @@ use crate::{
 use itertools::Itertools;
 use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{Opcode, RiscvAirId};
+use sp1_core_executor::{Opcode, Register, RiscvAirId};
 use sp1_stark::air::MachineAir;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -19,6 +19,16 @@ pub enum InstructionType {
     NonLoadX0(Opcode),
     /// A load instruction that is a load to x0.
     LoadX0,
+}
+
+impl From<sp1_core_executor::Instruction> for InstructionType {
+    fn from(instruction: sp1_core_executor::Instruction) -> Self {
+        if is_load_opcode(instruction.opcode) && instruction.op_a == Register::X0 as u8 {
+            InstructionType::LoadX0
+        } else {
+            InstructionType::NonLoadX0(instruction.opcode)
+        }
+    }
 }
 
 #[derive(Default)]
@@ -84,13 +94,7 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
         &self,
         instruction: &Sp1Instruction,
     ) -> Option<&(SymbolicMachine<F>, AirStats)> {
-        let instruction_type = if is_load_opcode(instruction.0.opcode)
-            && instruction.0.op_a == sp1_core_executor::Register::X0 as u8
-        {
-            InstructionType::LoadX0
-        } else {
-            InstructionType::NonLoadX0(instruction.0.opcode)
-        };
+        let instruction_type = InstructionType::from(instruction.0);
 
         let idx = self.instruction_to_air_idx.get(&instruction_type)?;
         Some(&self.airs[*idx])
@@ -109,7 +113,7 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
 }
 
 fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
-    // Instruction -> AIR mapping inspired from:
+    // AIR -> Opcode mapping inspired from:
     // https://github.com/succinctlabs/sp1-wip/blob/1ec34e044ead850ed90deb1b66771eb0cfc8dc7e/crates/core/executor/src/executor.rs#L2552
     match air_id {
         RiscvAirId::Add => vec![Opcode::ADD],
@@ -162,6 +166,52 @@ fn air_id_to_opcodes(air_id: RiscvAirId) -> Vec<Opcode> {
     }
 }
 
+pub fn try_instruction_type_to_air_id(instruction_type: InstructionType) -> Option<RiscvAirId> {
+    match instruction_type {
+        InstructionType::NonLoadX0(opcode) => match opcode {
+            Opcode::ADD => Some(RiscvAirId::Add),
+            Opcode::ADDI => Some(RiscvAirId::Addi),
+            Opcode::SUB => Some(RiscvAirId::Sub),
+            Opcode::XOR | Opcode::OR | Opcode::AND => Some(RiscvAirId::Bitwise),
+            Opcode::SLL | Opcode::SLLW => Some(RiscvAirId::ShiftLeft),
+            Opcode::SRL | Opcode::SRA | Opcode::SRLW | Opcode::SRAW => Some(RiscvAirId::ShiftRight),
+            Opcode::SLT | Opcode::SLTU => Some(RiscvAirId::Lt),
+            Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU | Opcode::MULW => {
+                Some(RiscvAirId::Mul)
+            }
+            Opcode::DIV
+            | Opcode::DIVU
+            | Opcode::REM
+            | Opcode::REMU
+            | Opcode::DIVW
+            | Opcode::DIVUW
+            | Opcode::REMW
+            | Opcode::REMUW => Some(RiscvAirId::DivRem),
+            Opcode::LB | Opcode::LBU => Some(RiscvAirId::LoadByte),
+            Opcode::LH | Opcode::LHU => Some(RiscvAirId::LoadHalf),
+            Opcode::LW | Opcode::LWU => Some(RiscvAirId::LoadWord),
+            Opcode::LD => Some(RiscvAirId::LoadDouble),
+            Opcode::SB => Some(RiscvAirId::StoreByte),
+            Opcode::SH => Some(RiscvAirId::StoreHalf),
+            Opcode::SW => Some(RiscvAirId::StoreWord),
+            Opcode::SD => Some(RiscvAirId::StoreDouble),
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+                Some(RiscvAirId::Branch)
+            }
+            Opcode::JAL => Some(RiscvAirId::Jal),
+            Opcode::JALR => Some(RiscvAirId::Jalr),
+            Opcode::AUIPC | Opcode::LUI => Some(RiscvAirId::UType),
+            Opcode::ECALL => None,
+            Opcode::EBREAK => None,
+            Opcode::ADDW => Some(RiscvAirId::Addw),
+            Opcode::SUBW => Some(RiscvAirId::Subw),
+            Opcode::UNIMP => None,
+            Opcode::APC => None,
+        },
+        InstructionType::LoadX0 => Some(RiscvAirId::LoadX0),
+    }
+}
+
 fn is_load_opcode(opcode: Opcode) -> bool {
     matches!(
         opcode,
@@ -195,5 +245,26 @@ impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHa
                 | Opcode::JAL
                 | Opcode::JALR
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    #[test]
+    fn air_id_to_opcode_to_air_id() {
+        for air_id in RiscvAirId::iter() {
+            let instruction_types = if air_id == RiscvAirId::LoadX0 {
+                vec![InstructionType::LoadX0]
+            } else {
+                air_id_to_opcodes(air_id).into_iter().map(InstructionType::NonLoadX0).collect_vec()
+            };
+            for instruction_type in instruction_types {
+                assert_eq!(try_instruction_type_to_air_id(instruction_type), Some(air_id));
+            }
+        }
     }
 }

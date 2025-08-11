@@ -814,7 +814,7 @@ pub struct CoreProofShape<F: Field, A: MachineAir<F>> {
 impl<F, A> Debug for CoreProofShape<F, A>
 where
     F: Field + Debug,
-    A: MachineAir<F> + Debug,
+    A: MachineAir<F>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProofShape")

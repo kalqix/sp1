@@ -1,11 +1,18 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
+use slop_air::Air;
+use slop_algebra::extension::BinomialExtensionField;
 use slop_baby_bear::BabyBear;
-use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
+use slop_uni_stark::SymbolicAirBuilder;
+use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_primitives::io::SP1PublicValues;
 use sp1_stark::{
-    prover::{AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore},
-    BabyBearPoseidon2, MachineProof, MachineVerifier, MachineVerifierConfigError, ShardVerifier,
+    air::MachineAir,
+    prover::{
+        AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore, ZerocheckAir,
+    },
+    BabyBearPoseidon2, Machine, MachineProof, MachineVerifier, MachineVerifierConfigError,
+    ShardVerifier, VerifierConstraintFolder,
 };
 use tracing::Instrument;
 
@@ -19,17 +26,31 @@ use super::prove_core;
 //     Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
-pub async fn run_test(
+pub async fn run_test_with_machine<
+    A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<BabyBear>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
+>(
     program: Program,
     inputs: SP1Stdin,
+    machine: Machine<BabyBear, A>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
     let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let _ = run_test_core(runtime, inputs).await?;
+    let _ = run_test_core(runtime, inputs, machine).await?;
     Ok(public_values)
+}
+
+pub async fn run_test(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    run_test_with_machine(program, inputs, RiscvAir::machine()).await
 }
 
 // pub fn run_malicious_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
@@ -68,14 +89,20 @@ pub async fn run_test(
 // }
 
 #[allow(unused_variables)]
-pub async fn run_test_core(
+pub async fn run_test_core<
+    A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<BabyBear>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
+>(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
+    machine: Machine<BabyBear, A>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerifierConfigError<BabyBearPoseidon2>> {
     let log_blowup = 1;
     let log_stacking_height = 21;
     let max_log_row_count = 22;
-    let machine = RiscvAir::machine();
     slop_futures::rayon::spawn(move || {
         let x = 1;
     });
@@ -83,7 +110,7 @@ pub async fn run_test_core(
         log_blowup,
         log_stacking_height,
         max_log_row_count,
-        machine,
+        machine.clone(),
     );
     let prover = CpuShardProver::<slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents, _>::new(
         verifier.clone(),
@@ -97,10 +124,8 @@ pub async fn run_test_core(
     let challenger = verifier.pcs_verifier.challenger();
     let (proof, _) = prove_core::<
         BabyBear,
-        CpuMachineProverComponents<
-            slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
-            RiscvAir<BabyBear>,
-        >,
+        CpuMachineProverComponents<slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents, A>,
+        A,
     >(
         verifier.clone(),
         Arc::new(prover),
@@ -109,6 +134,7 @@ pub async fn run_test_core(
         inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
+        machine,
     )
     .instrument(tracing::debug_span!("prove core"))
     .await

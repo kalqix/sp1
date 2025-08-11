@@ -12,12 +12,15 @@ use sp1_core_executor::{
     subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport,
     ExecutionState, Executor, Program, SP1Context, SP1CoreOpts,
 };
-use sp1_stark::{air::PublicValues, Machine, MachineRecord};
+use sp1_stark::{
+    air::{MachineAir, PublicValues},
+    Machine, MachineRecord,
+};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tracing::Span;
 
-use crate::{io::SP1Stdin, riscv::RiscvAir, utils::concurrency::TurnBasedSync};
+use crate::{io::SP1Stdin, utils::concurrency::TurnBasedSync};
 
 pub struct MachineExecutor<F: PrimeField32> {
     task_tx: mpsc::UnboundedSender<ExecuteTask>,
@@ -45,8 +48,8 @@ impl<F: PrimeField32> MachineExecutor<F> {
     }
 }
 
-pub struct MachineExecutorBuilder<F: PrimeField32> {
-    machine: Machine<F, RiscvAir<F>>,
+pub struct MachineExecutorBuilder<F: PrimeField32, A: MachineAir<F>> {
+    machine: Machine<F, A>,
     num_record_workers: usize,
     opts: SP1CoreOpts,
 }
@@ -138,10 +141,8 @@ pub fn trace_checkpoint(
     (records, runtime.report)
 }
 
-impl<F: PrimeField32> MachineExecutorBuilder<F> {
-    pub fn new(opts: SP1CoreOpts, num_record_workers: usize) -> Self {
-        let machine = RiscvAir::machine();
-
+impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecutorBuilder<F, A> {
+    pub fn new(opts: SP1CoreOpts, num_record_workers: usize, machine: Machine<F, A>) -> Self {
         Self { machine, num_record_workers, opts }
     }
 

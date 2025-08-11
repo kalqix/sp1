@@ -26,16 +26,24 @@ pub mod verify;
 use core::SP1CoreProver;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
+use slop_air::Air;
 use sp1_core_executor::Program;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
+use sp1_recursion_compiler::config::InnerConfig;
 use std::{collections::BTreeMap, sync::Arc};
 
 use slop_baby_bear::BabyBear;
 
 use sp1_recursion_executor::RecursionProgram;
-use sp1_stark::prover::{CpuShardProver, MachineProverBuilder, ProverSemaphore};
+use sp1_stark::{
+    air::MachineAir,
+    prover::{CpuShardProver, MachineProverBuilder, ProverSemaphore},
+    Machine,
+};
 
 use slop_jagged::Bn254JaggedConfig;
-use sp1_stark::BabyBearPoseidon2;
+use sp1_stark::{prover::MachineProverComponents, BabyBearPoseidon2};
 
 pub use types::*;
 
@@ -89,12 +97,19 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
     wrap_prover_builder: MachineProverBuilder<C::WrapComponents>,
     normalize_programs_cache_size: usize,
     maximum_compose_arity: usize,
-    normalize_programs: BTreeMap<SP1NormalizeInputShape, Arc<RecursionProgram<BabyBear>>>,
+    normalize_programs: BTreeMap<
+        SP1NormalizeInputShape<<C::CoreComponents as MachineProverComponents>::Air>,
+        Arc<RecursionProgram<BabyBear>>,
+    >,
     vk_verification: bool,
     vk_map_path: Option<String>,
 }
 
-impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
+impl<C: SP1ProverComponents> SP1ProverBuilder<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air:
+        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+{
     #[allow(clippy::too_many_arguments)]
     pub fn new_multi_permits(
         base_core_provers: Vec<Arc<CoreProver<C>>>,
@@ -111,8 +126,12 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
         nums_wrap_workers: Vec<usize>,
         normalize_programs_cache_size: usize,
         max_compose_arity: usize,
+        machine: Machine<
+            <C::CoreComponents as MachineProverComponents>::F,
+            <C::CoreComponents as MachineProverComponents>::Air,
+        >,
     ) -> Self {
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(machine);
         let core_prover_builder = MachineProverBuilder::new(
             core_verifier.shard_verifier().clone(),
             core_prover_permits,
@@ -175,6 +194,10 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
         num_wrap_workers: usize,
         normalize_programs_cache_size: usize,
         maximum_compose_arity: usize,
+        machine: Machine<
+            <C::CoreComponents as MachineProverComponents>::F,
+            <C::CoreComponents as MachineProverComponents>::Air,
+        >,
     ) -> Self {
         Self::new_multi_permits(
             vec![Arc::new(core_prover)],
@@ -191,6 +214,7 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
             vec![num_wrap_workers],
             normalize_programs_cache_size,
             maximum_compose_arity,
+            machine,
         )
     }
 
@@ -257,7 +281,12 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
 
     pub fn with_normalize_programs(
         &mut self,
-        normalize_programs: BTreeMap<SP1NormalizeInputShape, Arc<RecursionProgram<BabyBear>>>,
+        normalize_programs: BTreeMap<
+            SP1NormalizeInputShape<
+                <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
+            >,
+            Arc<RecursionProgram<BabyBear>>,
+        >,
     ) -> &mut Self {
         self.normalize_programs = normalize_programs;
         self
@@ -265,7 +294,9 @@ impl<C: SP1ProverComponents> SP1ProverBuilder<C> {
 
     pub fn insert_normalize_program(
         &mut self,
-        shape: SP1NormalizeInputShape,
+        shape: SP1NormalizeInputShape<
+            <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
+        >,
         program: Arc<RecursionProgram<BabyBear>>,
     ) -> &mut Self {
         self.normalize_programs.insert(shape, program);
@@ -334,6 +365,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
 impl SP1ProverBuilder<CpuSP1ProverComponents> {
     pub fn new() -> Self {
+        let machine = RiscvAir::<BabyBear>::machine();
         let cpu_ram_gb = sysinfo::System::new_all().total_memory() / (1024 * 1024 * 1024);
         let num_workers = match cpu_ram_gb {
             0..33 => 1,
@@ -345,7 +377,7 @@ impl SP1ProverBuilder<CpuSP1ProverComponents> {
 
         let prover_permits = ProverSemaphore::new(num_workers);
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier();
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
         let cpu_shard_prover = CpuShardProver::new(core_verifier.shard_verifier().clone());
 
         let compress_verifier = CpuSP1ProverComponents::compress_verifier();
@@ -379,6 +411,7 @@ impl SP1ProverBuilder<CpuSP1ProverComponents> {
             num_wrap_workers,
             normalize_programs_cache_size,
             max_compose_arity,
+            machine,
         )
     }
 }

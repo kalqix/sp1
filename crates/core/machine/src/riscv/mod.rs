@@ -1,8 +1,9 @@
+use powdr_autoprecompiles::adapter::AdapterApc;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
 use core::fmt;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -17,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::chip::ApcChip,
+    autoprecompiles::{adapter::Sp1ApcAdapter, chip::ApcChip},
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -223,10 +224,6 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
-    /// A precompile for the first APC.
-    Apc0(ApcChip<0, F>),
-    /// A precompile for the second APC.
-    Apc1(ApcChip<1, F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -234,7 +231,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 67] {
+    pub fn airs() -> [RiscvAir<F>; 65] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -314,8 +311,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
-            RiscvAir::Apc0(ApcChip::default()),
-            RiscvAir::Apc1(ApcChip::default()),
         ]
     }
 
@@ -412,10 +407,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 StateBump,
                 MemoryLocal,
                 Global,
-                Apc0,
-                Apc1, /* TODO: check that the APCs actually belong in the core cluster. They are
-                       * here because putting them in the autoprecompiles cluster leads to
-                       * `smallest_cluster` failing. */
             ],
         );
 
@@ -929,9 +920,222 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
-            RiscvAirDiscriminants::Apc0 => RiscvAirId::Apc0,
-            RiscvAirDiscriminants::Apc1 => RiscvAirId::Apc1,
         }
+    }
+}
+
+#[derive(sp1_derive::MachineAir, Debug)]
+pub enum RiscvAirWithApcs<F: PrimeField32> {
+    Riscv(RiscvAir<F>),
+    Apc(ApcChip<F>),
+}
+
+impl<F: PrimeField32> RiscvAirWithApcs<F> {
+    pub fn machine(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Machine<F, Self> {
+        let apcs_len = apcs.len();
+
+        use RiscvAirDiscriminants::*;
+
+        let chips = RiscvAir::airs()
+            .into_iter()
+            .map(RiscvAirWithApcs::Riscv)
+            .chain(
+                apcs.into_iter()
+                    .enumerate()
+                    .map(|(i, apc)| ApcChip::new(apc, i as usize))
+                    .map(RiscvAirWithApcs::Apc),
+            )
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+
+        #[derive(PartialEq, Eq, Hash, Clone, Debug, PartialOrd, Ord)]
+        enum RiscvAirWithApcDiscriminants {
+            Riscv(RiscvAirDiscriminants),
+            Apc(u64),
+        }
+
+        impl From<RiscvAirDiscriminants> for RiscvAirWithApcDiscriminants {
+            fn from(d: RiscvAirDiscriminants) -> Self {
+                RiscvAirWithApcDiscriminants::Riscv(d)
+            }
+        }
+
+        let chips_map = chips
+            .iter()
+            .map(|c| {
+                (
+                    match c.air.as_ref() {
+                        RiscvAirWithApcs::Riscv(ref d) => {
+                            RiscvAirWithApcDiscriminants::Riscv(d.into())
+                        }
+                        RiscvAirWithApcs::Apc(ref apc) => {
+                            RiscvAirWithApcDiscriminants::Apc(apc.id() as u64)
+                        }
+                    },
+                    c,
+                )
+            })
+            .collect::<HashMap<RiscvAirWithApcDiscriminants, &Chip<F, RiscvAirWithApcs<F>>>>();
+        // Check that we listed all chips.
+        assert_eq!(chips_map.len(), RiscvAirDiscriminants::iter().len() + apcs_len);
+        assert_eq!(chips_map.len(), chips.len());
+
+        // Now that the chips are prepared, we can define clusters in terms of IDs.
+
+        fn extend_base<T: Clone + Ord, U: Into<T>>(
+            base: &BTreeSet<T>,
+            elts: impl IntoIterator<Item = U>,
+        ) -> BTreeSet<T> {
+            let mut base = base.to_owned();
+            base.extend(elts.into_iter().map(Into::into));
+            base
+        }
+
+        let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
+
+        let base_precompile_cluster =
+            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+
+        let precompile_clusters = [
+            [Sha256Extend, Sha256ExtendControl].as_slice(),
+            [Sha256Compress, Sha256CompressControl].as_slice(),
+            [Ed25519Add].as_slice(),
+            [Ed25519Decompress].as_slice(),
+            [K256Decompress].as_slice(),
+            [Secp256k1Add].as_slice(),
+            [Secp256k1Double].as_slice(),
+            [P256Decompress].as_slice(),
+            [Secp256r1Add].as_slice(),
+            [Secp256r1Double].as_slice(),
+            [KeccakP, KeccakPControl].as_slice(),
+            [Bn254Add].as_slice(),
+            [Bn254Double].as_slice(),
+            [Bls12381Add].as_slice(),
+            [Bls12381Double].as_slice(),
+            [Uint256Mul].as_slice(),
+            [Uint256Ops].as_slice(),
+            [U256x2048Mul].as_slice(),
+            [Bls12381Fp].as_slice(),
+            [Bls12381Fp2AddSub].as_slice(),
+            [Bls12381Fp2Mul].as_slice(),
+            [Bn254Fp].as_slice(),
+            [Bn254Fp2AddSub].as_slice(),
+            [Bn254Fp2Mul].as_slice(),
+            [Bls12381Decompress].as_slice(),
+            [Poseidon2].as_slice(),
+        ]
+        .into_iter()
+        .map(|ids| extend_base(&base_precompile_cluster, ids.iter().cloned()));
+
+        let core_cluster = extend_base(
+            &preprocessed_chips,
+            [
+                SyscallCore,
+                DivRem,
+                Add,
+                Addi,
+                Addw,
+                Sub,
+                Subw,
+                Bitwise,
+                Mul,
+                ShiftRight,
+                ShiftLeft,
+                Lt,
+                LoadByte,
+                LoadHalf,
+                LoadWord,
+                LoadDouble,
+                LoadX0,
+                StoreByte,
+                StoreHalf,
+                StoreWord,
+                StoreDouble,
+                UType,
+                Branch,
+                Jal,
+                Jalr,
+                SyscallInstrs,
+                MemoryBump,
+                StateBump,
+                MemoryLocal,
+                Global,
+            ],
+        )
+        .into_iter()
+        .map(RiscvAirWithApcDiscriminants::Riscv)
+        .chain((0..apcs_len).map(|i| RiscvAirWithApcDiscriminants::Apc(i as u64)))
+        .collect::<BTreeSet<_>>();
+
+        let memory_boundary_cluster =
+            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+
+        // Chip sets that may be included in extended versions of the baseline core cluster.
+        let core_cluster_exts = [
+            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
+            [Bls12381Fp].as_slice(),
+            [Bn254Fp].as_slice(),
+            [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
+            [Uint256Ops].as_slice(),
+            [Poseidon2].as_slice(),
+        ];
+
+        // These extended clusters support the AIR retainment setting in SP1Context.
+        // Given E extensions, we include:
+        // - the base core cluster (E choose 0);
+        // - a core cluster with a single extension (E choose 1);
+        // - the core cluster with all extensions (E choose E).
+        let core_clusters = [0, 1, core_cluster_exts.len()]
+            .into_iter()
+            .flat_map(|k| core_cluster_exts.into_iter().combinations(k))
+            .map(|ext_set| extend_base(&core_cluster, ext_set.into_iter().flatten().cloned()));
+
+        let core_cluster = extend_base(
+            &core_cluster,
+            [
+                MemoryGlobalInit,
+                MemoryGlobalFinal,
+                Sha256Extend,
+                Sha256ExtendControl,
+                Sha256Compress,
+                Sha256CompressControl,
+                Uint256Ops,
+            ],
+        )
+        .into_iter()
+        .chain((0..apcs_len as u64).map(RiscvAirWithApcDiscriminants::Apc))
+        .collect::<BTreeSet<_>>();
+
+        // Collect all clusters and replace the IDs by chips.
+        let chip_clusters = core_clusters
+            .chain(core::iter::once(extend_base(
+                &core_cluster,
+                [
+                    MemoryGlobalInit,
+                    MemoryGlobalFinal,
+                    Sha256Extend,
+                    Sha256ExtendControl,
+                    Sha256Compress,
+                    Sha256CompressControl,
+                    Uint256Ops,
+                ],
+            )))
+            .chain(core::iter::once(memory_boundary_cluster).chain(precompile_clusters).map(
+                |ids| {
+                    ids.into_iter().map(RiscvAirWithApcDiscriminants::from).collect::<BTreeSet<_>>()
+                },
+            ))
+            .map(|ids: BTreeSet<RiscvAirWithApcDiscriminants>| {
+                ids.into_iter().map(|id| chips_map[&id].clone()).collect()
+            })
+            .collect::<Vec<_>>();
+
+        // Stop borrowing `chips`.
+        drop(chips_map);
+
+        let shape = MachineShape::new(chip_clusters);
+
+        Machine::new(chips, SP1_PROOF_NUM_PV_ELTS, shape)
     }
 }
 
@@ -941,10 +1145,16 @@ pub mod tests {
     use slop_air::BaseAir;
     use slop_baby_bear::BabyBear;
     use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_primitives::io::SP1PublicValues;
 
-    use crate::{programs::tests::*, riscv::RiscvAir, utils::setup_logger};
+    use crate::{
+        autoprecompiles::create_apcs,
+        programs::tests::*,
+        riscv::{RiscvAir, RiscvAirWithApcs},
+        utils::setup_logger,
+    };
     use sp1_core_executor::add_halt;
-    use sp1_stark::InteractionKind;
+    use sp1_stark::{BabyBearPoseidon2, InteractionKind, MachineVerifierConfigError};
     //     use slop_baby_bear::BabyBear;
     //     use sp1_core_executor::{Instruction, Opcode, Program, SP1Context};
     //     use sp1_stark::{
@@ -961,6 +1171,13 @@ pub mod tests {
     //         assert_eq!(a.name(), b.to_string());
     //     }
     // }
+
+    async fn run_test(
+        program: Program,
+        stdin: SP1Stdin,
+    ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+        crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
+    }
 
     use hashbrown::HashMap;
     #[test]
@@ -987,7 +1204,7 @@ pub mod tests {
         serde_json::to_writer_pretty(file, &costs).unwrap();
     }
 
-    use crate::{io::SP1Stdin, utils::run_test};
+    use crate::io::SP1Stdin;
 
     #[tokio::test]
     async fn test_simple_prove() {
@@ -1093,9 +1310,17 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
         ];
         add_halt(&mut instructions);
-        let program = Program::new(instructions, 0, 0).with_apcs(&[(0, 2), (3, 5)]);
+        let apc_ranges = vec![(0, 2), (3, 5)];
+        let program = Program::new(instructions, 0, 0);
+        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
+        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
+        // instead of passing them here to `run_test_with_apcs`
+        let apcs = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(&apc_ranges);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
+            .await
+            .unwrap();
     }
 
     #[test]

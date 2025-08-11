@@ -3,12 +3,12 @@ use std::sync::Arc;
 use slop_baby_bear::BabyBear;
 use slop_futures::handle::TaskHandle;
 use slop_jagged::JaggedConfig;
-use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_executor::{ExecutionRecord, HEIGHT_THRESHOLD};
 use sp1_stark::{
+    air::{MachineAir, MachineProgram},
     prover::{
         CoreProofShape, MachineProver, MachineProverComponents, MachineProverError,
-        MachineProvingKey, PreprocessedData,
+        MachineProvingKey, PreprocessedData, Record,
     },
     Machine, MachineVerifier, MachineVerifyingKey, ShardProof, ShardVerifier,
 };
@@ -32,24 +32,24 @@ pub trait CoreProverComponents:
     MachineProverComponents<
     Config = CoreSC,
     F = <CoreSC as JaggedConfig>::F,
-    Air = RiscvAir<<CoreSC as JaggedConfig>::F>,
+    Air: MachineAir<<CoreSC as JaggedConfig>::F, Record = ExecutionRecord>,
 >
 {
     /// The default verifier for the core prover.
     ///
     /// Thew verifier fixes the parameters of the underlying proof system.
-    fn verifier() -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
+    fn verifier(
+        machine: Machine<<CoreSC as JaggedConfig>::F, Self::Air>,
+    ) -> MachineVerifier<CoreSC, Self::Air> {
         let core_log_blowup = CORE_LOG_BLOWUP;
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
-
-        let machine = RiscvAir::machine();
 
         let core_verifier = ShardVerifier::from_basefold_parameters(
             core_log_blowup,
             core_log_stacking_height,
             core_max_log_row_count,
-            machine.clone(),
+            machine,
         );
 
         MachineVerifier::new(core_verifier)
@@ -60,7 +60,7 @@ impl<C> CoreProverComponents for C where
     C: MachineProverComponents<
         Config = CoreSC,
         F = <CoreSC as JaggedConfig>::F,
-        Air = RiscvAir<<CoreSC as JaggedConfig>::F>,
+        Air: MachineAir<<CoreSC as JaggedConfig>::F, Record = ExecutionRecord>,
     >
 {
 }
@@ -79,7 +79,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
         self.prover.num_workers()
     }
 
-    pub fn machine(&self) -> &Machine<C::F, RiscvAir<C::F>> {
+    pub fn machine(&self) -> &Machine<C::F, C::Air> {
         self.prover.machine()
     }
 
@@ -88,17 +88,24 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     pub async fn setup(
         &self,
         elf: &[u8],
-    ) -> (PreprocessedData<MachineProvingKey<C>>, Arc<Program>, SP1VerifyingKey) {
-        let program = Program::from(elf).unwrap();
-        let (pk, vk) = self.prover.setup(Arc::new(program.clone()), None).await.unwrap();
-        (pk, Arc::new(program), SP1VerifyingKey { vk })
+    ) -> (
+        PreprocessedData<MachineProvingKey<C>>,
+        Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
+        SP1VerifyingKey,
+    ) {
+        let program =
+            <<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program::from_elf(elf)
+                .unwrap();
+        let program = Arc::new(program);
+        let (pk, vk) = self.prover.setup(program.clone(), None).await.unwrap();
+        (pk, program, SP1VerifyingKey { vk })
     }
 
     /// Setup the core prover with a vk already known.
     #[must_use]
     pub async fn setup_with_vk(
         &self,
-        program: Arc<Program>,
+        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
         vk: SP1VerifyingKey,
     ) -> PreprocessedData<MachineProvingKey<C>> {
         let (pk, _) = self.prover.setup(program, Some(vk.vk)).await.unwrap();
@@ -112,12 +119,12 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     pub fn prove_shard(
         &self,
         pk: Arc<MachineProvingKey<C>>,
-        record: ExecutionRecord,
+        record: Record<C>,
     ) -> TaskHandle<ShardProof<CoreSC>, MachineProverError> {
         self.prover.prove_shard(pk.clone(), record)
     }
 
-    pub fn verifier(&self) -> &MachineVerifier<C::Config, RiscvAir<C::F>> {
+    pub fn verifier(&self) -> &MachineVerifier<C::Config, C::Air> {
         self.prover.verifier()
     }
 
@@ -129,7 +136,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     #[must_use]
     pub fn setup_and_prove_shard(
         &self,
-        program: Arc<Program>,
+        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
         vk: Option<SP1VerifyingKey>,
         record: ExecutionRecord,
     ) -> TaskHandle<(MachineVerifyingKey<CoreSC>, ShardProof<CoreSC>), MachineProverError> {
@@ -140,7 +147,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     #[inline]
     pub fn core_shape_from_record(
         &self,
-        record: &ExecutionRecord,
+        record: &Record<C>,
     ) -> Option<CoreProofShape<C::F, C::Air>> {
         self.prover.shape_from_record(record)
     }
@@ -149,7 +156,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     pub fn normalize_input_shape(
         &self,
         record: &ExecutionRecord,
-    ) -> Result<SP1NormalizeInputShape, RecursionProgramError> {
+    ) -> Result<SP1NormalizeInputShape<C::Air>, RecursionProgramError> {
         let proof_shape = self
             .prover
             .shape_from_record(record)

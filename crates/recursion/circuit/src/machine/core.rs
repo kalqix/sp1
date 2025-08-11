@@ -18,7 +18,7 @@ use sp1_core_machine::{
 };
 
 use sp1_recursion_executor::PV_DIGEST_NUM_WORDS;
-use sp1_stark::air::{PublicValues, POSEIDON_NUM_WORDS};
+use sp1_stark::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS};
 
 use sp1_stark::{MachineConfig, MachineVerifyingKey, ShardProof};
 
@@ -96,15 +96,16 @@ pub struct SP1NormalizeWitnessValues<SC: MachineConfig> {
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
-pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig, JC: RecursiveJaggedConfig> {
-    _phantom: PhantomData<(C, SC, JC)>,
+pub struct SP1RecursiveVerifier<A, C: Config, SC: BabyBearFriConfig, JC: RecursiveJaggedConfig> {
+    _phantom: PhantomData<(A, C, SC, JC)>,
 }
 
 type InnerVal = <InnerSC as JaggedConfig>::F;
 type InnerChallenge = <InnerSC as JaggedConfig>::EF;
 
-impl<C, SC, JC> SP1RecursiveVerifier<C, SC, JC>
+impl<A, C, SC, JC> SP1RecursiveVerifier<A, C, SC, JC>
 where
+    A: MachineAir<<SC as JaggedConfig>::F> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
     SC: BabyBearFriConfigVariable<
             C,
             FriChallengerVariable = DuplexChallengerVariable<C>,
@@ -154,7 +155,7 @@ where
     /// as the one witnessed here.
     pub fn verify(
         builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<RiscvAir<<SC as JaggedConfig>::F>, SC, C, JC>,
+        machine: &RecursiveShardVerifier<A, SC, C, JC>,
         input: SP1RecursionWitnessVariable<C, SC, JC>,
     ) where
         RiscvAir<<SC as JaggedConfig>::F>: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,

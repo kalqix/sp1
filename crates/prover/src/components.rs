@@ -1,13 +1,12 @@
-use slop_baby_bear::BabyBear;
 use slop_jagged::{
     JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents,
     Poseidon2Bn254JaggedCpuProverComponents,
 };
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_recursion_circuit::machine::InnerVal;
 use sp1_stark::{
     prover::{CpuMachineProverComponents, MachineProverComponents},
-    MachineVerifier,
+    Machine, MachineVerifier,
 };
 
 use crate::{
@@ -34,8 +33,13 @@ pub trait SP1ProverComponents: Send + Sync + 'static {
     type RecursionComponents: RecursionProverComponents;
     type WrapComponents: WrapProverComponents;
 
-    fn core_verifier() -> MachineVerifier<CoreSC, RiscvAir<BabyBear>> {
-        <Self::CoreComponents as CoreProverComponents>::verifier()
+    fn core_verifier(
+        machine: Machine<
+            <CoreSC as JaggedConfig>::F,
+            <Self::CoreComponents as MachineProverComponents>::Air,
+        >,
+    ) -> MachineVerifier<CoreSC, <Self::CoreComponents as MachineProverComponents>::Air> {
+        <Self::CoreComponents as CoreProverComponents>::verifier(machine)
     }
 
     fn compress_verifier() -> MachineVerifier<InnerSC, CompressAir<InnerVal>> {
@@ -59,6 +63,23 @@ impl SP1ProverComponents for CpuSP1ProverComponents {
     type CoreComponents = CpuMachineProverComponents<
         Poseidon2BabyBearJaggedCpuProverComponents,
         RiscvAir<<CoreSC as JaggedConfig>::F>,
+    >;
+    type RecursionComponents = CpuMachineProverComponents<
+        Poseidon2BabyBearJaggedCpuProverComponents,
+        CompressAir<<InnerSC as JaggedConfig>::F>,
+    >;
+    type WrapComponents = CpuMachineProverComponents<
+        Poseidon2Bn254JaggedCpuProverComponents,
+        WrapAir<<OuterSC as JaggedConfig>::F>,
+    >;
+}
+
+pub struct CpuSP1ApcProverComponents;
+
+impl SP1ProverComponents for CpuSP1ApcProverComponents {
+    type CoreComponents = CpuMachineProverComponents<
+        Poseidon2BabyBearJaggedCpuProverComponents,
+        RiscvAirWithApcs<<CoreSC as JaggedConfig>::F>,
     >;
     type RecursionComponents = CpuMachineProverComponents<
         Poseidon2BabyBearJaggedCpuProverComponents,
