@@ -3,6 +3,7 @@ use futures::{
     prelude::*,
     stream::{FuturesOrdered, FuturesUnordered},
 };
+use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
@@ -20,8 +21,10 @@ use sp1_recursion_circuit::{
     machine::{SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1ShapedWitnessValues},
     utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
     witness::{OuterWitness, Witnessable},
+    zerocheck::RecursiveVerifierConstraintFolder,
     InnerSC,
 };
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{ExecutionRecord as RecursionRecord, RecursionPublicValues};
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
@@ -29,6 +32,7 @@ use sp1_recursion_gnark_ffi::{
 use sp1_stark::{
     prover::{MachineProverComponents, MachineProverError, MachineProvingKey, Record},
     BabyBearPoseidon2, MachineVerifierConfigError, MachineVerifyingKey, ShardProof,
+    VerifierConstraintFolder,
 };
 use std::{
     borrow::Borrow,
@@ -109,12 +113,8 @@ pub struct LocalProver<C: SP1ProverComponents> {
 
 impl<C: SP1ProverComponents> LocalProver<C>
 where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
-            sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                'b,
-                sp1_recursion_compiler::config::InnerConfig,
-            >,
-        > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     pub fn new(
         prover: SP1Prover<C>,
@@ -710,12 +710,8 @@ where
 
 impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C>
 where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
-            sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                'b,
-                sp1_recursion_compiler::config::InnerConfig,
-            >,
-        > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     fn verify_deferred_proof(
         &self,
@@ -932,8 +928,10 @@ struct ProveTask<C: SP1ProverComponents> {
 
 #[cfg(all(test, feature = "unsound"))]
 pub mod tests {
+    use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
     use sp1_core_machine::riscv::RiscvAir;
+    use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
     use slop_algebra::PrimeField32;
@@ -969,14 +967,10 @@ pub mod tests {
         test_kind: Test,
     ) -> Result<()>
     where
-        <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<
-                sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder<
-                    'b,
-                    sp1_recursion_compiler::config::InnerConfig,
-                >,
-            > + for<'a> slop_air::Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+        <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+            + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
         <C::CoreComponents as MachineProverComponents>::Air:
-            sp1_stark::air::MachineAir<<CoreSC as slop_jagged::JaggedConfig>::F, Program = Program>,
+            MachineAir<<CoreSC as JaggedConfig>::F, Program = Program>,
     {
         let (pk, program, vk) = prover
             .prover()

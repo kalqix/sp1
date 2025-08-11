@@ -1283,6 +1283,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dissimilar"
+version = "1.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8975ffdaa0ef3661bfe02dbdcc06c9f829dfafe6a3c474de366a8d5e44276921"
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1433,6 +1439,16 @@ dependencies = [
  "futures-core",
  "nom",
  "pin-project-lite",
+]
+
+[[package]]
+name = "expect-test"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63af43ff4431e848fb47472a920f14fa71c24de13255a5692e93d4e90302acb0"
+dependencies = [
+ "dissimilar",
+ "once_cell",
 ]
 
 [[package]]
@@ -3439,7 +3455,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "itertools 0.13.0",
  "log",
@@ -3459,7 +3475,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "auto_enums",
  "bitvec",
@@ -3473,7 +3489,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
@@ -3486,12 +3502,12 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -3514,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "gimli",
  "goblin 0.8.2",
@@ -3531,7 +3547,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -3539,7 +3555,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=abb72c8#abb72c85814def0efd40b23ef9dbf5eed46cfab1"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=71d821c#71d821c42763b743bb6239cb74c1f29d233bc75e"
 
 [[package]]
 name = "powerfmt"
@@ -5115,6 +5131,7 @@ dependencies = [
  "cargo_metadata",
  "cfg-if",
  "clap",
+ "expect-test",
  "eyre",
  "futures",
  "generic-array 1.1.0",
