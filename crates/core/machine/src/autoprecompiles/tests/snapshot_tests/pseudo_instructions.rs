@@ -10,6 +10,9 @@ fn assert_machine_output(basic_block: Vec<Instruction>, test_name: &str) {
     );
 }
 
+// See definition of pseudo-instructions here:
+// https://michaeljclark.github.io/asm.html
+
 #[test]
 fn test_mv() {
     setup_logger();
