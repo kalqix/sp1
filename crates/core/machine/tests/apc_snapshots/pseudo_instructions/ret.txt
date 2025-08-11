@@ -1,0 +1,51 @@
+Instructions:
+    0: jalr       %x0        %x1        0         
+
+APC advantage:
+  - Main columns: 34 -> 15 (2.27x reduction)
+  - Bus interactions: 21 -> 14 (1.50x reduction)
+  - Constraints: 25 -> 5 (5.00x reduction)
+
+Symbolic machine using 15 unique main columns:
+  state__clk_high_0
+  state__clk_16_24_0
+  state__clk_0_16_0
+  adapter__op_a_memory__access_timestamp__prev_low_0
+  adapter__op_a_memory__access_timestamp__diff_low_limb_0
+  adapter__op_b_memory__prev_value__0__0_0
+  adapter__op_b_memory__prev_value__0__1_0
+  adapter__op_b_memory__prev_value__0__2_0
+  adapter__op_b_memory__prev_value__0__3_0
+  adapter__op_b_memory__access_timestamp__prev_low_0
+  adapter__op_b_memory__access_timestamp__diff_low_limb_0
+  add_operation__value__0__0_0
+  add_operation__value__0__1_0
+  add_operation__value__0__2_0
+  is_valid
+
+// Bus 1 (MEMORY):
+mult=is_valid * 1, args=[state__clk_high_0, adapter__op_b_memory__access_timestamp__prev_low_0, 1, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0]
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 2, 1, 0, 0, adapter__op_b_memory__prev_value__0__0_0, adapter__op_b_memory__prev_value__0__1_0, adapter__op_b_memory__prev_value__0__2_0, adapter__op_b_memory__prev_value__0__3_0]
+mult=is_valid * 1, args=[state__clk_high_0, adapter__op_a_memory__access_timestamp__prev_low_0, 0, 0, 0, 0, 0, 0, 0]
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 3, 0, 0, 0, 0, 0, 0, 0]
+
+// Bus 5 (BYTE):
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0, state__clk_16_24_0 + 30720 * adapter__op_a_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_a_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 61440)]
+mult=is_valid * 1, args=[3, 0, state__clk_16_24_0 + 30720 * adapter__op_b_memory__access_timestamp__prev_low_0 + 30720 * adapter__op_b_memory__access_timestamp__diff_low_limb_0 - (30720 * state__clk_0_16_0 + 30720), 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__0_0, 16, 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__1_0, 16, 0]
+mult=is_valid * 1, args=[6, add_operation__value__0__2_0, 16, 0]
+mult=is_valid * 1, args=[6, 251658240 - 251658240 * state__clk_0_16_0, 13, 0]
+mult=is_valid * 1, args=[6, adapter__op_a_memory__access_timestamp__diff_low_limb_0, 16, 0]
+mult=is_valid * 1, args=[6, adapter__op_b_memory__access_timestamp__diff_low_limb_0, 16, 0]
+
+// Bus 7 (EXECUTION_BRIDGE):
+mult=is_valid * -1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0, 0, 0, 0]
+mult=is_valid * 1, args=[state__clk_high_0, 65536 * state__clk_16_24_0 + state__clk_0_16_0 + 8, add_operation__value__0__0_0, add_operation__value__0__1_0, add_operation__value__0__2_0]
+
+// Algebraic constraints:
+(30720 * add_operation__value__0__0_0 - 30720 * adapter__op_b_memory__prev_value__0__0_0) * (30720 * add_operation__value__0__0_0 - (30720 * adapter__op_b_memory__prev_value__0__0_0 + 1)) = 0
+(943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0)) * (943718400 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * add_operation__value__0__1_0 - (30720 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * add_operation__value__0__0_0 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0)) * (14400 * adapter__op_b_memory__prev_value__0__0_0 + 943718400 * adapter__op_b_memory__prev_value__0__1_0 + 30720 * add_operation__value__0__2_0 - (30720 * adapter__op_b_memory__prev_value__0__2_0 + 14400 * add_operation__value__0__0_0 + 943718400 * add_operation__value__0__1_0 + 1)) = 0
+(14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0)) * (14400 * adapter__op_b_memory__prev_value__0__1_0 + 943718400 * adapter__op_b_memory__prev_value__0__2_0 + 442368000 * add_operation__value__0__0_0 - (442368000 * adapter__op_b_memory__prev_value__0__0_0 + 30720 * adapter__op_b_memory__prev_value__0__3_0 + 14400 * add_operation__value__0__1_0 + 943718400 * add_operation__value__0__2_0 + 1)) = 0
+is_valid * (is_valid - 1) = 0
