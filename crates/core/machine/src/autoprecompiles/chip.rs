@@ -2,14 +2,13 @@ use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    adapter::AdapterApc,
     expression::{AlgebraicExpression, AlgebraicReference},
+    Apc,
 };
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
-use slop_baby_bear::BabyBear;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_stark::{
@@ -19,7 +18,7 @@ use sp1_stark::{
 
 use crate::{
     autoprecompiles::{
-        adapter::Sp1ApcAdapter,
+        instruction::Sp1Instruction,
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
     },
     riscv::RiscvAir,
@@ -27,15 +26,15 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct CachedApc {
+struct CachedApc<F: PrimeField32> {
     /// The APC
-    apc: Arc<AdapterApc<Sp1ApcAdapter>>,
+    apc: Arc<Apc<F, Sp1Instruction>>,
     /// The cached width of the APC.
     width: usize,
 }
 
-impl From<Arc<AdapterApc<Sp1ApcAdapter>>> for CachedApc {
-    fn from(apc: Arc<AdapterApc<Sp1ApcAdapter>>) -> Self {
+impl<F: PrimeField32> From<Arc<Apc<F, Sp1Instruction>>> for CachedApc<F> {
+    fn from(apc: Arc<Apc<F, Sp1Instruction>>) -> Self {
         let width = apc.machine.main_columns().count();
         Self { apc, width }
     }
@@ -46,7 +45,7 @@ pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
     id: u64,
     /// The cached APC.
-    cached_apc: CachedApc,
+    cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
     /// A map from poly ID to column index.
@@ -56,7 +55,7 @@ pub struct ApcChip<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> ApcChip<F> {
-    pub fn new(apc: Arc<AdapterApc<Sp1ApcAdapter>>, id: usize) -> Self {
+    pub fn new(apc: Arc<Apc<F, Sp1Instruction>>, id: usize) -> Self {
         let (column_index_by_poly_id, columns): (BTreeMap<_, _>, Vec<_>) = apc
             .machine()
             .main_columns()
@@ -73,7 +72,7 @@ impl<F: PrimeField32> ApcChip<F> {
         }
     }
 
-    pub fn apc(&self) -> &Arc<AdapterApc<Sp1ApcAdapter>> {
+    pub fn apc(&self) -> &Arc<Apc<F, Sp1Instruction>> {
         &self.cached_apc.apc
     }
 
@@ -220,10 +219,10 @@ where
         }
 
         for interaction in &self.cached_apc.apc.machine().bus_interactions {
-            let powdr_autoprecompiles::SymbolicBusInteraction { id, mult, args, .. } = interaction;
+            let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, .. } = interaction;
 
-            let mult = witness_evaluator.eval_expr(mult);
-            let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+            let _mult = witness_evaluator.eval_expr(mult);
+            let _args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
 
             // TODO: parse different kinds of bus interactions (by id/args?) and then invoke the
             // corresponding SP1 API for adding bus interactions.
@@ -247,7 +246,7 @@ impl<'a, AB: AirBuilder> WitnessEvaluator<'a, AB> {
 }
 
 impl<AB: AirBuilder> WitnessEvaluator<'_, AB> {
-    fn eval_const(&self, c: BabyBear) -> AB::Expr {
+    fn eval_const(&self, c: AB::F) -> AB::Expr {
         c.into()
     }
 
@@ -255,7 +254,7 @@ impl<AB: AirBuilder> WitnessEvaluator<'_, AB> {
         (*self.witness.get(&(symbolic_var.id as u64)).unwrap()).into()
     }
 
-    fn eval_expr(&self, algebraic_expr: &AlgebraicExpression<BabyBear>) -> AB::Expr {
+    fn eval_expr(&self, algebraic_expr: &AlgebraicExpression<AB::F>) -> AB::Expr {
         match algebraic_expr {
             AlgebraicExpression::Number(n) => self.eval_const(*n),
             AlgebraicExpression::BinaryOperation(binary) => match binary.op {
