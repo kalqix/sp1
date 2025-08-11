@@ -218,6 +218,9 @@ where
 
             let _mult = witness_evaluator.eval_expr(mult);
             let _args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+
+            // TODO: parse different kinds of bus interactions (by id/args?) and then invoke the
+            // corresponding SP1 API for adding bus interactions.
         }
 
         // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30` fails
