@@ -1298,7 +1298,6 @@ pub mod tests {
     }
 
     #[tokio::test]
-    #[should_panic = "InvalidShardProof(GkrVerificationFailed(CumulativeSumMismatch"]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![

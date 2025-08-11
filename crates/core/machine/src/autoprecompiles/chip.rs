@@ -29,14 +29,21 @@ use crate::{
 struct CachedApc<F: PrimeField32> {
     /// The APC
     apc: Arc<Apc<F, Sp1Instruction>>,
-    /// The cached width of the APC.
-    width: usize,
+    /// The cached columns of the APC.
+    columns: Vec<AlgebraicReference>,
+}
+
+impl<F: PrimeField32> CachedApc<F> {
+    /// The width of the APC.
+    pub fn width(&self) -> usize {
+        self.columns.len()
+    }
 }
 
 impl<F: PrimeField32> From<Arc<Apc<F, Sp1Instruction>>> for CachedApc<F> {
     fn from(apc: Arc<Apc<F, Sp1Instruction>>) -> Self {
-        let width = apc.machine.main_columns().count();
-        Self { apc, width }
+        let columns = apc.machine.main_columns().collect();
+        Self { apc, columns }
     }
 }
 
@@ -48,28 +55,11 @@ pub struct ApcChip<F: PrimeField32> {
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
-    /// A map from poly ID to column index.
-    column_index_by_poly_id: BTreeMap<u64, usize>,
-    /// The columns of the APC.
-    columns: Vec<AlgebraicReference>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<Apc<F, Sp1Instruction>>, id: usize) -> Self {
-        let (column_index_by_poly_id, columns): (BTreeMap<_, _>, Vec<_>) = apc
-            .machine()
-            .main_columns()
-            .enumerate()
-            .map(|(index, c)| ((c.id, index), c.clone()))
-            .unzip();
-
-        Self {
-            id: id as u64,
-            cached_apc: apc.into(),
-            machine: RiscvAir::machine(),
-            column_index_by_poly_id,
-            columns,
-        }
+        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
     }
 
     pub fn apc(&self) -> &Arc<Apc<F, Sp1Instruction>> {
@@ -83,7 +73,7 @@ impl<F: PrimeField32> ApcChip<F> {
 
 impl<F: PrimeField32> BaseAir<F> for ApcChip<F> {
     fn width(&self) -> usize {
-        self.cached_apc.width
+        self.cached_apc.width()
     }
 }
 
@@ -147,7 +137,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    tracing::error!("Processing air_id: {air_id:?}");
+                    tracing::debug!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -155,22 +145,22 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    tracing::error!("Original row: {original_row:?}");
+                    tracing::debug!("Original row: {original_row:?}");
                     // Map the row to the APC row. TODO: use the mapping returned by apc generation.
                     for (i, value) in original_row.enumerate() {
                         // get poly_id from sub
                         let poly_id = sub.get(i).expect("Not in dummy");
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            tracing::error!("Setting row[{index}] to {value:?}");
+                            tracing::debug!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            tracing::error!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
                 }
 
-                tracing::error!("Final row: {row:?}");
+                tracing::debug!("Final row: {row:?}");
 
                 row
             })
@@ -208,8 +198,13 @@ where
         let main = builder.main();
         let witnesses = main.row_slice(0);
 
-        let witness_values: BTreeMap<u64, AB::Var> =
-            self.columns.iter().map(|c| c.id).zip_eq(witnesses.iter().cloned()).collect();
+        let witness_values: BTreeMap<u64, AB::Var> = self
+            .cached_apc
+            .columns
+            .iter()
+            .map(|c| c.id)
+            .zip_eq(witnesses.iter().cloned())
+            .collect();
 
         let witness_evaluator = WitnessEvaluator::<AB>::new(&witness_values);
 
@@ -223,9 +218,6 @@ where
 
             let _mult = witness_evaluator.eval_expr(mult);
             let _args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
-
-            // TODO: parse different kinds of bus interactions (by id/args?) and then invoke the
-            // corresponding SP1 API for adding bus interactions.
         }
 
         // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30` fails
