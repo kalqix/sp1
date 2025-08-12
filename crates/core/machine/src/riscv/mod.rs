@@ -1,4 +1,4 @@
-use powdr_autoprecompiles::adapter::AdapterApc;
+use powdr_autoprecompiles::Apc;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
@@ -18,7 +18,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{adapter::Sp1ApcAdapter, chip::ApcChip},
+    autoprecompiles::{chip::ApcChip, instruction::Sp1Instruction},
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -931,7 +931,7 @@ pub enum RiscvAirWithApcs<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAirWithApcs<F> {
-    pub fn machine(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Machine<F, Self> {
+    pub fn machine(apcs: Vec<Arc<Apc<F, Sp1Instruction>>>) -> Machine<F, Self> {
         let apcs_len = apcs.len();
 
         use RiscvAirDiscriminants::*;
@@ -1298,7 +1298,6 @@ pub mod tests {
     }
 
     #[tokio::test]
-    #[should_panic = "InvalidShardProof(GkrVerificationFailed(CumulativeSumMismatch"]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![
