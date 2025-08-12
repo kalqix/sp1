@@ -107,7 +107,8 @@ impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
     pub async fn new() -> Self {
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new().build().await;
+        let prover =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
         let opts = LocalProverOpts::default();
         let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
 
@@ -123,7 +124,7 @@ impl CpuProver {
     #[cfg(feature = "unsound")]
     #[must_use]
     pub async fn new_unsound() -> Self {
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
             .without_vk_verification()
             .build()
             .await;

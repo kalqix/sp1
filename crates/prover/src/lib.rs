@@ -27,22 +27,25 @@ use core::SP1CoreProver;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use slop_air::Air;
+use slop_uni_stark::SymbolicAirBuilder;
 use sp1_core_executor::Program;
-use sp1_core_machine::riscv::RiscvAir;
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use slop_baby_bear::BabyBear;
 
 use sp1_recursion_executor::RecursionProgram;
 use sp1_stark::{
     air::MachineAir,
-    prover::{CpuShardProver, MachineProverBuilder, ProverSemaphore},
-    Machine,
+    prover::{
+        CpuShardProver, CpuShardProverComponents, MachineProverBuilder, ProverSemaphore,
+        ShardProver,
+    },
+    ConstraintSumcheckFolder, Machine,
 };
 
-use slop_jagged::Bn254JaggedConfig;
+use slop_jagged::{Bn254JaggedConfig, JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents};
 use sp1_stark::{prover::MachineProverComponents, BabyBearPoseidon2};
 
 pub use types::*;
@@ -363,9 +366,41 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
-impl SP1ProverBuilder<CpuSP1ProverComponents> {
-    pub fn new() -> Self {
-        let machine = RiscvAir::<BabyBear>::machine();
+impl<C: SP1ProverComponents<RecursionComponents = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionComponents, WrapComponents = <CpuSP1ProverComponents as SP1ProverComponents>::WrapComponents>>
+    SP1ProverBuilder<C>
+where
+    <C::CoreComponents as MachineProverComponents>::Air: fmt::Debug
+        + Air<SymbolicAirBuilder<<CoreSC as JaggedConfig>::F>>
+        + for<'b> Air<
+            ConstraintSumcheckFolder<
+                'b,
+                <CoreSC as JaggedConfig>::F,
+                <CoreSC as JaggedConfig>::EF,
+                <CoreSC as JaggedConfig>::EF,
+            >,
+        > + for<'b> Air<
+            ConstraintSumcheckFolder<
+                'b,
+                <CoreSC as JaggedConfig>::F,
+                <CoreSC as JaggedConfig>::F,
+                <CoreSC as JaggedConfig>::EF,
+            >,
+        > + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+        <C as SP1ProverComponents>::CoreComponents: MachineProverComponents<
+            Prover = ShardProver<
+                CpuShardProverComponents<
+                    Poseidon2BabyBearJaggedCpuProverComponents,
+                    <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air
+                >
+            >
+        >,
+{
+    pub fn new(
+        machine: Machine<
+            <C::CoreComponents as MachineProverComponents>::F,
+            <C::CoreComponents as MachineProverComponents>::Air,
+        >,
+    ) -> Self {
         let cpu_ram_gb = sysinfo::System::new_all().total_memory() / (1024 * 1024 * 1024);
         let num_workers = match cpu_ram_gb {
             0..33 => 1,
@@ -377,16 +412,16 @@ impl SP1ProverBuilder<CpuSP1ProverComponents> {
 
         let prover_permits = ProverSemaphore::new(num_workers);
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let core_verifier = C::core_verifier(machine.clone());
         let cpu_shard_prover = CpuShardProver::new(core_verifier.shard_verifier().clone());
 
-        let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+        let compress_verifier = C::compress_verifier();
         let compress_shard_prover = CpuShardProver::new(compress_verifier.shard_verifier().clone());
 
-        let shrink_verifier = CpuSP1ProverComponents::shrink_verifier();
+        let shrink_verifier = C::shrink_verifier();
         let shrink_shard_prover = CpuShardProver::new(shrink_verifier.shard_verifier().clone());
 
-        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
+        let wrap_verifier = C::wrap_verifier();
         let wrap_shard_prover = CpuShardProver::new(wrap_verifier.shard_verifier().clone());
 
         let num_core_workers: usize = num_workers;

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use clap::Parser;
-use sp1_core_machine::utils::setup_logger;
+use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 use sp1_prover::{
     components::CpuSP1ProverComponents,
     shapes::{build_vk_map_to_file, DEFAULT_ARITY},
@@ -30,7 +30,7 @@ async fn main() {
     let start = args.start;
     let end = args.end;
 
-    let prover = Arc::new(SP1ProverBuilder::new().build().await);
+    let prover = Arc::new(SP1ProverBuilder::new(RiscvAir::machine()).build().await);
 
     build_vk_map_to_file::<CpuSP1ProverComponents>(
         build_dir.clone(),

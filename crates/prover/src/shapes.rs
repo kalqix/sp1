@@ -666,7 +666,7 @@ mod tests {
         core::{CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT},
         local::LocalProver,
         recursion::normalize_program_from_input,
-        CORE_LOG_BLOWUP,
+        CpuSP1ProverComponents, CORE_LOG_BLOWUP,
     };
     use sp1_core_executor::{SP1Context, ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
     use sp1_core_machine::{
@@ -689,7 +689,8 @@ mod tests {
     #[allow(clippy::ignore_without_reason)]
     async fn test_max_arity() {
         setup_logger();
-        let prover = SP1ProverBuilder::new().build().await;
+        let prover =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
         // arity 3:
         // let shape = [
         //     (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 154816),
@@ -831,7 +832,8 @@ mod tests {
     async fn test_core_shape_fit() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover = SP1ProverBuilder::new().build().await;
+        let prover =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
         let machine = RiscvAir::<BabyBear>::machine();
@@ -863,7 +865,8 @@ mod tests {
     #[tokio::test]
     async fn test_build_vk_map() {
         setup_logger();
-        let prover = SP1ProverBuilder::new().build().await;
+        let prover =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, program, vk) = prover.core().setup(&elf).await;
@@ -896,7 +899,9 @@ mod tests {
         }
 
         // Build the vk map that includes all of the proof shapes in the proof.
-        let prover = Arc::new(SP1ProverBuilder::new().build().await);
+        let prover = Arc::new(
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await,
+        );
 
         let shape_indices =
             shape_indices.into_iter().chain(shapes.len() - 12..shapes.len()).collect::<Vec<_>>();
@@ -918,8 +923,10 @@ mod tests {
         tracing::info!("Built vk map with {} shapes", shape_indices_len);
 
         // Build a new prover that performs the vk verification check using the built vk map.
-        let prover =
-            SP1ProverBuilder::new().with_vk_map_path("../../../vk_map.bin".into()).build().await;
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+            .with_vk_map_path("../../../vk_map.bin".into())
+            .build()
+            .await;
 
         tracing::info!("Rebuilt prover with vk map.");
 

@@ -29,6 +29,7 @@ sp1-primitives = { workspace = true }
 slop-algebra = { workspace = true }
 slop-baby-bear = { workspace = true }
 slop-bn254 = { workspace = true }
+slop-uni-stark = { workspace = true }
 # slop-util = { workspace = true }
 bincode = "1.3.3"
 serde = { workspace = true, features = ["derive", "rc"] }
