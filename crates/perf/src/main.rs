@@ -84,7 +84,7 @@ async fn main() {
         .await;
 
     let opts = LocalProverOpts::default();
-    let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
+    let prover = Arc::new(LocalProver::new(prover, opts));
 
     let (pk, _, vk) = prover.prover().core().setup(&elf).await;
     let pk = unsafe { pk.into_inner() };

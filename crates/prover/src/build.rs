@@ -160,7 +160,7 @@ pub async fn dummy_proof() -> (MachineVerifyingKey<OuterSC>, ShardProof<OuterSC>
 
     tracing::info!("initializing prover");
     let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
-    let local_prover = LocalProver::new(prover, LocalProverOpts::default(), RiscvAir::machine());
+    let local_prover = LocalProver::new(prover, LocalProverOpts::default());
     let prover = std::sync::Arc::new(local_prover);
 
     tracing::info!("setup elf");

@@ -116,17 +116,17 @@ where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
-    pub fn new(
-        prover: SP1Prover<C>,
-        opts: LocalProverOpts,
-        machine: sp1_stark::Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air>,
-    ) -> Self {
+    pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
         let records_task_capacity =
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
         let prover_task_capacity =
             prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        let executor =
-            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, machine).build();
+        let executor = MachineExecutorBuilder::new(
+            opts.core_opts,
+            opts.num_record_workers,
+            prover.machine().clone(),
+        )
+        .build();
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -1071,7 +1071,7 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::OnChain).await
     }
@@ -1095,7 +1095,7 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
     }
@@ -1122,7 +1122,7 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, machine));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
     }
@@ -1137,7 +1137,7 @@ pub mod tests {
             .build()
             .await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

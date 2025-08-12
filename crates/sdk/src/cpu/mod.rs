@@ -110,7 +110,7 @@ impl CpuProver {
         let prover =
             SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(prover, opts));
 
         Self { prover }
     }
@@ -129,7 +129,7 @@ impl CpuProver {
             .build()
             .await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(prover, opts));
 
         Self { prover }
     }
