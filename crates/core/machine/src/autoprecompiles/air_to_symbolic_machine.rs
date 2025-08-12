@@ -214,6 +214,8 @@ fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
         .map(|e| symbolic_to_algebraic(e, columns))
         .collect::<Result<_, _>>()?;
 
+    println!("sp1_bus_interaction_to_powdr: mult: {mult:?} kind: {id} args: {args:?}");
+
     Ok(SymbolicBusInteraction { id, mult, args })
 }
 

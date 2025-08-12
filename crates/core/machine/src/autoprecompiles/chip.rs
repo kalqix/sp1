@@ -1,19 +1,22 @@
-use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc,
 };
-use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
+use powdr_expression::{
+    AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicUnaryOperation,
+    AlgebraicUnaryOperator,
+};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_stark::{
-    air::{MachineAir, SP1AirBuilder},
-    Machine,
+    air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
+    InteractionKind, Machine,
 };
 
 use crate::{
@@ -190,7 +193,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 }
 
-impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ApcChip<AB::F>
+impl<AB: SP1AirBuilder + PairBuilder + MessageBuilder<AirInteraction<AB::Expr>>> Air<AB>
+    for ApcChip<AB::F>
 where
     AB::F: PrimeField32,
 {
@@ -214,19 +218,75 @@ where
         }
 
         for interaction in &self.cached_apc.apc.machine().bus_interactions {
-            let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, .. } = interaction;
+            let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, id } = interaction;
 
-            let _mult = witness_evaluator.eval_expr(mult);
-            let _args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+            println!("Processing AlgebraicExpression mult: {mult} kind: {id} args: {args:?}");
+            // Detect receive if sign of mult is negative, because
+            // sp1_core_machine::autoprecompiles::interaction_builder::InteractionBuilder negates
+            // multiplicity for receives.
+            // TODO: is this robust? Is it possible that the
+            // multiplicity is negative to start with and then get negated again and become
+            // positive?
+            let (is_receive, mult) = match mult {
+                // If a multiplicity is a non-zero polynomial, powdr optimization multiplies
+                // `is_valid` to its left. Here we strip off the sign of the
+                // multiplicity if it's a receive (negative).
+                AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
+                    op: AlgebraicBinaryOperator::Mul,
+                    left,
+                    right,
+                }) => {
+                    match (&**left, &**right) {
+                        // Box dereference
+                        (
+                            AlgebraicExpression::Reference(AlgebraicReference { .. }),
+                            AlgebraicExpression::UnaryOperation(AlgebraicUnaryOperation {
+                                op: AlgebraicUnaryOperator::Minus,
+                                expr: mult,
+                            }),
+                        ) => (
+                            true,
+                            &AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
+                                op: AlgebraicBinaryOperator::Mul,
+                                left: left.clone(),
+                                right: mult.clone(),
+                            }),
+                        ),
+                        _ => (false, mult),
+                    }
+                }
+                _ => (false, mult),
+            };
+            println!("is_receive: {is_receive} mult: {mult}");
 
-            // TODO: parse different kinds of bus interactions (by id/args?) and then invoke the
-            // corresponding SP1 API for adding bus interactions.
+            let mult = witness_evaluator.eval_expr(mult);
+            let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+
+            // All instruction AIRs only use the four buses below.
+            let interaction_kind = match id {
+                1 => InteractionKind::Memory,
+                2 => InteractionKind::Program,
+                5 => InteractionKind::Byte,
+                7 => InteractionKind::State,
+                _ => unreachable!("Unexpected bus ID: {id}"),
+            };
+
+            let air_interaction = AirInteraction::new(args, mult, interaction_kind);
+
+            // We only support local interaction scope.
+            if is_receive {
+                println!("Receiving interaction: {air_interaction:?}");
+                builder.receive(air_interaction, InteractionScope::Local);
+            } else {
+                println!("Sending interaction: {air_interaction:?}");
+                builder.send(air_interaction, InteractionScope::Local);
+            }
         }
 
-        // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30` fails
-        let col = main.row_slice(0);
-        let col: &AB::Var = col[0].borrow();
-        builder.send_byte(*col, *col, *col, *col, *col);
+        // // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30`
+        // fails let col = main.row_slice(0);
+        // let col: &AB::Var = col[0].borrow();
+        // builder.send_byte(*col, *col, *col, *col, *col);
     }
 }
 
