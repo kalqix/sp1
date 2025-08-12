@@ -48,7 +48,7 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         apc: AdapterApc<Sp1ApcAdapter>,
         pgo_program_pc_count: &HashMap<u64, u32>,
         vm_config: AdapterVmConfig<Sp1ApcAdapter>,
-        max_degree: usize,
+        _max_degree: usize,
     ) -> Self {
         let stats_before = apc
             .block
