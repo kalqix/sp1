@@ -930,7 +930,10 @@ struct ProveTask<C: SP1ProverComponents> {
 pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
-    use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
+    use sp1_core_machine::{
+        autoprecompiles::sp1_powdr_config,
+        riscv::{RiscvAir, RiscvAirWithApcs},
+    };
     use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
@@ -1105,11 +1108,22 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_e2e_core_apc() -> Result<()> {
+        use powdr_autoprecompiles::PgoConfig;
+        use sp1_core_machine::autoprecompiles::compile_guest;
+        let guest_fibonacci = "../test-artifacts/programs/fibonacci";
         let elf = test_artifacts::FIBONACCI_ELF;
+        let apc_count = 10;
+        let apc_skip = 0;
+        let config = sp1_powdr_config(apc_count, apc_skip);
+        let pgo_config = PgoConfig::None;
+        let compiled_program = compile_guest(guest_fibonacci, config, pgo_config);
+
+        let apcs =
+            compiled_program.apcs_and_stats.into_iter().map(|(apc, _)| Arc::new(apc)).collect();
 
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine(vec![]);
+        let machine = RiscvAirWithApcs::machine(apcs);
 
         let sp1_prover = SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(machine.clone())
             .without_vk_verification()
