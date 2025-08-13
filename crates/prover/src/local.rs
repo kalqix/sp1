@@ -1109,7 +1109,7 @@ pub mod tests {
     #[serial]
     async fn test_e2e_core_apc() -> Result<()> {
         use powdr_autoprecompiles::PgoConfig;
-        use sp1_core_machine::autoprecompiles::compile_guest;
+
         let guest_fibonacci = "../test-artifacts/programs/fibonacci";
         let elf = build_elf(guest_fibonacci);
         let apc_count = 1;
