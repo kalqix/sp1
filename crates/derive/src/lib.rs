@@ -303,7 +303,6 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     }
 
                     fn customize_program(&self, program: <Self as MachineAir<F>>::Program) -> <Self as MachineAir<F>>::Program {
-                        println!("delegate customize_program");
                         match self { #(#customize_program_arms,)* }
                     }
                 }

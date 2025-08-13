@@ -11,7 +11,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{ApcRange, ExecutionRecord, Program};
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Machine,
@@ -192,11 +192,12 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {
-        let start = self.cached_apc.apc.start_pc();
-        let len = self.cached_apc.apc.block.statements.len();
-        let start_pc_idx = (start - program.pc_base) / Sp1Program::default().pc_step() as u64;
-
-        program.add_apc(start_pc_idx as usize, len)
+        let range = ApcRange::new(
+            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
+                as usize,
+            self.apc().block.statements.len(),
+        );
+        program.add_apc(range)
     }
 }
 

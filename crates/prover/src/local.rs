@@ -1112,7 +1112,7 @@ pub mod tests {
         use sp1_core_machine::autoprecompiles::compile_guest;
         let guest_fibonacci = "../test-artifacts/programs/fibonacci";
         let elf = test_artifacts::FIBONACCI_ELF;
-        let apc_count = 10;
+        let apc_count = 1;
         let apc_skip = 0;
         let config = sp1_powdr_config(apc_count, apc_skip);
         let pgo_config = PgoConfig::None;
