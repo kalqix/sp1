@@ -931,7 +931,7 @@ pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
     use sp1_core_machine::{
-        autoprecompiles::sp1_powdr_config,
+        autoprecompiles::{build_elf, sp1_powdr_config},
         riscv::{RiscvAir, RiscvAirWithApcs},
     };
     use sp1_stark::air::MachineAir;
@@ -1111,12 +1111,13 @@ pub mod tests {
         use powdr_autoprecompiles::PgoConfig;
         use sp1_core_machine::autoprecompiles::compile_guest;
         let guest_fibonacci = "../test-artifacts/programs/fibonacci";
-        let elf = test_artifacts::FIBONACCI_ELF;
+        let elf = build_elf(guest_fibonacci);
         let apc_count = 1;
         let apc_skip = 0;
         let config = sp1_powdr_config(apc_count, apc_skip);
         let pgo_config = PgoConfig::None;
-        let compiled_program = compile_guest(guest_fibonacci, config, pgo_config);
+        let compiled_program =
+            sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
 
         let apcs =
             compiled_program.apcs_and_stats.into_iter().map(|(apc, _)| Arc::new(apc)).collect();

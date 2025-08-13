@@ -165,13 +165,8 @@ impl Instructions {
 
     /// Get a range of proving instructions based on pc indices.
     #[must_use]
-    pub fn get_proving_range(&self, start_idx: usize, end_idx: usize) -> &[Instruction] {
-        assert!(start_idx <= end_idx, "start must be less than or equal to end");
-        assert!(
-            end_idx <= self.proving.len(),
-            "end must be less than or equal to the number of instructions"
-        );
-        &self.proving[start_idx..end_idx]
+    pub fn get_proving_range(&self, apc_range: ApcRange) -> &[Instruction] {
+        &self.proving[apc_range.start().unwrap()..apc_range.end().unwrap() + 1]
     }
 
     fn add_apc(mut self, range: ApcRange) -> Instructions {
