@@ -21,7 +21,8 @@ use sp1_recursion_gnark_ffi::{
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     prover::MachineProverComponents,
-    BabyBearPoseidon2, Bn254JaggedConfig, MachineVerifierConfigError, MachineVerifierError,
+    BabyBearPoseidon2, Bn254JaggedConfig, Machine, MachineVerifierConfigError,
+    MachineVerifierError,
 };
 use thiserror::Error;
 
@@ -58,6 +59,12 @@ where
             RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
         > + for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
 {
+    pub fn machine(
+        &self,
+    ) -> &Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air> {
+        self.core_prover.machine()
+    }
+
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
     /// shards are contiguous and complete.
     pub fn verify(

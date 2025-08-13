@@ -5319,6 +5319,7 @@ dependencies = [
  "slop-jagged",
  "slop-merkle-tree",
  "slop-symmetric",
+ "slop-uni-stark",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives",
