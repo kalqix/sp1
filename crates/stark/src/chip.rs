@@ -248,6 +248,10 @@ where
     fn local_only(&self) -> bool {
         self.air.local_only()
     }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        self.air.customize_program(program)
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.

@@ -2,6 +2,7 @@ use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
+    blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc,
 };
@@ -20,6 +21,7 @@ use crate::{
     autoprecompiles::{
         instruction::Sp1Instruction,
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
+        program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -187,6 +189,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         } else {
             !shard.apc_events.is_empty()
         }
+    }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        let start = self.cached_apc.apc.start_pc();
+        let len = self.cached_apc.apc.block.statements.len();
+        let start_pc_idx = (start - program.pc_base) / Sp1Program::default().pc_step() as u64;
+
+        program.add_apc(start_pc_idx as usize, len)
     }
 }
 

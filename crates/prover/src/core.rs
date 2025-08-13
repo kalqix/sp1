@@ -96,6 +96,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
         let program =
             <<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program::from_elf(elf)
                 .unwrap();
+        let program = self.machine().customize_program(program);
         let program = Arc::new(program);
         let (pk, vk) = self.prover.setup(program.clone(), None).await.unwrap();
         (pk, program, SP1VerifyingKey { vk })

@@ -217,6 +217,14 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let customize_program_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) =>
+                        <#field_ty as sp1_stark::air::MachineAir<F>>::customize_program(x, program)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
@@ -291,8 +299,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
                         match self {
                             #(#num_rows_arms,)*
+                        }
                     }
-                }
+
+                    fn customize_program(&self, program: <Self as MachineAir<F>>::Program) -> <Self as MachineAir<F>>::Program {
+                        println!("delegate customize_program");
+                        match self { #(#customize_program_arms,)* }
+                    }
                 }
             };
 

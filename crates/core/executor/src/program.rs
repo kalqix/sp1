@@ -222,6 +222,15 @@ impl Instructions {
         );
         &self.proving[start_idx..end_idx]
     }
+
+    fn add_apc(mut self, start_pc_idx: usize, len: usize) -> Instructions {
+        assert!(start_pc_idx + len <= self.proving.len(), "APC range out of bounds");
+        self.apcs.push(ApcRange { start: start_pc_idx, len });
+        // TODO don't apply the whole thing again, do it incrementally
+        self.execution = apply_apcs(&self.proving, &self.apcs);
+        assert!(self.proving != self.execution, "Instructions not set up correctly after add_apc");
+        self
+    }
 }
 
 impl Program {
@@ -234,6 +243,13 @@ impl Program {
     pub fn with_apcs<R: Into<ApcRange>>(mut self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
         let apc_ranges: Vec<ApcRange> = apc_ranges.into_iter().map(Into::into).collect();
         self.instructions = self.instructions.with_apcs(apc_ranges);
+        self
+    }
+
+    #[must_use]
+    pub fn add_apc(mut self, start_pc_idx: usize, len: usize) -> Self {
+        assert!(start_pc_idx + len <= self.instructions.proving.len(), "APC range out of bounds");
+        self.instructions = self.instructions.add_apc(start_pc_idx, len);
         self
     }
 
