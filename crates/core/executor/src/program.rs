@@ -166,9 +166,10 @@ impl Instructions {
     /// Get a range of proving instructions based on pc indices.
     #[must_use]
     pub fn get_proving_range(&self, apc_range: ApcRange) -> &[Instruction] {
-        &self.proving[apc_range.start().unwrap()..apc_range.end().unwrap() + 1]
+        &self.proving[apc_range.start().unwrap()..=apc_range.end().unwrap()]
     }
 
+    /// Add an APC range to the instructions.
     fn add_apc(mut self, range: ApcRange) -> Instructions {
         let apc_index = self.apcs.len();
         self.apcs.push(range);
