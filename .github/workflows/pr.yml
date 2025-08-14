@@ -62,7 +62,7 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
-          RUSTLOG: debug
+          RUST_LOG: debug
 
   test-arm:
     name: Test (ARM)
@@ -105,7 +105,7 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
-          RUSTLOG: debug
+          RUST_LOG: debug
 
   # TODO: Enable once recursion crates are fixed for multilinear.
   # test-verifier:
