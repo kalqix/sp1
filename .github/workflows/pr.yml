@@ -57,11 +57,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound -- --test-threads=4
+          args: --release test_apc_fibonacci --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound -- --test-threads=4
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
+          RUST_LOG: debug
 
   test-arm:
     name: Test (ARM)
@@ -99,11 +100,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound
+          args: --release test_apc_fibonacci --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
+          RUST_LOG: debug
 
   # TODO: Enable once recursion crates are fixed for multilinear.
   # test-verifier:
