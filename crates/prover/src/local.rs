@@ -116,17 +116,17 @@ where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
-    pub fn new(
-        prover: SP1Prover<C>,
-        opts: LocalProverOpts,
-        machine: sp1_stark::Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air>,
-    ) -> Self {
+    pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
         let records_task_capacity =
             prover.core().num_prover_workers() * opts.records_capacity_buffer;
         let prover_task_capacity =
             prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        let executor =
-            MachineExecutorBuilder::new(opts.core_opts, opts.num_record_workers, machine).build();
+        let executor = MachineExecutorBuilder::new(
+            opts.core_opts,
+            opts.num_record_workers,
+            prover.machine().clone(),
+        )
+        .build();
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -930,7 +930,7 @@ struct ProveTask<C: SP1ProverComponents> {
 pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
-    use sp1_core_machine::riscv::RiscvAir;
+    use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
     use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
@@ -938,7 +938,7 @@ pub mod tests {
 
     use crate::{
         build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev},
-        components::CpuSP1ProverComponents,
+        components::{CpuSP1ApcProverComponents, CpuSP1ProverComponents},
         SP1ProverBuilder,
     };
 
@@ -1060,7 +1060,7 @@ pub mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
             .without_vk_verification()
             .build()
             .await;
@@ -1071,10 +1071,60 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
-        test_e2e_prover::<CpuSP1ProverComponents>(prover, &elf, SP1Stdin::default(), Test::OnChain)
-            .await
+        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::OnChain).await
+    }
+
+    /// Tests an end-to-end workflow of proving a program across the entire proof generation
+    /// pipeline, only for the Core proof.
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_core() -> Result<()> {
+        let elf = test_artifacts::FIBONACCI_ELF;
+        setup_logger();
+
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+            .without_vk_verification()
+            .build()
+            .await;
+        let opts = LocalProverOpts {
+            core_opts: SP1CoreOpts {
+                retained_events_presets: [RetainedEventsPreset::Sha256].into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+
+        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
+    }
+
+    /// Tests an end-to-end workflow of proving a program across the entire proof generation
+    /// pipeline, only for the Core proof, with apcs enabled.
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_core_apc() -> Result<()> {
+        let elf = test_artifacts::FIBONACCI_ELF;
+
+        setup_logger();
+
+        let machine = RiscvAirWithApcs::machine(vec![]);
+
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(machine.clone())
+            .without_vk_verification()
+            .build()
+            .await;
+        let opts = LocalProverOpts {
+            core_opts: SP1CoreOpts {
+                retained_events_presets: [RetainedEventsPreset::Sha256].into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+
+        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
     }
 
     #[tokio::test]
@@ -1082,12 +1132,12 @@ pub mod tests {
     async fn test_deferred_compress() -> Result<()> {
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new()
+        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
             .without_vk_verification()
             .build()
             .await;
         let opts = LocalProverOpts::default();
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts, RiscvAir::machine()));
+        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;
