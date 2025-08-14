@@ -31,7 +31,7 @@ impl From<sp1_core_executor::Instruction> for InstructionType {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Sp1InstructionHandler<F> {
     /// All instruction AIRs.
     airs: Vec<(SymbolicMachine<F>, AirStats)>,

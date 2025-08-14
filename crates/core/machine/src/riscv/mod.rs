@@ -18,7 +18,9 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{chip::ApcChip, instruction::Sp1Instruction},
+    autoprecompiles::{
+        chip::ApcChip, instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
+    },
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -936,13 +938,15 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 
         use RiscvAirDiscriminants::*;
 
+        let original_airs = Sp1InstructionHandler::<F>::new();
+
         let chips = RiscvAir::airs()
             .into_iter()
             .map(RiscvAirWithApcs::Riscv)
             .chain(
                 apcs.into_iter()
                     .enumerate()
-                    .map(|(i, apc)| ApcChip::new(apc, i as usize))
+                    .map(|(i, apc)| ApcChip::new(apc, i as usize, original_airs.clone()))
                     .map(RiscvAirWithApcs::Apc),
             )
             .map(Chip::new)
@@ -1310,6 +1314,33 @@ pub mod tests {
         ];
         add_halt(&mut instructions);
         let apc_ranges = vec![(0, 2), (3, 5)];
+        // let apc_ranges = vec![(0, 1)];
+        let program = Program::new(instructions, 0, 0);
+        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
+        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
+        // instead of passing them here to `run_test_with_apcs`
+        let apcs = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(&apc_ranges);
+        let stdin = SP1Stdin::new();
+        crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_add_apc_prove_one_instr() {
+        setup_logger();
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 28, 27, false, false),
+            // Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            // Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            // Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            // Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            // Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut instructions);
+        // let apc_ranges = vec![(0, 2), (3, 5)];
+        let apc_ranges = vec![(0, 1)];
         let program = Program::new(instructions, 0, 0);
         // TODO: The API is not great here, we should be able to pass the full apcs (not just the
         // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
