@@ -321,7 +321,8 @@ where
         tracing::error!("Global cumulative sum is not zero");
         tracing::error!("Remove this once the busses are balanced");
 
-        // remove the above and uncomment the zero check below
+        // TODO: remove the above and uncomment the zero check below once busses are balanced
+
         // if !cumulative_sum.is_zero() {
         //     return Err(MachineVerifierError::InvalidPublicValues(
         //         "global cumulative sum is not zero",
