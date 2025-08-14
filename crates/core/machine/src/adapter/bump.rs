@@ -65,7 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
         let blu_batches = event_iter
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|(clk, increment, _, pc)| {
                     let next_clk = clk + increment;
                     let next_clk_0_16 = (next_clk & 0xFFFF) as u16;

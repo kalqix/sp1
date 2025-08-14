@@ -94,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for StoreHalfChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_STORE_HALF_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut StoreHalfColumns<F> = row.borrow_mut();
@@ -138,7 +138,7 @@ impl StoreHalfChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut StoreHalfColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

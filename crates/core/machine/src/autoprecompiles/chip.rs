@@ -307,7 +307,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // replay the side effects
                 let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
-                for bus_interaction in &self.apc().machine.bus_interactions {
+                for bus_interaction in self.apc().machine.bus_interactions.iter().filter(|interaction| interaction.id == 5) {
                     let mult = evaluator
                         .eval_expr(&bus_interaction.mult)
                         .as_canonical_u32();
@@ -350,10 +350,25 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         for delta in byte_interactions_deltas.into_iter() {
             for (event, mult) in delta.into_iter() {
                 println!("Modifying event: {event:?} with multiplicity {mult}");
-                // *output.byte_lookups.get_mut(&event).unwrap() += mult;
+                *output.byte_lookups.entry(event).or_insert(0) += mult;
             }
         }
     }
+
+// Modifying event: ByteLookupEvent { 6, a: 0, b: 13, c: 0 } with multiplicity 0
+// Modifying event: ByteLookupEvent { 0, a: 0, b: 29, c: 0 } with multiplicity 1
+// Modifying event: ByteLookupEvent { 0, a: 9, b: 4, c: 0 } with multiplicity 1
+// Modifying event: ByteLookupEvent { 0, a: 3, b: 28, c: 0 } with multiplicity 2013265920
+// Modifying event: ByteLookupEvent { 0, a: 4, b: 29, c: 0 } with multiplicity 2013265920
+// Modifying event: ByteLookupEvent { 6, a: 3, b: 16, c: 0 } with multiplicity 0
+// Modifying event: ByteLookupEvent { 0, a: 2, b: 27, c: 0 } with multiplicity 2013265920
+// Modifying event: ByteLookupEvent { 6, a: 2, b: 16, c: 0 } with multiplicity 0
+// Modifying event: ByteLookupEvent { 6, a: 1, b: 16, c: 0 } with multiplicity 0
+// Modifying event: ByteLookupEvent { 6, a: 0, b: 16, c: 0 } with multiplicity 0
+// Modifying event: ByteLookupEvent { 0, a: 1, b: 0, c: 0 } with multiplicity 2013265920
+// Modifying event: ByteLookupEvent { 0, a: 0, b: 27, c: 0 } with multiplicity 1
+// Modifying event: ByteLookupEvent { 3, a: 0, b: 0, c: 0 } with multiplicity -2
+// Modifying event: ByteLookupEvent { 0, a: 0, b: 28, c: 0 } with multiplicity 1
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_LOAD_WORD_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut LoadWordColumns<F> = row.borrow_mut();
@@ -145,7 +145,7 @@ impl LoadWordChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut LoadWordColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);
