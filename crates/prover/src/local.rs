@@ -1103,26 +1103,17 @@ pub mod tests {
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
     }
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline, only for the Core proof, with apcs enabled.
-    #[tokio::test]
-    #[serial]
-    async fn test_e2e_core_apc() -> Result<()> {
+    const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
+
+    async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
         use powdr_autoprecompiles::PgoConfig;
         use sp1_core_machine::autoprecompiles::execution_profile_from_guest;
 
-        let guest_fibonacci = "../test-artifacts/programs/fibonacci";
-        let stdin = SP1Stdin::default();
-        let elf = build_elf(guest_fibonacci);
+        let elf = build_elf(guest);
 
-        let execution_profile = execution_profile_from_guest(
-            guest_fibonacci,
-            SP1CoreOpts::default(),
-            Some(stdin.clone()),
-        );
+        let execution_profile =
+            execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
 
-        let apc_count = 1;
-        let apc_skip = 0;
         let config = sp1_powdr_config(apc_count, apc_skip);
         let pgo_config = PgoConfig::Instruction(execution_profile);
         let compiled_program =
@@ -1149,6 +1140,12 @@ pub mod tests {
         let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         test_e2e_prover(prover, &elf, stdin, Test::Core).await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_apc_fibonacci() -> Result<()> {
+        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 1, 0).await
     }
 
     #[tokio::test]
