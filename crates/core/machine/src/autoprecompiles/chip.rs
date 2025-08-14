@@ -2,6 +2,7 @@ use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
+    blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc,
 };
@@ -10,7 +11,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{ApcRange, ExecutionRecord, Program};
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
     Machine,
@@ -20,6 +21,7 @@ use crate::{
     autoprecompiles::{
         instruction::Sp1Instruction,
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
+        program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -187,6 +189,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         } else {
             !shard.apc_events.is_empty()
         }
+    }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        let range = ApcRange::new(
+            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
+                as usize,
+            self.apc().block.statements.len(),
+        );
+        program.add_apc(range)
     }
 }
 

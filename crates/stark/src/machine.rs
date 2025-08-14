@@ -115,4 +115,9 @@ where
             // tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
         });
     }
+
+    /// Customizes the program using each chip.
+    pub fn customize_program(&self, program: A::Program) -> A::Program {
+        self.chips.iter().fold(program, |program, chip| chip.customize_program(program))
+    }
 }

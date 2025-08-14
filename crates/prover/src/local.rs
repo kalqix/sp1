@@ -930,7 +930,10 @@ struct ProveTask<C: SP1ProverComponents> {
 pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
-    use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
+    use sp1_core_machine::{
+        autoprecompiles::{build_elf, sp1_powdr_config},
+        riscv::{RiscvAir, RiscvAirWithApcs},
+    };
     use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
@@ -1105,11 +1108,32 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_e2e_core_apc() -> Result<()> {
-        let elf = test_artifacts::FIBONACCI_ELF;
+        use powdr_autoprecompiles::PgoConfig;
+        use sp1_core_machine::autoprecompiles::execution_profile_from_guest;
+
+        let guest_fibonacci = "../test-artifacts/programs/fibonacci";
+        let stdin = SP1Stdin::default();
+        let elf = build_elf(guest_fibonacci);
+
+        let execution_profile = execution_profile_from_guest(
+            guest_fibonacci,
+            SP1CoreOpts::default(),
+            Some(stdin.clone()),
+        );
+
+        let apc_count = 1;
+        let apc_skip = 0;
+        let config = sp1_powdr_config(apc_count, apc_skip);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program =
+            sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
+
+        let apcs =
+            compiled_program.apcs_and_stats.into_iter().map(|(apc, _)| Arc::new(apc)).collect();
 
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine(vec![]);
+        let machine = RiscvAirWithApcs::machine(apcs);
 
         let sp1_prover = SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(machine.clone())
             .without_vk_verification()
@@ -1124,7 +1148,7 @@ pub mod tests {
         };
         let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
-        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
+        test_e2e_prover(prover, &elf, stdin, Test::Core).await
     }
 
     #[tokio::test]
