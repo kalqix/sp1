@@ -86,7 +86,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Apc".to_string()
+        format!("ApcChip_{}", self.id)
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

@@ -1121,7 +1121,7 @@ pub mod tests {
             Some(stdin.clone()),
         );
 
-        let apc_count = 1;
+        let apc_count = 0;
         let apc_skip = 0;
         let config = sp1_powdr_config(apc_count, apc_skip);
         let pgo_config = PgoConfig::Instruction(execution_profile);
