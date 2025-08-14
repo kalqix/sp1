@@ -942,7 +942,10 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
             .chain(
                 apcs.into_iter()
                     .enumerate()
-                    .map(|(i, apc)| ApcChip::new(apc, i as usize))
+                    .map(|(i, apc)| {
+                        tracing::debug_span!("ApcChip::new", apc_id = i)
+                            .in_scope(|| ApcChip::new(apc, i as usize))
+                    })
                     .map(RiscvAirWithApcs::Apc),
             )
             .map(Chip::new)

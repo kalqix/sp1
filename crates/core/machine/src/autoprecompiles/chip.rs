@@ -1,3 +1,4 @@
+use core::panic;
 use std::{borrow::Borrow, collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
@@ -148,10 +149,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                             panic!("No row found for air ID: {air_id:?}");
                         });
                     tracing::debug!("Original row: {original_row:?}");
-                    // Map the row to the APC row. TODO: use the mapping returned by apc generation.
-                    for (i, value) in original_row.enumerate() {
-                        // get poly_id from sub
-                        let poly_id = sub.get(i).expect("Not in dummy");
+                    // Map the row to the APC row
+                    for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::debug!("Setting row[{index}] to {value:?}");

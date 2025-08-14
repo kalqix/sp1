@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
-        air_to_symbolic_machine::{air_to_symbolic_machine, densify_ids, sort_memory_interactions},
+        air_to_symbolic_machine::{
+            add_dummy_constraints_for_unreferenced, air_to_symbolic_machine,
+            sort_memory_interactions,
+        },
         instruction::Sp1Instruction,
     },
     riscv::RiscvAir,
@@ -63,10 +66,12 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
                 return;
             }
         };
-        // In some machines, not all references are used, so we densify the IDs.
-        // TODO: This will likely complicate witgen, maybe it better to relax the assumption in
-        // powdr that IDs have to be dense?
-        let machine = densify_ids(machine);
+        // In some machines, not all references are used, so we add dummy constraints for the ones
+        // that are not
+        let machine = add_dummy_constraints_for_unreferenced(
+            machine,
+            <RiscvAir<F> as slop_air::BaseAir<F>>::width(riscv_air),
+        );
         let machine = sort_memory_interactions(machine);
 
         let instruction_types = if riscv_air.id() == RiscvAirId::LoadX0 {

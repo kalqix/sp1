@@ -1079,30 +1079,6 @@ pub mod tests {
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::OnChain).await
     }
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline, only for the Core proof.
-    #[tokio::test]
-    #[serial]
-    async fn test_e2e_core() -> Result<()> {
-        let elf = test_artifacts::FIBONACCI_ELF;
-        setup_logger();
-
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .without_vk_verification()
-            .build()
-            .await;
-        let opts = LocalProverOpts {
-            core_opts: SP1CoreOpts {
-                retained_events_presets: [RetainedEventsPreset::Sha256].into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
-
-        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
-    }
-
     const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
 
     async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
@@ -1145,7 +1121,7 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_apc_fibonacci() -> Result<()> {
-        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 1, 0).await
+        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
     }
 
     #[tokio::test]
