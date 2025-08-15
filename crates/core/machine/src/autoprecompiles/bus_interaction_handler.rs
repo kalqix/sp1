@@ -3,7 +3,7 @@ use powdr_autoprecompiles::{
     constraint_optimizer::IsBusStateful,
     range_constraint_optimizer::{
         utils::{filter_byte_constraints, range_constraint_to_num_bits},
-        RangeConstraintHandler, RangeConstraints,
+        MakeRangeConstraintsError, RangeConstraintHandler, RangeConstraints,
     },
 };
 use powdr_constraint_solver::{
@@ -145,7 +145,8 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
     fn batch_make_range_constraints<V: Ord + Clone + Eq + Display + Hash>(
         &self,
         mut range_constraints: RangeConstraints<BabyBearField, V>,
-    ) -> Vec<BusInteraction<GroupedExpression<BabyBearField, V>>> {
+    ) -> Result<Vec<BusInteraction<GroupedExpression<BabyBearField, V>>>, MakeRangeConstraintsError>
+    {
         let byte_bus_id = BabyBearField::from(InteractionKind::Byte as u64);
         let byte_constraints = filter_byte_constraints(&mut range_constraints);
 
@@ -177,24 +178,33 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                 }
             })
             .collect::<Vec<_>>();
-        let other_constraints = range_constraints.into_iter().map(|(expr, rc)| {
-            let num_bits = range_constraint_to_num_bits(&rc).unwrap();
-            BusInteraction {
-                bus_id: GroupedExpression::from_number(byte_bus_id),
-                multiplicity: GroupedExpression::from_number(BabyBearField::one()),
-                payload: vec![
-                    // Opcode
-                    GroupedExpression::from_number(BabyBearField::from(ByteOpcode::Range as u64)),
-                    // a: The expression being range-checked
-                    expr,
-                    // b: The number of bits being checked
-                    GroupedExpression::from_number(BabyBearField::from(num_bits as u64)),
-                    // c: Always zero
-                    GroupedExpression::from_number(BabyBearField::zero()),
-                ],
-            }
-        });
-        byte_constraints.into_iter().chain(other_constraints).collect::<Vec<_>>()
+        let other_constraints = range_constraints
+            .into_iter()
+            .map(|(expr, rc)| {
+                let num_bits = range_constraint_to_num_bits(&rc).ok_or_else(|| {
+                    MakeRangeConstraintsError(format!(
+                        "Failed to get number of bits for range constraint: {rc}",
+                    ))
+                })?;
+                Ok(BusInteraction {
+                    bus_id: GroupedExpression::from_number(byte_bus_id),
+                    multiplicity: GroupedExpression::from_number(BabyBearField::one()),
+                    payload: vec![
+                        // Opcode
+                        GroupedExpression::from_number(BabyBearField::from(
+                            ByteOpcode::Range as u64,
+                        )),
+                        // a: The expression being range-checked
+                        expr,
+                        // b: The number of bits being checked
+                        GroupedExpression::from_number(BabyBearField::from(num_bits as u64)),
+                        // c: Always zero
+                        GroupedExpression::from_number(BabyBearField::zero()),
+                    ],
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(byte_constraints.into_iter().chain(other_constraints).collect::<Vec<_>>())
     }
 }
 
