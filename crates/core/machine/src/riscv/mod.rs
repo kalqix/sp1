@@ -1332,14 +1332,10 @@ pub mod tests {
         setup_logger();
         let mut instructions = vec![
             Instruction::new(Opcode::ADD, 29, 28, 27, false, false),
-            // Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
-            // Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            // Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
-            // Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
-            // Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+            // Instruction::new(Opcode::ADD, 29, 28, 27, false, false),
         ];
         add_halt(&mut instructions);
-        // let apc_ranges = vec![(0, 2), (3, 5)];
+        // let apc_ranges = vec![(0, 1), (1, 2)];
         let apc_ranges = vec![(0, 1)];
         let program = Program::new(instructions, 0, 0);
         // TODO: The API is not great here, we should be able to pass the full apcs (not just the

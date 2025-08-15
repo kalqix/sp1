@@ -196,6 +196,20 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // away in the APC
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
+
+        // generate dependencies for dummy rows
+        // for event in events {
+        //     println!("APC event from generate_dependency: {:#?}", event.record);
+        //     for air in self.machine.chips().into_iter().filter(|air| air.included(&event.record)
+        // && !["Byte", "Range"     // , "MemoryBump", "StateBump"
+        //     ].contains(&air.name().as_str())) {
+        //         println!("Generate apc dependency for chip: {}", air.name());
+        //         // let mut dummy_output = Default::default();
+        //         air.generate_dependencies(&event.record, output);
+        //         // println!("Dummy output from generate_dependency: {:#?}", dummy_output);
+        //     }
+        // }
+
         // Turn each event into a row
         // TODO: can we do this for all events at the same time? Basically combine all events into a
         // single record, and run trace generation for that?
@@ -249,6 +263,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // remove and replay side effects
                 // cannot directly modify `output`, because map cannot capture `output` as a mutable reference
                 let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
+                let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
 
                 for ((original_instruction, sub), byte_interactions) in original_instructions.zip_eq(&self.apc().subs).zip_eq(byte_interaction_by_original_instruction) {
                     // Get the air ID for the instruction
@@ -286,28 +301,33 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         // interaction id is 5
                         println!("remove mult: {mult} args: {args:?}");
                         // remove byte lookup event
-                        *byte_interactions_delta.entry(ByteLookupEvent {
-                            opcode: match args[0].as_canonical_u32() {
-                                0 => ByteOpcode::AND,
-                                1 => ByteOpcode::OR,
-                                2 => ByteOpcode::XOR,
-                                3 => ByteOpcode::U8Range,
-                                4 => ByteOpcode::LTU,
-                                5 => ByteOpcode::MSB,
-                                6 => ByteOpcode::Range,
-                                _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0].as_canonical_u32()),
-                            },
-                            a: args[1].as_canonical_u32() as u16,
-                            b: args[2].as_canonical_u32() as u8,
-                            c: args[3].as_canonical_u32() as u8,
-                        }).or_insert(0) -= mult.as_canonical_u32() as isize;
+                        // *byte_interactions_delta.entry(ByteLookupEvent {
+                        //     opcode: match args[0].as_canonical_u32() {
+                        //         0 => ByteOpcode::AND,
+                        //         1 => ByteOpcode::OR,
+                        //         2 => ByteOpcode::XOR,
+                        //         3 => ByteOpcode::U8Range,
+                        //         4 => ByteOpcode::LTU,
+                        //         5 => ByteOpcode::MSB,
+                        //         6 => ByteOpcode::Range,
+                        //         _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0].as_canonical_u32()),
+                        //     },
+                        //     a: args[1].as_canonical_u32() as u16,
+                        //     b: args[2].as_canonical_u32() as u8,
+                        //     c: args[3].as_canonical_u32() as u8,
+                        // }).or_insert(0) -= mult.as_canonical_u32() as isize;
                     }
                 }
 
                 // replay the side effects
                 let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
-                for bus_interaction in self.apc().machine.bus_interactions.iter().filter(|interaction| interaction.id == 5) {
+                // print all bus interactions
+                self.apc().machine.bus_interactions.iter().for_each(|interaction| {
+                    println!("ALL Bus interaction: {interaction:?}");
+                });
+
+                for bus_interaction in self.apc().machine.bus_interactions.iter() {
                     let mult = evaluator
                         .eval_expr(&bus_interaction.mult)
                         .as_canonical_u32();
@@ -318,21 +338,40 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .collect_vec();
 
                     println!("add mult: {mult} args: {args:?}");
-                    *byte_interactions_delta.entry(ByteLookupEvent {
-                        opcode: match args[0] {
-                            0 => ByteOpcode::AND,
-                            1 => ByteOpcode::OR,
-                            2 => ByteOpcode::XOR,
-                            3 => ByteOpcode::U8Range,
-                            4 => ByteOpcode::LTU,
-                            5 => ByteOpcode::MSB,
-                            6 => ByteOpcode::Range,
-                            _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0]),
-                        },
-                        a: args[1] as u16,
-                        b: args[2] as u8,
-                        c: args[3] as u8,
-                    }).or_insert(0) += mult as isize;
+
+                    match bus_interaction.id {
+                        1 => { // memory
+
+                        }
+                        5 => { // byte lookup
+                            assert_eq!(args.len(), 4);
+                            *byte_interactions_delta.entry(ByteLookupEvent {
+                                opcode: match args[0] {
+                                    0 => ByteOpcode::AND,
+                                    1 => ByteOpcode::OR,
+                                    2 => ByteOpcode::XOR,
+                                    3 => ByteOpcode::U8Range,
+                                    4 => ByteOpcode::LTU,
+                                    5 => ByteOpcode::MSB,
+                                    6 => ByteOpcode::Range,
+                                    _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0]),
+                                },
+                                a: args[1] as u16,
+                                b: args[2] as u8,
+                                c: args[3] as u8,
+                            }).or_insert(0) += mult as isize;
+                            
+                        } 
+                        7 => { // state
+                            *state_interactions_delta.entry(
+
+                            )
+                            
+                        }
+                        _ => {
+                            println!("Unexpected bus interaction id: {:?}", bus_interaction.id);
+                        }
+                    }
                 }
 
                 tracing::debug!("Final row: {row:?}");
@@ -340,7 +379,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 (row, byte_interactions_delta)
             })
             .unzip();
-        
+
         // print all byte lookups
         input.byte_lookups.iter().for_each(|(event, mult)| {
             println!("ByteLookupEvent: {event:?} with multiplicity {mult}");
@@ -355,20 +394,20 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         }
     }
 
-// Modifying event: ByteLookupEvent { 6, a: 0, b: 13, c: 0 } with multiplicity 0
-// Modifying event: ByteLookupEvent { 0, a: 0, b: 29, c: 0 } with multiplicity 1
-// Modifying event: ByteLookupEvent { 0, a: 9, b: 4, c: 0 } with multiplicity 1
-// Modifying event: ByteLookupEvent { 0, a: 3, b: 28, c: 0 } with multiplicity 2013265920
-// Modifying event: ByteLookupEvent { 0, a: 4, b: 29, c: 0 } with multiplicity 2013265920
-// Modifying event: ByteLookupEvent { 6, a: 3, b: 16, c: 0 } with multiplicity 0
-// Modifying event: ByteLookupEvent { 0, a: 2, b: 27, c: 0 } with multiplicity 2013265920
-// Modifying event: ByteLookupEvent { 6, a: 2, b: 16, c: 0 } with multiplicity 0
-// Modifying event: ByteLookupEvent { 6, a: 1, b: 16, c: 0 } with multiplicity 0
-// Modifying event: ByteLookupEvent { 6, a: 0, b: 16, c: 0 } with multiplicity 0
-// Modifying event: ByteLookupEvent { 0, a: 1, b: 0, c: 0 } with multiplicity 2013265920
-// Modifying event: ByteLookupEvent { 0, a: 0, b: 27, c: 0 } with multiplicity 1
-// Modifying event: ByteLookupEvent { 3, a: 0, b: 0, c: 0 } with multiplicity -2
-// Modifying event: ByteLookupEvent { 0, a: 0, b: 28, c: 0 } with multiplicity 1
+    // Modifying event: ByteLookupEvent { 6, a: 0, b: 13, c: 0 } with multiplicity 0
+    // Modifying event: ByteLookupEvent { 0, a: 0, b: 29, c: 0 } with multiplicity 1
+    // Modifying event: ByteLookupEvent { 0, a: 9, b: 4, c: 0 } with multiplicity 1
+    // Modifying event: ByteLookupEvent { 0, a: 3, b: 28, c: 0 } with multiplicity 2013265920
+    // Modifying event: ByteLookupEvent { 0, a: 4, b: 29, c: 0 } with multiplicity 2013265920
+    // Modifying event: ByteLookupEvent { 6, a: 3, b: 16, c: 0 } with multiplicity 0
+    // Modifying event: ByteLookupEvent { 0, a: 2, b: 27, c: 0 } with multiplicity 2013265920
+    // Modifying event: ByteLookupEvent { 6, a: 2, b: 16, c: 0 } with multiplicity 0
+    // Modifying event: ByteLookupEvent { 6, a: 1, b: 16, c: 0 } with multiplicity 0
+    // Modifying event: ByteLookupEvent { 6, a: 0, b: 16, c: 0 } with multiplicity 0
+    // Modifying event: ByteLookupEvent { 0, a: 1, b: 0, c: 0 } with multiplicity 2013265920
+    // Modifying event: ByteLookupEvent { 0, a: 0, b: 27, c: 0 } with multiplicity 1
+    // Modifying event: ByteLookupEvent { 3, a: 0, b: 0, c: 0 } with multiplicity -2
+    // Modifying event: ByteLookupEvent { 0, a: 0, b: 28, c: 0 } with multiplicity 1
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

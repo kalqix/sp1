@@ -168,6 +168,8 @@ pub fn create_apcs(
             // Create a dummy basic block with the original instructions
             let block = BasicBlock { start_pc, statements: instructions };
 
+            println!("dummy basic block: {:?}", block);
+
             // Build the APC from the block
             powdr_autoprecompiles::build::<Sp1ApcAdapter>(
                 block,

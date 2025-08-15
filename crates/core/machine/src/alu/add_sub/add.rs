@@ -97,6 +97,8 @@ impl<F: PrimeField32> MachineAir<F> for AddChip {
             },
         );
 
+        println!("ADD chip trace values: {:?}", values);
+
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_ADD_COLS)
     }

@@ -3,7 +3,7 @@ use hashbrown::HashMap;
 use slop_algebra::AbstractField;
 
 /// A record that can be proven by a machine.
-pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
+pub trait MachineRecord: Default + Sized + Send + Sync + Clone + std::fmt::Debug {
     /// The statistics of the record.
     fn stats(&self) -> HashMap<String, usize>;
 
