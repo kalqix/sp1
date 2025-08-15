@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 251 -> 177 (1.42x reduction)
-  - Bus interactions: 119 -> 109 (1.09x reduction)
+  - Bus interactions: 119 -> 110 (1.08x reduction)
   - Constraints: 353 -> 160 (2.21x reduction)
 
 Symbolic machine using 177 unique main columns:
@@ -279,6 +279,7 @@ mult=is_valid * 1, args=[6, 2 * remainder_comp__0__3_0 - 65536 * rem_msb__msb_0,
 mult=is_valid * 1, args=[6, a__0__0_0, 16, 0]
 mult=is_valid * 1, args=[6, a__0__1_0, 16, 0]
 mult=is_valid * 1, args=[6, a__0__2_0, 16, 0]
+mult=is_valid * 1, args=[6, a__0__3_0, 16, 0]
 mult=is_valid * 1, args=[6, remainder_comp__0__0_0, 16, 0]
 mult=is_valid * 1, args=[6, remainder_comp__0__1_0, 16, 0]
 mult=is_valid * 1, args=[6, remainder_comp__0__2_0, 16, 0]
