@@ -22,7 +22,7 @@ use powdr_autoprecompiles::{
 use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
 use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
-use sp1_core_executor::{Executor, Program, SP1CoreOpts};
+use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
@@ -150,12 +150,14 @@ pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
 ) -> Vec<Arc<AdapterApc<Sp1ApcAdapter>>> {
-    pc_idx_ranges
+    let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
+
+    apc_ranges
         .iter()
-        .map(|(start_idx, end_idx)| {
+        .map(|range| {
             let instructions = program
                 .instructions
-                .get_proving_range(*start_idx, *end_idx)
+                .get_proving_range(*range)
                 .iter()
                 .cloned()
                 .map(Sp1Instruction::from)
@@ -163,7 +165,7 @@ pub fn create_apcs(
 
             // TODO: turn `pc_step` into a constant in the `Program` trait
             let pc_step = Sp1Program::default().pc_step() as u64;
-            let start_pc = (*start_idx as u64) * pc_step + program.pc_base;
+            let start_pc = (range.start().unwrap() as u64) * pc_step + program.pc_base;
 
             // Create a dummy basic block with the original instructions
             let block = BasicBlock { start_pc, statements: instructions };

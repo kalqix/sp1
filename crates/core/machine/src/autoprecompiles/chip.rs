@@ -5,6 +5,7 @@ use std::{
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
+    blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc, InstructionHandler, SymbolicBusInteraction,
 };
@@ -16,7 +17,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ByteLookupEvent, opcode::ByteOpcode, ExecutionRecord, Program};
+use sp1_core_executor::{events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
     InteractionKind, Machine,
@@ -27,7 +28,7 @@ use crate::{
         instruction::Sp1Instruction,
         instruction_handler::{
             try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
-        },
+        }, program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -98,7 +99,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Apc".to_string()
+        format!("ApcChip_{}", self.id)
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -263,7 +264,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // remove and replay side effects
                 // cannot directly modify `output`, because map cannot capture `output` as a mutable reference
                 let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
-                let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
+                // let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
 
                 for ((original_instruction, sub), byte_interactions) in original_instructions.zip_eq(&self.apc().subs).zip_eq(byte_interaction_by_original_instruction) {
                     // Get the air ID for the instruction
@@ -363,9 +364,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                             
                         } 
                         7 => { // state
-                            *state_interactions_delta.entry(
+                            // *state_interactions_delta.entry(
 
-                            )
+                            // )
                             
                         }
                         _ => {
@@ -415,6 +416,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         } else {
             !shard.apc_events.is_empty()
         }
+    }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        let range = ApcRange::new(
+            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
+                as usize,
+            self.apc().block.statements.len(),
+        );
+        program.add_apc(range)
     }
 }
 
