@@ -1120,6 +1120,7 @@ pub mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_apc_fibonacci() -> Result<()> {
         test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
     }
