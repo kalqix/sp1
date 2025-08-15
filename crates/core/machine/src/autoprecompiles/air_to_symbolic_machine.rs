@@ -120,29 +120,6 @@ fn to_grouped_expr<F: PrimeField32>(
     )
 }
 
-/// Adds dummy constraints for the unreferences variables
-/// Assumes the poly_ids are dense
-pub fn add_dummy_constraints_for_unreferenced<F: PrimeField32>(
-    mut machine: SymbolicMachine<F>,
-    column_count: usize,
-) -> SymbolicMachine<F> {
-    // We define a dummy constraint for `r` as `r - r == 0`
-    let referenced: BTreeSet<u64> = machine.unique_references().map(|r| r.id).collect();
-    let dummy_constraints =
-        (0..column_count as u64).filter(|id| !referenced.contains(id)).map(|id| {
-            let r = AlgebraicReference {
-                // TODO: We cannot access the original name here, as this id is not referenced
-                name: Default::default(),
-                id,
-            };
-            let e = AlgebraicExpression::Reference(r);
-            SymbolicConstraint { expr: e.clone() - e }
-        });
-
-    machine.constraints.extend(dummy_constraints);
-    machine
-}
-
 pub fn air_to_symbolic_machine<
     F: PrimeField32,
     A: MachineAir<F> + Air<SymbolicAirBuilder<F>> + Air<InteractionBuilder<F>>,
@@ -167,7 +144,23 @@ pub fn air_to_symbolic_machine<
         .map(|interaction| sp1_bus_interaction_to_powdr(&interaction, &column_names))
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(SymbolicMachine { constraints, bus_interactions })
+    let mut machine = SymbolicMachine { constraints, bus_interactions };
+    // In some machines, not all references are used, so we add dummy constraints for the ones
+    // that are not
+    let referenced: BTreeSet<u64> = machine.unique_references().map(|r| r.id).collect();
+    let dummy_constraints =
+        column_names.iter().enumerate().map(|(i, n)| (i as u64, n)).filter(|(id, _)| !referenced.contains(id)).map(
+            |(id, name)| {
+                let r = AlgebraicReference { name: name.clone(), id };
+                let e = AlgebraicExpression::Reference(r);
+                tracing::error!("Column `{name}` is not referenced in instruction air `{}`. Adding a dummy constraint. This signals that this column could be removed, or that the air is underconstrained.", air.name());
+                SymbolicConstraint { expr: e.clone() - e }
+            },
+        );
+
+    machine.constraints.extend(dummy_constraints);
+
+    Ok(machine)
 }
 
 fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
