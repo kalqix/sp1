@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 87 -> 63 (1.38x reduction)
-  - Bus interactions: 52 -> 48 (1.08x reduction)
+  - Bus interactions: 52 -> 47 (1.11x reduction)
   - Constraints: 66 -> 18 (3.67x reduction)
 
 Symbolic machine using 63 unique main columns:
@@ -85,11 +85,10 @@ mult=is_valid * 1, args=[5, mul_operation__c_msb_0, 7864320 * mul_operation__c_l
 mult=is_valid * 1, args=[3, 0, mul_operation__b_lower_byte__low_bytes__0_0, 7864320 * mul_operation__b_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_b_memory__prev_value__0__0_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__b_lower_byte__low_bytes__1_0, 7864320 * mul_operation__b_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_b_memory__prev_value__0__1_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__b_lower_byte__low_bytes__2_0, 7864320 * mul_operation__b_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_b_memory__prev_value__0__2_0]
-mult=is_valid * 1, args=[3, 0, mul_operation__b_lower_byte__low_bytes__3_0, 7864320 * mul_operation__b_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_b_memory__prev_value__0__3_0]
-mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__0_0, 7864320 * mul_operation__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0]
-mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__1_0, 7864320 * mul_operation__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0]
-mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__2_0, 7864320 * mul_operation__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0]
-mult=is_valid * 1, args=[3, 0, mul_operation__c_lower_byte__low_bytes__3_0, 7864320 * mul_operation__c_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_c_memory__prev_value__0__3_0]
+mult=is_valid * 1, args=[3, 0, mul_operation__b_lower_byte__low_bytes__3_0, mul_operation__c_lower_byte__low_bytes__0_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * mul_operation__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0, mul_operation__c_lower_byte__low_bytes__1_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * mul_operation__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0, mul_operation__c_lower_byte__low_bytes__2_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * mul_operation__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0, mul_operation__c_lower_byte__low_bytes__3_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__0_0, 7864320 * mul_operation__product__0_0 - 7864320 * a__0__0_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__2_0, 7864320 * mul_operation__product__2_0 - 7864320 * a__0__1_0]
 mult=is_valid * 1, args=[3, 0, mul_operation__product__4_0, 7864320 * mul_operation__product__4_0 - 7864320 * a__0__2_0]
