@@ -4,12 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{
-    apc::Apcs,
-    estimator::RecordEstimator,
-    events::ApcEvent,
-    NUM_REGISTERS,
-};
+use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
