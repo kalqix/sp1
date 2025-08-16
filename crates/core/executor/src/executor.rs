@@ -4,7 +4,12 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
+use crate::{
+    apc::Apcs,
+    estimator::RecordEstimator,
+    events::ApcEvent,
+    NUM_REGISTERS,
+};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -437,8 +442,8 @@ impl<'a> Executor<'a> {
             hook_registry,
             max_cycles: context.max_cycles,
             deferred_proof_verification: context.deferred_proof_verification.into(),
-            memory_checkpoint: Memory::default(),
-            uninitialized_memory_checkpoint: Memory::default(),
+            memory_checkpoint: Memory::new_preallocated(),
+            uninitialized_memory_checkpoint: Memory::new_preallocated(),
             local_memory_access: HashMap::new(),
             costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
             size_check_frequency: 16,
@@ -1947,8 +1952,11 @@ impl<'a> Executor<'a> {
         // Save the pc before executing the APC.
         let original_pc = self.state.pc;
 
-        // Pass all the necessary execution state to the APC
+        // Pass all the necessary execution data to the APC
         apc.executor.state = std::mem::take(&mut self.state);
+        apc.executor.memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+        apc.executor.uninitialized_memory_checkpoint =
+            std::mem::take(&mut self.uninitialized_memory_checkpoint);
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
@@ -1970,19 +1978,11 @@ impl<'a> Executor<'a> {
             self.local_memory_access.insert(access.addr, access);
         }
 
-        // transfer the memory checkpoint from the APC executor to the main executor
-        for (addr, value) in std::mem::take(&mut apc.executor.memory_checkpoint) {
-            self.memory_checkpoint.insert(addr, value);
-        }
-
-        // transfer the uninitialized memory checkpoint from the APC executor to the main executor
-        for (addr, value) in std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint) {
-            self.uninitialized_memory_checkpoint.insert(addr, value);
-        }
-
-        // After apc execution state of the main execution is that of the apc executor, except for
-        // the pc which is the original pc.
+        // After apc execution, put data back into the main executor
         self.state = std::mem::take(&mut apc.executor.state);
+        self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
+        self.uninitialized_memory_checkpoint =
+            std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
         self.state.pc = original_pc;
 
         // In total, the clock must be incremented by 8 for each instruction. However, this function
@@ -2284,8 +2284,11 @@ impl<'a> Executor<'a> {
         self.emit_global_memory_events = emit_global_memory_events;
 
         // Clone self.state without memory, uninitialized_memory, proof_stream in it so it's faster.
-        let memory = std::mem::take(&mut self.state.memory);
-        let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
+        let memory = std::mem::replace(&mut self.state.memory, Memory::<_>::new_preallocated());
+        let uninitialized_memory = std::mem::replace(
+            &mut self.state.uninitialized_memory,
+            Memory::<_>::new_preallocated(),
+        );
         let proof_stream = std::mem::take(&mut self.state.proof_stream);
         let page_prots = self.state.page_prots.clone();
         let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
