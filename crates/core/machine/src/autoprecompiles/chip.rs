@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -5,6 +6,7 @@ use std::{
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
+    blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc, InstructionHandler, SymbolicBusInteraction,
 };
@@ -16,7 +18,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ByteLookupEvent, opcode::ByteOpcode, ExecutionRecord, Program};
+use sp1_core_executor::{events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
     InteractionKind, Machine,
@@ -28,6 +30,7 @@ use crate::{
         instruction_handler::{
             try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
         },
+        program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -98,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Apc".to_string()
+        format!("ApcChip_{}", self.id)
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -161,10 +164,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         })
                         .collect::<Vec<_>>();
                     tracing::debug!("Original row: {original_row:?}");
-                    // Map the row to the APC row. TODO: use the mapping returned by apc generation.
-                    for (i, value) in original_row.iter().enumerate() {
-                        // get poly_id from sub
-                        let poly_id = sub.get(i).expect("Not in dummy");
+                    // Map the row to the APC row
+                    for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::debug!("Setting row[{index}] to {value:?}");
@@ -415,6 +416,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         } else {
             !shard.apc_events.is_empty()
         }
+    }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        let range = ApcRange::new(
+            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
+                as usize,
+            self.apc().block.statements.len(),
+        );
+        program.add_apc(range)
     }
 }
 

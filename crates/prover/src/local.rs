@@ -930,7 +930,10 @@ struct ProveTask<C: SP1ProverComponents> {
 pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
-    use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
+    use sp1_core_machine::{
+        autoprecompiles::{build_elf, sp1_powdr_config},
+        riscv::{RiscvAir, RiscvAirWithApcs},
+    };
     use sp1_stark::air::MachineAir;
     use tracing::Instrument;
 
@@ -1076,40 +1079,28 @@ pub mod tests {
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::OnChain).await
     }
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline, only for the Core proof.
-    #[tokio::test]
-    #[serial]
-    async fn test_e2e_core() -> Result<()> {
-        let elf = test_artifacts::FIBONACCI_ELF;
-        setup_logger();
+    const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .without_vk_verification()
-            .build()
-            .await;
-        let opts = LocalProverOpts {
-            core_opts: SP1CoreOpts {
-                retained_events_presets: [RetainedEventsPreset::Sha256].into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
+    async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
+        use powdr_autoprecompiles::PgoConfig;
+        use sp1_core_machine::autoprecompiles::execution_profile_from_guest;
 
-        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
-    }
+        let elf = build_elf(guest);
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline, only for the Core proof, with apcs enabled.
-    #[tokio::test]
-    #[serial]
-    async fn test_e2e_core_apc() -> Result<()> {
-        let elf = test_artifacts::FIBONACCI_ELF;
+        let execution_profile =
+            execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
+
+        let config = sp1_powdr_config(apc_count, apc_skip);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program =
+            sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
+
+        let apcs =
+            compiled_program.apcs_and_stats.into_iter().map(|(apc, _)| Arc::new(apc)).collect();
 
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine(vec![]);
+        let machine = RiscvAirWithApcs::machine(apcs);
 
         let sp1_prover = SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(machine.clone())
             .without_vk_verification()
@@ -1124,7 +1115,13 @@ pub mod tests {
         };
         let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
-        test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::Core).await
+        test_e2e_prover(prover, &elf, stdin, Test::Core).await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_apc_fibonacci() -> Result<()> {
+        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
     }
 
     #[tokio::test]

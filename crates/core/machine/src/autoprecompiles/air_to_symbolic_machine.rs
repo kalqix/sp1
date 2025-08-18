@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
@@ -8,8 +8,8 @@ use powdr_autoprecompiles::{
 };
 use powdr_constraint_solver::grouped_expression::GroupedExpression;
 use powdr_expression::{
-    visitors::ExpressionVisitable, AlgebraicBinaryOperation, AlgebraicBinaryOperator,
-    AlgebraicExpression, AlgebraicUnaryOperation, AlgebraicUnaryOperator,
+    AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicExpression,
+    AlgebraicUnaryOperation, AlgebraicUnaryOperator,
 };
 
 use powdr_number::{BabyBearField, ExpressionConvertible, FieldElement};
@@ -120,53 +120,6 @@ fn to_grouped_expr<F: PrimeField32>(
     )
 }
 
-/// Reassigns IDs in the symbolic machine to be dense, starting from 0.
-pub fn densify_ids<F: PrimeField32>(machine: SymbolicMachine<F>) -> SymbolicMachine<F> {
-    let id_map = machine
-        .unique_references()
-        .map(|r| r.id)
-        .sorted()
-        .enumerate()
-        .map(|(new_id, old_id)| (old_id, new_id as u64))
-        .collect::<BTreeMap<_, _>>();
-
-    SymbolicMachine {
-        constraints: machine
-            .constraints
-            .into_iter()
-            .map(|c| SymbolicConstraint { expr: densify_ids_expr(c.expr, &id_map) })
-            .collect(),
-        bus_interactions: machine
-            .bus_interactions
-            .into_iter()
-            .map(|bi| densify_ids_bus_interaction(bi, &id_map))
-            .collect(),
-    }
-}
-
-fn densify_ids_expr<F>(
-    mut expr: AlgebraicExpression<F, AlgebraicReference>,
-    id_map: &BTreeMap<u64, u64>,
-) -> AlgebraicExpression<F, AlgebraicReference> {
-    expr.pre_visit_expressions_mut(&mut |e| {
-        if let AlgebraicExpression::Reference(ref mut r) = e {
-            r.id = *id_map.get(&r.id).unwrap();
-        }
-    });
-    expr
-}
-
-fn densify_ids_bus_interaction<F>(
-    interaction: SymbolicBusInteraction<F>,
-    id_map: &BTreeMap<u64, u64>,
-) -> SymbolicBusInteraction<F> {
-    SymbolicBusInteraction {
-        id: interaction.id,
-        mult: densify_ids_expr(interaction.mult, id_map),
-        args: interaction.args.into_iter().map(|arg| densify_ids_expr(arg, id_map)).collect(),
-    }
-}
-
 pub fn air_to_symbolic_machine<
     F: PrimeField32,
     A: MachineAir<F> + Air<SymbolicAirBuilder<F>> + Air<InteractionBuilder<F>>,
@@ -191,7 +144,23 @@ pub fn air_to_symbolic_machine<
         .map(|interaction| sp1_bus_interaction_to_powdr(&interaction, &column_names))
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(SymbolicMachine { constraints, bus_interactions })
+    let mut machine = SymbolicMachine { constraints, bus_interactions };
+    // In some machines, not all references are used, so we add dummy constraints for the ones
+    // that are not
+    let referenced: BTreeSet<u64> = machine.unique_references().map(|r| r.id).collect();
+    let dummy_constraints =
+        column_names.iter().enumerate().map(|(i, n)| (i as u64, n)).filter(|(id, _)| !referenced.contains(id)).map(
+            |(id, name)| {
+                let r = AlgebraicReference { name: name.clone(), id };
+                let e = AlgebraicExpression::Reference(r);
+                tracing::error!("Column `{name}` is not referenced in instruction air `{}`. Adding a dummy constraint. This signals that this column could be removed, or that the air is underconstrained.", air.name());
+                SymbolicConstraint { expr: e.clone() - e }
+            },
+        );
+
+    machine.constraints.extend(dummy_constraints);
+
+    Ok(machine)
 }
 
 fn sp1_bus_interaction_to_powdr<F: PrimeField32>(

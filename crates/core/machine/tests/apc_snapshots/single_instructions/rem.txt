@@ -3,7 +3,7 @@ Instructions:
 
 APC advantage:
   - Main columns: 251 -> 177 (1.42x reduction)
-  - Bus interactions: 119 -> 109 (1.09x reduction)
+  - Bus interactions: 119 -> 108 (1.10x reduction)
   - Constraints: 353 -> 160 (2.21x reduction)
 
 Symbolic machine using 177 unique main columns:
@@ -210,11 +210,10 @@ mult=is_valid * (1 - is_c_0__result_0), args=[6, 65536 * remainder_lt_operation_
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__b_lower_byte__low_bytes__0_0, 7864320 * c_times_quotient_lower__b_lower_byte__low_bytes__0_0 - 7864320 * quotient__0__0_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__b_lower_byte__low_bytes__1_0, 7864320 * c_times_quotient_lower__b_lower_byte__low_bytes__1_0 - 7864320 * quotient__0__1_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__b_lower_byte__low_bytes__2_0, 7864320 * c_times_quotient_lower__b_lower_byte__low_bytes__2_0 - 7864320 * quotient__0__2_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__b_lower_byte__low_bytes__3_0, 7864320 * c_times_quotient_lower__b_lower_byte__low_bytes__3_0 - 7864320 * quotient__0__3_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__c_lower_byte__low_bytes__0_0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__c_lower_byte__low_bytes__1_0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__c_lower_byte__low_bytes__2_0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__c_lower_byte__low_bytes__3_0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_c_memory__prev_value__0__3_0]
+mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__b_lower_byte__low_bytes__3_0, c_times_quotient_lower__c_lower_byte__low_bytes__0_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0, c_times_quotient_lower__c_lower_byte__low_bytes__1_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0, c_times_quotient_lower__c_lower_byte__low_bytes__2_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_lower__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0, c_times_quotient_lower__c_lower_byte__low_bytes__3_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__product__0_0, 7864320 * c_times_quotient_lower__product__0_0 - 7864320 * c_times_quotient__0_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__product__2_0, 7864320 * c_times_quotient_lower__product__2_0 - 7864320 * c_times_quotient__1_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__product__4_0, 7864320 * c_times_quotient_lower__product__4_0 - 7864320 * c_times_quotient__2_0]
@@ -226,11 +225,10 @@ mult=is_valid * 1, args=[3, 0, c_times_quotient_lower__product__14_0, c_times_qu
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__b_lower_byte__low_bytes__0_0, 7864320 * c_times_quotient_upper__b_lower_byte__low_bytes__0_0 - 7864320 * quotient__0__0_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__b_lower_byte__low_bytes__1_0, 7864320 * c_times_quotient_upper__b_lower_byte__low_bytes__1_0 - 7864320 * quotient__0__1_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__b_lower_byte__low_bytes__2_0, 7864320 * c_times_quotient_upper__b_lower_byte__low_bytes__2_0 - 7864320 * quotient__0__2_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__b_lower_byte__low_bytes__3_0, 7864320 * c_times_quotient_upper__b_lower_byte__low_bytes__3_0 - 7864320 * quotient__0__3_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__c_lower_byte__low_bytes__0_0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__c_lower_byte__low_bytes__1_0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__c_lower_byte__low_bytes__2_0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0]
-mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__c_lower_byte__low_bytes__3_0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__3_0 - 7864320 * adapter__op_c_memory__prev_value__0__3_0]
+mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__b_lower_byte__low_bytes__3_0, c_times_quotient_upper__c_lower_byte__low_bytes__0_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__0_0 - 7864320 * adapter__op_c_memory__prev_value__0__0_0, c_times_quotient_upper__c_lower_byte__low_bytes__1_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__1_0 - 7864320 * adapter__op_c_memory__prev_value__0__1_0, c_times_quotient_upper__c_lower_byte__low_bytes__2_0]
+mult=is_valid * 1, args=[3, 0, 7864320 * c_times_quotient_upper__c_lower_byte__low_bytes__2_0 - 7864320 * adapter__op_c_memory__prev_value__0__2_0, c_times_quotient_upper__c_lower_byte__low_bytes__3_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__product__0_0, c_times_quotient_upper__product__1_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__product__2_0, c_times_quotient_upper__product__3_0]
 mult=is_valid * 1, args=[3, 0, c_times_quotient_upper__product__4_0, c_times_quotient_upper__product__5_0]
@@ -279,6 +277,7 @@ mult=is_valid * 1, args=[6, 2 * a__0__3_0 - 65536 * rem_msb__msb_0, 16, 0]
 mult=is_valid * 1, args=[6, quotient__0__0_0, 16, 0]
 mult=is_valid * 1, args=[6, quotient__0__1_0, 16, 0]
 mult=is_valid * 1, args=[6, quotient__0__2_0, 16, 0]
+mult=is_valid * 1, args=[6, quotient__0__3_0, 16, 0]
 mult=is_valid * 1, args=[6, a__0__0_0, 16, 0]
 mult=is_valid * 1, args=[6, a__0__1_0, 16, 0]
 mult=is_valid * 1, args=[6, a__0__2_0, 16, 0]

@@ -22,7 +22,7 @@ pub fn enter_unconstrained_syscall<E: ExecutorConfig>(
         global_clk: ctx.rt.state.global_clk,
         clk: ctx.rt.state.clk,
         pc: ctx.rt.state.pc,
-        memory_diff: Memory::default(),
+        memory_diff: Memory::new_preallocated(),
     });
 
     // Write `1` to `x5` to indicate that unconstrained execution is active, and advance the PC.
@@ -38,7 +38,8 @@ pub fn enter_unconstrained_syscall<E: ExecutorConfig>(
     ctx.rt.state.pc = ctx.rt.unconstrained_state.pc;
     ctx.next_pc = ctx.rt.state.pc.wrapping_add(4);
 
-    let memory_diff = std::mem::take(&mut ctx.rt.unconstrained_state.memory_diff);
+    let memory_diff =
+        std::mem::replace(&mut ctx.rt.unconstrained_state.memory_diff, Memory::new_preallocated());
     for (addr, value) in memory_diff {
         match value {
             Some(value) => {

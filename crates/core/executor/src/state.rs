@@ -90,7 +90,7 @@ impl ExecutionState {
 }
 
 /// Holds data to track changes made to the runtime since a fork point.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct ForkState {
     /// The `global_clk` value at the fork point.
@@ -101,6 +101,12 @@ pub struct ForkState {
     pub pc: u64,
     /// All memory changes since the fork point.
     pub memory_diff: Memory<Option<MemoryEntry>>,
+}
+
+impl Default for ForkState {
+    fn default() -> Self {
+        Self { global_clk: 0, clk: 0, pc: 0, memory_diff: Memory::new_preallocated() }
+    }
 }
 
 impl ExecutionState {
