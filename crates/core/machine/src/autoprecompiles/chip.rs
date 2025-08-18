@@ -29,8 +29,7 @@ use crate::{
         instruction::Sp1Instruction,
         instruction_handler::{
             try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
-        },
-        program::Sp1Program,
+        }, program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -264,7 +263,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // remove and replay side effects
                 // cannot directly modify `output`, because map cannot capture `output` as a mutable reference
                 let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
-                let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
+                // let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
 
                 for ((original_instruction, sub), byte_interactions) in original_instructions.zip_eq(&self.apc().subs).zip_eq(byte_interaction_by_original_instruction) {
                     // Get the air ID for the instruction
@@ -364,9 +363,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                             
                         } 
                         7 => { // state
-                            *state_interactions_delta.entry(
+                            // *state_interactions_delta.entry(
 
-                            )
+                            // )
                             
                         }
                         _ => {
