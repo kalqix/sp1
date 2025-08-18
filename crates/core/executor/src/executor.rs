@@ -1969,7 +1969,7 @@ impl<'a> Executor<'a> {
         assert_eq!(apc.executor.records.len(), 1);
         let mut record = apc.executor.records.pop().unwrap();
 
-        println!("APC EXECUTOR RECORD: {:#?}", record);
+        // println!("APC EXECUTOR RECORD: {:#?}", record);
 
         // transfer the cpu_local_memory_access from the APC executor to the main executor
         for access in record.cpu_local_memory_access.drain(..) {
