@@ -1607,7 +1607,6 @@ impl<'a> Executor<'a> {
         &mut self,
         instruction: &Instruction,
     ) -> Result<(), ExecutionError> {
-        println!("execute instruction: {:?}", instruction);
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
@@ -1968,8 +1967,6 @@ impl<'a> Executor<'a> {
         apc.executor.bump_record::<E>();
         assert_eq!(apc.executor.records.len(), 1);
         let mut record = apc.executor.records.pop().unwrap();
-
-        // println!("APC EXECUTOR RECORD: {:#?}", record);
 
         // transfer the cpu_local_memory_access from the APC executor to the main executor
         for access in record.cpu_local_memory_access.drain(..) {

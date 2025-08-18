@@ -18,7 +18,9 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program,
+};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
     InteractionKind, Machine,
@@ -29,7 +31,8 @@ use crate::{
         instruction::Sp1Instruction,
         instruction_handler::{
             try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
-        }, program::Sp1Program,
+        },
+        program::Sp1Program,
     },
     riscv::RiscvAir,
     utils::pad_rows_fixed,
@@ -111,16 +114,18 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
 
-        // mapping from poly_id to contiguous index in apc
-        let apc_poly_id_to_index = self.apc()
+        // Mapping from poly_id to contiguous index in apc
+        let apc_poly_id_to_index = self
+            .apc()
             .machine
             .main_columns()
             .enumerate()
             .map(|(index, c)| (c.id, index))
             .collect::<BTreeMap<_, _>>();
 
-        // get is_valid column
-        let is_valid_column = self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
+        // Get is_valid_index to manually fill with 1 for witness generation
+        let is_valid_column =
+            self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
         // Turn each event into a row
@@ -165,11 +170,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .and_then(|iter| iter.next())
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
-                        })
-                        .collect::<Vec<_>>();
+                        });
                     tracing::debug!("Original row: {original_row:?}");
                     // Map the row to the APC row
-                    for (value, poly_id) in original_row.into_iter().zip_eq(sub) {
+                    for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::debug!("Setting row[{index}] to {value:?}");
@@ -180,25 +184,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     }
                 }
 
+                // Manually set is_valid column to 1
                 row[is_valid_index] = F::one();
 
                 tracing::debug!("Final row: {row:?}");
-
-                // print all bus interactions
-                let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
-
-                for bus_interaction in self.apc().machine.bus_interactions.iter() {
-                    let mult = evaluator
-                        .eval_expr(&bus_interaction.mult)
-                        .as_canonical_u32();
-                    let args = bus_interaction
-                        .args
-                        .iter()
-                        .map(|arg| evaluator.eval_expr(arg).as_canonical_u32())
-                        .collect_vec();
-
-                    println!("GENERATE TRACE bus_id: {} mult: {mult} args: {args:?}", bus_interaction.id);
-                }
 
                 row
             })
@@ -215,39 +204,24 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        // TODO: here we should probably only generate the dependencies which were not optimised
-        // away in the APC
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
 
-        // // generate dependencies for dummy rows
-        // for event in events {
-        //     println!("APC event from generate_dependency: {:#?}", event.record);
-        //     for air in self.machine.chips().into_iter().filter(|air| air.included(&event.record)
-        // && !["Byte", "Range"     // , "MemoryBump", "StateBump"
-        //     ].contains(&air.name().as_str())) {
-        //         println!("Generate apc dependency for chip: {}", air.name());
-        //         // let mut dummy_output = Default::default();
-        //         air.generate_dependencies(&event.record, output);
-        //         // println!("Dummy output from generate_dependency: {:#?}", dummy_output);
-        //     }
-        // }
-
-        // mapping from poly_id to contiguous index in apc
-        let apc_poly_id_to_index = self.apc()
+        // Mapping from poly_id to contiguous index in apc
+        let apc_poly_id_to_index = self
+            .apc()
             .machine
             .main_columns()
             .enumerate()
             .map(|(index, c)| (c.id, index))
             .collect::<BTreeMap<_, _>>();
 
-        // get is_valid column
-        let is_valid_column = self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
+        // Get is_valid_index to manually fill with 1 for witness generation
+        let is_valid_column =
+            self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        println!("PRINT is_valid_index: {is_valid_index}");
-
-        // Turn each event into a row
+        // Turn each event into a row and collect byte/range check side effects to reapply as events to ExecutionRecord
         // TODO: can we do this for all events at the same time? Basically combine all events into a
         // single record, and run trace generation for that?
         let (mut rows, byte_interactions_deltas): (Vec<_>, Vec<_>) = events
@@ -278,23 +252,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // Go through the original instructions of the APC and map the relevant rows to the APC row
                 let original_instructions = self.apc().block.statements.iter().map(|instr| instr.0);
 
-                // get original interactions for side effects removal
-                let byte_interaction_by_original_instruction: Vec<Vec<SymbolicBusInteraction<F>>> = self.apc().block.statements.iter().map(|instr| {
-                    self.original_airs.get_instruction_air(instr).unwrap().bus_interactions.iter().filter_map(|interaction| {
-                        if interaction.id == 5 {
-                            Some(interaction.clone())
-                        } else {
-                            None
-                        }
-                    }).collect::<Vec<_>>()
-                }).collect::<Vec<_>>();
-
-                // remove and replay side effects
-                // cannot directly modify `output`, because map cannot capture `output` as a mutable reference
-                let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
-                // let mut state_interactions_delta = HashMap::new(); // event to sum of multiplicities
-
-                for ((original_instruction, sub), byte_interactions) in original_instructions.zip_eq(&self.apc().subs).zip_eq(byte_interaction_by_original_instruction) {
+                for (original_instruction, sub) in original_instructions.zip_eq(&self.apc().subs) {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
@@ -325,38 +283,13 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
                     // No column id needed as we are operating on dummy row.
                     let dummy_evaluator = RowEvaluator::new(&original_row, None);
-
-                    for interaction in byte_interactions {
-                        let mult = dummy_evaluator.eval_expr(&interaction.mult);
-                        let args = interaction.args.iter().map(|arg| dummy_evaluator.eval_expr(arg)).collect_vec();
-                        // interaction id is 5
-                        println!("remove mult: {mult} args: {args:?}");
-                        // remove byte lookup event
-                        // *byte_interactions_delta.entry(ByteLookupEvent {
-                        //     opcode: match args[0].as_canonical_u32() {
-                        //         0 => ByteOpcode::AND,
-                        //         1 => ByteOpcode::OR,
-                        //         2 => ByteOpcode::XOR,
-                        //         3 => ByteOpcode::U8Range,
-                        //         4 => ByteOpcode::LTU,
-                        //         5 => ByteOpcode::MSB,
-                        //         6 => ByteOpcode::Range,
-                        //         _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0].as_canonical_u32()),
-                        //     },
-                        //     a: args[1].as_canonical_u32() as u16,
-                        //     b: args[2].as_canonical_u32() as u8,
-                        //     c: args[3].as_canonical_u32() as u8,
-                        // }).or_insert(0) -= mult.as_canonical_u32() as isize;
-                    }
                 }
 
-                // replay the side effects
-                let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
+                // Collect and replay side effects as events
+                // Only need to do this for byte lookup bus, as other buses are implicitly balanced via main trace values rather than via events
+                let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
 
-                // print all bus interactions
-                self.apc().machine.bus_interactions.iter().for_each(|interaction| {
-                    println!("ALL Bus interaction: {interaction:?}");
-                });
+                let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
                 for bus_interaction in self.apc().machine.bus_interactions.iter() {
                     let mult = evaluator
@@ -368,41 +301,24 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .map(|arg| evaluator.eval_expr(arg).as_canonical_u32())
                         .collect_vec();
 
-                    println!("add mult: {mult} args: {args:?}");
-
-                    match bus_interaction.id {
-                        1 => { // memory
-
-                        }
-                        5 => { // byte lookup
-                            assert_eq!(args.len(), 4);
-                            *byte_interactions_delta.entry(ByteLookupEvent {
-                                opcode: match args[0] {
-                                    0 => ByteOpcode::AND,
-                                    1 => ByteOpcode::OR,
-                                    2 => ByteOpcode::XOR,
-                                    3 => ByteOpcode::U8Range,
-                                    4 => ByteOpcode::LTU,
-                                    5 => ByteOpcode::MSB,
-                                    6 => ByteOpcode::Range,
-                                    _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0]),
-                                },
-                                a: args[1] as u16,
-                                b: args[2] as u8,
-                                c: args[3] as u8,
-                            }).or_insert(0) += mult as isize;
-                            
-                        } 
-                        7 => { // state
-                            // *state_interactions_delta.entry(
-
-                            // )
-                            
-                        }
-                        _ => {
-                            println!("Unexpected bus interaction id: {:?}", bus_interaction.id);
-                        }
-                    }
+                    if bus_interaction.id == 5 { // byte lookup
+                        assert_eq!(args.len(), 4);
+                        *byte_interactions_delta.entry(ByteLookupEvent {
+                            opcode: match args[0] {
+                                0 => ByteOpcode::AND,
+                                1 => ByteOpcode::OR,
+                                2 => ByteOpcode::XOR,
+                                3 => ByteOpcode::U8Range,
+                                4 => ByteOpcode::LTU,
+                                5 => ByteOpcode::MSB,
+                                6 => ByteOpcode::Range,
+                                _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0]),
+                            },
+                            a: args[1] as u16,
+                            b: args[2] as u8,
+                            c: args[3] as u8,
+                        }).or_insert(0) += mult as isize;
+                    } 
                 }
 
                 tracing::debug!("Final row: {row:?}");
@@ -411,34 +327,13 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             })
             .unzip();
 
-        // print all byte lookups
-        input.byte_lookups.iter().for_each(|(event, mult)| {
-            println!("ByteLookupEvent: {event:?} with multiplicity {mult}");
-        });
-
-        // replay byte lookups (can only mutate output after map)
+        // Replay byte lookups (can only mutate output after map)
         for delta in byte_interactions_deltas.into_iter() {
             for (event, mult) in delta.into_iter() {
-                println!("Modifying event: {event:?} with multiplicity {mult}");
                 *output.byte_lookups.entry(event).or_insert(0) += mult;
             }
         }
     }
-
-    // Modifying event: ByteLookupEvent { 6, a: 0, b: 13, c: 0 } with multiplicity 0
-    // Modifying event: ByteLookupEvent { 0, a: 0, b: 29, c: 0 } with multiplicity 1
-    // Modifying event: ByteLookupEvent { 0, a: 9, b: 4, c: 0 } with multiplicity 1
-    // Modifying event: ByteLookupEvent { 0, a: 3, b: 28, c: 0 } with multiplicity 2013265920
-    // Modifying event: ByteLookupEvent { 0, a: 4, b: 29, c: 0 } with multiplicity 2013265920
-    // Modifying event: ByteLookupEvent { 6, a: 3, b: 16, c: 0 } with multiplicity 0
-    // Modifying event: ByteLookupEvent { 0, a: 2, b: 27, c: 0 } with multiplicity 2013265920
-    // Modifying event: ByteLookupEvent { 6, a: 2, b: 16, c: 0 } with multiplicity 0
-    // Modifying event: ByteLookupEvent { 6, a: 1, b: 16, c: 0 } with multiplicity 0
-    // Modifying event: ByteLookupEvent { 6, a: 0, b: 16, c: 0 } with multiplicity 0
-    // Modifying event: ByteLookupEvent { 0, a: 1, b: 0, c: 0 } with multiplicity 2013265920
-    // Modifying event: ByteLookupEvent { 0, a: 0, b: 27, c: 0 } with multiplicity 1
-    // Modifying event: ByteLookupEvent { 3, a: 0, b: 0, c: 0 } with multiplicity -2
-    // Modifying event: ByteLookupEvent { 0, a: 0, b: 28, c: 0 } with multiplicity 1
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
@@ -482,12 +377,9 @@ where
             builder.assert_zero(e);
         }
 
-        println!("APC: {}", self.cached_apc.apc.machine());
-
         for interaction in &self.cached_apc.apc.machine().bus_interactions {
             let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, id } = interaction;
 
-            println!("Processing AlgebraicExpression mult: {mult} kind: {id} args: {}", args.iter().map(|arg| arg.to_string()).collect::<Vec<_>>().join(", "));
             // Detect receive if sign of mult is negative, because
             // sp1_core_machine::autoprecompiles::interaction_builder::InteractionBuilder negates
             // multiplicity for receives.
@@ -524,7 +416,6 @@ where
                 }
                 _ => (false, mult),
             };
-            // println!("is_receive: {is_receive} mult: {mult}");
 
             let mult = witness_evaluator.eval_expr(mult);
             let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
@@ -542,18 +433,11 @@ where
 
             // We only support local interaction scope.
             if is_receive {
-                println!("Receiving interaction: kind: {:?} mult: {:?} args: {}", air_interaction.kind, air_interaction.multiplicity, air_interaction.values.iter().map(|arg| format!("{:?}", arg)).collect::<Vec<_>>().join(", "));
                 builder.receive(air_interaction, InteractionScope::Local);
             } else {
-                println!("Sending interaction: kind: {:?} mult: {:?} args: {}", air_interaction.kind, air_interaction.multiplicity, air_interaction.values.iter().map(|arg| format!("{:?}", arg)).collect::<Vec<_>>().join(", "));
                 builder.send(air_interaction, InteractionScope::Local);
             }
         }
-
-        // // Add a dummy bus interaction, otherwise `/stark/src/logup_gkr/execution.rs:237:30`
-        // fails let col = main.row_slice(0);
-        // let col: &AB::Var = col[0].borrow();
-        // builder.send_byte(*col, *col, *col, *col, *col);
     }
 }
 
