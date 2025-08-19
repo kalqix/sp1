@@ -8,10 +8,10 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
-    Apc, InstructionHandler, SymbolicBusInteraction,
+    Apc,
 };
 use powdr_expression::{
-    AlgebraicBinaryOperation, AlgebraicBinaryOperator, AlgebraicUnaryOperation,
+    AlgebraicBinaryOperator,
     AlgebraicUnaryOperator,
 };
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -224,7 +224,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // Turn each event into a row and collect byte/range check side effects to reapply as events to ExecutionRecord
         // TODO: can we do this for all events at the same time? Basically combine all events into a
         // single record, and run trace generation for that?
-        let (mut rows, byte_interactions_deltas): (Vec<_>, Vec<_>) = events
+        let byte_interactions_deltas = events
             .par_iter()
             .map(|event| {
                 assert!(event.id == self.id, "APC ID mismatch");
@@ -263,31 +263,26 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .and_then(|iter| iter.next())
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
-                        })
-                        .collect::<Vec<_>>();
+                        });
                     tracing::debug!("Original row: {original_row:?}");
-                    // Map the row to the APC row. TODO: use the mapping returned by apc generation.
-                    for (i, value) in original_row.iter().enumerate() {
-                        // get poly_id from sub
-                        let poly_id = sub.get(i).expect("Not in dummy");
+                    // Map the row to the APC row
+                    for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::debug!("Setting row[{index}] to {value:?}");
-                            row[*index] = *value;
+                            row[*index] = value;
                         } else {
                             tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
 
+                    // Manually set is_valid column to 1
                     row[is_valid_index] = F::one();
-
-                    // No column id needed as we are operating on dummy row.
-                    let dummy_evaluator = RowEvaluator::new(&original_row, None);
                 }
 
                 // Collect and replay side effects as events
                 // Only need to do this for byte lookup bus, as other buses are implicitly balanced via main trace values rather than via events
-                let mut byte_interactions_delta = HashMap::new(); // event to sum of multiplicities
+                let mut byte_interactions_delta = HashMap::new(); // map of event to sum of multiplicities
 
                 let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
@@ -323,12 +318,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
                 tracing::debug!("Final row: {row:?}");
 
-                (row, byte_interactions_delta)
-            })
-            .unzip();
+                byte_interactions_delta
+            });
 
         // Replay byte lookups (can only mutate output after map)
-        for delta in byte_interactions_deltas.into_iter() {
+        for delta in byte_interactions_deltas {
             for (event, mult) in delta.into_iter() {
                 *output.byte_lookups.entry(event).or_insert(0) += mult;
             }
@@ -380,43 +374,6 @@ where
         for interaction in &self.cached_apc.apc.machine().bus_interactions {
             let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, id } = interaction;
 
-            // Detect receive if sign of mult is negative, because
-            // sp1_core_machine::autoprecompiles::interaction_builder::InteractionBuilder negates
-            // multiplicity for receives.
-            // TODO: is this robust? Is it possible that the
-            // multiplicity is negative to start with and then get negated again and become
-            // positive?
-            let (is_receive, mult) = match mult {
-                // If a multiplicity is a non-zero polynomial, powdr optimization multiplies
-                // `is_valid` to its left. Here we strip off the sign of the
-                // multiplicity if it's a receive (negative).
-                AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
-                    op: AlgebraicBinaryOperator::Mul,
-                    left,
-                    right,
-                }) => {
-                    match (&**left, &**right) {
-                        // Box dereference
-                        (
-                            AlgebraicExpression::Reference(AlgebraicReference { .. }),
-                            AlgebraicExpression::UnaryOperation(AlgebraicUnaryOperation {
-                                op: AlgebraicUnaryOperator::Minus,
-                                expr: mult,
-                            }),
-                        ) => (
-                            true,
-                            &AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
-                                op: AlgebraicBinaryOperator::Mul,
-                                left: left.clone(),
-                                right: mult.clone(),
-                            }),
-                        ),
-                        _ => (false, mult),
-                    }
-                }
-                _ => (false, mult),
-            };
-
             let mult = witness_evaluator.eval_expr(mult);
             let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
 
@@ -431,12 +388,8 @@ where
 
             let air_interaction = AirInteraction::new(args, mult, interaction_kind);
 
-            // We only support local interaction scope.
-            if is_receive {
-                builder.receive(air_interaction, InteractionScope::Local);
-            } else {
-                builder.send(air_interaction, InteractionScope::Local);
-            }
+            // We only need to send, because receive is just send with negative multiplicity.
+            builder.send(air_interaction, InteractionScope::Local);
         }
     }
 }

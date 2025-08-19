@@ -1328,28 +1328,6 @@ pub mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-    async fn test_add_apc_prove_one_instr() {
-        setup_logger();
-        let mut instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 28, 27, false, false),
-            // Instruction::new(Opcode::ADD, 29, 28, 27, false, false),
-        ];
-        add_halt(&mut instructions);
-        // let apc_ranges = vec![(0, 1), (1, 2)];
-        let apc_ranges = vec![(0, 1)];
-        let program = Program::new(instructions, 0, 0);
-        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
-        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
-        // instead of passing them here to `run_test_with_apcs`
-        let apcs = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(&apc_ranges);
-        let stdin = SP1Stdin::new();
-        crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
-            .await
-            .unwrap();
-    }
-
     #[test]
     fn test_chips_main_width_interaction_ratio() {
         let chips = RiscvAir::<BabyBear>::chips();

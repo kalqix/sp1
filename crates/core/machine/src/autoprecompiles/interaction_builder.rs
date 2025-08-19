@@ -100,7 +100,6 @@ impl<F: Field> PairBuilder for InteractionBuilder<F> {
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
     fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: InteractionScope) {
-        println!("Adding send interaction: {message:?}");
         self.interactions.push(Interaction { message, scope });
     }
 
@@ -111,7 +110,6 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
     ) {
         // Negate the multiplicity for receives.
         message.multiplicity = -message.multiplicity;
-        println!("Adding receive interaction: {message:?}");
         self.interactions.push(Interaction { message, scope });
     }
 }
