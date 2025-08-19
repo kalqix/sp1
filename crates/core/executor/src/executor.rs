@@ -1952,6 +1952,7 @@ impl<'a> Executor<'a> {
         apc.executor.memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
         apc.executor.uninitialized_memory_checkpoint =
             std::mem::take(&mut self.uninitialized_memory_checkpoint);
+        apc.executor.local_memory_access = std::mem::take(&mut self.local_memory_access);
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
@@ -1962,16 +1963,13 @@ impl<'a> Executor<'a> {
         // The pc of the apc executor is the next pc in the main execution
         let next_pc = apc.executor.state.pc;
 
+        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
+
         // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
         assert_eq!(apc.executor.records.len(), 0);
         apc.executor.bump_record::<E>();
         assert_eq!(apc.executor.records.len(), 1);
-        let mut record = apc.executor.records.pop().unwrap();
-
-        // transfer the cpu_local_memory_access from the APC executor to the main executor
-        for access in record.cpu_local_memory_access.drain(..) {
-            self.local_memory_access.insert(access.addr, access);
-        }
+        let record = apc.executor.records.pop().unwrap();
 
         // After apc execution, put data back into the main executor
         self.state = std::mem::take(&mut apc.executor.state);

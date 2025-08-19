@@ -10,10 +10,7 @@ use powdr_autoprecompiles::{
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc,
 };
-use powdr_expression::{
-    AlgebraicBinaryOperator,
-    AlgebraicUnaryOperator,
-};
+use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
@@ -29,9 +26,7 @@ use sp1_stark::{
 use crate::{
     autoprecompiles::{
         instruction::Sp1Instruction,
-        instruction_handler::{
-            try_instruction_type_to_air_id, InstructionType, Sp1InstructionHandler,
-        },
+        instruction_handler::{try_instruction_type_to_air_id, InstructionType},
         program::Sp1Program,
     },
     riscv::RiscvAir,
@@ -68,17 +63,11 @@ pub struct ApcChip<F: PrimeField32> {
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC.
     machine: Machine<F, RiscvAir<F>>,
-    /// Original AIRs
-    original_airs: Sp1InstructionHandler<F>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
-    pub fn new(
-        apc: Arc<Apc<F, Sp1Instruction>>,
-        id: usize,
-        original_airs: Sp1InstructionHandler<F>,
-    ) -> Self {
-        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine(), original_airs }
+    pub fn new(apc: Arc<Apc<F, Sp1Instruction>>, id: usize) -> Self {
+        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
     }
 
     pub fn apc(&self) -> &Arc<Apc<F, Sp1Instruction>> {
@@ -221,9 +210,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        // Turn each event into a row and collect byte/range check side effects to reapply as events to ExecutionRecord
-        // TODO: can we do this for all events at the same time? Basically combine all events into a
-        // single record, and run trace generation for that?
+        // Turn each event into a row and collect byte/range check side effects to reapply as events
+        // to ExecutionRecord TODO: can we do this for all events at the same time?
+        // Basically combine all events into a single record, and run trace generation for
+        // that?
         let byte_interactions_deltas = events
             .par_iter()
             .map(|event| {
@@ -313,16 +303,17 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                             b: args[2] as u8,
                             c: args[3] as u8,
                         }).or_insert(0) += mult as isize;
-                    } 
+                    }
                 }
 
                 tracing::debug!("Final row: {row:?}");
 
                 byte_interactions_delta
-            });
+            })
+            .collect::<Vec<_>>();
 
         // Replay byte lookups (can only mutate output after map)
-        for delta in byte_interactions_deltas {
+        for delta in byte_interactions_deltas.into_iter() {
             for (event, mult) in delta.into_iter() {
                 *output.byte_lookups.entry(event).or_insert(0) += mult;
             }
