@@ -13,11 +13,12 @@ pub mod program;
 mod tests;
 
 use powdr_autoprecompiles::{
-    adapter::AdapterApc,
-    blocks::{collect_basic_blocks, generate_apcs_with_pgo, Program as _},
+    adapter::{AdapterApc, PgoAdapter},
+    blocks::{collect_basic_blocks, BasicBlock, Program as _},
     evaluation::EvaluationResult,
     execution_profile::execution_profile,
-    BasicBlock, DegreeBound, PgoConfig, PowdrConfig,
+    pgo::{CellPgo, InstructionPgo, NonePgo},
+    DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
@@ -30,6 +31,7 @@ use crate::{
         adapter::Sp1ApcAdapter,
         bus_interaction_handler::Sp1BusInteractionHandler,
         bus_map::{sp1_bus_map, Sp1SpecificBuses},
+        candidate::Sp1Candidate,
         instruction::Sp1Instruction,
         instruction_handler::Sp1InstructionHandler,
         program::Sp1Program,
@@ -138,8 +140,31 @@ impl CompiledProgram {
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Generate APC
-        let apcs_and_stats =
-            generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
+        let apcs_and_stats = match pgo_config {
+            PgoConfig::Cell(pgo_data, max_total_apc_columns) => CellPgo::<
+                Sp1ApcAdapter,
+                Sp1Candidate<Sp1ApcAdapter>,
+            >::with_pgo_data_and_max_columns(
+                pgo_data, max_total_apc_columns
+            )
+            .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config),
+            PgoConfig::Instruction(pgo_data) => {
+                InstructionPgo::<Sp1ApcAdapter>::with_pgo_data(pgo_data)
+                    .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config)
+            }
+            PgoConfig::None => NonePgo::default()
+                .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config),
+        };
+
+        // TODO: this could be removed but sadly `AdapterApcWithStats` does not implement
+        // `Serialize` due to some bound, and we need that for `Self`.
+        let apcs_and_stats = apcs_and_stats
+            .into_iter()
+            .map(|apc_with_stats| {
+                let (apc, stats) = apc_with_stats.into_parts();
+                (apc, stats)
+            })
+            .collect();
 
         Self { apcs_and_stats }
     }

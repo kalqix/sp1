@@ -1,7 +1,7 @@
 use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use metrics_tracing_context::MetricsLayer;
-use powdr_autoprecompiles::{pgo_config, PgoType};
+use powdr_autoprecompiles::{pgo::pgo_config, PgoType};
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::{
     autoprecompiles::{

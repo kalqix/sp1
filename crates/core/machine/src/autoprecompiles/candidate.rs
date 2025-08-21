@@ -2,9 +2,10 @@ use std::{collections::HashMap, path::Path};
 
 use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 use powdr_autoprecompiles::{
-    adapter::{Adapter, AdapterApc, AdapterVmConfig},
-    blocks::{ApcCandidateJsonExport, BasicBlock, Candidate, KnapsackItem},
+    adapter::{Adapter, AdapterApc, AdapterApcWithStats, AdapterVmConfig},
+    blocks::BasicBlock,
     evaluation::{AirStats, EvaluationResult},
+    pgo::{ApcCandidateJsonExport, Candidate, KnapsackItem},
 };
 
 use serde::{Deserialize, Serialize};
@@ -42,8 +43,6 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
-    type ApcStats = EvaluationResult;
-
     fn create(
         apc: AdapterApc<Sp1ApcAdapter>,
         pgo_program_pc_count: &HashMap<u64, u32>,
@@ -85,8 +84,8 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         }
     }
 
-    fn into_apc_and_stats(self) -> (AdapterApc<Sp1ApcAdapter>, Self::ApcStats) {
-        (self.apc, self.stats)
+    fn into_apc_and_stats(self) -> AdapterApcWithStats<Sp1ApcAdapter> {
+        AdapterApcWithStats::from(self.apc).with_stats(self.stats)
     }
 }
 
