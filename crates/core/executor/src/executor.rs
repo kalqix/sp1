@@ -1966,10 +1966,10 @@ impl<'a> Executor<'a> {
         self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
 
         // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
-        assert_eq!(apc.executor.records.len(), 0);
-        apc.executor.bump_record::<E>();
-        assert_eq!(apc.executor.records.len(), 1);
-        let record = apc.executor.records.pop().unwrap();
+        let removed_record = std::mem::replace(
+            &mut apc.executor.record,
+            Box::new(ExecutionRecord::new(apc.executor.program.clone())),
+        );
 
         // After apc execution, put data back into the main executor
         self.state = std::mem::take(&mut apc.executor.state);
@@ -1983,7 +1983,7 @@ impl<'a> Executor<'a> {
         // decrement it by 8 here.
         self.state.clk -= 8;
 
-        Ok((0, apc.id, 0, next_pc, *record))
+        Ok((0, apc.id, 0, next_pc, *removed_record))
     }
 
     /// Execute an ecall instruction.
