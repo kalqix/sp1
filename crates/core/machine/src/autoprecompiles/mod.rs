@@ -152,7 +152,7 @@ impl CompiledProgram {
                 InstructionPgo::<Sp1ApcAdapter>::with_pgo_data(pgo_data)
                     .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config)
             }
-            PgoConfig::None => NonePgo::default()
+            PgoConfig::None => NonePgo::<Sp1ApcAdapter>::default()
                 .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config),
         };
 

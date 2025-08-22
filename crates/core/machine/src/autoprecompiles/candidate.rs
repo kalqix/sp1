@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 use powdr_autoprecompiles::{
-    adapter::{Adapter, AdapterApc, AdapterApcWithStats, AdapterVmConfig},
+    adapter::{Adapter, AdapterApc, AdapterApcWithStats, AdapterVmConfig, ApcWithStats},
     blocks::BasicBlock,
     evaluation::{AirStats, EvaluationResult},
     pgo::{ApcCandidateJsonExport, Candidate, KnapsackItem},
@@ -85,7 +85,7 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
     }
 
     fn into_apc_and_stats(self) -> AdapterApcWithStats<Sp1ApcAdapter> {
-        AdapterApcWithStats::from(self.apc).with_stats(self.stats)
+        ApcWithStats::from(self.apc).with_stats(self.stats)
     }
 }
 
