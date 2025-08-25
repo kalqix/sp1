@@ -1963,8 +1963,6 @@ impl<'a> Executor<'a> {
         // The pc of the apc executor is the next pc in the main execution
         let next_pc = apc.executor.state.pc;
 
-        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
-
         // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
         let removed_record = std::mem::replace(
             &mut apc.executor.record,
@@ -1976,6 +1974,7 @@ impl<'a> Executor<'a> {
         self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
         self.uninitialized_memory_checkpoint =
             std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
+        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
         self.state.pc = original_pc;
 
         // In total, the clock must be incremented by 8 for each instruction. However, this function

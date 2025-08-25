@@ -275,8 +275,9 @@ impl Sp1BusInteractionHandler {
                     let a = BabyBearField::from(b_value.to_degree() & c_value.to_degree());
                     (RangeConstraint::from_value(a), b, c)
                 } else {
-                    let a = b.conjunction(&c);
-                    (a, b, c)
+                    let a_mask =
+                        b.mask().try_into_u32().unwrap() & c.mask().try_into_u32().unwrap();
+                    (RangeConstraint::from_mask(a_mask), b, c)
                 }
             }
             // OR: a = b | c
