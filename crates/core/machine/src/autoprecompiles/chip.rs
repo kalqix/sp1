@@ -211,9 +211,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
         // Turn each event into a row and collect byte/range check side effects to reapply as events
-        // to ExecutionRecord TODO: can we do this for all events at the same time?
-        // Basically combine all events into a single record, and run trace generation for
-        // that?
+        // to ExecutionRecord
+        // TODO: can we do combine all events into a single record, and run trace generation a
+        // single time?
         let byte_interactions_deltas = events
             .par_iter()
             .map(|event| {
@@ -286,7 +286,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .map(|arg| evaluator.eval_expr(arg).as_canonical_u32())
                         .collect_vec();
 
-                    if bus_interaction.id == 5 { // byte lookup
+                    if bus_interaction.id == InteractionKind::Byte as u64 { // byte lookup
                         assert_eq!(args.len(), 4);
                         *byte_interactions_delta.entry(ByteLookupEvent {
                             opcode: match args[0] {
@@ -370,10 +370,10 @@ where
 
             // All instruction AIRs only use the four buses below.
             let interaction_kind = match id {
-                1 => InteractionKind::Memory,
-                2 => InteractionKind::Program,
-                5 => InteractionKind::Byte,
-                7 => InteractionKind::State,
+                id if *id == InteractionKind::Memory as u64 => InteractionKind::Memory,
+                id if *id == InteractionKind::Program as u64 => InteractionKind::Program,
+                id if *id == InteractionKind::Byte as u64 => InteractionKind::Byte,
+                id if *id == InteractionKind::State as u64 => InteractionKind::State,
                 _ => unreachable!("Unexpected bus ID: {id}"),
             };
 
