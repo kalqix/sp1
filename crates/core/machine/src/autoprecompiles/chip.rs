@@ -212,7 +212,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
         // Turn each event into a row and collect byte/range check side effects to reapply as events
         // to ExecutionRecord
-        // TODO: can we do combine all events into a single record, and run trace generation a
+        // TODO: can we combine all events into a single record, and run trace generation a
         // single time?
         let byte_interactions_deltas = events
             .par_iter()
