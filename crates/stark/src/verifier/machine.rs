@@ -148,15 +148,7 @@ where
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, C>>,
     {
-        match self.shard_verifier.verify_shard(vk, proof, challenger) {
-            Ok(()) => Ok(()),
-            Err(ShardVerifierError::GkrVerificationFailed(e)) => {
-                tracing::error!("GKR verification failed: {e}");
-                tracing::error!("Skip this failure. This is unsound and will be removed when apc witgen properly balances the busses");
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+        self.shard_verifier.verify_shard(vk, proof, challenger)
     }
 }
 

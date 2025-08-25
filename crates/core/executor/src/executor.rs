@@ -1952,6 +1952,7 @@ impl<'a> Executor<'a> {
         apc.executor.memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
         apc.executor.uninitialized_memory_checkpoint =
             std::mem::take(&mut self.uninitialized_memory_checkpoint);
+        apc.executor.local_memory_access = std::mem::take(&mut self.local_memory_access);
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
@@ -1963,21 +1964,17 @@ impl<'a> Executor<'a> {
         let next_pc = apc.executor.state.pc;
 
         // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
-        assert_eq!(apc.executor.records.len(), 0);
-        apc.executor.bump_record::<E>();
-        assert_eq!(apc.executor.records.len(), 1);
-        let mut record = apc.executor.records.pop().unwrap();
-
-        // transfer the cpu_local_memory_access from the APC executor to the main executor
-        for access in record.cpu_local_memory_access.drain(..) {
-            self.local_memory_access.insert(access.addr, access);
-        }
+        let removed_record = std::mem::replace(
+            &mut apc.executor.record,
+            Box::new(ExecutionRecord::new(apc.executor.program.clone())),
+        );
 
         // After apc execution, put data back into the main executor
         self.state = std::mem::take(&mut apc.executor.state);
         self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
         self.uninitialized_memory_checkpoint =
             std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
+        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
         self.state.pc = original_pc;
 
         // In total, the clock must be incremented by 8 for each instruction. However, this function
@@ -1985,7 +1982,7 @@ impl<'a> Executor<'a> {
         // decrement it by 8 here.
         self.state.clk -= 8;
 
-        Ok((0, apc.id, 0, next_pc, *record))
+        Ok((0, apc.id, 0, next_pc, *removed_record))
     }
 
     /// Execute an ecall instruction.

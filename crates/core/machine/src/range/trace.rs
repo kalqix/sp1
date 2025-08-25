@@ -76,7 +76,7 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
             }
             let row = (lookup.a as usize) + (1 << lookup.b);
             let cols: &mut RangeMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.multiplicity += F::from_canonical_usize(*mult);
+            cols.multiplicity += F::from_canonical_usize((*mult).try_into().unwrap());
         }
 
         trace
