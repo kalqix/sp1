@@ -32,7 +32,7 @@ mod hook;
 mod instruction;
 mod io;
 mod memory;
-mod opcode;
+pub mod opcode;
 mod opts;
 #[cfg(feature = "profiling")]
 mod profiler;

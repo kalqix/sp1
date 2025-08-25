@@ -1308,6 +1308,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
         ];
+
         add_halt(&mut instructions);
         let apc_ranges = vec![(0, 2), (3, 5)];
         let program = Program::new(instructions, 0, 0);

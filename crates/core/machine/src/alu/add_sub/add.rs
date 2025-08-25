@@ -109,7 +109,7 @@ impl<F: PrimeField32> MachineAir<F> for AddChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_ADD_COLS];
                     let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();

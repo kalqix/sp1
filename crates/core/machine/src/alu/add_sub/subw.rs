@@ -108,7 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_SUBW_COLS];
                     let cols: &mut SubwCols<F> = row.as_mut_slice().borrow_mut();

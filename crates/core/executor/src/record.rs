@@ -91,7 +91,7 @@ pub struct ExecutionRecord {
     /// A trace of the JALR events.
     pub jalr_events: Vec<(JumpEvent, ITypeRecord)>,
     /// A trace of the byte lookups that are needed.
-    pub byte_lookups: HashMap<ByteLookupEvent, usize>,
+    pub byte_lookups: HashMap<ByteLookupEvent, isize>,
     /// A trace of the precompile events.
     pub precompile_events: PrecompileEvents,
     /// A trace of the global memory initialize events.
@@ -601,7 +601,7 @@ impl ByteRecord for ExecutionRecord {
     #[inline]
     fn add_byte_lookup_events_from_maps(
         &mut self,
-        new_events: Vec<&HashMap<ByteLookupEvent, usize>>,
+        new_events: Vec<&HashMap<ByteLookupEvent, isize>>,
     ) {
         for new_blu_map in new_events {
             for (blu_event, count) in new_blu_map.iter() {
