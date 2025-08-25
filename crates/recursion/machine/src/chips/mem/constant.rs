@@ -188,9 +188,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[should_panic]
-    // TODO: This should actually panic, but with apcs we removed the logup gkr check. Revert to
-    // `should_panic` once the logup gkr check is back.
+    #[should_panic]
     pub async fn basic_mem_bad_mult() {
         test_recursion_linear_program(vec![
             instr::mem(MemAccessKind::Write, 1, 1, 2),
