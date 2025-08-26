@@ -1337,6 +1337,8 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
         let mut opts = SP1CoreOpts::default();
+        // This is a very small threshold and is almost guaranteed to segment when the executor
+        // checks for segmentation.
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
         run_test_with_opts(program, stdin, opts).await.unwrap();
