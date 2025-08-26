@@ -152,7 +152,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    tracing::debug!("Processing air_id: {air_id:?}");
+                    tracing::trace!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -160,15 +160,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    tracing::debug!("Original row: {original_row:?}");
+                    tracing::trace!("Original row: {original_row:?}");
                     // Map the row to the APC row
                     for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            tracing::debug!("Setting row[{index}] to {value:?}");
+                            tracing::trace!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
                 }
@@ -176,7 +176,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 // Manually set is_valid column to 1
                 row[is_valid_index] = F::one();
 
-                tracing::debug!("Final row: {row:?}");
+                tracing::trace!("Final row: {row:?}");
 
                 row
             })
@@ -246,7 +246,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     // Get the air ID for the instruction
                     let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
                         .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                    tracing::debug!("Processing air_id: {air_id:?}");
+                    tracing::trace!("Processing air_id: {air_id:?}");
                     // Get the next row for this air ID
                     let original_row = iterators
                         .get_mut(&air_id)
@@ -254,15 +254,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         .unwrap_or_else(|| {
                             panic!("No row found for air ID: {air_id:?}");
                         });
-                    tracing::debug!("Original row: {original_row:?}");
+                    tracing::trace!("Original row: {original_row:?}");
                     // Map the row to the APC row
                     for (value, poly_id) in original_row.zip_eq(sub) {
                         // get index in apc from poly_id
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            tracing::debug!("Setting row[{index}] to {value:?}");
+                            tracing::trace!("Setting row[{index}] to {value:?}");
                             row[*index] = value;
                         } else {
-                            tracing::debug!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                            tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
                         }
                     }
 
@@ -306,7 +306,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     }
                 }
 
-                tracing::debug!("Final row: {row:?}");
+                tracing::trace!("Final row: {row:?}");
 
                 byte_interactions_delta
             })
