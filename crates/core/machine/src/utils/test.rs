@@ -37,7 +37,10 @@ pub async fn run_test_with_machine<
     inputs: SP1Stdin,
     machine: Machine<BabyBear, A>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
-    run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
+    match run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await {
+        Ok((public_values, _)) => Ok(public_values),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn run_test_with_machine_opts<
@@ -51,13 +54,16 @@ pub async fn run_test_with_machine_opts<
     inputs: SP1Stdin,
     machine: Machine<BabyBear, A>,
     opts: SP1CoreOpts,
-) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+) -> Result<
+    (SP1PublicValues, MachineProof<BabyBearPoseidon2>),
+    MachineVerifierConfigError<BabyBearPoseidon2>,
+> {
     let mut runtime = Executor::new(Arc::new(program), opts.clone());
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
-    Ok(public_values)
+    let proofs = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
+    Ok((public_values, proofs))
 }
 
 pub async fn run_test(

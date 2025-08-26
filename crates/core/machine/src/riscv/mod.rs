@@ -1183,7 +1183,10 @@ pub mod tests {
         program: Program,
         stdin: SP1Stdin,
         opts: sp1_core_executor::SP1CoreOpts,
-    ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    ) -> Result<
+        (SP1PublicValues, sp1_stark::MachineProof<BabyBearPoseidon2>),
+        MachineVerifierConfigError<BabyBearPoseidon2>,
+    > {
         crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
     }
 
@@ -1313,26 +1316,15 @@ pub mod tests {
         // 1. Executor checks for segmentation every 16 instructions.
         // 2. The trace is over preset sharding threshold of trace cell count or trace height.
         // Therefore, this segmentation test example must include at least 16 instructions.
-        let mut instructions = vec![
+        let mut instructions = std::iter::repeat([
             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ];
+        ])
+        .flatten()
+        .take(16)
+        .collect();
+
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
@@ -1341,7 +1333,9 @@ pub mod tests {
         // checks for segmentation.
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        run_test_with_opts(program, stdin, opts).await.unwrap();
+        let (_, proofs) = run_test_with_opts(program, stdin, opts).await.unwrap();
+        // Number of segments
+        assert!(proofs.shard_proofs.len() == 3);
     }
 
     #[tokio::test]
