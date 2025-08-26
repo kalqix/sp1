@@ -20,6 +20,10 @@ use alloy_primitives::B256;
 use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
+use sp1_sdk::ProverClient;
+use sp1_sdk::Prover;
+use sp1_sdk::ProvingKey;
+use sp1_sdk::ProveRequest;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("rsp-program");
@@ -37,6 +41,12 @@ enum Commands {
     Execute,
     /// Generate APCs using Powdr
     Powdr,
+    /// Prove the RSP program
+    Prove {
+        /// Number of APCs to enable (0 = disabled)
+        #[arg(long, default_value_t = 0)]
+        apcs: usize,
+    },
 }
 
 fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInput {
@@ -93,6 +103,21 @@ async fn main() {
             let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
 
             println!("[powdr] Done!");
+        }
+        Commands::Prove { apcs } => {
+            let client = ProverClient::from_env().await;
+            let pk = client.setup(ELF).await.expect("setup failed");
+
+            if apcs > 0 {
+                unimplemented!();
+            }
+
+            println!("Starting proving...");
+            let proof = client.prove(&pk, stdin).core().await.expect("proving failed");
+            println!("Done proving!");
+
+            // Verify proof.
+            client.verify(&proof, pk.verifying_key()).expect("verification failed");
         }
     }
 }
