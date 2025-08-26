@@ -1080,6 +1080,41 @@ pub mod tests {
     }
 
     const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
+    const GUEST_KECCAK256_SOFTWARE: &str = "../test-artifacts/programs/keccak256-software";
+
+    fn seeded_random_preimages_with_bounded_len(
+        count: usize,
+        len: usize,
+        seed: u64,
+    ) -> Vec<Vec<u8>> {
+        use rand::{distributions::Distribution, Rng, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
+        (0..count)
+            .map(|_| {
+                let actual_len = rand::distributions::Uniform::new(0_usize, len).sample(&mut rng);
+                (0..actual_len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>()
+            })
+            .collect()
+    }
+
+    fn keccak256_software_stdin(
+        // Number of Keccak hashes to compute
+        count: usize,
+        // Maximum length of each hash input
+        len: usize,
+    ) -> SP1Stdin {
+        let mut stdin = SP1Stdin::default();
+        let preimages = seeded_random_preimages_with_bounded_len(
+            count, len, 1234, // randomness seed
+        );
+        let inputs_len = preimages.len();
+        stdin.write(&inputs_len);
+        for preimage in preimages {
+            stdin.write(&preimage);
+        }
+        stdin
+    }
 
     async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
         use powdr_autoprecompiles::PgoConfig;
@@ -1122,6 +1157,25 @@ pub mod tests {
     #[serial]
     async fn test_apc_fibonacci() -> Result<()> {
         test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_apc_keccak_100() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0).await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_apc_keccak_1000() {
+        let result = std::panic::AssertUnwindSafe(async {
+            test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(1000, 10), 10, 0).await
+        })
+        .catch_unwind()
+        .await;
+
+        // Assert that a panic actually happened
+        assert!(result.is_err(), "Expected a panic but none occurred");
     }
 
     #[tokio::test]
