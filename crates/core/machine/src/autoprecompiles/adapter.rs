@@ -1,15 +1,11 @@
 use std::fmt::Display;
 
 use crate::autoprecompiles::{
-    bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses, instruction::Sp1Instruction,
-    instruction_handler::Sp1InstructionHandler, memory_bus_interaction::Sp1MemoryBusInteraction,
-    program::Sp1Program,
+    bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses,
+    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
+    memory_bus_interaction::Sp1MemoryBusInteraction, program::Sp1Program,
 };
-use powdr_autoprecompiles::{
-    adapter::Adapter,
-    blocks::BasicBlock,
-    evaluation::EvaluationResult,
-};
+use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_baby_bear::BabyBear;

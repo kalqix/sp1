@@ -65,13 +65,19 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         Sp1Candidate { apc, execution_frequency, stats }
     }
 
-    fn to_json_export(
-        &self,
-        apc_candidates_dir_path: &Path,
-    ) -> ApcCandidateJsonExport<Sp1Instruction> {
+    fn to_json_export(&self, apc_candidates_dir_path: &Path) -> ApcCandidateJsonExport {
         ApcCandidateJsonExport {
             execution_frequency: self.execution_frequency,
-            original_block: self.apc.block.clone(),
+            original_block: BasicBlock {
+                start_pc: self.apc.block.start_pc,
+                statements: self
+                    .apc
+                    .block
+                    .statements
+                    .iter()
+                    .map(|instr| instr.to_string())
+                    .collect(),
+            },
             stats: self.stats,
             apc_candidate_file: apc_candidates_dir_path
                 .join(format!("apc_{}.cbor", self.apc.start_pc()))

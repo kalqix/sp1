@@ -139,25 +139,23 @@ impl CompiledProgram {
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
-        // Generate APC
-        let apcs_and_stats = match pgo_config {
-            PgoConfig::Cell(pgo_data, max_total_apc_columns) => CellPgo::<
-                Sp1ApcAdapter,
-                Sp1Candidate<Sp1ApcAdapter>,
-            >::with_pgo_data_and_max_columns(
-                pgo_data, max_total_apc_columns
-            )
-            .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config),
-            PgoConfig::Instruction(pgo_data) => {
-                InstructionPgo::<Sp1ApcAdapter>::with_pgo_data(pgo_data)
-                    .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config)
+        // Create pgo adapter based on the config
+        let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_config {
+            PgoConfig::Cell(pgo_data, max_total_apc_columns) => {
+                Box::new(CellPgo::<_, Sp1Candidate<_>>::with_pgo_data_and_max_columns(
+                    pgo_data,
+                    max_total_apc_columns,
+                ))
             }
-            PgoConfig::None => NonePgo::<Sp1ApcAdapter>::default()
-                .filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config),
+            PgoConfig::Instruction(pgo_data) => Box::new(InstructionPgo::with_pgo_data(pgo_data)),
+            PgoConfig::None => Box::new(NonePgo::default()),
         };
 
-        // TODO: this could be removed but sadly `AdapterApcWithStats` does not implement
-        // `Serialize` due to some bound, and we need that for `Self`.
+        // Generate APC
+        let apcs_and_stats =
+            pgo_adapter.filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config);
+
+        // TODO: remove this once `ApcWithStats` implements serde
         let apcs_and_stats = apcs_and_stats
             .into_iter()
             .map(|apc_with_stats| {
