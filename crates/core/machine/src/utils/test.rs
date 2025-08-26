@@ -56,7 +56,7 @@ pub async fn run_test_with_machine_opts<
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let proofs = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
+    let _ = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
     Ok(public_values)
 }
 
