@@ -1179,6 +1179,14 @@ pub mod tests {
         crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
     }
 
+    async fn run_test_with_opts(
+        program: Program,
+        stdin: SP1Stdin,
+        opts: sp1_core_executor::SP1CoreOpts,
+    ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+        crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
+    }
+
     use hashbrown::HashMap;
     #[test]
     fn core_air_cost_consistency() {
@@ -1295,6 +1303,39 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
         run_test(program, stdin).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_add_prove_segment() {
+        use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
+        setup_logger();
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ];
+        add_halt(&mut instructions);
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+        let mut opts = SP1CoreOpts::default();
+        opts.sharding_threshold =
+            ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
+        run_test_with_opts(program, stdin, opts).await.unwrap();
     }
 
     #[tokio::test]

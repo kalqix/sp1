@@ -37,12 +37,26 @@ pub async fn run_test_with_machine<
     inputs: SP1Stdin,
     machine: Machine<BabyBear, A>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
-    let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+    run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
+}
+
+pub async fn run_test_with_machine_opts<
+    A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<BabyBear>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
+>(
+    program: Program,
+    inputs: SP1Stdin,
+    machine: Machine<BabyBear, A>,
+    opts: SP1CoreOpts,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    let mut runtime = Executor::new(Arc::new(program), opts.clone());
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-    let _ = run_test_core(runtime, inputs, machine).await?;
+    let proofs = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
     Ok(public_values)
 }
 
@@ -100,6 +114,22 @@ pub async fn run_test_core<
     inputs: SP1Stdin,
     machine: Machine<BabyBear, A>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    run_test_core_with_opts(runtime, inputs, machine, SP1CoreOpts::default()).await
+}
+
+#[allow(unused_variables)]
+pub async fn run_test_core_with_opts<
+    A: MachineAir<BabyBear, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<BabyBear>>
+        + ZerocheckAir<BabyBear, BinomialExtensionField<BabyBear, 4>>
+        + for<'a> Air<VerifierConstraintFolder<'a, BabyBearPoseidon2>>,
+>(
+    runtime: Executor<'static>,
+    inputs: SP1Stdin,
+    machine: Machine<BabyBear, A>,
+    opts: SP1CoreOpts,
+) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerifierConfigError<BabyBearPoseidon2>> {
     let log_blowup = 1;
     let log_stacking_height = 21;
     let max_log_row_count = 22;
@@ -132,7 +162,7 @@ pub async fn run_test_core<
         pk,
         runtime.program.clone(),
         inputs,
-        SP1CoreOpts::default(),
+        opts,
         SP1Context::default(),
         machine,
     )
