@@ -61,12 +61,12 @@ compare_operation__result__u16_flags__2_0 * (compare_operation__result__u16_flag
 compare_operation__result__u16_flags__3_0 * (compare_operation__result__u16_flags__3_0 - 1) = 0
 (compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0) * (compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0 - 1) = 0
 (1 - compare_operation__result__u16_flags__3_0) * (65536 * compare_operation__c_msb__msb_0 - adapter__op_b_memory__prev_value__0__3_0) = 0
--((1 - (compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__2_0) = 0
--((1 - (compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__1_0) = 0
--((1 - (compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__0_0) = 0
+(1 - (compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__2_0 = 0
+(1 - (compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__1_0 = 0
+(1 - (compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0)) * adapter__op_b_memory__prev_value__0__0_0 = 0
 (adapter__op_b_memory__prev_value__0__3_0 + 32768 - 65536 * compare_operation__c_msb__msb_0) * compare_operation__result__u16_flags__3_0 + adapter__op_b_memory__prev_value__0__2_0 * compare_operation__result__u16_flags__2_0 + adapter__op_b_memory__prev_value__0__1_0 * compare_operation__result__u16_flags__1_0 + adapter__op_b_memory__prev_value__0__0_0 * compare_operation__result__u16_flags__0_0 - compare_operation__result__comparison_limbs__1_0 = 0
--((compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0) * (compare_operation__result__not_eq_inv_0 * (32768 * compare_operation__result__u16_flags__3_0 - compare_operation__result__comparison_limbs__1_0) - 1)) = 0
--((1 - is_branching_0) * is_branching_0) = 0
+(compare_operation__result__u16_flags__0_0 + compare_operation__result__u16_flags__1_0 + compare_operation__result__u16_flags__2_0 + compare_operation__result__u16_flags__3_0) * (compare_operation__result__not_eq_inv_0 * (32768 * compare_operation__result__u16_flags__3_0 - compare_operation__result__comparison_limbs__1_0) - 1) = 0
+(1 - is_branching_0) * is_branching_0 = 0
 is_branching_0 * ((30720 * next_pc__0_0 - 245760) * (30720 * next_pc__0_0 - 245761)) = 0
 is_branching_0 * ((30720 * next_pc__1_0 - (943718400 * next_pc__0_0 + 503316484)) * (30720 * next_pc__1_0 - (943718400 * next_pc__0_0 + 503316485))) = 0
 is_branching_0 * ((30720 * next_pc__2_0 + 115200 - (14400 * next_pc__0_0 + 943718400 * next_pc__1_0)) * (30720 * next_pc__2_0 + 115199 - (14400 * next_pc__0_0 + 943718400 * next_pc__1_0))) = 0
