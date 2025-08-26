@@ -1309,6 +1309,10 @@ pub mod tests {
     async fn test_add_prove_segment() {
         use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
         setup_logger();
+        // Segmentation happens when:
+        // 1. Executor checks for segmentation every 16 instructions.
+        // 2. The trace is over preset sharding threshold of trace cell count or trace height.
+        // Therefore, this segmentation test example must include at least 16 instructions.
         let mut instructions = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
