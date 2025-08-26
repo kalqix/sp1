@@ -13,11 +13,11 @@ pub mod program;
 mod tests;
 
 use powdr_autoprecompiles::{
-    adapter::AdapterApc,
-    blocks::{collect_basic_blocks, generate_apcs_with_pgo, Program as _},
-    evaluation::EvaluationResult,
+    adapter::{AdapterApc, AdapterApcWithStats, PgoAdapter},
+    blocks::{collect_basic_blocks, BasicBlock, Program as _},
     execution_profile::execution_profile,
-    BasicBlock, DegreeBound, PgoConfig, PowdrConfig,
+    pgo::{CellPgo, InstructionPgo, NonePgo},
+    DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
 use slop_baby_bear::BabyBear;
@@ -30,6 +30,7 @@ use crate::{
         adapter::Sp1ApcAdapter,
         bus_interaction_handler::Sp1BusInteractionHandler,
         bus_map::{sp1_bus_map, Sp1SpecificBuses},
+        candidate::Sp1Candidate,
         instruction::Sp1Instruction,
         instruction_handler::Sp1InstructionHandler,
         program::Sp1Program,
@@ -119,7 +120,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
 
 #[derive(Serialize, Deserialize)]
 pub struct CompiledProgram {
-    pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
+    pub apcs_and_stats: Vec<AdapterApcWithStats<Sp1ApcAdapter>>,
 }
 
 impl CompiledProgram {
@@ -137,9 +138,21 @@ impl CompiledProgram {
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
+        // Create pgo adapter based on the config
+        let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_config {
+            PgoConfig::Cell(pgo_data, max_total_apc_columns) => {
+                Box::new(CellPgo::<_, Sp1Candidate<_>>::with_pgo_data_and_max_columns(
+                    pgo_data,
+                    max_total_apc_columns,
+                ))
+            }
+            PgoConfig::Instruction(pgo_data) => Box::new(InstructionPgo::with_pgo_data(pgo_data)),
+            PgoConfig::None => Box::new(NonePgo::default()),
+        };
+
         // Generate APC
         let apcs_and_stats =
-            generate_apcs_with_pgo::<Sp1ApcAdapter>(blocks, &config, None, pgo_config, vm_config);
+            pgo_adapter.filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config);
 
         Self { apcs_and_stats }
     }

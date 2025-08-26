@@ -1130,8 +1130,12 @@ pub mod tests {
         let compiled_program =
             sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
 
-        let apcs =
-            compiled_program.apcs_and_stats.into_iter().map(|(apc, _)| Arc::new(apc)).collect();
+        let apcs = compiled_program
+            .apcs_and_stats
+            .into_iter()
+            .map(|a| a.into_parts())
+            .map(|(apc, _)| Arc::new(apc))
+            .collect();
 
         setup_logger();
 

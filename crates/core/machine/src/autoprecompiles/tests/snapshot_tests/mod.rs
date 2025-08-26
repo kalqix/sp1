@@ -1,4 +1,4 @@
-use powdr_autoprecompiles::{build, evaluation::evaluate_apc, BasicBlock};
+use powdr_autoprecompiles::{blocks::BasicBlock, build, evaluation::evaluate_apc};
 use pretty_assertions::assert_eq;
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::Instruction;
