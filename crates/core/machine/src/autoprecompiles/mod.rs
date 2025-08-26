@@ -13,9 +13,8 @@ pub mod program;
 mod tests;
 
 use powdr_autoprecompiles::{
-    adapter::{AdapterApc, PgoAdapter},
+    adapter::{AdapterApc, AdapterApcWithStats, PgoAdapter},
     blocks::{collect_basic_blocks, BasicBlock, Program as _},
-    evaluation::EvaluationResult,
     execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
@@ -121,7 +120,7 @@ pub fn powdr_default_build_args() -> BuildArgs {
 
 #[derive(Serialize, Deserialize)]
 pub struct CompiledProgram {
-    pub apcs_and_stats: Vec<(AdapterApc<Sp1ApcAdapter>, Option<EvaluationResult>)>,
+    pub apcs_and_stats: Vec<AdapterApcWithStats<Sp1ApcAdapter>>,
 }
 
 impl CompiledProgram {
@@ -154,15 +153,6 @@ impl CompiledProgram {
         // Generate APC
         let apcs_and_stats =
             pgo_adapter.filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config);
-
-        // TODO: remove this once `ApcWithStats` implements serde
-        let apcs_and_stats = apcs_and_stats
-            .into_iter()
-            .map(|apc_with_stats| {
-                let (apc, stats) = apc_with_stats.into_parts();
-                (apc, stats)
-            })
-            .collect();
 
         Self { apcs_and_stats }
     }

@@ -109,6 +109,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     let (apc_stats_before, apc_stats_after): (Vec<AirStats>, Vec<AirStats>) = compiled_program
         .apcs_and_stats
         .into_iter()
+        .map(|a| a.into_parts())
         .map(|(_, s)| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
         .unzip();
 
