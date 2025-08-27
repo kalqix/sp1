@@ -30,7 +30,7 @@ use crate::{
         program::Sp1Program,
     },
     riscv::RiscvAir,
-    utils::pad_rows_fixed,
+    utils::{next_multiple_of_32, pad_rows_fixed},
 };
 
 #[derive(Debug)]
@@ -96,7 +96,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        Some(input.get_apc_events(self.id).expect("APC events not found").len())
+        let num_apc_events = input.get_apc_events(self.id).map_or(0, |events| events.len());
+        let nb_rows = next_multiple_of_32(num_apc_events, input.fixed_log2_rows::<F, _>(self));
+        Some(nb_rows)
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
@@ -187,6 +189,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             || vec![F::zero(); self.width()],
             input.fixed_log2_rows::<F, _>(self),
         );
+
+        // Assert number of rows is correct
+        assert_eq!(rows.len(), <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap());
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
