@@ -316,6 +316,14 @@ pub enum ApcExecutionError {
     StateBump,
     /// A memory bump event was generated
     MemoryBump,
+    /// An execution error occurred
+    Execution(ExecutionError),
+}
+
+impl From<ExecutionError> for ApcExecutionError {
+    fn from(err: ExecutionError) -> Self {
+        ApcExecutionError::Execution(err)
+    }
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -1604,35 +1612,33 @@ impl<'a> Executor<'a> {
         if let Some(instruction) = program_instruction {
             instruction.cloned()
         } else {
-            ProverChoice::Software({
-                // Check that the page is executable.
-                let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
-                let page_prot = self
-                    .state
-                    .page_prots
-                    .get(&page_prot_page_idx)
-                    .unwrap_or(&(PROT_READ | PROT_WRITE));
-                assert!(*page_prot & PROT_EXEC != 0);
+            // Check that the page is executable.
+            let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
+            let page_prot =
+                self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
+            assert!(*page_prot & PROT_EXEC != 0);
 
-                // Fetch it from memory.
-                let aligned_pc = align(self.state.pc);
+            // Fetch it from memory.
+            let aligned_pc = align(self.state.pc);
 
-                // TODO: Add a record for a dynamic program entry.
-                let memory_value = self.double_word::<E>(aligned_pc);
+            // TODO: Add a record for a dynamic program entry.
+            let memory_value = self.double_word::<E>(aligned_pc);
 
-                let alignment_offset = self.state.pc - aligned_pc;
-                let instruction_value: u32 =
-                    (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
+            let alignment_offset = self.state.pc - aligned_pc;
+            let instruction_value: u32 =
+                (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
-                if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
-                    *instruction
-                } else {
-                    let instruction =
-                        process_instruction(&mut self.transpiler, instruction_value).unwrap();
-                    self.decoded_instruction_cache.insert(self.state.pc, instruction);
-                    instruction
-                }
-            })
+            let res = if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc)
+            {
+                *instruction
+            } else {
+                let instruction =
+                    process_instruction(&mut self.transpiler, instruction_value).unwrap();
+                self.decoded_instruction_cache.insert(self.state.pc, instruction);
+                instruction
+            };
+
+            ProverChoice::Software(res)
         }
     }
 
@@ -1668,9 +1674,13 @@ impl<'a> Executor<'a> {
                 // Try to run the APC version first
                 match self.execute_apc::<E>(apc) {
                     // if apc execution works, we are correct to be running apc
-                    Ok(result) => (apc, Some(result)),
-                    // if apc execution fails, we fall back to software
-                    Err(e) => {
+                    Ok(result) => (apc, Some(Ok(result))),
+                    // if apc execution fails with an execution error, we do want to propagate the
+                    // error
+                    Err(ApcExecutionError::Execution(err)) => (apc, Some(Err(err))),
+                    // if apc execution fails with a state bump or memory access error, we want to
+                    // fall back to software
+                    Err(e @ (ApcExecutionError::StateBump | ApcExecutionError::MemoryBump)) => {
                         tracing::error!("APC execution failed: {:?}, falling back to software", e);
                         (software, None)
                     }
@@ -1983,8 +1993,7 @@ impl<'a> Executor<'a> {
     fn execute_apc<E: ExecutorConfig>(
         &mut self,
         instruction: &Instruction,
-    ) -> Result<Result<(u64, u64, u64, u64, ExecutionRecord), ExecutionError>, ApcExecutionError>
-    {
+    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ApcExecutionError> {
         let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
         assert_eq!(*opcode, Opcode::APC);
         assert!(*imm_b);
@@ -1993,15 +2002,11 @@ impl<'a> Executor<'a> {
         assert_eq!(*op_c, 0);
 
         // select the APC using op_b
-        let apc = match self
+        let apc = self
             .apcs
             .get_mut(*op_b)
             // If the APC is not found, return an error.
-            .ok_or(ExecutionError::UnsupportedApc(*op_b))
-        {
-            Ok(apc) => apc,
-            Err(err) => return Ok(Err(err)),
-        };
+            .ok_or(ExecutionError::UnsupportedApc(*op_b))?;
 
         // Save the pc before executing the APC.
         let original_pc = self.state.pc;
@@ -2023,9 +2028,7 @@ impl<'a> Executor<'a> {
         for _ in 0..apc.original_instructions_count {
             let instruction = apc.executor.fetch::<E>();
             debug_assert!(matches!(instruction, ProverChoice::Software(_)));
-            if let Err(err) = apc.executor.execute_instruction::<E>(&instruction) {
-                return Ok(Err(err));
-            }
+            apc.executor.execute_instruction::<E>(&instruction)?;
 
             if !apc.executor.record.bump_state_events.is_empty() {
                 if self.print_report && !E::UNCONSTRAINED {
@@ -2068,7 +2071,7 @@ impl<'a> Executor<'a> {
         // decrement it by 8 here.
         self.state.clk -= 8;
 
-        Ok(Ok((0, apc.id, 0, next_pc, *removed_record)))
+        Ok((0, apc.id, 0, next_pc, *removed_record))
     }
 
     /// Execute an ecall instruction.
