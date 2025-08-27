@@ -30,7 +30,7 @@ use crate::{
         program::Sp1Program,
     },
     riscv::RiscvAir,
-    utils::pad_rows_fixed,
+    utils::{next_multiple_of_32, pad_rows_fixed},
 };
 
 #[derive(Debug)]
@@ -96,12 +96,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        Some(input.get_apc_events(self.id).len())
+        let num_apc_events = input.get_apc_events(self.id).map_or(0, |events| events.len());
+        let nb_rows = next_multiple_of_32(num_apc_events, input.fixed_log2_rows::<F, _>(self));
+        Some(nb_rows)
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Get all events for the given APC ID
-        let events = input.get_apc_events(self.id);
+        let events = input.get_apc_events(self.id).expect("APC events not found");
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
@@ -188,6 +190,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             input.fixed_log2_rows::<F, _>(self),
         );
 
+        // Assert number of rows is correct
+        assert_eq!(rows.len(), <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap());
+
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
     }
@@ -195,6 +200,16 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
+        // Because `generate_dependencies` is run during execution for all chips, it's not
+        // guaranteed that there will be APC events at all.
+        if events.is_none() {
+            tracing::debug!(
+                "No APC events found for APC ID during `generate_dependencies`: {}",
+                self.id
+            );
+            return; // Early return because no dependencies to generate.
+        }
+        let events = events.unwrap();
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
