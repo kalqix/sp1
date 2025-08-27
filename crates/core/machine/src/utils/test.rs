@@ -58,7 +58,8 @@ pub async fn run_test_with_machine_opts<
     (SP1PublicValues, MachineProof<BabyBearPoseidon2>),
     MachineVerifierConfigError<BabyBearPoseidon2>,
 > {
-    let mut runtime = Executor::new(Arc::new(program), opts.clone());
+    let apc_costs = machine.apc_costs();
+    let mut runtime = Executor::new_with_apc_costs(Arc::new(program), opts.clone(), apc_costs);
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);

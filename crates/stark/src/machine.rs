@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 use slop_algebra::Field;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{air::MachineAir, Chip, MachineRecord};
 
@@ -53,6 +53,20 @@ where
     F: Field,
     A: MachineAir<F>,
 {
+    pub fn apc_costs(&self) -> BTreeMap<u64, u64> {
+        // Searching name by "ApcChip" is more of a hack, but is the best that we can do
+        // because pattern matching on RiscvAirWithApcs::ApcChip requires dependency on
+        // sp1-core-machine which depends on this crate and thus creates a circular
+        // dependency.
+        self.chips
+            .iter()
+            .filter(|chip| chip.name().starts_with("ApcChip"))
+            .enumerate()
+            // We rely on the fact that APC id is the same as ApcChip insertion order in Machine
+            .map(|(id, chip)| (id as u64, chip.air.width() as u64))
+            .collect()
+    }
+
     /// Creates a new [`StarkMachine`].
     #[must_use]
     pub const fn new(

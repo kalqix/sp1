@@ -14,6 +14,7 @@ use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
 use sp1_primitives::consts::{MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE};
 use sp1_stark::air::PublicValues;
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 use crate::{
@@ -158,7 +159,7 @@ pub struct Executor<'a> {
     pub hook_registry: HookRegistry<'a>,
 
     /// The costs of the program.
-    pub costs: EnumMap<RiscvAirId, u64>,
+    pub costs: (EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
 
     /// Skip deferred proof verification. This check is informational only, not related to circuit
     /// correctness.
@@ -183,7 +184,7 @@ pub struct Executor<'a> {
     pub total_unconstrained_cycles: u64,
 
     /// Temporary event counts for the current shard. This is a field to reuse memory.
-    event_counts: EnumMap<RiscvAirId, u64>,
+    event_counts: (EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
 
     /// The transpiler for the program.
     transpiler: InstructionTranspiler,
@@ -245,7 +246,7 @@ pub enum ExecutorMode {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LocalCounts {
     /// The event counts.
-    pub event_counts: Box<EnumMap<Opcode, u64>>,
+    pub event_counts: Box<(EnumMap<Opcode, u64>, BTreeMap<u64, u64>)>,
     /// The retained precompile counts.
     pub retained_precompile_counts: Box<EnumMap<RiscvAirId, u64>>,
     /// The load x0 counts.
@@ -339,6 +340,14 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
+    pub fn new_with_apc_costs(
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        apc_costs: BTreeMap<u64, u64>,
+    ) -> Self {
+        Self::with_context_and_apc_costs(program, opts, SP1Context::default(), apc_costs)
+    }
+
     /// WARNING: This function's API is subject to change without a major version bump.
     ///
     /// If the feature `"profiling"` is enabled, this sets up the profiler. Otherwise, it does
@@ -379,9 +388,19 @@ impl<'a> Executor<'a> {
         }
     }
 
-    /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
+        Self::with_context_and_apc_costs(program, opts, context, BTreeMap::new())
+    }
+
+    /// Create a new runtime from a program, options, and a context.
+    #[must_use]
+    pub fn with_context_and_apc_costs(
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        context: SP1Context<'a>,
+        apc_costs: BTreeMap<u64, u64>,
+    ) -> Self {
         let apcs = Apcs::new(&program, &opts, &context);
 
         // Create a default record with the program.
@@ -440,10 +459,10 @@ impl<'a> Executor<'a> {
             memory_checkpoint: Memory::new_preallocated(),
             uninitialized_memory_checkpoint: Memory::new_preallocated(),
             local_memory_access: HashMap::new(),
-            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            costs: (costs.into_iter().map(|(k, v)| (k, v as u64)).collect(), apc_costs),
             size_check_frequency: 16,
             sharding_threshold: Some(opts.sharding_threshold),
-            event_counts: EnumMap::default(),
+            event_counts: (EnumMap::default(), BTreeMap::new()),
             internal_syscalls_override,
             internal_syscalls_air_id,
             io_options: context.io_options,
@@ -1626,11 +1645,18 @@ impl<'a> Executor<'a> {
 
         if !E::UNCONSTRAINED {
             if self.print_report {
+                // TODO: opcode_counts doesn't include apc event count, but I'm assuming it's fine
+                // not to include as it's just a report.
                 self.report.opcode_counts[instruction.opcode] += 1;
             }
-            self.local_counts.event_counts[instruction.opcode] += 1;
+            if instruction.is_apc_instruction() {
+                // increment apc count by apc id
+                *self.local_counts.event_counts.1.get_mut(&instruction.op_b).unwrap() += 1;
+            } else {
+                self.local_counts.event_counts.0[instruction.opcode] += 1;
+            }
             if instruction.is_memory_load_instruction() && instruction.op_a == Register::X0 as u8 {
-                self.local_counts.event_counts[instruction.opcode] -= 1;
+                self.local_counts.event_counts.0[instruction.opcode] -= 1;
                 self.local_counts.load_x0_counts += 1;
             }
         }
@@ -2640,43 +2666,47 @@ impl<'a> Executor<'a> {
     /// Maps the opcode counts to the number of events in each air.
     fn estimate_riscv_event_counts(
         bump_clk_high: u64,
-        event_counts: &mut EnumMap<RiscvAirId, u64>,
+        event_counts: &mut (EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
         local_counts: &LocalCounts,
         load_x0_counts: u64,
         internal_syscalls_air_id: &[RiscvAirId],
     ) {
         let touched_addresses: u64 = local_counts.local_mem as u64;
         let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
-        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts;
+        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts.0;
+        let apc_events: &BTreeMap<u64, u64> = &local_counts.event_counts.1;
+
+        // Add apc events
+        event_counts.1 = apc_events.clone();
 
         // Compute the maximum number of MemoryBump events.
         // `MemoryBump` chip is used when each register's memory timestamp's top 24 bits increment.
-        event_counts[RiscvAirId::MemoryBump] = (NUM_REGISTERS as u64) * bump_clk_high;
+        event_counts.0[RiscvAirId::MemoryBump] = (NUM_REGISTERS as u64) * bump_clk_high;
 
         // Compute the maximum number of StateBump events;
-        event_counts[RiscvAirId::StateBump] = bump_clk_high + local_counts.state_bump_counts;
+        event_counts.0[RiscvAirId::StateBump] = bump_clk_high + local_counts.state_bump_counts;
 
         // Compute the number of events in the add chip.
-        event_counts[RiscvAirId::Add] = opcode_counts[Opcode::ADD];
+        event_counts.0[RiscvAirId::Add] = opcode_counts[Opcode::ADD];
 
         // Compute the number of events in the addi chip.
-        event_counts[RiscvAirId::Addi] = opcode_counts[Opcode::ADDI];
+        event_counts.0[RiscvAirId::Addi] = opcode_counts[Opcode::ADDI];
 
         // Compute the number of events in the addw chip.
-        event_counts[RiscvAirId::Addw] = opcode_counts[Opcode::ADDW];
+        event_counts.0[RiscvAirId::Addw] = opcode_counts[Opcode::ADDW];
 
         // Compute the number of events in the sub chip.
-        event_counts[RiscvAirId::Sub] = opcode_counts[Opcode::SUB];
+        event_counts.0[RiscvAirId::Sub] = opcode_counts[Opcode::SUB];
 
         // Compute the number of events in the subw chip.
-        event_counts[RiscvAirId::Subw] = opcode_counts[Opcode::SUBW];
+        event_counts.0[RiscvAirId::Subw] = opcode_counts[Opcode::SUBW];
 
         // Compute the number of events in the bitwise chip.
-        event_counts[RiscvAirId::Bitwise] =
+        event_counts.0[RiscvAirId::Bitwise] =
             opcode_counts[Opcode::XOR] + opcode_counts[Opcode::OR] + opcode_counts[Opcode::AND];
 
         // Compute the number of events in the divrem chip.
-        event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
+        event_counts.0[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
             + opcode_counts[Opcode::DIVU]
             + opcode_counts[Opcode::REM]
             + opcode_counts[Opcode::REMU]
@@ -2686,31 +2716,31 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::REMUW];
 
         // Compute the number of events in the lt chip.
-        event_counts[RiscvAirId::Lt] = opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
+        event_counts.0[RiscvAirId::Lt] = opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
 
         // Compute the number of events in the mul chip.
-        event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
+        event_counts.0[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
             + opcode_counts[Opcode::MULH]
             + opcode_counts[Opcode::MULHU]
             + opcode_counts[Opcode::MULHSU]
             + opcode_counts[Opcode::MULW];
 
         // Compute the number of events in the shift left chip.
-        event_counts[RiscvAirId::ShiftLeft] =
+        event_counts.0[RiscvAirId::ShiftLeft] =
             opcode_counts[Opcode::SLL] + opcode_counts[Opcode::SLLW];
 
         // Compute the number of events in the shift right chip.
-        event_counts[RiscvAirId::ShiftRight] = opcode_counts[Opcode::SRL]
+        event_counts.0[RiscvAirId::ShiftRight] = opcode_counts[Opcode::SRL]
             + opcode_counts[Opcode::SRA]
             + opcode_counts[Opcode::SRLW]
             + opcode_counts[Opcode::SRAW];
 
         // Compute the number of events in the memory local chip.
-        event_counts[RiscvAirId::MemoryLocal] =
+        event_counts.0[RiscvAirId::MemoryLocal] =
             touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
 
         // Compute the number of events in the branch chip.
-        event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
+        event_counts.0[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
             + opcode_counts[Opcode::BNE]
             + opcode_counts[Opcode::BLT]
             + opcode_counts[Opcode::BGE]
@@ -2718,36 +2748,40 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::BGEU];
 
         // Compute the number of events in the jump chip.
-        event_counts[RiscvAirId::Jal] = opcode_counts[Opcode::JAL];
-        event_counts[RiscvAirId::Jalr] = opcode_counts[Opcode::JALR];
+        event_counts.0[RiscvAirId::Jal] = opcode_counts[Opcode::JAL];
+        event_counts.0[RiscvAirId::Jalr] = opcode_counts[Opcode::JALR];
 
         // Compute the number of events in the utype chip.
-        event_counts[RiscvAirId::UType] = opcode_counts[Opcode::AUIPC] + opcode_counts[Opcode::LUI];
+        event_counts.0[RiscvAirId::UType] =
+            opcode_counts[Opcode::AUIPC] + opcode_counts[Opcode::LUI];
 
         // Compute the number of events in the memory instruction chip.
-        event_counts[RiscvAirId::LoadByte] = opcode_counts[Opcode::LB] + opcode_counts[Opcode::LBU];
-        event_counts[RiscvAirId::LoadHalf] = opcode_counts[Opcode::LH] + opcode_counts[Opcode::LHU];
-        event_counts[RiscvAirId::LoadWord] = opcode_counts[Opcode::LW] + opcode_counts[Opcode::LWU];
-        event_counts[RiscvAirId::LoadDouble] = opcode_counts[Opcode::LD];
-        event_counts[RiscvAirId::LoadX0] = load_x0_counts;
+        event_counts.0[RiscvAirId::LoadByte] =
+            opcode_counts[Opcode::LB] + opcode_counts[Opcode::LBU];
+        event_counts.0[RiscvAirId::LoadHalf] =
+            opcode_counts[Opcode::LH] + opcode_counts[Opcode::LHU];
+        event_counts.0[RiscvAirId::LoadWord] =
+            opcode_counts[Opcode::LW] + opcode_counts[Opcode::LWU];
+        event_counts.0[RiscvAirId::LoadDouble] = opcode_counts[Opcode::LD];
+        event_counts.0[RiscvAirId::LoadX0] = load_x0_counts;
 
-        event_counts[RiscvAirId::StoreByte] = opcode_counts[Opcode::SB];
-        event_counts[RiscvAirId::StoreHalf] = opcode_counts[Opcode::SH];
-        event_counts[RiscvAirId::StoreWord] = opcode_counts[Opcode::SW];
-        event_counts[RiscvAirId::StoreDouble] = opcode_counts[Opcode::SD];
+        event_counts.0[RiscvAirId::StoreByte] = opcode_counts[Opcode::SB];
+        event_counts.0[RiscvAirId::StoreHalf] = opcode_counts[Opcode::SH];
+        event_counts.0[RiscvAirId::StoreWord] = opcode_counts[Opcode::SW];
+        event_counts.0[RiscvAirId::StoreDouble] = opcode_counts[Opcode::SD];
 
         // Compute the number of events in the syscall instruction chip.
-        event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
+        event_counts.0[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
 
         // Compute the number of events in the syscall core chip.
-        event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
+        event_counts.0[RiscvAirId::SyscallCore] = syscalls_sent;
 
         // Compute the number of events in the global chip.
-        event_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
+        event_counts.0[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
 
         // Compute the number of events in the retained precompiles.
         for &air_id in internal_syscalls_air_id {
-            event_counts[air_id] = local_counts.retained_precompile_counts[air_id];
+            event_counts.0[air_id] = local_counts.retained_precompile_counts[air_id];
         }
     }
 

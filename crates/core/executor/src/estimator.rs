@@ -4,11 +4,13 @@ use enum_map::EnumMap;
 
 use crate::RiscvAirId;
 
+use std::collections::BTreeMap;
+
 /// Data accumulated during execution to estimate the core trace area used to prove the execution.
 #[derive(Clone, Debug, Default)]
 pub struct RecordEstimator {
     /// Core shards, represented by the number of events per AIR.
-    pub core_records: Vec<EnumMap<RiscvAirId, u64>>,
+    pub core_records: Vec<(EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>)>,
     /// For each precompile AIR, a list of estimated records in the form
     /// `(<number of precompile events>, <number of local memory events>)`.
     pub precompile_records: EnumMap<RiscvAirId, Vec<(u64, u64)>>,

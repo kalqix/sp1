@@ -335,8 +335,13 @@ impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecuto
                 }
 
                 // Setup the runtime.
-                let mut runtime =
-                    Box::new(Executor::with_context(program.clone(), opts.clone(), context));
+                let apc_costs = self.machine.apc_costs();
+                let mut runtime = Box::new(Executor::with_context_and_apc_costs(
+                    program.clone(),
+                    opts.clone(),
+                    context,
+                    apc_costs,
+                ));
                 runtime.write_vecs(&stdin.buffer);
                 for proof in stdin.proofs.iter() {
                     let (proof, vk) = proof.clone();
