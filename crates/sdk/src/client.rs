@@ -2,6 +2,12 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
+use std::sync::Arc;
+
+use powdr_autoprecompiles::Apc;
+use slop_baby_bear::BabyBear;
+use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
 
 #[cfg(feature = "network")]
@@ -35,7 +41,13 @@ impl ProverClient {
     /// ```
     #[must_use]
     pub async fn from_env() -> EnvProver {
-        EnvProver::new().await
+        EnvProver::new(Vec::new()).await
+    }
+
+    /// Like `from_env`, but allows you to specify the APCs to use.
+    #[must_use]
+    pub async fn from_env_with_apcs(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> EnvProver {
+        EnvProver::new(apcs).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
