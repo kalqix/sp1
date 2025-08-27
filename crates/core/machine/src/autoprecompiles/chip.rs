@@ -195,8 +195,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
-        // Because `s` is run during execution for all chips, it's not guaranteed that there will be
-        // APC events at all.
+        // Because `generate_dependencies` is run during execution for all chips, it's not
+        // guaranteed that there will be APC events at all.
         if events.is_none() {
             tracing::debug!(
                 "No APC events found for APC ID during `generate_dependencies`: {}",
