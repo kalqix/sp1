@@ -2011,8 +2011,6 @@ impl<'a> Executor<'a> {
         // Save the pc before executing the APC.
         let original_pc = self.state.pc;
 
-        tracing::error!("Executing APC id {}", apc.id);
-
         // Pass all the necessary execution data to the APC
         // We clone because we may have to roll this back
         apc.executor.state.clone_from(&self.state);
@@ -2021,8 +2019,6 @@ impl<'a> Executor<'a> {
             .uninitialized_memory_checkpoint
             .clone_from(&self.uninitialized_memory_checkpoint);
         apc.executor.local_memory_access.clone_from(&self.local_memory_access);
-
-        tracing::error!("Done cloning");
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
