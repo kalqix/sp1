@@ -144,17 +144,21 @@ impl Instructions {
     /// Get the execution instruction at the given index.
     #[must_use]
     pub fn get_choice(&self, index: usize) -> Option<ProverChoice<&Instruction>> {
-        // TODO: refactor Instructions to encode this more naturally
-
+        // TODO: refactor `Instructions` to encode this more naturally
         match (self.execution.get(index), self.proving.get(index)) {
+            // for apc instructions, we give the option to run software
             (Some(i @ Instruction { opcode: Opcode::APC, .. }), Some(original)) => {
                 Some(ProverChoice::ApcOrSoftware(i, original))
             }
-            (Some(instruction), Some(other_instruction)) => {
-                debug_assert_eq!(instruction, other_instruction);
-                Some(ProverChoice::Software(instruction))
+            // for non-apc instructions, we only give the option to run the software version
+            (Some(instruction), Some(proving)) => {
+                // either we're inside an apc and we should have UNIMP, or we are outside and the
+                // instructions should match
+                debug_assert!(instruction.opcode == Opcode::UNIMP || instruction == proving);
+                Some(ProverChoice::Software(proving))
             }
-            _ => None,
+            (None, None) => None,
+            _ => unreachable!(),
         }
     }
 
