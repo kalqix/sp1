@@ -10,7 +10,7 @@ use std::{
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    Opcode, RiscvAirId,
+    Opcode, ProverChoice, RiscvAirId,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -143,8 +143,23 @@ impl Instructions {
 
     /// Get the execution instruction at the given index.
     #[must_use]
-    pub fn get_execution(&self, index: usize) -> Option<&Instruction> {
-        self.execution.get(index)
+    pub fn get_choice(&self, index: usize) -> Option<ProverChoice<&Instruction>> {
+        // TODO: refactor `Instructions` to encode this more naturally
+        match (self.execution.get(index), self.proving.get(index)) {
+            // for apc instructions, we give the option to run software
+            (Some(i @ Instruction { opcode: Opcode::APC, .. }), Some(original)) => {
+                Some(ProverChoice::ApcOrSoftware(i, original))
+            }
+            // for non-apc instructions, we only give the option to run the software version
+            (Some(instruction), Some(proving)) => {
+                // either we're inside an apc and we should have UNIMP, or we are outside and the
+                // instructions should match
+                debug_assert!(instruction.opcode == Opcode::UNIMP || instruction == proving);
+                Some(ProverChoice::Software(proving))
+            }
+            (None, None) => None,
+            _ => unreachable!(),
+        }
     }
 
     /// Remove the apc ranges and modified instructions.
@@ -267,11 +282,11 @@ impl Program {
     }
 
     #[must_use]
-    /// Fetch the instruction at the given program counter.
-    pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
+    /// Fetch the prover choice at the given program counter.
+    pub fn fetch(&self, pc: u64) -> Option<ProverChoice<&Instruction>> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(self.instructions.get_execution(idx).unwrap())
+            Some(self.instructions.get_choice(idx).unwrap())
         } else {
             None
         }

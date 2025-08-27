@@ -61,6 +61,26 @@ pub enum DeferredProofVerification {
     Disabled,
 }
 
+/// The choice available for the prover at this pc
+#[derive(Clone, Copy)]
+pub enum ProverChoice<I> {
+    /// The prover must execute the software version
+    Software(I),
+    /// The prover can choose between the APC and software versions
+    ApcOrSoftware(I, I),
+}
+
+impl<I: Clone> ProverChoice<&I> {
+    fn cloned(&self) -> ProverChoice<I> {
+        match *self {
+            ProverChoice::Software(instruction) => ProverChoice::Software(instruction.clone()),
+            ProverChoice::ApcOrSoftware(apc, software) => {
+                ProverChoice::ApcOrSoftware(apc.clone(), software.clone())
+            }
+        }
+    }
+}
+
 impl From<bool> for DeferredProofVerification {
     fn from(value: bool) -> Self {
         if value {
@@ -286,6 +306,24 @@ pub struct LocalCounts {
     /// uninterrupted telescoping series of memory operations in a single SP1 shard --
     /// that is, the data of a local memory event.
     pub local_mem: usize,
+}
+
+/// Errors that can occur during APC execution and which lead to rolling back and running software
+/// instead
+#[derive(Debug)]
+pub enum ApcExecutionError {
+    /// A state bump event was generated
+    StateBump,
+    /// A memory bump event was generated
+    MemoryBump,
+    /// An execution error occurred
+    Execution(ExecutionError),
+}
+
+impl From<ExecutionError> for ApcExecutionError {
+    fn from(err: ExecutionError) -> Self {
+        ApcExecutionError::Execution(err)
+    }
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -1569,10 +1607,10 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
+    fn fetch<E: ExecutorConfig>(&mut self) -> ProverChoice<Instruction> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            *instruction
+            instruction.cloned()
         } else {
             // Check that the page is executable.
             let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
@@ -1590,14 +1628,17 @@ impl<'a> Executor<'a> {
             let instruction_value: u32 =
                 (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
-            if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
+            let res = if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc)
+            {
                 *instruction
             } else {
                 let instruction =
                     process_instruction(&mut self.transpiler, instruction_value).unwrap();
                 self.decoded_instruction_cache.insert(self.state.pc, instruction);
                 instruction
-            }
+            };
+
+            ProverChoice::Software(res)
         }
     }
 
@@ -1605,7 +1646,7 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_instruction<E: ExecutorConfig>(
         &mut self,
-        instruction: &Instruction,
+        choice: &ProverChoice<Instruction>,
     ) -> Result<(), ExecutionError> {
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
@@ -1623,6 +1664,29 @@ impl<'a> Executor<'a> {
 
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
+
+        // Determine which instruction to run
+        let (instruction, apc_result) = match choice {
+            // if software is the only option, run software
+            ProverChoice::Software(instruction) => (instruction, None),
+            // if apc is an option, first try to run apc and fall back to software if that fails
+            ProverChoice::ApcOrSoftware(apc, software) => {
+                // Try to run the APC version first
+                match self.execute_apc::<E>(apc) {
+                    // if apc execution works, we are correct to be running apc
+                    Ok(result) => (apc, Some(Ok(result))),
+                    // if apc execution fails with an execution error, we do want to propagate the
+                    // error
+                    Err(ApcExecutionError::Execution(err)) => (apc, Some(Err(err))),
+                    // if apc execution fails with a state bump or memory access error, we want to
+                    // fall back to software
+                    Err(e @ (ApcExecutionError::StateBump | ApcExecutionError::MemoryBump)) => {
+                        tracing::error!("APC execution failed: {:?}, falling back to software", e);
+                        (software, None)
+                    }
+                }
+            }
+        };
 
         if !E::UNCONSTRAINED {
             if self.print_report {
@@ -1653,7 +1717,7 @@ impl<'a> Executor<'a> {
         } else if instruction.is_ecall_instruction() {
             (a, b, c, clk, next_pc, syscall, exit_code) = self.execute_ecall::<E>()?;
         } else if instruction.is_apc_instruction() {
-            (a, b, c, next_pc, apc_record) = self.execute_apc::<E>(instruction)?;
+            (a, b, c, next_pc, apc_record) = apc_result.unwrap()?;
         } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.is_unimp_instruction() {
@@ -1929,7 +1993,7 @@ impl<'a> Executor<'a> {
     fn execute_apc<E: ExecutorConfig>(
         &mut self,
         instruction: &Instruction,
-    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ExecutionError> {
+    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ApcExecutionError> {
         let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
         assert_eq!(*opcode, Opcode::APC);
         assert!(*imm_b);
@@ -1948,16 +2012,37 @@ impl<'a> Executor<'a> {
         let original_pc = self.state.pc;
 
         // Pass all the necessary execution data to the APC
-        apc.executor.state = std::mem::take(&mut self.state);
-        apc.executor.memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
-        apc.executor.uninitialized_memory_checkpoint =
-            std::mem::take(&mut self.uninitialized_memory_checkpoint);
-        apc.executor.local_memory_access = std::mem::take(&mut self.local_memory_access);
+        // We clone because we may have to roll this back
+        apc.executor.state.clone_from(&self.state);
+        apc.executor.memory_checkpoint.clone_from(&self.memory_checkpoint);
+        apc.executor
+            .uninitialized_memory_checkpoint
+            .clone_from(&self.uninitialized_memory_checkpoint);
+        apc.executor.local_memory_access.clone_from(&self.local_memory_access);
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
             let instruction = apc.executor.fetch::<E>();
+            debug_assert!(matches!(instruction, ProverChoice::Software(_)));
             apc.executor.execute_instruction::<E>(&instruction)?;
+
+            if !apc.executor.record.bump_state_events.is_empty() {
+                if self.print_report && !E::UNCONSTRAINED {
+                    self.report.apc_counts.entry(apc.id).or_default().state_bump_error += 1;
+                }
+                Err(ApcExecutionError::StateBump)
+            } else if !apc.executor.record.bump_memory_events.is_empty() {
+                if self.print_report && !E::UNCONSTRAINED {
+                    self.report.apc_counts.entry(apc.id).or_default().memory_bump_error += 1;
+                }
+                Err(ApcExecutionError::MemoryBump)
+            } else {
+                Ok(())
+            }?;
+        }
+
+        if self.print_report && !E::UNCONSTRAINED {
+            self.report.apc_counts.entry(apc.id).or_default().success += 1;
         }
 
         // The pc of the apc executor is the next pc in the main execution
@@ -2752,7 +2837,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log<E: ExecutorConfig>(&mut self, _: &Instruction) {
+    fn log<E: ExecutorConfig>(&mut self, _: &ProverChoice<Instruction>) {
         #[cfg(feature = "profiling")]
         if let Some((ref mut profiler, _)) = self.profiler {
             if !E::UNCONSTRAINED {
