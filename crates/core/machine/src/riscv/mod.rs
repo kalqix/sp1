@@ -1364,6 +1364,42 @@ pub mod tests {
             .unwrap();
     }
 
+    #[tokio::test]
+    async fn test_add_apc_prove_segment() {
+        use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
+        setup_logger();
+        let mut instructions = std::iter::repeat([
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ])
+        .flatten()
+        .take(16)
+        .collect();
+
+        add_halt(&mut instructions);
+        let apc_ranges = vec![(0, 2), (3, 5)];
+        let program = Program::new(instructions, 0, 0);
+        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
+        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
+        // instead of passing them here to `run_test_with_apcs`
+        let apcs = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(&apc_ranges);
+        let stdin = SP1Stdin::new();
+        let mut opts = SP1CoreOpts::default();
+        opts.sharding_threshold =
+            ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
+        let (_, proofs) = crate::utils::run_test_with_machine_opts(
+            program,
+            stdin,
+            RiscvAirWithApcs::machine(apcs),
+            opts,
+        )
+        .await
+        .unwrap();
+        assert!(proofs.shard_proofs.len() == 3);
+    }
+
     #[test]
     fn test_chips_main_width_interaction_ratio() {
         let chips = RiscvAir::<BabyBear>::chips();

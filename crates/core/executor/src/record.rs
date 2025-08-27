@@ -333,8 +333,8 @@ impl ExecutionRecord {
     /// Get all the apc events for an apc id.
     #[inline]
     #[must_use]
-    pub fn get_apc_events(&self, apc_id: u64) -> &Vec<ApcEvent> {
-        self.apc_events.get_events(apc_id).expect("APC events not found")
+    pub fn get_apc_events(&self, apc_id: u64) -> Option<&Vec<ApcEvent>> {
+        self.apc_events.get_events(apc_id)
     }
 
     /// Get all the local memory events.

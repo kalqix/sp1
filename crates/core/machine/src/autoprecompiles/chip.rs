@@ -96,12 +96,12 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        Some(input.get_apc_events(self.id).len())
+        Some(input.get_apc_events(self.id).expect("APC events not found").len())
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Get all events for the given APC ID
-        let events = input.get_apc_events(self.id);
+        let events = input.get_apc_events(self.id).expect("APC events not found");
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
@@ -195,6 +195,16 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
+        // Because `s` is run during execution for all chips, it's not guaranteed that there will be
+        // APC events at all.
+        if events.is_none() {
+            tracing::debug!(
+                "No APC events found for APC ID during `generate_dependencies`: {}",
+                self.id
+            );
+            return; // Early return because no dependencies to generate.
+        }
+        let events = events.unwrap();
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
