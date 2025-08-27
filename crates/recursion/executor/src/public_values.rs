@@ -1,22 +1,16 @@
+use crate::DIGEST_SIZE;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
-use slop_algebra::PrimeField32;
-use slop_challenger::DuplexChallenger;
-use slop_symmetric::CryptographicPermutation;
 use sp1_core_machine::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::POSEIDON_NUM_WORDS, septic_digest::SepticDigest, PROOF_MAX_NUM_PVS};
+use sp1_hypercube::{air::POSEIDON_NUM_WORDS, septic_digest::SepticDigest, PROOF_MAX_NUM_PVS};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
     mem::{size_of, transmute, MaybeUninit},
 };
 
-use crate::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
-
-pub const CHALLENGER_STATE_NUM_ELTS: usize = size_of::<ChallengerPublicValues<u8>>();
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
 
@@ -36,49 +30,18 @@ pub const NUM_PV_ELMS_TO_HASH: usize = RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
 const_assert_eq!(RECURSIVE_PROOF_NUM_PV_ELTS, PROOF_MAX_NUM_PVS);
 
-#[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
-#[repr(C)]
-pub struct ChallengerPublicValues<T> {
-    pub sponge_state: [T; PERMUTATION_WIDTH],
-    pub num_inputs: T,
-    pub input_buffer: [T; PERMUTATION_WIDTH],
-    pub num_outputs: T,
-    pub output_buffer: [T; PERMUTATION_WIDTH],
-}
-
-impl<T: Clone> ChallengerPublicValues<T> {
-    pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
-        &self,
-        challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH, HASH_RATE>,
-    ) where
-        T: PrimeField32,
-    {
-        challenger.sponge_state = self.sponge_state;
-        let num_inputs = self.num_inputs.as_canonical_u32() as usize;
-        challenger.input_buffer = self.input_buffer[..num_inputs].to_vec();
-        let num_outputs = self.num_outputs.as_canonical_u32() as usize;
-        challenger.output_buffer = self.output_buffer[..num_outputs].to_vec();
-    }
-
-    pub fn as_array(&self) -> [T; CHALLENGER_STATE_NUM_ELTS]
-    where
-        T: Copy,
-    {
-        unsafe {
-            let mut ret = [MaybeUninit::<T>::zeroed().assume_init(); CHALLENGER_STATE_NUM_ELTS];
-            let pv: &mut ChallengerPublicValues<T> = ret.as_mut_slice().borrow_mut();
-            *pv = *self;
-            ret
-        }
-    }
-}
-
 /// The PublicValues struct is used to store all of a recursion proof's public values.
 #[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct RecursionPublicValues<T> {
+    /// The `committed_value_digest` before this shard.
+    pub prev_committed_value_digest: [[T; 4]; PV_DIGEST_NUM_WORDS],
+
     /// The hash of all the bytes that the program has written to public values.
     pub committed_value_digest: [[T; 4]; PV_DIGEST_NUM_WORDS],
+
+    /// The `deferred_proofs_digest` before this shard.
+    pub prev_deferred_proofs_digest: [T; POSEIDON_NUM_WORDS],
 
     /// The hash of all deferred proofs that have been witnessed in the VM.
     pub deferred_proofs_digest: [T; POSEIDON_NUM_WORDS],
@@ -89,35 +52,35 @@ pub struct RecursionPublicValues<T> {
     /// The expected start pc for the next shard.
     pub next_pc: [T; 3],
 
-    /// First shard being proven.
-    pub start_shard: T,
-
-    /// Next shard that should be proven.
-    pub next_shard: T,
-
-    /// First execution shard being proven.
-    pub start_execution_shard: T,
-
-    /// Next execution shard that should be proven.
-    pub next_execution_shard: T,
-
     /// The initial timestamp.
     pub initial_timestamp: [T; 4],
 
     /// The last timestamp.
     pub last_timestamp: [T; 4],
 
-    /// Previous MemoryInit address word.
-    pub previous_init_addr_word: [T; 3],
+    /// Previous MemoryInit address.
+    pub previous_init_addr: [T; 3],
 
-    /// Last MemoryInit address word.
-    pub last_init_addr_word: [T; 3],
+    /// Last MemoryInit address.
+    pub last_init_addr: [T; 3],
 
-    /// Previous MemoryFinalize address word.
-    pub previous_finalize_addr_word: [T; 3],
+    /// Previous MemoryFinalize address.
+    pub previous_finalize_addr: [T; 3],
 
-    /// Last MemoryFinalize address word.
-    pub last_finalize_addr_word: [T; 3],
+    /// Last MemoryFinalize address.
+    pub last_finalize_addr: [T; 3],
+
+    /// Previous PageProtInit page index.
+    pub previous_init_page_idx: [T; 3],
+
+    /// Last PageProtInit page index.
+    pub last_init_page_idx: [T; 3],
+
+    /// Previous PageProtFinalize page index.
+    pub previous_finalize_page_idx: [T; 3],
+
+    /// Last PageProtFinalize page index.
+    pub last_finalize_page_idx: [T; 3],
 
     /// Start state of reconstruct_deferred_digest.
     pub start_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
@@ -135,6 +98,12 @@ pub struct RecursionPublicValues<T> {
     /// contains the global cumulative sum.  
     pub global_cumulative_sum: SepticDigest<T>,
 
+    /// Whether or not the first shard is inside the compress proof.
+    pub contains_first_shard: T,
+
+    /// The total number of included core shards inside the compress proof.
+    pub num_included_shard: T,
+
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
@@ -144,8 +113,23 @@ pub struct RecursionPublicValues<T> {
     /// The expected exit code of the program up to this shard.
     pub exit_code: T,
 
+    /// The `commit_syscall` value of the previous shard.
+    pub prev_commit_syscall: T,
+
+    /// Whether `COMMIT` syscall has been called up to this shard.
+    pub commit_syscall: T,
+
+    /// The `commit_deferred_syscall` value of the previous shard.
+    pub prev_commit_deferred_syscall: T,
+
+    /// Whether `COMMIT_DEFERRED` syscall has been called up to this shard.
+    pub commit_deferred_syscall: T,
+
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
+
+    /// Whether page protect access is checked.
+    pub is_page_protect_active: T,
 }
 
 /// Converts the public values to an array of elements.
@@ -163,15 +147,6 @@ impl<F: Copy> RecursionPublicValues<F> {
 impl<T: Copy> IntoIterator for RecursionPublicValues<T> {
     type Item = T;
     type IntoIter = std::array::IntoIter<T, RECURSIVE_PROOF_NUM_PV_ELTS>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.as_array().into_iter()
-    }
-}
-
-impl<T: Copy> IntoIterator for ChallengerPublicValues<T> {
-    type Item = T;
-    type IntoIter = std::array::IntoIter<T, CHALLENGER_STATE_NUM_ELTS>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.as_array().into_iter()

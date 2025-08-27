@@ -1,8 +1,8 @@
 use gecko_profile::{Frame, ProfileBuilder, StringIndex, ThreadBuilder};
 use goblin::elf::{sym::STT_FUNC, Elf};
+use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressStyle};
 use rustc_demangle::demangle;
-use std::collections::HashMap;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfilerError {
@@ -162,6 +162,7 @@ impl Profiler {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template(
+                    #[allow(clippy::literal_string_with_formatting_args)]
                     "{msg} \n {spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
                 )
                 .unwrap()

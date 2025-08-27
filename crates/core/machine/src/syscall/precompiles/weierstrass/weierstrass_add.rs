@@ -3,7 +3,7 @@ use crate::{
     memory::MemoryAccessColsU8,
     operations::{
         field::{field_op::FieldOpCols, range::FieldLtCols},
-        AddrAddOperation, SyscallAddrOperation,
+        AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
     },
     utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
 };
@@ -32,10 +32,13 @@ use sp1_curves::{
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::polynomial::Polynomial;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
+};
+use sp1_primitives::{
+    consts::{PROT_READ, PROT_WRITE},
+    polynomial::Polynomial,
 };
 use std::{fmt::Debug, marker::PhantomData};
 use typenum::Unsigned;
@@ -72,6 +75,8 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub slope_times_p_x_minus_x: FieldOpCols<T, P>,
     pub x3_range: FieldLtCols<T, P>,
     pub y3_range: FieldLtCols<T, P>,
+    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
+    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
 }
 
 #[derive(Default)]
@@ -209,7 +214,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         let mut row = zeroed_f_vec(num_cols);
                         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
-                        Self::populate_row(event, cols, &mut blu);
+                        Self::populate_row(
+                            event,
+                            cols,
+                            input.public_values.is_page_protect_active,
+                            &mut blu,
+                        );
                     }
                     _ => unreachable!(),
                 });
@@ -247,8 +257,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
             dummy_row.as_mut_slice().borrow_mut();
         let num_words_field_element = E::BaseField::NB_LIMBS / 8;
-        let dummy_memory_record =
-            MemoryReadRecord { value: 1, shard: 0, timestamp: 1, prev_shard: 0, prev_timestamp: 0 };
+        let dummy_memory_record = MemoryReadRecord {
+            value: 1,
+            timestamp: 1,
+            prev_timestamp: 0,
+            prev_page_prot_record: None,
+        };
         let zero = BigUint::zero();
         let one = BigUint::one();
         let dummy_memory_record_enum = MemoryRecordEnum::Read(dummy_memory_record);
@@ -267,7 +281,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         | PrecompileEvent::Secp256r1Add(event)
                         | PrecompileEvent::Bn254Add(event)
                         | PrecompileEvent::Bls12381Add(event) => {
-                            Self::populate_row(event, cols, &mut new_byte_lookup_events);
+                            Self::populate_row(
+                                event,
+                                cols,
+                                input.public_values.is_page_protect_active,
+                                &mut new_byte_lookup_events,
+                            );
                         }
                         _ => unreachable!(),
                     }
@@ -299,10 +318,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 _ => panic!("Unsupported curve"),
             }
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
     }
 }
 
@@ -344,11 +359,9 @@ where
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             local.slope_numerator.eval(builder, &q_y, &p_y, FieldOperation::Sub, local.is_real);
-
             local.slope_denominator.eval(builder, &q_x, &p_x, FieldOperation::Sub, local.is_real);
 
-            // We check that (q.x - p.x) is non-zero in the base field, by computing 1 / (q.x -
-            // p.x).
+            // We check (q.x - p.x) is non-zero in the base field, by computing 1 / (q.x - p.x).
             let mut coeff_1 = Vec::new();
             coeff_1.resize(<E::BaseField as NumLimbs>::Limbs::USIZE, AB::Expr::zero());
             coeff_1[0] = AB::Expr::one();
@@ -432,51 +445,23 @@ where
             local.is_real.into(),
         );
 
-        // x_addrs[0] = x_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([p_ptr[0].into(), p_ptr[1].into(), p_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.p_addrs[0],
-            local.is_real.into(),
-        );
-
-        let eight = AB::F::from_canonical_u32(8u32);
-        // p_addrs[i] = p_addrs[i - 1] + 8.
-        for i in 1..local.p_addrs.len() {
+        // p_addrs[i] = p_ptr + 8 * i
+        for i in 0..local.p_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.p_addrs[i - 1].value[0].into(),
-                    local.p_addrs[i - 1].value[1].into(),
-                    local.p_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([p_ptr[0].into(), p_ptr[1].into(), p_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.p_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([q_ptr[0].into(), q_ptr[1].into(), q_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.q_addrs[0],
-            local.is_real.into(),
-        );
-
-        // q_addrs[i] = q_addrs[i - 1] + 8.
-        for i in 1..local.q_addrs.len() {
+        // q_addrs[i] = q_ptr + 8 * i
+        for i in 0..local.q_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.q_addrs[i - 1].value[0].into(),
-                    local.q_addrs[i - 1].value[1].into(),
-                    local.q_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([q_ptr[0].into(), q_ptr[1].into(), q_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.q_addrs[i],
                 local.is_real.into(),
             );
@@ -489,7 +474,6 @@ where
             &local.q_access.iter().map(|access| access.memory_access).collect_vec(),
             local.is_real,
         );
-        // We read p at +1 since p, q could be the same.
         builder.eval_memory_access_slice_write(
             local.clk_high,
             local.clk_low + AB::Expr::one(),
@@ -523,6 +507,28 @@ where
             local.is_real,
             InteractionScope::Local,
         );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into(),
+            &local.q_ptr.addr.map(Into::into),
+            &local.q_addrs[local.q_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.read_slice_page_prot_access,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::one(),
+            &local.p_ptr.addr.map(Into::into),
+            &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
+            &local.write_slice_page_prot_access,
+            local.is_real.into(),
+        );
     }
 }
 
@@ -530,6 +536,7 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     pub fn populate_row<F: PrimeField32>(
         event: &EllipticCurveAddEvent,
         cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
+        page_prot_enabled: u32,
         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
     ) {
         // Decode affine points.
@@ -561,85 +568,109 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
             cols.p_access[i].populate(record, new_byte_lookup_events);
             cols.p_addrs[i].populate(new_byte_lookup_events, event.p_ptr, 8 * i as u64);
         }
+        if page_prot_enabled == 1 {
+            cols.read_slice_page_prot_access.populate(
+                new_byte_lookup_events,
+                event.q_ptr,
+                event.q_ptr + 8 * (cols.q_addrs.len() - 1) as u64,
+                event.clk,
+                PROT_READ,
+                &event.page_prot_records.read_page_prot_records[0],
+                &event.page_prot_records.read_page_prot_records.get(1).copied(),
+                page_prot_enabled,
+            );
+
+            cols.write_slice_page_prot_access.populate(
+                new_byte_lookup_events,
+                event.p_ptr,
+                event.p_ptr + 8 * (cols.p_addrs.len() - 1) as u64,
+                event.clk + 1,
+                PROT_READ | PROT_WRITE,
+                &event.page_prot_records.write_page_prot_records[0],
+                &event.page_prot_records.write_page_prot_records.get(1).copied(),
+                page_prot_enabled,
+            );
+        }
     }
 }
 
-// #[cfg(test)]
-// mod tests {
+#[cfg(test)]
+mod tests {
 
-//     use sp1_core_executor::Program;
-//     use sp1_stark::CpuProver;
-//     use test_artifacts::{
-//         BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
-//         SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP256R1_ADD_ELF,
-//     };
+    use std::sync::Arc;
 
-//     use crate::{
-//         io::SP1Stdin,
-//         utils::{run_test, setup_logger},
-//     };
+    use sp1_core_executor::Program;
+    use test_artifacts::{
+        BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
+        SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP256R1_ADD_ELF,
+    };
 
-//     #[test]
-//     fn test_secp256k1_add_simple() {
-//         setup_logger();
-//         let program = Program::from(SECP256K1_ADD_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    use crate::{
+        io::SP1Stdin,
+        utils::{run_test, setup_logger},
+    };
 
-//     #[test]
-//     fn test_secp256r1_add_simple() {
-//         setup_logger();
-//         let program = Program::from(SECP256R1_ADD_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_secp256k1_add_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&SECP256K1_ADD_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_bn254_add_simple() {
-//         setup_logger();
-//         let program = Program::from(BN254_ADD_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_secp256r1_add_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&SECP256R1_ADD_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_bn254_mul_simple() {
-//         setup_logger();
-//         let program = Program::from(BN254_MUL_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_bn254_add_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&BN254_ADD_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_secp256k1_mul_simple() {
-//         setup_logger();
-//         let program = Program::from(SECP256K1_MUL_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_bn254_mul_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&BN254_MUL_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_bls12381_add_simple() {
-//         setup_logger();
-//         let program = Program::from(BLS12381_ADD_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_secp256k1_mul_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&SECP256K1_MUL_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_bls12381_double_simple() {
-//         setup_logger();
-//         let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
+    #[tokio::test]
+    async fn test_bls12381_add_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&BLS12381_ADD_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
 
-//     #[test]
-//     fn test_bls12381_mul_simple() {
-//         setup_logger();
-//         let program = Program::from(BLS12381_MUL_ELF).unwrap();
-//         let stdin = SP1Stdin::new();
-//         run_test::<CpuProver<_, _>>(program, stdin).unwrap();
-//     }
-// }
+    #[tokio::test]
+    async fn test_bls12381_double_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&BLS12381_DOUBLE_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_bls12381_mul_simple() {
+        setup_logger();
+        let program = Arc::new(Program::from(&BLS12381_MUL_ELF).unwrap());
+        let stdin = SP1Stdin::new();
+        run_test(program, stdin).await.unwrap();
+    }
+}

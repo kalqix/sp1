@@ -14,10 +14,10 @@ use slop_algebra::{AbstractField, Field, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Program,
+    ByteOpcode, ExecutionRecord, Program, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{InteractionScope, MachineAir};
+use sp1_hypercube::air::{InteractionScope, MachineAir};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 pub(crate) const NUM_STATE_BUMP_COLS: usize = size_of::<StateBumpCols<u8>>();
 
@@ -79,7 +79,8 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
                     blu.add_bit_range_check((next_clk_0_16 - 1) / 8, 13);
                     blu.add_bit_range_check(next_clk_32_48, 16);
                     blu.add_u8_range_checks(&[next_clk_16_24, next_clk_24_32]);
-                    blu.add_u16_range_checks(&[pc_0, pc_1, pc_2]);
+                    blu.add_bit_range_check(pc_0 / 4, 14);
+                    blu.add_u16_range_checks(&[pc_1, pc_2]);
                 });
                 blu
             })
@@ -131,11 +132,14 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
                         F::from_canonical_u16(((pc >> 16) & 0xFFFF) as u16),
                         F::from_canonical_u16(((pc >> 32) & 0xFFFF) as u16),
                     ];
+
                     if bump2 {
-                        let prev_pc = pc.wrapping_sub(4);
+                        // All the instructions that require the StateBumpChip to correct the `pc`
+                        // to its correct form increments the `pc` by the default `PC_INC`.
+                        let prev_pc = pc.wrapping_sub(PC_INC as u64);
                         cols.pc = [
                             F::from_canonical_u16((prev_pc & 0xFFFF) as u16)
-                                + F::from_canonical_u16(4),
+                                + F::from_canonical_u16(PC_INC as u16),
                             F::from_canonical_u16(((prev_pc >> 16) & 0xFFFF) as u16),
                             F::from_canonical_u16(((prev_pc >> 32) & 0xFFFF) as u16),
                         ];
@@ -159,10 +163,6 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
         shard.cpu_event_count != 0
     }
 
-    fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Local
-    }
-
     fn column_names(&self) -> Vec<String> {
         StateBumpCols::<F>::struct_reflection().unwrap()
     }
@@ -176,8 +176,12 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &StateBumpCols<AB::Var> = (*local).borrow();
+        // Check that `is_real` is a boolean value.
         builder.assert_bool(local.is_real);
+
+        // Receive the state with values potentially in non-canonical forms.
         builder.receive_state(local.clk_high, local.clk_low, local.pc, local.is_real);
+        // Send the state with `clk_high, clk_low, next_pc` being in canonical forms.
         builder.send_state(
             local.next_clk_24_32 + local.next_clk_32_48 * AB::F::from_canonical_u32(1 << 8),
             local.next_clk_0_16 + local.next_clk_16_24 * AB::F::from_canonical_u32(1 << 16),
@@ -185,7 +189,7 @@ where
             local.is_real,
         );
 
-        // Check that the sent state's clk is valid.
+        // Check that the sent state's clk is in canonical form.
         // The bottom 16 bits of the `clk` is a u16 value that is 1 (mod 8).
         builder.send_byte(
             AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
@@ -206,6 +210,8 @@ where
         builder.slice_range_check_u8(&[local.next_clk_16_24, local.next_clk_24_32], local.is_real);
 
         // If `is_clk` is true, a carry happens from the bottom 24 bit limb to the top.
+        // First, check that `is_clk` is a boolean value. This is possible because the `clk` does
+        // not increment by more than `2^24` in a single instruction cycle.
         builder.assert_bool(local.is_clk);
         builder.when(local.is_real).assert_eq(
             local.next_clk_24_32 + local.next_clk_32_48 * AB::F::from_canonical_u32(1 << 8),
@@ -219,6 +225,7 @@ where
         );
 
         // The `next_pc` is the `pc` with propagated carries.
+        // The `next_pc` is checked to be canonical, three u16 limbs.
         let mut carry = AB::Expr::zero();
         for i in 0..3 {
             carry = (carry.clone() + local.pc[i] - local.next_pc[i])
@@ -226,6 +233,15 @@ where
             builder.assert_bool(carry.clone());
         }
         builder.assert_zero(carry);
-        builder.slice_range_check_u16(&local.next_pc, local.is_real);
+
+        // Check that the `next_pc` is a multiple of `4`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            local.next_pc[0].into() * AB::F::from_canonical_u32(4).inverse(),
+            AB::Expr::from_canonical_u32(14),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+        builder.slice_range_check_u16(&local.next_pc[1..3], local.is_real);
     }
 }

@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
-use sp1_stark::{air::MachineAir, ChipDimensions};
+use sp1_hypercube::{air::MachineAir, ChipDimensions};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RecursionShape<F> {
@@ -36,6 +36,10 @@ impl<F: PrimeField32> RecursionShape<F> {
         A: MachineAir<F>,
     {
         self.heights.insert(air.name(), height);
+    }
+
+    pub fn insert_with_name(&mut self, name: &str, height: usize) {
+        self.heights.insert(name.to_string(), height);
     }
 
     pub const fn empty() -> Self {
@@ -82,5 +86,14 @@ impl<F: Field> IntoIterator for RecursionShape<F> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.heights.into_iter()
+    }
+}
+
+impl<'a, F: Field> IntoIterator for &'a RecursionShape<F> {
+    type Item = (&'a String, &'a usize);
+    type IntoIter = <&'a BTreeMap<String, usize> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.heights.iter()
     }
 }

@@ -8,23 +8,28 @@ use std::{
     sync::Arc,
 };
 
+use crate::StatusCode;
 use anyhow::Result;
 use itertools::Itertools;
 use slop_air::Air;
 use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_hypercube::{air::PublicValues, MachineVerifierConfigError};
 use sp1_primitives::types::Elf;
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     local::LocalProver,
     CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
+<<<<<<< HEAD
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_stark::{
     air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
     VerifierConstraintFolder,
 };
+=======
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 use thiserror::Error;
 
 /// The module that exposes the [`ExecuteRequest`] type.
@@ -72,12 +77,15 @@ pub trait Prover: Clone + Send + Sync {
     }
 
     /// Verify the given proof.
+    ///
+    /// Note: If the status code is not set, the verification process will check for success.
     fn verify(
         &self,
         proof: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
+        status_code: Option<StatusCode>,
     ) -> Result<(), SP1VerificationError> {
-        verify_proof(self.inner().prover(), self.version(), proof, vkey)
+        verify_proof(self.inner().prover(), self.version(), proof, vkey, status_code)
     }
 }
 
@@ -128,6 +136,9 @@ pub enum SP1VerificationError {
     /// An error that occurs when the proof is invalid.
     #[error("Unexpected error: {0:?}")]
     Other(anyhow::Error),
+    /// An error that occurs when the exit code is unexpected.
+    #[error("Unexpected exit code: {0}")]
+    UnexpectedExitCode(u32),
 }
 
 /// In SP1, a proof's public values can either be hashed with SHA2 or Blake3. In SP1 V4, there is no
@@ -144,12 +155,20 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
     version: &str,
     bundle: &SP1ProofWithPublicValues,
     vkey: &SP1VerifyingKey,
+<<<<<<< HEAD
 ) -> Result<(), SP1VerificationError>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     // Check that the SP1 version matches the version of the currentcircuit.
+=======
+    status_code: Option<StatusCode>,
+) -> Result<(), SP1VerificationError> {
+    let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
+
+    // Check that the SP1 version matches the version of the current circuit.
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
     if bundle.sp1_version != version {
         return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
     }
@@ -158,6 +177,12 @@ where
         SP1Proof::Core(proof) => {
             let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
                 proof.last().unwrap().public_values.as_slice().borrow();
+
+            if !status_code.is_accepted_code(public_values.exit_code.as_canonical_u32()) {
+                return Err(SP1VerificationError::UnexpectedExitCode(
+                    public_values.exit_code.as_canonical_u32(),
+                ));
+            }
 
             // Get the committed value digest bytes.
             let committed_value_digest_bytes = public_values
@@ -183,6 +208,12 @@ where
         SP1Proof::Compressed(proof) => {
             let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
                 proof.proof.public_values.as_slice().borrow();
+
+            if !status_code.is_accepted_code(public_values.exit_code.as_canonical_u32()) {
+                return Err(SP1VerificationError::UnexpectedExitCode(
+                    public_values.exit_code.as_canonical_u32(),
+                ));
+            }
 
             // Get the committed value digest bytes.
             let committed_value_digest_bytes = public_values

@@ -7,13 +7,16 @@ use std::{
 };
 use tokio::sync::mpsc::{self, Receiver, Sender, UnboundedSender};
 
-use crate::{executor::MachineExecutorBuilder, riscv::RiscvAir};
+use crate::{executor::MachineExecutor, riscv::RiscvAir};
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
-use sp1_stark::{
-    air::{MachineAir, PublicValues},
-    prover::{MachineProverBuilder, MachineProverComponents, MachineProvingKey, ProverSemaphore},
+use sp1_hypercube::{
+    air::PublicValues,
+    prover::{
+        MachineProverBuilder, MachineProverComponents, MachineProvingKey, MemoryPermit,
+        ProverSemaphore,
+    },
     Machine, MachineProof, MachineRecord, ShardProof, ShardVerifier,
 };
 
@@ -64,7 +67,7 @@ pub fn generate_records<F: PrimeField32>(
     program: Arc<Program>,
     record_gen_sync: Arc<TurnBasedSync>,
     checkpoints_rx: Arc<Mutex<Receiver<(usize, File, bool, u64)>>>,
-    records_tx: Sender<ExecutionRecord>,
+    records_tx: UnboundedSender<(ExecutionRecord, Option<MemoryPermit>)>,
     state: Arc<Mutex<PublicValues<u32, u64, u64, u32>>>,
     deferred: Arc<Mutex<ExecutionRecord>>,
     report_aggregate: Arc<Mutex<ExecutionReport>>,
@@ -73,7 +76,7 @@ pub fn generate_records<F: PrimeField32>(
     loop {
         let received = { checkpoints_rx.lock().unwrap().blocking_recv() };
         if let Some((index, mut checkpoint, done, _)) = received {
-            let (mut records, report) = tracing::debug_span!("trace checkpoint")
+            let (mut record, report) = tracing::debug_span!("trace checkpoint")
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts.clone()));
 
             // Trace the checkpoint and reconstruct the execution records.
@@ -86,52 +89,74 @@ pub fn generate_records<F: PrimeField32>(
             // Update the public values & prover state for the shards which contain
             // "cpu events".
             let mut state = state.lock().unwrap();
-            for record in records.iter_mut() {
-                state.shard += 1;
-                state.execution_shard = record.public_values.execution_shard;
-                state.next_execution_shard = record.public_values.execution_shard + 1;
-                state.pc_start = record.public_values.pc_start;
-                state.next_pc = record.public_values.next_pc;
-                state.initial_timestamp = record.public_values.initial_timestamp;
-                state.last_timestamp = record.public_values.last_timestamp;
-                let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
-                let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
-                let last_timestamp_high = (state.last_timestamp >> 24) as u32;
-                let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
-                if initial_timestamp_high == last_timestamp_high {
-                    state.is_timestamp_high_eq = 1;
-                } else {
-                    state.is_timestamp_high_eq = 0;
-                    state.inv_timestamp_high = (F::from_canonical_u32(last_timestamp_high)
-                        - F::from_canonical_u32(initial_timestamp_high))
+            state.is_execution_shard = 1;
+            state.pc_start = record.public_values.pc_start;
+            state.next_pc = record.public_values.next_pc;
+            state.initial_timestamp = record.public_values.initial_timestamp;
+            state.last_timestamp = record.public_values.last_timestamp;
+            state.is_first_shard = (record.public_values.initial_timestamp == 1) as u32;
+
+            let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
+            let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
+            let last_timestamp_high = (state.last_timestamp >> 24) as u32;
+            let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
+
+            state.initial_timestamp_inv = if state.initial_timestamp == 1 {
+                0
+            } else {
+                F::from_canonical_u32(initial_timestamp_high + initial_timestamp_low - 1)
+                    .inverse()
+                    .as_canonical_u32()
+            };
+
+            state.last_timestamp_inv =
+                F::from_canonical_u32(last_timestamp_high + last_timestamp_low - 1)
                     .inverse()
                     .as_canonical_u32();
-                }
-                if initial_timestamp_low == last_timestamp_low {
-                    state.is_timestamp_low_eq = 1;
-                } else {
-                    state.is_timestamp_low_eq = 0;
-                    state.inv_timestamp_low = (F::from_canonical_u32(last_timestamp_low)
-                        - F::from_canonical_u32(initial_timestamp_low))
-                    .inverse()
-                    .as_canonical_u32();
-                }
-                if state.committed_value_digest == [0u32; 8] {
-                    state.committed_value_digest = record.public_values.committed_value_digest;
-                }
-                if state.deferred_proofs_digest == [0u32; 8] {
-                    state.deferred_proofs_digest = record.public_values.deferred_proofs_digest;
-                }
-                record.public_values = *state;
-                state.prev_exit_code = record.public_values.exit_code;
-                state.initial_timestamp = record.public_values.last_timestamp;
+            if initial_timestamp_high == last_timestamp_high {
+                state.is_timestamp_high_eq = 1;
+            } else {
+                state.is_timestamp_high_eq = 0;
+                state.inv_timestamp_high = (F::from_canonical_u32(last_timestamp_high)
+                    - F::from_canonical_u32(initial_timestamp_high))
+                .inverse()
+                .as_canonical_u32();
             }
+            if initial_timestamp_low == last_timestamp_low {
+                state.is_timestamp_low_eq = 1;
+            } else {
+                state.is_timestamp_low_eq = 0;
+                state.inv_timestamp_low = (F::from_canonical_u32(last_timestamp_low)
+                    - F::from_canonical_u32(initial_timestamp_low))
+                .inverse()
+                .as_canonical_u32();
+            }
+            if state.committed_value_digest == [0u32; 8] {
+                state.committed_value_digest = record.public_values.committed_value_digest;
+            }
+            if state.deferred_proofs_digest == [0u32; 8] {
+                state.deferred_proofs_digest = record.public_values.deferred_proofs_digest;
+            }
+            if state.commit_syscall == 0 {
+                state.commit_syscall = record.public_values.commit_syscall;
+            }
+            if state.commit_deferred_syscall == 0 {
+                state.commit_deferred_syscall = record.public_values.commit_deferred_syscall;
+            }
+            if state.exit_code == 0 {
+                state.exit_code = record.public_values.exit_code;
+            }
+            record.public_values = *state;
+            state.prev_exit_code = state.exit_code;
+            state.prev_commit_syscall = state.commit_syscall;
+            state.prev_commit_deferred_syscall = state.commit_deferred_syscall;
+            state.prev_committed_value_digest = state.committed_value_digest;
+            state.prev_deferred_proofs_digest = state.deferred_proofs_digest;
+            state.initial_timestamp = state.last_timestamp;
 
             // Defer events that are too expensive to include in every shard.
             let mut deferred = deferred.lock().unwrap();
-            for record in records.iter_mut() {
-                deferred.append(&mut record.defer(&[]));
-            }
+            deferred.append(&mut record.defer(&[]));
 
             // See if any deferred shards are ready to be committed to.
             let mut deferred = deferred.split(done, None, opts.split_opts);
@@ -139,33 +164,56 @@ pub fn generate_records<F: PrimeField32>(
 
             // Update the public values & prover state for the shards which do not
             // contain "cpu events" before committing to them.
-            state.execution_shard = state.next_execution_shard;
             for record in deferred.iter_mut() {
-                state.shard += 1;
-                state.previous_init_addr_word = record.public_values.previous_init_addr_word;
-                state.last_init_addr_word = record.public_values.last_init_addr_word;
-                state.previous_finalize_addr_word =
-                    record.public_values.previous_finalize_addr_word;
-                state.last_finalize_addr_word = record.public_values.last_finalize_addr_word;
+                state.previous_init_addr = record.public_values.previous_init_addr;
+                state.last_init_addr = record.public_values.last_init_addr;
+                state.previous_finalize_addr = record.public_values.previous_finalize_addr;
+                state.last_finalize_addr = record.public_values.last_finalize_addr;
+                state.previous_init_page_idx = record.public_values.previous_init_page_idx;
+                state.last_init_page_idx = record.public_values.last_init_page_idx;
+                state.previous_finalize_page_idx = record.public_values.previous_finalize_page_idx;
+                state.last_finalize_page_idx = record.public_values.last_finalize_page_idx;
                 state.pc_start = state.next_pc;
                 state.prev_exit_code = state.exit_code;
+                state.prev_commit_syscall = state.commit_syscall;
+                state.prev_commit_deferred_syscall = state.commit_deferred_syscall;
+                state.prev_committed_value_digest = state.committed_value_digest;
+                state.prev_deferred_proofs_digest = state.deferred_proofs_digest;
                 state.last_timestamp = state.initial_timestamp;
                 state.is_timestamp_high_eq = 1;
                 state.is_timestamp_low_eq = 1;
-                state.next_execution_shard = state.execution_shard;
+                state.is_first_shard = 0;
+                state.is_execution_shard = 0;
+
+                let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
+                let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
+                let last_timestamp_high = (state.last_timestamp >> 24) as u32;
+                let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
+
+                state.is_first_shard = (record.public_values.initial_timestamp == 1) as u32;
+                state.initial_timestamp_inv =
+                    F::from_canonical_u32(initial_timestamp_high + initial_timestamp_low - 1)
+                        .inverse()
+                        .as_canonical_u32();
+                state.last_timestamp_inv =
+                    F::from_canonical_u32(last_timestamp_high + last_timestamp_low - 1)
+                        .inverse()
+                        .as_canonical_u32();
                 record.public_values = *state;
             }
-            records.append(&mut deferred);
 
             // Generate the dependencies.
-            machine.generate_dependencies(&mut records, None);
+            let mut records = Vec::new();
+            records.push(*record);
+            records.extend(deferred);
+            machine.generate_dependencies(records.iter_mut(), None);
 
             // Let another worker update the state.
             record_gen_sync.advance_turn();
 
             // Send the records to the prover.
             for record in records {
-                records_tx.blocking_send(record).unwrap();
+                records_tx.send((record, None)).unwrap();
             }
         } else {
             break;
@@ -201,7 +249,15 @@ where
     while let Some(proof) = proof_rx.recv().await {
         let public_values: &PublicValues<[F; 4], [F; 3], [F; 4], F> =
             proof.public_values.as_slice().borrow();
-        shard_proofs.insert(public_values.shard, proof);
+        shard_proofs.insert(
+            (
+                public_values.initial_timestamp,
+                public_values.last_timestamp,
+                public_values.previous_init_addr,
+                public_values.previous_finalize_addr,
+            ),
+            proof,
+        );
     }
     let shard_proofs = shard_proofs.into_values().collect();
     let proof = MachineProof { shard_proofs };
@@ -230,24 +286,25 @@ where
     // TODO: get this from input
     let num_record_workers = 4;
     let num_trace_gen_workers = 4;
-    let (records_tx, mut records_rx) = mpsc::channel::<ExecutionRecord>(num_record_workers);
+    let (records_tx, mut records_rx) =
+        mpsc::unbounded_channel::<(ExecutionRecord, Option<MemoryPermit>)>();
 
     let machine_executor =
-        MachineExecutorBuilder::new(opts.clone(), num_record_workers, machine).build();
+        MachineExecutor::<F>::new(u32::MAX as u64, num_record_workers, opts.clone(), machine);
 
-    let prover_permits = ProverSemaphore::new(opts.shard_batch_size);
+    let prover_permits = ProverSemaphore::new(5);
     let prover = MachineProverBuilder::<PC>::new(verifier, vec![prover_permits], vec![prover])
         .num_workers(num_trace_gen_workers)
         .build();
 
     let prover_handle = tokio::spawn(async move {
         let mut handles = Vec::new();
-        while let Some(record) = records_rx.recv().await {
+        while let Some((record, _permit)) = records_rx.recv().await {
             let handle = prover.prove_shard(pk.clone(), record);
             handles.push(handle);
         }
         for handle in handles {
-            let proof = handle.await.unwrap();
+            let proof = handle.await;
             proof_tx.send(proof).unwrap();
         }
     });
@@ -268,7 +325,7 @@ pub fn trace_checkpoint(
     program: Arc<Program>,
     file: &File,
     opts: SP1CoreOpts,
-) -> (Vec<ExecutionRecord>, ExecutionReport) {
+) -> (Box<ExecutionRecord>, ExecutionReport) {
     let noop = NoOpSubproofVerifier;
 
     let mut reader = std::io::BufReader::new(file);
@@ -281,26 +338,29 @@ pub fn trace_checkpoint(
     runtime.subproof_verifier = Some(Arc::new(noop));
 
     // Execute from the checkpoint.
-    let (records, done) = runtime.execute_record(true).unwrap();
-
-    let mut records = records.into_iter().map(|r| *r).collect::<Vec<_>>();
-    let pv = records.last().unwrap().public_values;
+    let (mut record, mut done) = runtime.execute_record(true).unwrap();
+    let mut pv = record.public_values;
 
     // Handle the case where the COMMIT happens across the last two shards.
-    if !done
-        && (pv.committed_value_digest.iter().any(|v| *v != 0)
-            || pv.deferred_proofs_digest.iter().any(|v| *v != 0))
-    {
+    if !done && (pv.commit_syscall == 1 || pv.commit_deferred_syscall == 1) {
         // We turn off the `print_report` flag to avoid modifying the report.
         runtime.print_report = false;
-        let (_, next_pv, _) = runtime.execute_state(true).unwrap();
-        for record in records.iter_mut() {
-            record.public_values.committed_value_digest = next_pv.committed_value_digest;
-            record.public_values.deferred_proofs_digest = next_pv.deferred_proofs_digest;
+        loop {
+            runtime.record.public_values = pv;
+            let (_, next_pv, is_done) = runtime.execute_state(true).unwrap();
+            pv = next_pv;
+            done = is_done;
+            if done {
+                record.public_values.commit_syscall = 1;
+                record.public_values.commit_deferred_syscall = 1;
+                record.public_values.committed_value_digest = pv.committed_value_digest;
+                record.public_values.deferred_proofs_digest = pv.deferred_proofs_digest;
+                break;
+            }
         }
     }
 
-    (records, runtime.report)
+    (record, runtime.report)
 }
 
 #[derive(Error, Debug)]

@@ -3,8 +3,8 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode,
 };
-use sp1_stark::air::SP1AirBuilder;
 use struct_reflection::{StructReflection, StructReflectionHelper};
+use sp1_hypercube::air::SP1AirBuilder;
 
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
@@ -52,7 +52,9 @@ impl<F: Field> U16CompareOperation<F> {
         cols: U16CompareOperation<AB::Var>,
         is_real: AB::Expr,
     ) {
+        // Constrain that `is_real` is boolean.
         builder.assert_bool(is_real.clone());
+        // Constrain that `cols.bit` is boolean.
         builder.assert_bool(cols.bit);
         let base = AB::Expr::from_canonical_u32(1 << 16);
         let diff = a - b + cols.bit * base;

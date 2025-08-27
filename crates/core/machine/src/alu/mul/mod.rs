@@ -1,40 +1,10 @@
-//! Implementation to check that b * c = product.
-//!
-//! We first extend the operands to 64 bits. We sign-extend them if the op code is signed. Then we
-//! calculate the un-carried product and propagate the carry. Finally, we check that the appropriate
-//! bits of the product match the result.
-//!
-//! b_64 = sign_extend(b) if signed operation else b
-//! c_64 = sign_extend(c) if signed operation else c
-//!
-//! m = []
-//! # 64-bit integers have 8 limbs.
-//! # Calculate un-carried product.
-//! for i in 0..8:
-//!     for j in 0..8:
-//!         if i + j < 8:
-//!             m\[i + j\] += b_64\[i\] * c_64\[j\]
-//!
-//! # Propagate carry
-//! for i in 0..8:
-//!     x = m\[i\]
-//!     if i > 0:
-//!         x += carry\[i - 1\]
-//!     carry\[i\] = x / 256
-//!     m\[i\] = x % 256
-//!
-//! if upper_half:
-//!     assert_eq(a, m\[4..8\])
-//! if lower_half:
-//!     assert_eq(a, m\[0..4\])
-
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
 
 use hashbrown::HashMap;
-use slop_air::{Air, AirBuilder, BaseAir};
+use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
@@ -43,16 +13,16 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
+use sp1_hypercube::{air::MachineAir, Word};
 
 use crate::{
     adapter::{
         register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
-        state::CPUState,
+        state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
-    operations::MulOperation,
+    operations::{MulOperation, MulOperationInput},
     utils::{next_multiple_of_32, zeroed_f_vec},
 };
 
@@ -93,9 +63,6 @@ pub struct MulCols<T> {
 
     /// Whether the operation is MULW.
     pub is_mulw: T,
-
-    /// The base opcode for the mul instruction.
-    pub base_op_code: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for MulChip {
@@ -178,10 +145,6 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
             !shard.mul_events.is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl MulChip {
@@ -207,23 +170,6 @@ impl MulChip {
         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
         cols.is_mulw = F::from_bool(event.opcode == Opcode::MULW);
         cols.a = Word::from(event.a);
-
-        let (mulw_base, mulw_imm) = Opcode::MULW.base_opcode();
-        let mulw_imm = mulw_imm.expect("MULW immediate opcode not found");
-
-        let is_imm_c = cols.adapter.imm_c.is_one();
-        let mulw_base_opcode = F::from_canonical_u32(if is_imm_c { mulw_imm } else { mulw_base });
-
-        let base_opcode = match event.opcode {
-            Opcode::MUL => F::from_canonical_u32(Opcode::MUL.base_opcode().0),
-            Opcode::MULH => F::from_canonical_u32(Opcode::MULH.base_opcode().0),
-            Opcode::MULHU => F::from_canonical_u32(Opcode::MULHU.base_opcode().0),
-            Opcode::MULHSU => F::from_canonical_u32(Opcode::MULHSU.base_opcode().0),
-            Opcode::MULW => mulw_base_opcode,
-            _ => unreachable!(),
-        };
-
-        cols.base_op_code = base_opcode;
     }
 }
 
@@ -246,18 +192,20 @@ where
             local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu + local.is_mulw;
 
         // Constrain the multiplication operation over `op_b`, `op_c` and the selectors.
-        MulOperation::<AB::F>::eval(
+        <MulOperation<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.a.map(|x| x.into()),
-            local.adapter.b().map(|x| x.into()),
-            local.adapter.c().map(|x| x.into()),
-            local.mul_operation,
-            is_real.clone(),
-            local.is_mul.into(),
-            local.is_mulh.into(),
-            local.is_mulw.into(),
-            local.is_mulhu.into(),
-            local.is_mulhsu.into(),
+            MulOperationInput::new(
+                local.a.map(|x| x.into()),
+                local.adapter.b().map(|x| x.into()),
+                local.adapter.c().map(|x| x.into()),
+                local.mul_operation,
+                is_real.clone(),
+                local.is_mul.into(),
+                local.is_mulh.into(),
+                local.is_mulw.into(),
+                local.is_mulhu.into(),
+                local.is_mulhsu.into(),
+            ),
         );
 
         // Calculate the opcode.
@@ -293,47 +241,50 @@ where
             + local.is_mulhsu * AB::Expr::from_canonical_u8(Opcode::MULHSU.funct7().unwrap())
             + local.is_mulw * AB::Expr::from_canonical_u8(Opcode::MULW.funct7().unwrap());
 
-        let base_opcode = local.base_op_code.into();
-
         let mul_base = Opcode::MUL.base_opcode().0;
         let mulh_base = Opcode::MULH.base_opcode().0;
         let mulhu_base = Opcode::MULHU.base_opcode().0;
         let mulhsu_base = Opcode::MULHSU.base_opcode().0;
-
-        let (mulw_base, mulw_imm) = Opcode::MULW.base_opcode();
-        let mulw_imm = mulw_imm.expect("MULW immediate opcode not found");
+        let mulw_base = Opcode::MULW.base_opcode().0;
 
         let mul_base_expr = AB::Expr::from_canonical_u32(mul_base);
         let mulh_base_expr = AB::Expr::from_canonical_u32(mulh_base);
         let mulhu_base_expr = AB::Expr::from_canonical_u32(mulhu_base);
         let mulhsu_base_expr = AB::Expr::from_canonical_u32(mulhsu_base);
         let mulw_base_expr = AB::Expr::from_canonical_u32(mulw_base);
-        let mulw_imm_expr = AB::Expr::from_canonical_u32(mulw_imm);
 
-        let correct_imm_opcode = local.is_mulw * mulw_imm_expr;
-        let correct_reg_opcode = local.is_mul * mul_base_expr
+        let calculated_base_opcode = local.is_mul * mul_base_expr
             + local.is_mulh * mulh_base_expr
             + local.is_mulhu * mulhu_base_expr
             + local.is_mulhsu * mulhsu_base_expr
             + local.is_mulw * mulw_base_expr;
 
-        // Constrain base_op_code to be correct based on imm_c and is_* columns.
-        let correct_opcode =
-            builder.if_else(local.adapter.imm_c.into(), correct_imm_opcode, correct_reg_opcode);
-        builder.when(is_real.clone()).assert_eq(local.base_op_code.into(), correct_opcode);
+        let mul_instr_type = Opcode::MUL.instruction_type().0 as u32;
+        let mulh_instr_type = Opcode::MULH.instruction_type().0 as u32;
+        let mulhu_instr_type = Opcode::MULHU.instruction_type().0 as u32;
+        let mulhsu_instr_type = Opcode::MULHSU.instruction_type().0 as u32;
+        let mulw_instr_type = Opcode::MULW.instruction_type().0 as u32;
+
+        let calculated_instr_type = local.is_mul * AB::Expr::from_canonical_u32(mul_instr_type)
+            + local.is_mulh * AB::Expr::from_canonical_u32(mulh_instr_type)
+            + local.is_mulhu * AB::Expr::from_canonical_u32(mulhu_instr_type)
+            + local.is_mulhsu * AB::Expr::from_canonical_u32(mulhsu_instr_type)
+            + local.is_mulw * AB::Expr::from_canonical_u32(mulw_instr_type);
 
         // Constrain the state of the CPU.
         // The program counter and timestamp increment by `4` and `8`.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            is_real.clone(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                is_real.clone(),
+            ),
         );
 
         // Constrain the program and register reads.
@@ -343,12 +294,12 @@ where
             local.state.clk_low::<AB>(),
             local.state.pc,
             opcode,
-            [base_opcode, funct3, funct7],
+            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             a_expr,
             local.adapter,
             is_real.clone(),
         );
-        ALUTypeReader::<AB::F>::eval(builder, alu_reader_input);
+        <ALUTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, alu_reader_input);
     }
 }
 
@@ -359,16 +310,16 @@ where
 //         riscv::RiscvAir,
 //         utils::{run_malicious_test, run_test_machine, setup_test_machine},
 //     };
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use slop_matrix::dense::RowMajorMatrix;
 //     use rand::{thread_rng, Rng};
 //     use sp1_core_executor::{
 //         events::{AluEvent, MemoryRecordEnum},
 //         ExecutionRecord, Instruction, Opcode, Program,
 //     };
-//     use sp1_stark::{
+//     use sp1_hypercube::{
 //         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         baby_bear_poseidon2::BabyBearPoseidon2,
+//         koala_bear_poseidon2::SP1CoreJaggedConfig,
 //         Chip, CpuProver, MachineProver, StarkMachine, Val,
 //     };
 
@@ -392,12 +343,12 @@ where
 //         }
 //         shard.mul_events = mul_events;
 //         let chip = MulChip::default();
-//         let _trace: RowMajorMatrix<BabyBear> =
+//         let _trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&shard, &mut ExecutionRecord::default());
 //     }
 
 //     #[test]
-//     fn prove_babybear() {
+//     fn prove_koalabear() {
 //         let mut shard = ExecutionRecord::default();
 //         let mut mul_events: Vec<AluEvent> = Vec::new();
 
@@ -466,7 +417,7 @@ where
 
 //         // Run setup.
 //         let air = MulChip::default();
-//         let config = BabyBearPoseidon2::new();
+//         let config = SP1CoreJaggedConfig::new();
 //         let chip = Chip::new(air);
 //         let (pk, vk) = setup_test_machine(StarkMachine::new(
 //             config.clone(),
@@ -477,9 +428,9 @@ where
 
 //         // Run the test.
 //         let air = MulChip::default();
-//         let chip: Chip<BabyBear, MulChip> = Chip::new(air);
+//         let chip: Chip<SP1Field, MulChip> = Chip::new(air);
 //         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<BabyBearPoseidon2, MulChip>(vec![shard], machine, pk, vk).unwrap();
+//         run_test_machine::<SP1CoreJaggedConfig, MulChip>(vec![shard], machine, pk, vk).unwrap();
 //     }
 
 //     #[test]
@@ -522,13 +473,13 @@ where
 //                 let program = Program::new(instructions, 0, 0);
 //                 let stdin = SP1Stdin::new();
 
-//                 type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+//                 type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
 
 //                 let malicious_trace_pv_generator = move |prover: &P,
 //                                                          record: &mut ExecutionRecord|
 //                       -> Vec<(
 //                     String,
-//                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
+//                     RowMajorMatrix<Val<SP1CoreJaggedConfig>>,
 //                 )> {
 //                     let mut malicious_record = record.clone();
 //                     malicious_record.cpu_events[0].a = op_a as u32;

@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 
+use deepsize2::DeepSizeOf;
 use enum_map::Enum;
 use rrs_lib::instruction_formats::{
     OPCODE_AUIPC, OPCODE_BRANCH, OPCODE_JAL, OPCODE_JALR, OPCODE_LOAD, OPCODE_LUI, OPCODE_OP,
@@ -9,6 +10,8 @@ use rrs_lib::instruction_formats::{
 };
 use serde::{Deserialize, Serialize};
 use slop_algebra::Field;
+
+use crate::InstructionType;
 
 /// An opcode (short for "operation code") specifies the operation to be performed by the processor.
 ///
@@ -26,7 +29,18 @@ use slop_algebra::Field;
 /// more details.
 #[allow(non_camel_case_types)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Enum,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+    Ord,
+    Enum,
+    DeepSizeOf,
 )]
 #[repr(u8)]
 pub enum Opcode {
@@ -145,7 +159,9 @@ pub enum Opcode {
 /// This represents a basic operation that can be performed on a byte. Usually, these operations
 /// are performed via lookup tables on that iterate over the domain of two 8-bit values. The
 /// operations include both bitwise operations (AND, OR, XOR) as well as basic arithmetic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, DeepSizeOf,
+)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum ByteOpcode {
     /// Bitwise AND.
@@ -354,13 +370,13 @@ impl Opcode {
             | Opcode::DIV
             | Opcode::DIVU
             | Opcode::REM
-            | Opcode::REMU => (OPCODE_OP, None),
+            | Opcode::REMU => (OPCODE_OP, Some(OPCODE_OP)),
 
-            Opcode::ADDI => (OPCODE_OP_IMM, None),
+            Opcode::ADDI => (OPCODE_OP_IMM, Some(OPCODE_OP_IMM)),
 
             Opcode::ECALL => (OPCODE_SYSTEM, None),
 
-            Opcode::JALR => (OPCODE_JALR, None),
+            Opcode::JALR => (OPCODE_JALR, Some(OPCODE_JALR)),
 
             Opcode::LB
             | Opcode::LH
@@ -368,36 +384,96 @@ impl Opcode {
             | Opcode::LBU
             | Opcode::LHU
             | Opcode::LWU
-            | Opcode::LD => (OPCODE_LOAD, None),
+            | Opcode::LD => (OPCODE_LOAD, Some(OPCODE_LOAD)),
 
-            Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => (OPCODE_STORE, None),
+            Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => (OPCODE_STORE, Some(OPCODE_STORE)),
 
             Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                (OPCODE_BRANCH, None)
+                (OPCODE_BRANCH, Some(OPCODE_BRANCH))
             }
 
-            Opcode::AUIPC => (OPCODE_AUIPC, None),
+            Opcode::AUIPC => (OPCODE_AUIPC, Some(OPCODE_AUIPC)),
 
-            Opcode::LUI => (OPCODE_LUI, None),
+            Opcode::LUI => (OPCODE_LUI, Some(OPCODE_LUI)),
 
-            Opcode::JAL => (OPCODE_JAL, None),
+            Opcode::JAL => (OPCODE_JAL, Some(OPCODE_JAL)),
 
             // RISC-V 64-bit operations
-            Opcode::ADDW
-            | Opcode::SUBW
-            | Opcode::SLLW
-            | Opcode::SRLW
-            | Opcode::SRAW
+            Opcode::ADDW | Opcode::SLLW | Opcode::SRLW | Opcode::SRAW => {
+                (OPCODE_OP_32, Some(OPCODE_OP_IMM_32))
+            }
+
+            Opcode::SUBW
             | Opcode::MULW
             | Opcode::DIVW
             | Opcode::DIVUW
             | Opcode::REMW
-            | Opcode::REMUW => (OPCODE_OP_32, Some(OPCODE_OP_IMM_32)),
+            | Opcode::REMUW => (OPCODE_OP_32, None),
 
             // APC opcode
             Opcode::APC => (0xeadbeef, None),
 
             _ => unreachable!("Opcode {:?} has no base opcode", self),
+        }
+    }
+
+    #[must_use]
+    /// Returns the instruction type for the opcode.
+    pub fn instruction_type(self) -> (InstructionType, Option<InstructionType>) {
+        match self {
+            Opcode::SLL | Opcode::SRL | Opcode::SRA => {
+                (InstructionType::RType, Some(InstructionType::ITypeShamt))
+            }
+
+            Opcode::SLLW | Opcode::SRLW | Opcode::SRAW => {
+                (InstructionType::RType, Some(InstructionType::ITypeShamt32))
+            }
+
+            Opcode::ADDW | Opcode::XOR | Opcode::OR | Opcode::AND | Opcode::SLT | Opcode::SLTU => {
+                (InstructionType::RType, Some(InstructionType::IType))
+            }
+
+            Opcode::ADD
+            | Opcode::SUB
+            | Opcode::SUBW
+            | Opcode::MUL
+            | Opcode::MULH
+            | Opcode::MULHU
+            | Opcode::MULHSU
+            | Opcode::DIV
+            | Opcode::DIVU
+            | Opcode::REM
+            | Opcode::REMU
+            | Opcode::MULW
+            | Opcode::DIVW
+            | Opcode::DIVUW
+            | Opcode::REMW
+            | Opcode::REMUW => (InstructionType::RType, None),
+
+            Opcode::ADDI => (InstructionType::IType, Some(InstructionType::IType)),
+
+            Opcode::ECALL => (InstructionType::ECALL, None),
+
+            Opcode::JALR
+            | Opcode::LB
+            | Opcode::LH
+            | Opcode::LW
+            | Opcode::LBU
+            | Opcode::LHU
+            | Opcode::LWU
+            | Opcode::LD => (InstructionType::IType, None),
+
+            Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => (InstructionType::SType, None),
+
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+                (InstructionType::BType, None)
+            }
+
+            Opcode::AUIPC | Opcode::LUI => (InstructionType::UType, None),
+
+            Opcode::JAL => (InstructionType::JType, None),
+
+            _ => unreachable!("Opcode {:?} has no instruction type", self),
         }
     }
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sp1_derive::{AlignedBorrow, IntoShape};
-use sp1_stark::Word;
+use sp1_hypercube::Word;
 
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -42,24 +42,36 @@ pub struct MemoryAccessColsU8<T> {
     pub prev_value_u8: U16toU8Operation<T>,
 }
 
-/// Memory Access Timestamp, when the shard and previous shard are known to be equal
+/// Register Access Timestamp. The register accesses use the same argument as the memory accesses,
+/// and shares the same space as the memory. This structure is used for register accesses in RISC-V.
+/// For optimization, we ensure that all register accesses have the high limb of the timestamp and
+/// previous timestamp to be equal. This is done through adding in a "shadow" read, through the
+/// `MemoryBump` chip. Therefore, only the columns for low limb comparison is needed here.
 #[derive(
     AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
 )]
 #[repr(C)]
-pub struct MemoryAccessInShardTimestamp<T> {
+pub struct RegisterAccessTimestamp<T> {
     /// The previous timestamp that this memory access is being read from.
     pub prev_low: T,
     /// The difference in timestamp's least significant 16 bit limb.
     pub diff_low_limb: T,
 }
 
-/// Memory Access Columns, when the shard and previous shard are known to be equal
+/// Register Access Columns
 #[derive(
     AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
 )]
 #[repr(C)]
-pub struct MemoryAccessInShardCols<T> {
+pub struct RegisterAccessCols<T> {
     pub prev_value: Word<T>,
-    pub access_timestamp: MemoryAccessInShardTimestamp<T>,
+    pub access_timestamp: RegisterAccessTimestamp<T>,
+}
+
+/// Page Permission Access Columns, when the shard and previous shard are known to be equal
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct PageProtAccessCols<T> {
+    pub prev_prot_bitmap: T,
+    pub access_timestamp: MemoryAccessTimestamp<T>,
 }

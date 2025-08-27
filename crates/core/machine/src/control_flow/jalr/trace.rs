@@ -9,7 +9,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, JumpEvent},
     ExecutionRecord, Program,
 };
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
 use struct_reflection::StructReflectionHelper;
 
 use crate::utils::{next_multiple_of_32, zeroed_f_vec};
@@ -75,10 +75,6 @@ impl<F: PrimeField32> MachineAir<F> for JalrChip {
         }
     }
 
-    fn local_only(&self) -> bool {
-        true
-    }
-
     fn column_names(&self) -> Vec<String> {
         JalrColumns::<F>::struct_reflection().unwrap()
     }
@@ -96,6 +92,8 @@ impl JalrChip {
         // `event.c` is unused, since we ought to use a `JalrEvent` rather than a `JumpEvent`.
         cols.is_real = F::one();
         cols.op_a_value = event.a.into();
+        let low_limb = (event.b.wrapping_add(imm) & 0xFFFF) as u16;
+        blu.add_bit_range_check(low_limb / 4, 14);
         cols.add_operation.populate(blu, event.b, imm);
         if !event.op_a_0 {
             cols.op_a_operation.populate(blu, event.pc, 4);

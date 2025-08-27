@@ -1,6 +1,10 @@
 use crate::{
+    air::SP1Operation,
     memory::MemoryAccessColsU8,
-    operations::{field::field_op::FieldOpCols, AddrAddOperation},
+    operations::{
+        field::field_op::FieldOpCols, AddrAddOperation, AddressSlicePageProtOperation,
+        IsZeroOperationInput,
+    },
 };
 
 use crate::{
@@ -27,10 +31,13 @@ use sp1_curves::{
     uint256::U256Field,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::polynomial::Polynomial;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     MachineRecord, Word,
+};
+use sp1_primitives::{
+    consts::{PROT_READ, PROT_WRITE},
+    polynomial::Polynomial,
 };
 use std::{
     borrow::{Borrow, BorrowMut},
@@ -78,8 +85,8 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryAccessColsU8<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryAccessColsU8<T>, WordsFieldElement>,
 
-    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective
-    /// modulus.
+    /// Columns for checking if modulus is zero.
+    /// If it's zero, then use 2^256 as the effective modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
 
     /// Column that is equal to is_real * (1 - modulus_is_zero.result).
@@ -91,6 +98,9 @@ pub struct Uint256MulCols<T> {
     pub output_range_check: FieldLtCols<T, U256Field>,
 
     pub is_real: T,
+
+    pub address_slice_page_prot_access_x: AddressSlicePageProtOperation<T>,
+    pub address_slice_page_prot_access_y: AddressSlicePageProtOperation<T>,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
@@ -204,7 +214,34 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                                 &effective_modulus,
                             );
                         }
+                        if input.public_values.is_page_protect_active == 1 {
+                            // Populate page protection operations (once per event, not per word)
+                            cols.address_slice_page_prot_access_y.populate(
+                                &mut new_byte_lookup_events,
+                                event.y_ptr,
+                                event.y_ptr + ((WORDS_FIELD_ELEMENT * 2 - 1) * 8) as u64,
+                                event.clk,
+                                PROT_READ,
+                                &event.page_prot_records.read_y_modulus_page_prot_records[0],
+                                &event
+                                    .page_prot_records
+                                    .read_y_modulus_page_prot_records
+                                    .get(1)
+                                    .copied(),
+                                input.public_values.is_page_protect_active,
+                            );
 
+                            cols.address_slice_page_prot_access_x.populate(
+                                &mut new_byte_lookup_events,
+                                event.x_ptr,
+                                event.x_ptr + ((WORDS_FIELD_ELEMENT - 1) * 8) as u64,
+                                event.clk + 1,
+                                PROT_READ | PROT_WRITE,
+                                &event.page_prot_records.write_x_page_prot_records[0],
+                                &event.page_prot_records.write_x_page_prot_records.get(1).copied(),
+                                input.public_values.is_page_protect_active,
+                            );
+                        }
                         row
                     })
                     .collect::<Vec<_>>();
@@ -246,10 +283,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl<F> BaseAir<F> for Uint256MulChip {
@@ -280,15 +313,19 @@ where
         let modulus_limbs: Limbs<AB::Expr, <U256Field as NumLimbs>::Limbs> =
             Limbs(modulus_limb_vec.try_into().expect("failed to convert limbs"));
 
-        // // If the modulus is zero, then we don't perform the modulus operation.
-        // // Evaluate the modulus_is_zero operation by summing each byte of the modulus. The sum
-        // will // not overflow because we are summing 32 bytes.
-        // let modulus_byte_sum =
-        //     modulus_limbs.clone().0.iter().fold(AB::Expr::zero(), |acc, limb| acc +
-        // limb.clone()); IsZeroOperation::<AB::F>::eval(
-        //     builder,
-        //     (modulus_byte_sum, local.modulus_is_zero, local.is_real.into()),
-        // );
+        // If the modulus is zero, then we don't perform the modulus operation.
+        // Evaluate the modulus_is_zero operation by summing each byte of the modulus.
+        // The sum will not overflow because we are summing 32 bytes.
+        let modulus_byte_sum =
+            modulus_limbs.clone().0.iter().fold(AB::Expr::zero(), |acc, limb| acc + limb.clone());
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            IsZeroOperationInput::new(
+                modulus_byte_sum,
+                local.modulus_is_zero,
+                local.is_real.into(),
+            ),
+        );
 
         // If the modulus is zero, we'll actually use 2^256 as the modulus, so nothing happens.
         // Otherwise, we use the modulus passed in.
@@ -311,8 +348,10 @@ where
             local.is_real,
         );
 
-        // Verify the range of the output if the moduls is not zero.  Also, check the value of
-        // modulus_is_not_zero.
+        // Verify the range of the output if the modulus is not zero.
+        // Also, check the value of modulus_is_not_zero.
+        // If `is_real` is false, then `modulus_is_not_zero = 0`.
+        // If `is_real` is true, then `modulus_is_zero` will be correctly constrained.
         local.output_range_check.eval(
             builder,
             &local.output.result,
@@ -331,52 +370,23 @@ where
         let y_ptr =
             SyscallAddrOperation::<AB::F>::eval(builder, 64, local.y_ptr, local.is_real.into());
 
-        // x_addrs[0] = x_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([x_ptr[0].into(), x_ptr[1].into(), x_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.x_addrs[0],
-            local.is_real.into(),
-        );
-
-        let eight = AB::F::from_canonical_u32(8u32);
-        // x_addrs[i] = x_addrs[i - 1] + 8.
-        for i in 1..local.x_addrs.len() {
+        // x_addrs[i] = x_ptr + 8 * i
+        for i in 0..local.x_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.x_addrs[i - 1].value[0].into(),
-                    local.x_addrs[i - 1].value[1].into(),
-                    local.x_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([x_ptr[0].into(), x_ptr[1].into(), x_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.x_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        // y_addrs[0] = y_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([y_ptr[0].into(), y_ptr[1].into(), y_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.y_and_modulus_addrs[0],
-            local.is_real.into(),
-        );
-
-        // y_addrs[i] = y_addrs[i - 1] + 8.
-        for i in 1..local.y_and_modulus_addrs.len() {
+        // y_and_modulus_addrs[i] = y_ptr + 8 * i
+        for i in 0..local.y_and_modulus_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.y_and_modulus_addrs[i - 1].value[0].into(),
-                    local.y_and_modulus_addrs[i - 1].value[1].into(),
-                    local.y_and_modulus_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([y_ptr[0].into(), y_ptr[1].into(), y_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.y_and_modulus_addrs[i],
                 local.is_real.into(),
             );
@@ -418,6 +428,26 @@ where
         );
 
         // Assert that is_real is a boolean.
-        builder.assert_bool(local.is_real);
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into(),
+            &y_ptr.map(Into::into),
+            &local.y_and_modulus_addrs[local.y_and_modulus_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.address_slice_page_prot_access_y,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::one(),
+            &x_ptr.map(Into::into),
+            &local.x_addrs[local.x_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
+            &local.address_slice_page_prot_access_x,
+            local.is_real.into(),
+        );
     }
 }

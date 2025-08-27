@@ -1,7 +1,10 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::{MemoryAccessCols, MemoryAccessColsU8},
-    operations::{field::field_op::FieldOpCols, AddrAddOperation, SyscallAddrOperation},
+    operations::{
+        field::field_op::FieldOpCols, AddrAddOperation, AddressSlicePageProtOperation,
+        SyscallAddrOperation,
+    },
     utils::{limbs_to_words, next_multiple_of_32, pad_rows_fixed, words_to_bytes_le},
 };
 use itertools::Itertools;
@@ -19,16 +22,22 @@ use sp1_curves::{
     uint256::U256Field,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::polynomial::Polynomial;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     MachineRecord, Word,
+};
+use sp1_primitives::{
+    consts::{PROT_READ, PROT_WRITE},
+    polynomial::Polynomial,
 };
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
 use typenum::Unsigned;
+
+const U256_NUM_WORDS: usize = 4;
+const U2048_NUM_WORDS: usize = 32;
 
 /// The number of columns in the U256x2048MulCols.
 const NUM_COLS: usize = size_of::<U256x2048MulCols<u8>>();
@@ -91,6 +100,11 @@ pub struct U256x2048MulCols<T> {
     pub ab7_plus_carry: FieldOpCols<T, U256Field>,
     pub ab8_plus_carry: FieldOpCols<T, U256Field>,
     pub is_real: T,
+
+    pub address_slice_page_prot_access_a: AddressSlicePageProtOperation<T>,
+    pub address_slice_page_prot_access_b: AddressSlicePageProtOperation<T>,
+    pub address_slice_page_prot_access_lo: AddressSlicePageProtOperation<T>,
+    pub address_slice_page_prot_access_hi: AddressSlicePageProtOperation<T>,
 }
 
 impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
@@ -228,6 +242,53 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                             );
                             carries[i + 1] = carry;
                         }
+                        if input.public_values.is_page_protect_active == 1 {
+                            // Populate the address slice page prot access.
+                            cols.address_slice_page_prot_access_a.populate(
+                                &mut new_byte_lookup_events,
+                                event.a_ptr,
+                                event.a_ptr + ((U256_NUM_WORDS - 1) * 8) as u64,
+                                event.clk,
+                                PROT_READ,
+                                &event.page_prot_records.read_a_page_prot_records[0],
+                                &event.page_prot_records.read_a_page_prot_records.get(1).copied(),
+                                input.public_values.is_page_protect_active,
+                            );
+
+                            cols.address_slice_page_prot_access_b.populate(
+                                &mut new_byte_lookup_events,
+                                event.b_ptr,
+                                event.b_ptr + ((U2048_NUM_WORDS - 1) * 8) as u64,
+                                event.clk + 1,
+                                PROT_READ,
+                                &event.page_prot_records.read_b_page_prot_records[0],
+                                &event.page_prot_records.read_b_page_prot_records.get(1).copied(),
+                                input.public_values.is_page_protect_active,
+                            );
+
+                            cols.address_slice_page_prot_access_lo.populate(
+                                &mut new_byte_lookup_events,
+                                event.lo_ptr,
+                                event.lo_ptr + ((32 - 1) * 8) as u64,
+                                event.clk + 2,
+                                PROT_WRITE,
+                                &event.page_prot_records.write_lo_page_prot_records[0],
+                                &event.page_prot_records.write_lo_page_prot_records.get(1).copied(),
+                                input.public_values.is_page_protect_active,
+                            );
+
+                            cols.address_slice_page_prot_access_hi.populate(
+                                &mut new_byte_lookup_events,
+                                event.hi_ptr,
+                                event.hi_ptr + ((4 - 1) * 8) as u64,
+                                event.clk + 3,
+                                PROT_WRITE,
+                                &event.page_prot_records.write_hi_page_prot_records[0],
+                                &event.page_prot_records.write_hi_page_prot_records.get(1).copied(),
+                                input.public_values.is_page_protect_active,
+                            );
+                        }
+
                         row
                     })
                     .collect::<Vec<_>>();
@@ -280,10 +341,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
             !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl<F> BaseAir<F> for U256x2048MulChip {
@@ -313,102 +370,45 @@ where
         let hi_ptr =
             SyscallAddrOperation::<AB::F>::eval(builder, 32, local.hi_ptr, local.is_real.into());
 
-        // x_addrs[0] = x_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([a_ptr[0].into(), a_ptr[1].into(), a_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.a_addrs[0],
-            local.is_real.into(),
-        );
-
-        // a_addrs[i] = a_addrs[i - 1] + 8.
-        let eight = AB::F::from_canonical_u32(8u32);
-        for i in 1..local.a_addrs.len() {
+        // a_addrs[i] = a_ptr + 8 * i
+        for i in 0..local.a_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.a_addrs[i - 1].value[0].into(),
-                    local.a_addrs[i - 1].value[1].into(),
-                    local.a_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([a_ptr[0].into(), a_ptr[1].into(), a_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.a_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        // b_addrs[0] = b_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([b_ptr[0].into(), b_ptr[1].into(), b_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.b_addrs[0],
-            local.is_real.into(),
-        );
-
-        // b_addrs[i] = b_addrs[i - 1] + 8.
-        for i in 1..local.b_addrs.len() {
+        // b_addrs[i] = b_ptr + 8 * i
+        for i in 0..local.b_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.b_addrs[i - 1].value[0].into(),
-                    local.b_addrs[i - 1].value[1].into(),
-                    local.b_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([b_ptr[0].into(), b_ptr[1].into(), b_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.b_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        // lo_addrs[0] = lo_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([lo_ptr[0].into(), lo_ptr[1].into(), lo_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.lo_addrs[0],
-            local.is_real.into(),
-        );
-
-        // lo_addrs[i] = lo_addrs[i - 1] + 8.
-        for i in 1..local.lo_addrs.len() {
+        // lo_addrs[i] = lo_ptr + 8 * i
+        for i in 0..local.lo_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.lo_addrs[i - 1].value[0].into(),
-                    local.lo_addrs[i - 1].value[1].into(),
-                    local.lo_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([lo_ptr[0].into(), lo_ptr[1].into(), lo_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.lo_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        // hi_addrs[0] = hi_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([hi_ptr[0].into(), hi_ptr[1].into(), hi_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.hi_addrs[0],
-            local.is_real.into(),
-        );
-
-        // hi_addrs[i] = hi_addrs[i - 1] + 8.
-        for i in 1..local.hi_addrs.len() {
+        // hi_addrs[i] = hi_ptr + 8 * i
+        for i in 0..local.hi_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.hi_addrs[i - 1].value[0].into(),
-                    local.hi_addrs[i - 1].value[1].into(),
-                    local.hi_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([hi_ptr[0].into(), hi_ptr[1].into(), hi_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.hi_addrs[i],
                 local.is_real.into(),
             );
@@ -453,7 +453,7 @@ where
 
         builder.eval_memory_access_slice_read(
             local.clk_high,
-            local.clk_low.into(),
+            local.clk_low.into() + AB::Expr::one(),
             &local.b_addrs.map(|addr| addr.value.map(Into::into)),
             &local.b_memory.iter().map(|access| access.memory_access).collect_vec(),
             local.is_real,
@@ -498,8 +498,7 @@ where
             builder,
             &a_limbs,
             &b_limb_array[0],
-            &Polynomial::from_coefficients(&[AB::Expr::zero()]), /* Zero polynomial for no
-                                                                  * previous carry */
+            &Polynomial::from_coefficients(&[AB::Expr::zero()]),
             &modulus_polynomial,
             local.is_real,
         );
@@ -524,7 +523,7 @@ where
 
         builder.eval_memory_access_slice_write(
             local.clk_high,
-            local.clk_low + AB::Expr::one(),
+            local.clk_low + AB::Expr::from_canonical_u8(2),
             &local.lo_addrs.map(|addr| addr.value.map(Into::into)),
             &local.lo_memory,
             result_words,
@@ -534,7 +533,7 @@ where
         let output_carry_words = limbs_to_words::<AB>(outputs[outputs.len() - 1].carry.0.to_vec());
         builder.eval_memory_access_slice_write(
             local.clk_high,
-            local.clk_low + AB::Expr::one(),
+            local.clk_low + AB::Expr::from_canonical_u8(3),
             &local.hi_addrs.map(|addr| addr.value.map(Into::into)),
             &local.hi_memory,
             output_carry_words,
@@ -543,14 +542,62 @@ where
 
         // Constrain that the lo_ptr is the value of lo_ptr_memory.
         for i in 0..3 {
-            builder.when(local.is_real).assert_eq(lo_ptr[i], local.lo_ptr_memory.prev_value[i]);
+            builder
+                .when(local.is_real)
+                .assert_eq(local.lo_ptr.addr[i], local.lo_ptr_memory.prev_value[i]);
         }
         builder.assert_eq(local.lo_ptr_memory.prev_value[3], AB::Expr::zero());
 
         // Constrain that the hi_ptr is the value of hi_ptr_memory.
         for i in 0..3 {
-            builder.when(local.is_real).assert_eq(hi_ptr[i], local.hi_ptr_memory.prev_value[i]);
+            builder
+                .when(local.is_real)
+                .assert_eq(local.hi_ptr.addr[i], local.hi_ptr_memory.prev_value[i]);
         }
         builder.assert_eq(local.hi_ptr_memory.prev_value[3], AB::Expr::zero());
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into(),
+            &a_ptr.map(Into::into),
+            &local.a_addrs.last().unwrap().value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.address_slice_page_prot_access_a,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::from_canonical_u8(1),
+            &b_ptr.map(Into::into),
+            &local.b_addrs.last().unwrap().value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.address_slice_page_prot_access_b,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::from_canonical_u8(2),
+            &lo_ptr.map(Into::into),
+            &local.lo_addrs.last().unwrap().value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_WRITE),
+            &local.address_slice_page_prot_access_lo,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::from_canonical_u8(3),
+            &hi_ptr.map(Into::into),
+            &local.hi_addrs.last().unwrap().value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_WRITE),
+            &local.address_slice_page_prot_access_hi,
+            local.is_real.into(),
+        );
     }
 }

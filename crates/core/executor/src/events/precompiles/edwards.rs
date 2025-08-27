@@ -1,18 +1,26 @@
+use deepsize2::DeepSizeOf;
 use serde::{Deserialize, Serialize};
 use sp1_curves::{edwards::WORDS_FIELD_ELEMENT, COMPRESSED_POINT_BYTES, NUM_BYTES_FIELD_ELEMENT};
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    MemoryLocalEvent,
+    MemoryLocalEvent, PageProtLocalEvent, PageProtRecord,
 };
+
+/// Edwards Page Prot Records
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
+pub struct EdwardsPageProtRecords {
+    /// The page prot records for reading the address.
+    pub read_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for writing the address.
+    pub write_page_prot_records: Vec<PageProtRecord>,
+}
 
 /// Edwards Decompress Event.
 ///
 /// This event is emitted when an edwards decompression operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
 pub struct EdDecompressEvent {
-    /// The shard number.
-    pub shard: u32,
     /// The clock cycle.
     pub clk: u64,
     /// The pointer to the point.
@@ -30,12 +38,15 @@ pub struct EdDecompressEvent {
     pub y_memory_records: [MemoryReadRecord; WORDS_FIELD_ELEMENT],
     /// The local memory access events.
     pub local_mem_access: Vec<MemoryLocalEvent>,
+    /// The page prot records.
+    pub page_prot_records: EdwardsPageProtRecords,
+    /// The local page prot access records.
+    pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }
 
 impl Default for EdDecompressEvent {
     fn default() -> Self {
         Self {
-            shard: 0,
             clk: 0,
             ptr: 0,
             sign: false,
@@ -44,6 +55,8 @@ impl Default for EdDecompressEvent {
             x_memory_records: [MemoryWriteRecord::default(); WORDS_FIELD_ELEMENT],
             y_memory_records: [MemoryReadRecord::default(); WORDS_FIELD_ELEMENT],
             local_mem_access: Vec::new(),
+            page_prot_records: EdwardsPageProtRecords::default(),
+            local_page_prot_access: Vec::new(),
         }
     }
 }

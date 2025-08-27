@@ -11,31 +11,32 @@ use crate::{
         RecursiveMachineJaggedPcsVerifier,
     },
     logup_gkr::RecursiveLogUpGkrVerifier,
+    symbolic::IntoSymbolic,
     zerocheck::RecursiveVerifierConstraintFolder,
-    BabyBearFriConfigVariable, CircuitConfig,
+    CircuitConfig, SP1FieldConfigVariable,
 };
 use slop_air::Air;
 use slop_algebra::{extension::BinomialExtensionField, AbstractField, TwoAdicField};
-use slop_baby_bear::BabyBear;
 use slop_commit::Rounds;
-use slop_multilinear::{Evaluations, MleEval};
+use slop_multilinear::{Evaluations, MleEval, Point};
 use slop_sumcheck::PartialSumcheckProof;
+use sp1_hypercube::{
+    air::MachineAir, septic_digest::SepticDigest, ChipDimensions,
+    GenericVerifierPublicValuesConstraintFolder, LogupGkrProof, Machine, MachineConfig,
+    MachineRecord, ShardOpenedValues,
+};
+use sp1_primitives::SP1Field;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt, SymbolicExt},
     prelude::{Ext, SymbolicFelt},
 };
 use sp1_recursion_executor::{DIGEST_SIZE, NUM_BITS};
-use sp1_stark::{
-    air::MachineAir, septic_digest::SepticDigest, ChipDimensions,
-    GenericVerifierPublicValuesConstraintFolder, LogupGkrProof, Machine, MachineConfig,
-    MachineRecord, ShardOpenedValues,
-};
 
 #[allow(clippy::type_complexity)]
 pub struct ShardProofVariable<
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
-    SC: BabyBearFriConfigVariable<C> + Send + Sync,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    SC: SP1FieldConfigVariable<C> + Send + Sync,
     JC: RecursiveJaggedConfig<
         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
     >,
@@ -57,8 +58,8 @@ pub struct ShardProofVariable<
 }
 
 pub struct MachineVerifyingKeyVariable<
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
-    SC: BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    SC: SP1FieldConfigVariable<C>,
 > {
     pub pc_start: [Felt<C::F>; 3],
     /// The starting global digest of the program, after incorporating the initial memory.
@@ -70,8 +71,8 @@ pub struct MachineVerifyingKeyVariable<
 }
 impl<C, SC> MachineVerifyingKeyVariable<C, SC>
 where
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
-    SC: BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    SC: SP1FieldConfigVariable<C>,
 {
     /// Hash the verifying key + prep domains into a single digest.
     /// poseidon2(commit[0..8] || pc_start || initial_global_cumulative_sum ||
@@ -81,7 +82,7 @@ where
         C::F: TwoAdicField,
         SC::DigestVariable: IntoIterator<Item = Felt<C::F>>,
     {
-        let num_inputs = DIGEST_SIZE + 1 + 14;
+        let num_inputs = DIGEST_SIZE + 3 + 14;
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.preprocessed_commit);
         inputs.extend(self.pc_start);
@@ -104,8 +105,8 @@ where
 /// A verifier for shard proofs.
 pub struct RecursiveShardVerifier<
     A: MachineAir<C::F>,
-    SC: BabyBearFriConfigVariable<C>,
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
+    SC: SP1FieldConfigVariable<C>,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
     JC: RecursiveJaggedConfig<
         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
     >,
@@ -120,8 +121,8 @@ pub struct RecursiveShardVerifier<
 impl<C, SC, A, JC> RecursiveShardVerifier<A, SC, C, JC>
 where
     A: MachineAir<C::F>,
-    SC: BabyBearFriConfigVariable<C> + MachineConfig,
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
+    SC: SP1FieldConfigVariable<C> + MachineConfig,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
     JC: RecursiveJaggedConfig<
         F = C::F,
         EF = C::EF,
@@ -137,12 +138,15 @@ where
         &self,
         builder: &mut Builder<C>,
         challenge: Ext<C::F, C::EF>,
-        alpha: Ext<C::F, C::EF>,
-        beta: Ext<C::F, C::EF>,
+        alpha: &Ext<C::F, C::EF>,
+        beta_seed: &Point<Ext<C::F, C::EF>>,
         public_values: &[Felt<C::F>],
     ) -> SymbolicExt<C::F, C::EF> {
+        let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
+        let betas =
+            slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
         let mut folder = RecursiveVerifierPublicValuesConstraintFolder::<C> {
-            perm_challenges: &[alpha, beta],
+            perm_challenges: (alpha, &betas),
             alpha: challenge,
             accumulator: SymbolicExt::zero(),
             local_interaction_digest: SymbolicExt::zero(),
@@ -211,14 +215,13 @@ where
             }
         }
 
-        // Sample the permutation challenges.
-        let alpha = challenger.sample_ext(builder);
-        let beta = challenger.sample_ext(builder);
-        // Sample the public value challenge.
-        let pv_challenge = challenger.sample_ext(builder);
-
-        let cumulative_sum =
-            -self.verify_public_values(builder, pv_challenge, alpha, beta, public_values);
+        for (chip, dimensions) in vk.preprocessed_chip_information.iter() {
+            if let Some(height) = height_felts_map.get(chip) {
+                builder.assert_felt_eq(*height, dimensions.height);
+            } else {
+                builder.assert_felt_eq(SymbolicFelt::zero(), SymbolicFelt::one());
+            }
+        }
 
         let shard_chips = self
             .machine
@@ -227,6 +230,25 @@ where
             .filter(|chip| shard_chips.contains(&chip.name()))
             .cloned()
             .collect::<BTreeSet<_>>();
+
+        // Sample the permutation challenges.
+        let alpha = challenger.sample_ext(builder);
+        let max_interaction_arity = shard_chips
+            .iter()
+            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+            .map(|i| i.values.len() + 1)
+            .max()
+            .unwrap();
+        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+        let beta_seed =
+            Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
+        // Sample the public value challenge.
+        let pv_challenge = challenger.sample_ext(builder);
+
+        builder.cycle_tracker_v2_enter("verify-public-values");
+        let cumulative_sum =
+            -self.verify_public_values(builder, pv_challenge, &alpha, &beta_seed, public_values);
+        builder.cycle_tracker_v2_exit();
 
         let degrees = opened_values.chips.values().map(|x| x.degree.clone()).collect::<Vec<_>>();
 
@@ -239,7 +261,7 @@ where
             &shard_chips,
             &degrees,
             alpha,
-            beta,
+            beta_seed,
             cumulative_sum,
             max_log_row_count,
             logup_gkr_proof,
@@ -466,23 +488,23 @@ mod tests {
     use std::{marker::PhantomData, sync::Arc};
 
     use slop_algebra::extension::BinomialExtensionField;
-    use slop_basefold::{BasefoldVerifier, Poseidon2BabyBear16BasefoldConfig};
-    use slop_jagged::{BabyBearPoseidon2, Poseidon2BabyBearJaggedCpuProverComponents};
+    use slop_basefold::BasefoldVerifier;
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
     use sp1_core_machine::{
         io::SP1Stdin,
         riscv::RiscvAir,
         utils::{prove_core, setup_logger},
     };
+    use sp1_hypercube::{
+        prover::{AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore},
+        MachineVerifier, SP1BasefoldConfig, SP1CoreJaggedConfig, SP1CpuJaggedProverComponents,
+        ShardVerifier,
+    };
     use sp1_recursion_compiler::{
         circuit::{AsmCompiler, AsmConfig},
         config::InnerConfig,
     };
     use sp1_recursion_machine::test::run_recursion_test_machines;
-    use sp1_stark::{
-        prover::{AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore},
-        MachineVerifier, ShardVerifier,
-    };
 
     use crate::{
         basefold::{stacked::RecursiveStackedPcsVerifier, tcs::RecursiveMerkleTreeTcs},
@@ -494,16 +516,17 @@ mod tests {
 
     use super::*;
 
-    type F = BabyBear;
-    type SC = BabyBearPoseidon2;
+    use sp1_primitives::SP1Field;
+    type F = SP1Field;
+    type SC = SP1CoreJaggedConfig;
     type JC = RecursiveJaggedConfigImpl<
         C,
         SC,
         RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
     >;
     type C = InnerConfig;
-    type EF = BinomialExtensionField<BabyBear, 4>;
-    type A = RiscvAir<BabyBear>;
+    type EF = BinomialExtensionField<SP1Field, 4>;
+    type A = RiscvAir<SP1Field>;
 
     #[tokio::test]
     async fn test_verify_shard() {
@@ -521,19 +544,23 @@ mod tests {
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let program = Arc::new(Program::from(&elf).unwrap());
-        let prover = Arc::new(
-            CpuShardProver::<Poseidon2BabyBearJaggedCpuProverComponents, _>::new(verifier.clone()),
-        );
+        let prover =
+            Arc::new(CpuShardProver::<SP1CpuJaggedProverComponents, _>::new(verifier.clone()));
 
         let (pk, vk) = prover.setup(program.clone(), ProverSemaphore::new(1)).await;
         let pk = unsafe { pk.into_inner() };
         let (proof, _) = prove_core::<
+<<<<<<< HEAD
             BabyBear,
             CpuMachineProverComponents<
                 slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
                 RiscvAir<BabyBear>,
             >,
             RiscvAir<BabyBear>,
+=======
+            SP1Field,
+            CpuMachineProverComponents<SP1CpuJaggedProverComponents, RiscvAir<SP1Field>>,
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
         >(
             verifier.clone(),
             prover,
@@ -571,7 +598,7 @@ mod tests {
         let vk_variable = vk.read(&mut builder);
         let shard_proof_variable = dummy_proof.read(&mut builder);
 
-        let verifier = BasefoldVerifier::<Poseidon2BabyBear16BasefoldConfig>::new(log_blowup);
+        let verifier = BasefoldVerifier::<SP1BasefoldConfig>::new(log_blowup);
         let recursive_verifier = RecursiveBasefoldVerifier::<RecursiveBasefoldConfigImpl<C, SC>> {
             fri_config: verifier.fri_config,
             tcs: RecursiveMerkleTreeTcs::<C, SC>(PhantomData),
@@ -590,7 +617,7 @@ mod tests {
         > {
             stacked_pcs_verifier: recursive_verifier,
             max_log_row_count,
-            jagged_evaluator: RecursiveJaggedEvalSumcheckConfig::<BabyBearPoseidon2>(PhantomData),
+            jagged_evaluator: RecursiveJaggedEvalSumcheckConfig::<SP1CoreJaggedConfig>(PhantomData),
         };
 
         let stark_verifier = RecursiveShardVerifier::<A, SC, C, JC> {

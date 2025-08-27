@@ -8,12 +8,12 @@ use clap::{command, Parser};
 use sp1_core_executor::Program;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver;
+use sp1_hypercube::MachineProof;
 use sp1_prover::{
     local::{LocalProver, LocalProverOpts},
     CpuSP1ProverComponents, ProverMode, SP1ProverBuilder,
 };
 use sp1_sdk::{self, Elf, SP1Stdin};
-use sp1_stark::MachineProof;
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]

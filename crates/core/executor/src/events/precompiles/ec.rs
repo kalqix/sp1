@@ -1,3 +1,4 @@
+use deepsize2::DeepSizeOf;
 use serde::{Deserialize, Serialize};
 
 use sp1_curves::{
@@ -14,19 +15,26 @@ use typenum::Unsigned;
 use crate::{
     events::{
         memory::{MemoryReadRecord, MemoryWriteRecord},
-        MemoryLocalEvent,
+        MemoryLocalEvent, PageProtLocalEvent, PageProtRecord,
     },
     syscalls::SyscallContext,
     ExecutorConfig,
 };
 
+/// Elliptic Curve Page Prot Records.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
+pub struct EllipticCurvePageProtRecords {
+    /// The page prot records for reading the address.
+    pub read_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for writing the address.
+    pub write_page_prot_records: Vec<PageProtRecord>,
+}
+
 /// Elliptic Curve Add Event.
 ///
 /// This event is emitted when an elliptic curve addition operation is performed.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
 pub struct EllipticCurveAddEvent {
-    /// The shard number.
-    pub shard: u32,
     /// The clock cycle.
     pub clk: u64,
     /// The pointer to the first point.
@@ -43,15 +51,17 @@ pub struct EllipticCurveAddEvent {
     pub q_memory_records: Vec<MemoryReadRecord>,
     /// The local memory access records.
     pub local_mem_access: Vec<MemoryLocalEvent>,
+    /// The page prot records.
+    pub page_prot_records: EllipticCurvePageProtRecords,
+    /// The local page prot access records.
+    pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }
 
 /// Elliptic Curve Double Event.
 ///
 /// This event is emitted when an elliptic curve doubling operation is performed.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
 pub struct EllipticCurveDoubleEvent {
-    /// The shard number.
-    pub shard: u32,
     /// The clock cycle.
     pub clk: u64,
     /// The pointer to the point.
@@ -62,15 +72,17 @@ pub struct EllipticCurveDoubleEvent {
     pub p_memory_records: Vec<MemoryWriteRecord>,
     /// The local memory access records.
     pub local_mem_access: Vec<MemoryLocalEvent>,
+    /// Write slice page prot access records.
+    pub write_slice_page_prot_access: Vec<PageProtRecord>,
+    /// The local page prot access records.
+    pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }
 
 /// Elliptic Curve Point Decompress Event.
 ///
 /// This event is emitted when an elliptic curve point decompression operation is performed.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
 pub struct EllipticCurveDecompressEvent {
-    /// The shard number.
-    pub shard: u32,
     /// The clock cycle.
     pub clk: u64,
     /// The pointer to the point.
@@ -109,7 +121,7 @@ pub fn create_ec_add_event<E: EllipticCurve, Ex: ExecutorConfig>(
 
     let p = rt.slice_unsafe(p_ptr, num_words);
 
-    let (q_memory_records, q) = rt.mr_slice(q_ptr, num_words);
+    let (q_memory_records, q, read_page_prot_records) = rt.mr_slice(q_ptr, num_words);
 
     // When we write to p, we want the clk to be incremented because p and q could be the same.
     rt.clk += 1;
@@ -120,10 +132,11 @@ pub fn create_ec_add_event<E: EllipticCurve, Ex: ExecutorConfig>(
 
     let result_words = result_affine.to_words_le();
 
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words);
+    let (p_memory_records, write_page_prot_records) = rt.mw_slice(p_ptr, &result_words, true);
+
+    let (local_mem_access, local_page_prot_access) = rt.postprocess();
 
     EllipticCurveAddEvent {
-        shard: rt.shard().get(),
         clk: start_clk,
         p_ptr,
         p,
@@ -131,7 +144,12 @@ pub fn create_ec_add_event<E: EllipticCurve, Ex: ExecutorConfig>(
         q,
         p_memory_records,
         q_memory_records,
-        local_mem_access: rt.postprocess(),
+        local_mem_access,
+        page_prot_records: EllipticCurvePageProtRecords {
+            read_page_prot_records,
+            write_page_prot_records,
+        },
+        local_page_prot_access,
     }
 }
 
@@ -158,15 +176,18 @@ pub fn create_ec_double_event<E: EllipticCurve, Ex: ExecutorConfig>(
 
     let result_words = result_affine.to_words_le();
 
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words);
+    let (p_memory_records, write_page_prot_records) = rt.mw_slice(p_ptr, &result_words, true);
+
+    let (local_mem_access, local_page_prot_access) = rt.postprocess();
 
     EllipticCurveDoubleEvent {
-        shard: rt.shard().get(),
         clk: start_clk,
         p_ptr,
         p,
         p_memory_records,
-        local_mem_access: rt.postprocess(),
+        local_mem_access,
+        write_slice_page_prot_access: write_page_prot_records,
+        local_page_prot_access,
     }
 }
 
@@ -186,7 +207,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve, Ex: ExecutorConfig>(
     let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
     let num_words_field_element = num_limbs / 8;
 
-    let (x_memory_records, x_vec) =
+    let (x_memory_records, x_vec, _) =
         rt.mr_slice(slice_ptr + (num_limbs as u64), num_words_field_element);
 
     let x_bytes = words_to_bytes_le_vec(&x_vec);
@@ -206,10 +227,12 @@ pub fn create_ec_decompress_event<E: EllipticCurve, Ex: ExecutorConfig>(
     decompressed_y_bytes.resize(num_limbs, 0u8);
     let y_words = bytes_to_words_le_vec(&decompressed_y_bytes);
 
-    let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
+    // TODO: Should this be false?
+    let (y_memory_records, _) = rt.mw_slice(slice_ptr, &y_words, false);
+
+    let (local_mem_access, _) = rt.postprocess();
 
     EllipticCurveDecompressEvent {
-        shard: rt.shard().get(),
         clk: start_clk,
         ptr: slice_ptr,
         sign_bit: sign_bit != 0,
@@ -217,6 +240,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve, Ex: ExecutorConfig>(
         decompressed_y_bytes,
         x_memory_records,
         y_memory_records,
-        local_mem_access: rt.postprocess(),
+        local_mem_access,
     }
 }

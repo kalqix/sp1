@@ -3,15 +3,16 @@ use std::{
     str::FromStr,
 };
 
+use deepsize2::DeepSizeOf;
 use enum_map::{Enum, EnumMap};
 use serde::{Deserialize, Serialize};
-use sp1_stark::shape::Shape;
+use sp1_hypercube::shape::Shape;
 use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 use subenum::subenum;
 
-/// RV32IM AIR Identifiers.
+/// RV64IM AIR Identifiers.
 ///
-/// These identifiers are for the various chips in the rv32im prover. We need them in the
+/// These identifiers are for the various chips in the rv64im prover. We need them in the
 /// executor to compute the memory cost of the current shard of execution.
 ///
 /// The [`CoreAirId`]s are the AIRs that are not part of precompile shards and not the program or
@@ -31,6 +32,7 @@ use subenum::subenum;
     PartialOrd,
     Ord,
     Enum,
+    DeepSizeOf,
 )]
 pub enum RiscvAirId {
     /// The cpu chip, which is a dummy for now, needed for shape loading.
@@ -197,8 +199,24 @@ pub enum RiscvAirId {
     /// The mprotect chip.
     #[subenum(CoreAirId)]
     Mprotect = 65,
+    /// The instruction decode chip.
+    #[subenum(CoreAirId)]
+    InstructionDecode = 66,
+    /// The instruction fetch chip.
+    #[subenum(CoreAirId)]
+    InstructionFetch = 67,
+    /// The page prot chip.
+    #[subenum(CoreAirId)]
+    PageProt = 68,
+    /// The page prot local chip.
+    #[subenum(CoreAirId)]
+    PageProtLocal = 69,
+    /// The page prot global init chip.
+    PageProtGlobalInit = 70,
+    /// The page prot global finalize chip.
+    PageProtGlobalFinalize = 71,
     /// The poseidon2 chip.
-    Poseidon2 = 66,
+    Poseidon2 = 72,
 }
 
 impl RiscvAirId {
@@ -233,10 +251,14 @@ impl RiscvAirId {
             RiscvAirId::Branch,
             RiscvAirId::Jal,
             RiscvAirId::Jalr,
+            RiscvAirId::PageProt,
+            RiscvAirId::PageProtLocal,
             RiscvAirId::SyscallCore,
             RiscvAirId::SyscallInstrs,
             RiscvAirId::Global,
             RiscvAirId::Mprotect,
+            RiscvAirId::InstructionDecode,
+            RiscvAirId::InstructionFetch,
         ]
     }
 
@@ -252,7 +274,11 @@ impl RiscvAirId {
     pub fn is_memory(self) -> bool {
         matches!(
             self,
-            RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize | RiscvAirId::Global
+            RiscvAirId::MemoryGlobalInit
+                | RiscvAirId::MemoryGlobalFinalize
+                | RiscvAirId::Global
+                | RiscvAirId::PageProtGlobalInit
+                | RiscvAirId::PageProtGlobalFinalize
         )
     }
 
@@ -326,7 +352,7 @@ impl FromStr for RiscvAirId {
         let air = Self::iter().find(|chip| chip.as_str() == s);
         match air {
             Some(air) => Ok(air),
-            None => Err(format!("Invalid RV32IMAir: {s}")),
+            None => Err(format!("Invalid RV64IMAir: {s}")),
         }
     }
 }

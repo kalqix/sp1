@@ -4,9 +4,9 @@ use crate::{
     ExecutorConfig,
 };
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_baby_bear::BabyBear;
-use slop_merkle_tree::my_bb_16_perm;
 use slop_symmetric::Permutation;
+use sp1_hypercube::inner_perm;
+use sp1_primitives::SP1Field;
 
 pub(crate) fn poseidon2_syscall<E: ExecutorConfig>(
     rt: &mut SyscallContext<E>,
@@ -20,12 +20,12 @@ pub(crate) fn poseidon2_syscall<E: ExecutorConfig>(
     assert!(arg1.is_multiple_of(8));
 
     let mut input = rt.slice_unsafe(ptr, 8);
-    let perm = my_bb_16_perm();
+    let perm = inner_perm();
 
     let input_arr: &[u32; 16] = unsafe { &*(input.as_mut_ptr().cast::<[u32; 16]>()) };
 
     let output_hash =
-        perm.permute(input_arr.map(BabyBear::from_canonical_u32)).map(|x| x.as_canonical_u32());
+        perm.permute(input_arr.map(SP1Field::from_canonical_u32)).map(|x| x.as_canonical_u32());
 
     let u64_result: Vec<u64> = output_hash
         .chunks_exact(2)
@@ -34,16 +34,17 @@ pub(crate) fn poseidon2_syscall<E: ExecutorConfig>(
 
     assert!(u64_result.len() == 8);
 
-    let output_memory_records = rt.mw_slice(ptr, &u64_result);
+    let (output_memory_records, page_prot_records) = rt.mw_slice(ptr, &u64_result, true);
 
     // Push the Poseidon2 event.
-    let shard = rt.shard().get();
+    let (local_mem_access, page_prot_local_events) = rt.postprocess();
     let event = PrecompileEvent::POSEIDON2(Poseidon2PrecompileEvent {
-        shard,
         clk: clk_init,
         ptr,
         memory_records: output_memory_records,
-        local_mem_access: rt.postprocess(),
+        local_mem_access,
+        page_prot_records,
+        local_page_prot_access: page_prot_local_events,
     });
     let syscall_event =
         rt.rt.syscall_event(clk_init, syscall_code, arg1, arg2, false, rt.next_pc, rt.exit_code);

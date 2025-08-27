@@ -9,7 +9,6 @@ use std::{
         Arc, Mutex,
     },
 };
-// use tokio::sync::Mutex;
 
 use derive_where::derive_where;
 
@@ -17,13 +16,19 @@ use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 use slop_air::{Air, BaseAir};
 use slop_algebra::AbstractField;
-use slop_baby_bear::BabyBear;
 use slop_jagged::JaggedConfig;
 use sp1_core_executor::{ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
 use sp1_core_machine::{
     bytes::columns::NUM_BYTE_PREPROCESSED_COLS, program::NUM_PROGRAM_PREPROCESSED_COLS,
     range::columns::NUM_RANGE_PREPROCESSED_COLS,
 };
+use sp1_hypercube::{
+    air::MachineAir,
+    log2_ceil_usize,
+    prover::{CoreProofShape, DefaultTraceGenerator, ProverSemaphore, TraceGenerator},
+    Chip, ChipDimensions, Machine, MachineShape,
+};
+use sp1_primitives::SP1Field;
 use sp1_recursion_circuit::{
     dummy::{dummy_shard_proof, dummy_vk},
     machine::{
@@ -32,25 +37,20 @@ use sp1_recursion_circuit::{
     },
     zerocheck::RecursiveVerifierConstraintFolder,
 };
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_executor::{shape::RecursionShape, RecursionProgram, DIGEST_SIZE};
+use sp1_recursion_executor::{
+    shape::RecursionShape, RecursionAirEventCount, RecursionProgram, DIGEST_SIZE,
+};
 use sp1_recursion_machine::chips::{
     alu_base::BaseAluChip,
     alu_ext::ExtAluChip,
     mem::{MemoryConstChip, MemoryVarChip},
+    poseidon2_helper::{
+        convert::ConvertChip, linear::Poseidon2LinearLayerChip, sbox::Poseidon2SBoxChip,
+    },
     poseidon2_wide::Poseidon2WideChip,
     prefix_sum_checks::PrefixSumChecksChip,
     public_values::PublicValuesChip,
     select::SelectChip,
-};
-use sp1_stark::{
-    air::MachineAir,
-    log2_ceil_usize,
-    prover::{
-        CoreProofShape, DefaultTraceGenerator, MachineProverComponents, ProverSemaphore,
-        TraceGenerator,
-    },
-    Chip, ChipDimensions, Machine, MachineShape,
 };
 use thiserror::Error;
 use tokio::task::JoinSet;
@@ -81,7 +81,7 @@ pub struct SP1NormalizeInputShape<A: MachineAir<BabyBear>> {
 #[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum SP1RecursionProgramShape<A: MachineAir<BabyBear>> {
     // The program that verifies a core shard proof.
-    Normalize(CoreProofShape<BabyBear, A>),
+    Normalize(CoreProofShape<SP1Field, A>),
     // Compose(arity) is the program that verifies a batch of Normalize proofs of size arity.
     Compose(usize),
     // The deferred proof program.
@@ -119,14 +119,13 @@ impl<A: MachineAir<BabyBear>> SP1NormalizeInputShape<A> {
             vk: vk.vk,
             shard_proofs,
             is_complete: false,
-            is_first_shard: false,
-            vk_root: [BabyBear::zero(); DIGEST_SIZE],
-            reconstruct_deferred_digest: [BabyBear::zero(); 8],
+            vk_root: [SP1Field::zero(); DIGEST_SIZE],
+            reconstruct_deferred_digest: [SP1Field::zero(); 8],
         }
     }
 }
 
-type LruCache<A> = lru::LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<BabyBear>>>;
+type LruCache<A> = lru::LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<SP1Field>>>;
 pub struct SP1NormalizeCache<A: MachineAir<BabyBear>> {
     lru: Arc<Mutex<LruCache<A>>>,
     total_calls: AtomicUsize,
@@ -144,7 +143,7 @@ impl<A: MachineAir<BabyBear>> SP1NormalizeCache<A> {
     pub fn get(
         &self,
         shape: &SP1NormalizeInputShape<A>,
-    ) -> Option<Arc<RecursionProgram<BabyBear>>> {
+    ) -> Option<Arc<RecursionProgram<SP1Field>>> {
         self.total_calls.fetch_add(1, Ordering::Relaxed);
         if let Some(program) = self.lru.lock().unwrap().get(shape).cloned() {
             self.hits.fetch_add(1, Ordering::Relaxed);
@@ -154,7 +153,7 @@ impl<A: MachineAir<BabyBear>> SP1NormalizeCache<A> {
         }
     }
 
-    pub fn push(&self, shape: SP1NormalizeInputShape<A>, program: Arc<RecursionProgram<BabyBear>>) {
+    pub fn push(&self, shape: SP1NormalizeInputShape<A>, program: Arc<RecursionProgram<SP1Field>>) {
         self.lru.lock().unwrap().push(shape, program);
     }
 
@@ -170,7 +169,7 @@ impl<A: MachineAir<BabyBear>> SP1NormalizeCache<A> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1RecursionProofShape {
-    pub shape: RecursionShape<BabyBear>,
+    pub shape: RecursionShape<SP1Field>,
 }
 
 impl Default for SP1RecursionProofShape {
@@ -181,29 +180,59 @@ impl Default for SP1RecursionProofShape {
 
 impl SP1RecursionProofShape {
     pub fn compress_proof_shape_from_arity(arity: usize) -> Option<Self> {
-        let shape = match arity {
-            DEFAULT_ARITY => [
-                (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 348_064),
-                (CompressAir::<BabyBear>::MemoryVar(MemoryVarChip::default()), 442_336),
-                (CompressAir::<BabyBear>::BaseAlu(BaseAluChip), 418_944),
-                (CompressAir::<BabyBear>::ExtAlu(ExtAluChip), 764_796),
-                (CompressAir::<BabyBear>::Poseidon2Wide(Poseidon2WideChip), 101_600),
-                (CompressAir::<BabyBear>::PrefixSumChecks(PrefixSumChecksChip), 245_248),
-                (CompressAir::<BabyBear>::Select(SelectChip), 700_032),
-                (CompressAir::<BabyBear>::PublicValues(PublicValuesChip), 16),
-            ]
-            .into_iter()
-            .collect(),
-            _ => return None,
-        };
-        Some(Self { shape })
+        match arity {
+            DEFAULT_ARITY => {
+                let file = include_bytes!("../compress_shape.json");
+                serde_json::from_slice(file).ok().or_else(|| {
+                    tracing::warn!("Failed to load compress_shape.json, using default shape.");
+                    // This is not a well-tuned shape, but is likely to be big enough even if
+                    // relatively substantial changes are made to the verifier.
+                    Some(SP1RecursionProofShape {
+                        shape: [
+                            (
+                                CompressAir::<SP1Field>::MemoryConst(MemoryConstChip::default()),
+                                600_000usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::MemoryVar(MemoryVarChip::default()),
+                                500_000usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::BaseAlu(BaseAluChip),
+                                500_000usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::ExtAlu(ExtAluChip),
+                                850_000usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::Poseidon2Wide(Poseidon2WideChip),
+                                150_448usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip),
+                                275_440usize.next_multiple_of(32),
+                            ),
+                            (
+                                CompressAir::<SP1Field>::Select(SelectChip),
+                                800_000usize.next_multiple_of(32),
+                            ),
+                            (CompressAir::<SP1Field>::PublicValues(PublicValuesChip), 16usize),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    })
+                })
+            }
+            _ => None,
+        }
     }
 
     pub fn dummy_input(
         &self,
         arity: usize,
         height: usize,
-        chips: BTreeSet<Chip<BabyBear, CompressAir<BabyBear>>>,
+        chips: BTreeSet<Chip<SP1Field, CompressAir<SP1Field>>>,
         max_log_row_count: usize,
         log_blowup: usize,
         log_stacking_height: usize,
@@ -257,8 +286,8 @@ impl SP1RecursionProofShape {
 
     pub async fn check_compatibility(
         &self,
-        program: Arc<RecursionProgram<BabyBear>>,
-        machine: Machine<BabyBear, CompressAir<BabyBear>>,
+        program: Arc<RecursionProgram<SP1Field>>,
+        machine: Machine<SP1Field, CompressAir<SP1Field>>,
     ) -> bool {
         // Generate the preprocessed traces to get the heights.
         let trace_generator = DefaultTraceGenerator::new(machine);
@@ -312,7 +341,7 @@ pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
     indices: Option<Vec<usize>>,
     max_arity: usize,
     prover: Arc<SP1Prover<C>>,
-) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>)
+) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>)
 where
     <C::CoreComponents as MachineProverComponents>::Air:
         for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
@@ -324,7 +353,7 @@ where
 
     // Setup the channels.
     let (vk_tx, mut vk_rx) =
-        tokio::sync::mpsc::unbounded_channel::<(usize, [BabyBear; DIGEST_SIZE])>();
+        tokio::sync::mpsc::unbounded_channel::<(usize, [SP1Field; DIGEST_SIZE])>();
     let (shape_tx, shape_rx) = tokio::sync::mpsc::channel::<(
         usize,
         SP1RecursionProgramShape<<C::CoreComponents as MachineProverComponents>::Air>,
@@ -459,10 +488,8 @@ where
                     }
                     Err(e) => {
                         tracing::warn!(
-                            "Program generation failed for shape {}, with error:
-    {:?}",
+                            "Program generation failed for shape {}, with error: {:?}",
                             i,
-                            // shape,
                             e
                         );
                         panic_tx.send(i).unwrap();
@@ -477,7 +504,6 @@ where
         let vk_tx = vk_tx.clone();
         let program_rx = program_rx.clone();
         let prover = prover.clone();
-        let panic_tx = panic_tx.clone();
         set.spawn(async move {
             let mut done = 0;
             while let Some((i, program, is_shrink)) = program_rx.lock().await.recv().await {
@@ -492,14 +518,7 @@ where
                 let vk = vk_thread.await.unwrap();
                 done += 1;
 
-                if let Err(e) = vk {
-                    tracing::error!("failed to setup program {}: {:?}", i, e);
-                    panic_tx.send(i).unwrap();
-                    continue;
-                }
-                let vk = vk.unwrap();
-
-                let vk_digest = vk.1.hash_babybear();
+                let vk_digest = vk.1.hash_koalabear();
 
                 tracing::info!(
                     "program {} = {:?}, {}% done",
@@ -536,7 +555,7 @@ where
     }
 
     // Build vk_set in the same order as shapes were sent
-    let vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]> = vk_map.into_values().collect();
+    let vk_set: BTreeSet<[SP1Field; DIGEST_SIZE]> = vk_map.into_values().collect();
 
     let mut panic_indices = vec![];
     while let Some(i) = panic_rx.recv().await {
@@ -595,7 +614,7 @@ fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> 
         .div_ceil(1 << CORE_LOG_STACKING_HEIGHT as u64) as usize
 }
 
-fn create_all_input_shapes<A: MachineAir<BabyBear>>(
+fn create_all_input_shapes<A: MachineAir<SP1Field>>(
     core_shape: &MachineShape<BabyBear, A>,
     max_arity: usize,
 ) -> Vec<SP1RecursionProgramShape<A>> {
@@ -651,192 +670,182 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
 
 pub fn dummy_vk_map<C: SP1ProverComponents>(
     prover: &SP1Prover<C>,
-) -> BTreeMap<[BabyBear; DIGEST_SIZE], usize> {
+) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
     create_all_input_shapes(prover.core().machine().shape(), DEFAULT_ARITY)
         .iter()
         .enumerate()
-        .map(|(i, _)| ([BabyBear::from_canonical_usize(i); DIGEST_SIZE], i))
+        .map(|(i, _)| ([SP1Field::from_canonical_usize(i); DIGEST_SIZE], i))
         .collect()
+}
+
+pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> RecursionAirEventCount {
+    use std::cmp::max;
+    RecursionAirEventCount {
+        mem_const_events: max(a.mem_const_events, b.mem_const_events),
+        mem_var_events: max(a.mem_var_events, b.mem_var_events),
+        base_alu_events: max(a.base_alu_events, b.base_alu_events),
+        ext_alu_events: max(a.ext_alu_events, b.ext_alu_events),
+        ext_felt_conversion_events: max(a.ext_felt_conversion_events, b.ext_felt_conversion_events),
+        poseidon2_wide_events: max(a.poseidon2_wide_events, b.poseidon2_wide_events),
+        poseidon2_linear_layer_events: max(
+            a.poseidon2_linear_layer_events,
+            b.poseidon2_linear_layer_events,
+        ),
+        poseidon2_sbox_events: max(a.poseidon2_sbox_events, b.poseidon2_sbox_events),
+        select_events: max(a.select_events, b.select_events),
+        prefix_sum_checks_events: max(a.prefix_sum_checks_events, b.prefix_sum_checks_events),
+        commit_pv_hash_events: max(a.commit_pv_hash_events, b.commit_pv_hash_events),
+    }
+}
+
+pub fn create_test_shape(
+    cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
+) -> SP1NormalizeInputShape {
+    let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
+        + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
+        + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)
+        .div_ceil(1 << CORE_LOG_STACKING_HEIGHT);
+    let main_multiple = (ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
+    let num_padding_cols =
+        ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
+    SP1NormalizeInputShape {
+        proof_shapes: vec![CoreProofShape {
+            shard_chips: cluster.clone(),
+            preprocessed_multiple,
+            main_multiple,
+            preprocessed_padding_cols: num_padding_cols,
+            main_padding_cols: num_padding_cols,
+        }],
+        max_log_row_count: CORE_MAX_LOG_ROW_COUNT,
+        log_stacking_height: CORE_LOG_STACKING_HEIGHT as usize,
+        log_blowup: CORE_LOG_BLOWUP,
+    }
+}
+
+pub fn build_recursion_count_from_shape(
+    shape: &RecursionShape<SP1Field>,
+) -> RecursionAirEventCount {
+    RecursionAirEventCount {
+        mem_const_events: shape
+            .height(&CompressAir::<SP1Field>::MemoryConst(MemoryConstChip::default()))
+            .unwrap(),
+        mem_var_events: shape
+            .height(&CompressAir::<SP1Field>::MemoryVar(MemoryVarChip::<SP1Field, 2>::default()))
+            .unwrap()
+            * 2,
+        base_alu_events: shape.height(&CompressAir::<SP1Field>::BaseAlu(BaseAluChip)).unwrap(),
+        ext_alu_events: shape.height(&CompressAir::<SP1Field>::ExtAlu(ExtAluChip)).unwrap(),
+        ext_felt_conversion_events: shape
+            .height(&CompressAir::<SP1Field>::ExtFeltConvert(ConvertChip))
+            .unwrap_or(0),
+        poseidon2_wide_events: shape
+            .height(&CompressAir::<SP1Field>::Poseidon2Wide(Poseidon2WideChip))
+            .unwrap_or(0),
+        poseidon2_linear_layer_events: shape
+            .height(&CompressAir::<SP1Field>::Poseidon2LinearLayer(Poseidon2LinearLayerChip))
+            .unwrap_or(0),
+        poseidon2_sbox_events: shape
+            .height(&CompressAir::<SP1Field>::Poseidon2SBox(Poseidon2SBoxChip))
+            .unwrap_or(0),
+        select_events: shape.height(&CompressAir::<SP1Field>::Select(SelectChip)).unwrap(),
+        prefix_sum_checks_events: shape
+            .height(&CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip))
+            .unwrap_or(0),
+        commit_pv_hash_events: shape
+            .height(&CompressAir::<SP1Field>::PublicValues(PublicValuesChip))
+            .unwrap(),
+    }
+}
+
+pub fn build_shape_from_recursion_air_event_count(
+    event_count: &RecursionAirEventCount,
+) -> SP1RecursionProofShape {
+    let &RecursionAirEventCount {
+        mem_const_events,
+        mem_var_events,
+        base_alu_events,
+        ext_alu_events,
+        poseidon2_wide_events,
+        select_events,
+        prefix_sum_checks_events,
+        commit_pv_hash_events,
+        ..
+    } = event_count;
+    let chips_and_heights = vec![
+        (CompressAir::<SP1Field>::MemoryConst(MemoryConstChip::default()), mem_const_events),
+        (
+            CompressAir::<SP1Field>::MemoryVar(MemoryVarChip::<SP1Field, 2>::default()),
+            mem_var_events / 2,
+        ),
+        (CompressAir::<SP1Field>::BaseAlu(BaseAluChip), base_alu_events),
+        (CompressAir::<SP1Field>::ExtAlu(ExtAluChip), ext_alu_events),
+        (CompressAir::<SP1Field>::Poseidon2Wide(Poseidon2WideChip), poseidon2_wide_events),
+        (CompressAir::<SP1Field>::Select(SelectChip), select_events),
+        (CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip), prefix_sum_checks_events),
+        (CompressAir::<SP1Field>::PublicValues(PublicValuesChip), commit_pv_hash_events),
+    ];
+    SP1RecursionProofShape { shape: chips_and_heights.into_iter().collect() }
 }
 
 #[cfg(all(test, feature = "unsound"))]
 mod tests {
+    use anyhow::Context;
+    use serial_test::serial;
 
-    use crate::{
-        core::{CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT},
-        local::LocalProver,
-        recursion::normalize_program_from_input,
-        CpuSP1ProverComponents, CORE_LOG_BLOWUP,
-    };
-    use sp1_core_executor::{SP1Context, ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
-    use sp1_core_machine::{
-        bytes::columns::NUM_BYTE_PREPROCESSED_COLS, io::SP1Stdin,
-        program::NUM_PROGRAM_PREPROCESSED_COLS, range::columns::NUM_RANGE_PREPROCESSED_COLS,
-        riscv::RiscvAir, utils::setup_logger,
-    };
+    use crate::{local::LocalProver, recursion::normalize_program_from_input};
+    use sp1_core_executor::SP1Context;
 
+    use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
     use sp1_recursion_executor::RecursionAirEventCount;
-    use sp1_recursion_machine::chips::poseidon2_helper::{
-        convert::ConvertChip, linear::Poseidon2LinearLayerChip, sbox::Poseidon2SBoxChip,
-    };
 
     use crate::SP1ProverBuilder;
 
     use super::*;
 
     #[tokio::test]
-    #[ignore]
-    #[allow(clippy::ignore_without_reason)]
+    #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
         let prover =
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
-        // arity 3:
-        // let shape = [
-        //     (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 154816),
-        //     (CompressAir::<BabyBear>::MemoryVar(MemoryVarChip::default()), 393408),
-        //     (CompressAir::<BabyBear>::BaseAlu(BaseAluChip), 91232),
-        //     (CompressAir::<BabyBear>::ExtAlu(ExtAluChip), 148256),
-        //     (CompressAir::<BabyBear>::Poseidon2Wide(Poseidon2WideChip), 89824),
-        //     (CompressAir::<BabyBear>::PrefixSumChecks(PrefixSumChecksChip), 249984),
-        //     (CompressAir::<BabyBear>::Select(SelectChip), 604800),
-        //     (CompressAir::<BabyBear>::PublicValues(PublicValuesChip), 16),
-        // ]
-        // .into_iter()
-        // .collect()
+            SP1ProverBuilder::new(RiscvAir::machine()).without_recursion_vks().build().await;
 
-        // [
-        //     (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 347_392),
-        //     (CompressAir::<BabyBear>::MemoryVar(MemoryVarChip::default()), 441_824),
-        //     (CompressAir::<BabyBear>::BaseAlu(BaseAluChip), 413_472),
-        //     (CompressAir::<BabyBear>::ExtAlu(ExtAluChip), 753_588),
-        //     (CompressAir::<BabyBear>::Poseidon2Wide(Poseidon2WideChip), 101_184),
-        //     (CompressAir::<BabyBear>::PrefixSumChecks(PrefixSumChecksChip), 200_400),
-        //     (CompressAir::<BabyBear>::Select(SelectChip), 700_008),
-        //     (CompressAir::<BabyBear>::PublicValues(PublicValuesChip), 16),
-        // ]
-
-        let shape = [
-            (CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()), 347_904),
-            (CompressAir::<BabyBear>::MemoryVar(MemoryVarChip::default()), 442_304),
-            (CompressAir::<BabyBear>::BaseAlu(BaseAluChip), 416_864),
-            (CompressAir::<BabyBear>::ExtAlu(ExtAluChip), 764_796),
-            (CompressAir::<BabyBear>::Poseidon2Wide(Poseidon2WideChip), 101_600),
-            (CompressAir::<BabyBear>::PrefixSumChecks(PrefixSumChecksChip), 239_904),
-            (CompressAir::<BabyBear>::Select(SelectChip), 700_032),
-            (CompressAir::<BabyBear>::PublicValues(PublicValuesChip), 16),
-        ]
-        .into_iter()
-        .collect();
-
-        let reduce_shape = SP1RecursionProofShape { shape };
+        let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY)
+            .expect("default arity shape should be valid");
 
         let arity = reduce_shape.max_arity(prover.recursion()).await;
+
         tracing::info!("arity: {}", arity);
     }
 
-    fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> RecursionAirEventCount {
-        use std::cmp::max;
-        RecursionAirEventCount {
-            mem_const_events: max(a.mem_const_events, b.mem_const_events),
-            mem_var_events: max(a.mem_var_events, b.mem_var_events),
-            base_alu_events: max(a.base_alu_events, b.base_alu_events),
-            ext_alu_events: max(a.ext_alu_events, b.ext_alu_events),
-            ext_felt_conversion_events: max(
-                a.ext_felt_conversion_events,
-                b.ext_felt_conversion_events,
-            ),
-            poseidon2_wide_events: max(a.poseidon2_wide_events, b.poseidon2_wide_events),
-            poseidon2_linear_layer_events: max(
-                a.poseidon2_linear_layer_events,
-                b.poseidon2_linear_layer_events,
-            ),
-            poseidon2_sbox_events: max(a.poseidon2_sbox_events, b.poseidon2_sbox_events),
-            fri_fold_events: max(a.fri_fold_events, b.fri_fold_events),
-            batch_fri_events: max(a.batch_fri_events, b.batch_fri_events),
-            select_events: max(a.select_events, b.select_events),
-            exp_reverse_bits_len_events: max(
-                a.exp_reverse_bits_len_events,
-                b.exp_reverse_bits_len_events,
-            ),
-            prefix_sum_checks_events: max(a.prefix_sum_checks_events, b.prefix_sum_checks_events),
-            commit_pv_hash_events: max(a.commit_pv_hash_events, b.commit_pv_hash_events),
-        }
-    }
-
-    fn create_test_shape(
-        cluster: &BTreeSet<Chip<BabyBear, RiscvAir<BabyBear>>>,
-    ) -> SP1NormalizeInputShape<RiscvAir<BabyBear>> {
-        let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
-            + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
-            + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)
-            .div_ceil(1 << CORE_LOG_STACKING_HEIGHT);
-        let main_multiple = (ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
-        let num_padding_cols =
-            ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
-        SP1NormalizeInputShape {
-            proof_shapes: vec![CoreProofShape {
-                shard_chips: cluster.clone(),
-                preprocessed_multiple,
-                main_multiple,
-                preprocessed_padding_cols: num_padding_cols,
-                main_padding_cols: num_padding_cols,
-            }],
-            max_log_row_count: CORE_MAX_LOG_ROW_COUNT,
-            log_stacking_height: CORE_LOG_STACKING_HEIGHT as usize,
-            log_blowup: CORE_LOG_BLOWUP,
-        }
-    }
-
-    fn build_recursion_count_from_shape(
-        shape: &RecursionShape<BabyBear>,
-    ) -> RecursionAirEventCount {
-        RecursionAirEventCount {
-            mem_const_events: shape
-                .height(&CompressAir::<BabyBear>::MemoryConst(MemoryConstChip::default()))
-                .unwrap(),
-            mem_var_events: shape
-                .height(
-                    &CompressAir::<BabyBear>::MemoryVar(MemoryVarChip::<BabyBear, 2>::default()),
-                )
-                .unwrap()
-                * 2,
-            base_alu_events: shape.height(&CompressAir::<BabyBear>::BaseAlu(BaseAluChip)).unwrap(),
-            ext_alu_events: shape.height(&CompressAir::<BabyBear>::ExtAlu(ExtAluChip)).unwrap(),
-            ext_felt_conversion_events: shape
-                .height(&CompressAir::<BabyBear>::ExtFeltConvert(ConvertChip))
-                .unwrap_or(0),
-            poseidon2_wide_events: shape
-                .height(&CompressAir::<BabyBear>::Poseidon2Wide(Poseidon2WideChip))
-                .unwrap_or(0),
-            poseidon2_linear_layer_events: shape
-                .height(&CompressAir::<BabyBear>::Poseidon2LinearLayer(Poseidon2LinearLayerChip))
-                .unwrap_or(0),
-            poseidon2_sbox_events: shape
-                .height(&CompressAir::<BabyBear>::Poseidon2SBox(Poseidon2SBoxChip))
-                .unwrap_or(0),
-            fri_fold_events: 0,
-            batch_fri_events: 0,
-            select_events: shape.height(&CompressAir::<BabyBear>::Select(SelectChip)).unwrap(),
-            exp_reverse_bits_len_events: 0,
-            prefix_sum_checks_events: shape
-                .height(&CompressAir::<BabyBear>::PrefixSumChecks(PrefixSumChecksChip))
-                .unwrap_or(0),
-            commit_pv_hash_events: shape
-                .height(&CompressAir::<BabyBear>::PublicValues(PublicValuesChip))
-                .unwrap(),
-        }
+    #[derive(Debug, Error)]
+    enum ShapeError {
+        #[error("Expected arity to be {DEFAULT_ARITY}, found {_0}")]
+        WrongArity(usize),
+        #[error(
+            "Expected the arity {DEFAULT_ARITY} shape to be large enough
+                to accommodate all core shard proof shapes."
+        )]
+        CoreShapesTooLarge,
+        #[error("Expected height of chip {_0} to be a multiple of 32")]
+        ChipHeightNotMultipleOf32(String),
+        #[error("Expected the shape to be minimal")]
+        ShapeNotMinimal,
+        #[error("Public values chip height is not 16")]
+        PublicValuesChipHeightNot16,
     }
 
     #[tokio::test]
-    async fn test_core_shape_fit() {
+    async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
         let prover =
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
+            SP1ProverBuilder::new().without_recursion_vks(RiscvAir::machine()).build().await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
-        let machine = RiscvAir::<BabyBear>::machine();
+        let context =
+            "Shape is not valid. To fix: From the prover crate, run `cargo run --release -p sp1-prover --bin find_recursion_shape`";
+
+        let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
 
@@ -854,19 +863,59 @@ mod tests {
         let reduce_shape =
             SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY).unwrap();
         let arity = reduce_shape.max_arity(prover.recursion()).await;
-        assert!(arity >= DEFAULT_ARITY);
+        if arity != DEFAULT_ARITY {
+            return Err(ShapeError::WrongArity(arity)).context(context);
+        }
 
         let arity_4_count = build_recursion_count_from_shape(&reduce_shape.shape);
         let combined_count = max_count(max_cluster_count, arity_4_count);
 
-        assert_eq!(combined_count, arity_4_count);
-    }
+        let max_cluster_shape = build_shape_from_recursion_air_event_count(&max_cluster_count);
+        if combined_count != arity_4_count {
+            return Err(ShapeError::CoreShapesTooLarge).context(context);
+        }
 
+        for (chip, height) in (&reduce_shape.shape).into_iter() {
+            if chip != "PublicValues" {
+                if !height.is_multiple_of(32) {
+                    return Err(ShapeError::ChipHeightNotMultipleOf32(chip.clone()))
+                        .context(context);
+                }
+                let mut new_reduce_shape = reduce_shape.clone();
+
+                new_reduce_shape.shape.insert_with_name(chip, height - 32);
+
+                if !(new_reduce_shape.max_arity(prover.recursion()).await < DEFAULT_ARITY
+                    || new_reduce_shape.shape.height_of_name(chip).unwrap()
+                        < max_cluster_shape
+                            .shape
+                            .height_of_name(chip)
+                            .unwrap()
+                            .next_multiple_of(32))
+                {
+                    return Err(ShapeError::ShapeNotMinimal).context(context);
+                }
+            } else {
+                if *height != 16 {
+                    return Err(ShapeError::PublicValuesChipHeightNot16).context(context);
+                }
+            }
+        }
+        Ok(())
+    }
     #[tokio::test]
+    #[serial]
     async fn test_build_vk_map() {
         setup_logger();
-        let prover =
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
+
+        // Use a temporary directory for the vk_map file to avoid conflicts
+        let temp_dir = std::env::temp_dir();
+        let vk_map_path = temp_dir.join("vk_map.bin");
+
+        // Clean up any existing file from previous runs
+        let _ = std::fs::remove_file(&vk_map_path);
+
+        let prover = SP1ProverBuilder::new(RiscvAir::machine()).build().await;
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, program, vk) = prover.core().setup(&elf).await;
@@ -908,7 +957,7 @@ mod tests {
         let shape_indices_len = shape_indices.len();
 
         build_vk_map_to_file(
-            "../../../".into(),
+            temp_dir,
             DEFAULT_ARITY,
             false,
             1,
@@ -922,8 +971,8 @@ mod tests {
         tracing::info!("Built vk map with {} shapes", shape_indices_len);
 
         // Build a new prover that performs the vk verification check using the built vk map.
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .with_vk_map_path("../../../vk_map.bin".into())
+        let prover = SP1ProverBuilder::new(RiscvAir::machine())
+            .with_vk_map_path(vk_map_path.display().to_string())
             .build()
             .await;
 
@@ -951,6 +1000,6 @@ mod tests {
             .verify_shrink(&shrink_proof, &vk)
             .expect("Failed to verify shrink proof");
 
-        std::fs::remove_file("../../../vk_map.bin").unwrap();
+        std::fs::remove_file(vk_map_path).unwrap();
     }
 }

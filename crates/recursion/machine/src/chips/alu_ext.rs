@@ -1,23 +1,23 @@
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::{extension::BinomiallyExtendable, AbstractField, Field, PrimeField32};
-use slop_baby_bear::BabyBear;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::utils::next_multiple_of_32;
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::air::{ExtensionAirBuilder, MachineAir};
+use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, Block, ExecutionRecord, ExtAluInstr, ExtAluIo, ExtAluOpcode, Instruction,
     RecursionProgram, D,
 };
-use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
 use std::{borrow::BorrowMut, iter::zip};
 
 use crate::builder::SP1RecursionAirBuilder;
 
 pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 1;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ExtAluChip;
 
 pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
@@ -85,12 +85,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_preprocessed_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_preprocessed_trace only supports SP1Field field"
         );
 
         let instrs = unsafe {
-            std::mem::transmute::<Vec<&ExtAluInstr<F>>, Vec<&ExtAluInstr<BabyBear>>>(
+            std::mem::transmute::<Vec<&ExtAluInstr<F>>, Vec<&ExtAluInstr<SP1Field>>>(
                 program
                     .inner
                     .iter()
@@ -102,7 +102,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             )
         };
         let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
@@ -112,10 +112,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 let access: &mut ExtAluAccessCols<_> = row.borrow_mut();
                 *access = ExtAluAccessCols {
                     addrs: addrs.to_owned(),
-                    is_add: BabyBear::from_bool(false),
-                    is_sub: BabyBear::from_bool(false),
-                    is_mul: BabyBear::from_bool(false),
-                    is_div: BabyBear::from_bool(false),
+                    is_add: SP1Field::from_bool(false),
+                    is_sub: SP1Field::from_bool(false),
+                    is_mul: SP1Field::from_bool(false),
+                    is_div: SP1Field::from_bool(false),
                     mult: mult.to_owned(),
                 };
                 let target_flag = match opcode {
@@ -124,13 +124,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     ExtAluOpcode::MulE => &mut access.is_mul,
                     ExtAluOpcode::DivE => &mut access.is_div,
                 };
-                *target_flag = BabyBear::from_bool(true);
+                *target_flag = SP1Field::from_bool(true);
             },
         );
 
         // Convert the trace to a row major matrix.
         Some(RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_EXT_ALU_PREPROCESSED_COLS,
         ))
     }
@@ -149,17 +149,17 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_trace only supports SP1Field field"
         );
 
         let events = unsafe {
-            std::mem::transmute::<&Vec<ExtAluIo<Block<F>>>, &Vec<ExtAluIo<Block<BabyBear>>>>(
+            std::mem::transmute::<&Vec<ExtAluIo<Block<F>>>, &Vec<ExtAluIo<Block<SP1Field>>>>(
                 &input.ext_alu_events,
             )
         };
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
@@ -172,16 +172,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_EXT_ALU_COLS,
         )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn local_only(&self) -> bool {
         true
     }
 }
@@ -218,7 +214,6 @@ where
 
             // Read the inputs from memory.
             builder.receive_block(addrs.in1, vals.in1, is_real.clone());
-
             builder.receive_block(addrs.in2, vals.in2, is_real);
 
             // Write the output to memory.
@@ -232,96 +227,29 @@ mod tests {
     use crate::{chips::test_fixtures, test::test_recursion_linear_program};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractExtensionField};
-    use slop_matrix::dense::RowMajorMatrix;
-    use sp1_recursion_executor::{
-        instruction as instr, ExecutionRecord, ExtAluOpcode, MemAccessKind,
-    };
+
+    use sp1_recursion_executor::{instruction as instr, ExtAluOpcode, MemAccessKind};
 
     use super::*;
 
-    fn generate_trace_reference(
-        input: &ExecutionRecord<BabyBear>,
-        _: &mut ExecutionRecord<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        let events = &input.ext_alu_events;
-        let padded_nb_rows = ExtAluChip.num_rows(input).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
-
-        let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
-        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_VALUE_COLS).zip_eq(events).for_each(
-            |(row, &vals)| {
-                let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
-                *cols = ExtAluValueCols { vals };
-            },
-        );
-
-        RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
+    #[tokio::test]
+    async fn generate_trace() {
+        let shard = test_fixtures::shard().await;
+        let trace = ExtAluChip.generate_trace(shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
     }
 
-    #[test]
-    fn generate_trace() {
-        let shard = test_fixtures::shard();
-        let mut execution_record = test_fixtures::default_execution_record();
-        let trace = ExtAluChip.generate_trace(&shard, &mut execution_record);
-
-        assert_eq!(trace, generate_trace_reference(&shard, &mut execution_record));
-    }
-
-    fn generate_preprocessed_trace_reference(
-        program: &RecursionProgram<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let instrs = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::ExtAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let padded_nb_rows = ExtAluChip.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
-
-        let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
-        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
-            |(row, instr)| {
-                let ExtAluInstr { opcode, mult, addrs } = instr;
-                let access: &mut ExtAluAccessCols<_> = row.borrow_mut();
-                *access = ExtAluAccessCols {
-                    addrs: addrs.to_owned(),
-                    is_add: F::from_bool(false),
-                    is_sub: F::from_bool(false),
-                    is_mul: F::from_bool(false),
-                    is_div: F::from_bool(false),
-                    mult: mult.to_owned(),
-                };
-                let target_flag = match opcode {
-                    ExtAluOpcode::AddE => &mut access.is_add,
-                    ExtAluOpcode::SubE => &mut access.is_sub,
-                    ExtAluOpcode::MulE => &mut access.is_mul,
-                    ExtAluOpcode::DivE => &mut access.is_div,
-                };
-                *target_flag = F::from_bool(true);
-            },
-        );
-
-        RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS)
-    }
-
-    #[test]
-    #[ignore = "Failing due to merge conflicts. Will be fixed shortly."]
-    fn generate_preprocessed_trace() {
-        let program = test_fixtures::program();
-        let trace = ExtAluChip.generate_preprocessed_trace(&program).unwrap();
-        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
-
-        assert_eq!(trace, generate_preprocessed_trace_reference(&program));
+    #[tokio::test]
+    async fn generate_preprocessed_trace() {
+        let program = &test_fixtures::program_with_input().await.0;
+        let trace = ExtAluChip.generate_preprocessed_trace(program).unwrap();
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
     }
 
     #[tokio::test]
     async fn four_ops() {
-        type F = BabyBear;
+        use sp1_primitives::SP1Field;
+        type F = SP1Field;
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_extfelt = move || {
             let inner: [F; 4] = core::array::from_fn(|_| rng.sample(rand::distributions::Standard));

@@ -18,13 +18,13 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     InteractionKind, Word,
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
+pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 1;
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
 #[derive(AlignedBorrow, Clone, Copy, StructReflection)]
@@ -113,6 +113,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
             let initial_value_byte1 = ((mem_event.initial_mem_access.value >> 40) & 0xFF) as u32;
             blu.add_u8_range_check(initial_value_byte0 as u8, initial_value_byte1 as u8);
+            blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.initial_mem_access.value).0);
 
             events.push(GlobalInteractionEvent {
                 message: [
@@ -130,9 +131,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                 is_receive: true,
                 kind: InteractionKind::Memory as u8,
             });
+
             let final_value_byte0 = ((mem_event.final_mem_access.value >> 32) & 0xFF) as u32;
             let final_value_byte1 = ((mem_event.final_mem_access.value >> 40) & 0xFF) as u32;
             blu.add_u8_range_check(final_value_byte0 as u8, final_value_byte1 as u8);
+            blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.final_mem_access.value).0);
             events.push(GlobalInteractionEvent {
                 message: [
                     (mem_event.final_mem_access.timestamp >> 24) as u32,
@@ -235,10 +238,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         }
     }
 
-    fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Local
-    }
-
     fn column_names(&self) -> Vec<String> {
         MemoryLocalCols::<F>::struct_reflection().unwrap()
     }
@@ -262,26 +261,17 @@ where
                 local.is_real * local.is_real * local.is_real,
             );
 
-            // Constrain that value_lower and value_upper are the lower and upper halves of the
-            // third limb of the values.
+            // Constrain that value_lower and value_upper are the lower and upper byte of the limb.
             builder.assert_eq(
                 local.initial_value.0[2],
                 local.initial_value_lower
                     + local.initial_value_upper * AB::F::from_canonical_u32(1 << 8),
             );
-            builder.assert_eq(
-                local.final_value.0[2],
-                local.final_value_lower
-                    + local.final_value_upper * AB::F::from_canonical_u32(1 << 8),
-            );
             builder.slice_range_check_u8(
                 &[local.initial_value_lower, local.initial_value_upper],
                 local.is_real,
             );
-            builder.slice_range_check_u8(
-                &[local.final_value_lower, local.final_value_upper],
-                local.is_real,
-            );
+            builder.slice_range_check_u16(&local.initial_value.0, local.is_real);
 
             let mut values = vec![local.initial_clk_high.into(), local.initial_clk_low.into()];
             values.extend(local.addr.map(Into::into));
@@ -315,6 +305,26 @@ where
                 InteractionScope::Local,
             );
 
+            // Constrain that value_lower and value_upper are the lower and upper byte of the limb.
+            builder.assert_eq(
+                local.final_value.0[2],
+                local.final_value_lower
+                    + local.final_value_upper * AB::F::from_canonical_u32(1 << 8),
+            );
+            builder.slice_range_check_u8(
+                &[local.final_value_lower, local.final_value_upper],
+                local.is_real,
+            );
+            builder.slice_range_check_u16(&local.final_value.0, local.is_real);
+
+            let mut values = vec![local.final_clk_high.into(), local.final_clk_low.into()];
+            values.extend(local.addr.map(Into::into));
+            values.extend(local.final_value.map(Into::into));
+            builder.send(
+                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Local,
+            );
+
             // Send the "send interaction" to the global table.
             builder.send(
                 AirInteraction::new(
@@ -338,14 +348,6 @@ where
                 ),
                 InteractionScope::Local,
             );
-
-            let mut values = vec![local.final_clk_high.into(), local.final_clk_low.into()];
-            values.extend(local.addr.map(Into::into));
-            values.extend(local.final_value.map(Into::into));
-            builder.send(
-                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Local,
-            );
         }
     }
 }
@@ -359,12 +361,12 @@ where
 //         memory::MemoryLocalChip, riscv::RiscvAir,
 //         syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
 //     };
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use slop_matrix::dense::RowMajorMatrix;
 //     use sp1_core_executor::{ExecutionRecord, Executor, Trace};
-//     use sp1_stark::{
+//     use sp1_hypercube::{
 //         air::{InteractionScope, MachineAir},
-//         baby_bear_poseidon2::BabyBearPoseidon2,
+//         koala_bear_poseidon2::SP1CoreJaggedConfig,
 //         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
 //     };
 
@@ -377,12 +379,12 @@ where
 
 //         let chip: MemoryLocalChip = MemoryLocalChip::new();
 
-//         let trace: RowMajorMatrix<BabyBear> =
+//         let trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&shard, &mut ExecutionRecord::default());
 //         println!("{:?}", trace.values);
 
 //         for mem_event in shard.global_memory_finalize_events {
-//             println!("{:?}", mem_event);
+//             println!("{mem_event:?}");
 //         }
 //     }
 
@@ -393,8 +395,8 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine: StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
-//             RiscvAir::machine(BabyBearPoseidon2::new());
+//         let machine: StarkMachine<SP1CoreJaggedConfig, RiscvAir<SP1Field>> =
+//             RiscvAir::machine(SP1CoreJaggedConfig::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -405,7 +407,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -413,7 +415,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
@@ -429,7 +431,7 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+//         let machine = RiscvAir::machine(SP1CoreJaggedConfig::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -440,7 +442,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -448,7 +450,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
@@ -466,7 +468,7 @@ where
 //         let cpu_local_memory_access = (0..=255)
 //             .flat_map(|_| {
 //                 [{
-//                     let addr = thread_rng().gen_range(0..BabyBear::ORDER_U32);
+//                     let addr = thread_rng().gen_range(0..SP1Field::ORDER_U32);
 //                     let init_value = thread_rng().gen_range(0..u32::MAX);
 //                     let init_shard = thread_rng().gen_range(0..(1u32 << 16));
 //                     let init_timestamp = thread_rng().gen_range(0..(1u32 << 24));
@@ -499,7 +501,7 @@ where
 
 //         let record = get_test_execution_record();
 //         let chip = MemoryLocalChip::new();
-//         let trace: RowMajorMatrix<BabyBear> =
+//         let trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&record, &mut ExecutionRecord::default());
 //         let trace_ffi = generate_trace_ffi(&record, trace.height());
 
@@ -507,7 +509,7 @@ where
 //     }
 
 //     #[cfg(feature = "sys")]
-//     fn generate_trace_ffi(input: &ExecutionRecord, height: usize) -> RowMajorMatrix<BabyBear> {
+//     fn generate_trace_ffi(input: &ExecutionRecord, height: usize) -> RowMajorMatrix<SP1Field> {
 //         use std::borrow::BorrowMut;
 
 //         use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
@@ -519,7 +521,8 @@ where
 //             utils::zeroed_f_vec,
 //         };
 
-//         type F = BabyBear;
+//         use sp1_primitives::SP1Field;
+// type F = SP1Field;
 //         // Generate the trace rows for each event.
 //         let events = input.get_local_mem_events().collect::<Vec<_>>();
 //         let nb_rows = events.len().div_ceil(4);
@@ -539,7 +542,7 @@ where
 //                     let cols = &mut cols.memory_local_entries[k];
 //                     if idx + k < events.len() {
 //                         unsafe {
-//                             crate::sys::memory_local_event_to_row_babybear(events[idx + k],
+//                             crate::sys::memory_local_event_to_row_koalabear(events[idx + k],
 // cols);                         }
 //                     }
 //                 }

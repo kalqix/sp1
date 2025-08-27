@@ -2,7 +2,6 @@
 
 mod apc;
 mod byte;
-mod cpu;
 mod global;
 mod instr;
 mod memory;
@@ -12,7 +11,6 @@ mod utils;
 
 pub use apc::*;
 pub use byte::*;
-pub use cpu::*;
 pub use global::*;
 pub use instr::*;
 pub use memory::*;

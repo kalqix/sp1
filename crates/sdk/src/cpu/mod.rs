@@ -12,9 +12,14 @@ use powdr_autoprecompiles::Apc;
 use prove::CpuProveBuilder;
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
+<<<<<<< HEAD
 use sp1_core_machine::{
     autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin, riscv::RiscvAirWithApcs,
 };
+=======
+use sp1_core_machine::io::SP1Stdin;
+use sp1_hypercube::prover::MachineProvingKey;
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 use sp1_primitives::Elf;
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
@@ -22,12 +27,15 @@ use sp1_prover::{
     local::{LocalProver, LocalProverOpts},
     SP1ProverBuilder, SP1VerifyingKey,
 };
+<<<<<<< HEAD
 use sp1_prover::{
     // verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
     SP1CoreProofData,
     SP1ProofWithMetadata,
 };
 use sp1_stark::prover::MachineProvingKey;
+=======
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 
 use crate::{
     install::try_install_circuit_artifacts,
@@ -109,12 +117,30 @@ impl Prover for CpuProver {
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
+<<<<<<< HEAD
     pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
                 .build()
                 .await;
         let opts = LocalProverOpts::default();
+=======
+    pub async fn new() -> Self {
+        Self::new_with_opts(None).await
+    }
+
+    /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
+    #[must_use]
+    pub async fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new().build().await;
+        let mut opts = LocalProverOpts::default();
+
+        // Override core_opts if provided
+        if let Some(core_opts) = core_opts {
+            opts.core_opts = core_opts;
+        }
+
+>>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
         let prover = Arc::new(LocalProver::new(prover, opts));
 
         Self { prover }

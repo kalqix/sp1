@@ -13,14 +13,14 @@ categories = { workspace = true }
 # sp1
 sp1-primitives = { workspace = true }
 sp1-curves = { workspace = true }
-sp1-stark = { workspace = true }
+sp1-hypercube = { workspace = true }
 
 # slop (replaced p3 dependencies)
 slop-algebra = { workspace = true }
 slop-maybe-rayon = { workspace = true }
 slop-air = { workspace = true }
 slop-merkle-tree = { workspace = true }
-slop-baby-bear = { workspace = true }
+slop-koala-bear = { workspace = true }
 slop-symmetric = { workspace = true }
 # misc
 serde = { workspace = true, features = ["derive", "rc"] }
@@ -46,6 +46,7 @@ clap = { version = "4.5.9", features = ["derive"] }
 subenum = "1.1.2"
 range-set-blaze = "0.1.16"
 serde_arrays = "0.2"
+deepsize2 = { workspace = true }
 
 # profiling
 goblin = { version = "0.9", optional = true }

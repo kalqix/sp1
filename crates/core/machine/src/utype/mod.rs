@@ -10,8 +10,8 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 
+use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, Word};
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
@@ -19,7 +19,10 @@ use std::{
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    adapter::{register::j_type::JTypeReader, state::CPUState},
+    adapter::{
+        register::j_type::{JTypeReader, JTypeReaderInput},
+        state::{CPUState, CPUStateInput},
+    },
     air::{SP1CoreAirBuilder, SP1Operation},
     operations::{AddOperation, AddOperationInput},
     utils::{next_multiple_of_32, zeroed_f_vec},
@@ -79,27 +82,33 @@ where
         let funct3_auipc = AB::Expr::from_canonical_u8(Opcode::AUIPC.funct3().unwrap_or(0));
         let funct7_auipc = AB::Expr::from_canonical_u8(Opcode::AUIPC.funct7().unwrap_or(0));
         let base_opcode_auipc = AB::Expr::from_canonical_u32(Opcode::AUIPC.base_opcode().0);
+        let instr_type_auipc =
+            AB::Expr::from_canonical_u32(Opcode::AUIPC.instruction_type().0 as u32);
 
         let funct3_lui = AB::Expr::from_canonical_u8(Opcode::LUI.funct3().unwrap_or(0));
         let funct7_lui = AB::Expr::from_canonical_u8(Opcode::LUI.funct7().unwrap_or(0));
         let base_opcode_lui = AB::Expr::from_canonical_u32(Opcode::LUI.base_opcode().0);
+        let instr_type_lui = AB::Expr::from_canonical_u32(Opcode::LUI.instruction_type().0 as u32);
 
         let is_lui = AB::Expr::one() - local.is_auipc;
         let funct3 = local.is_auipc * funct3_auipc + is_lui.clone() * funct3_lui;
         let funct7 = local.is_auipc * funct7_auipc + is_lui.clone() * funct7_lui;
-        let base_opcode = local.is_auipc * base_opcode_auipc + is_lui * base_opcode_lui;
+        let base_opcode = local.is_auipc * base_opcode_auipc + is_lui.clone() * base_opcode_lui;
+        let instr_type = local.is_auipc * instr_type_auipc + is_lui * instr_type_lui;
 
         // Constrain the state of the CPU.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            local.is_real.into(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                local.is_real.into(),
+            ),
         );
 
         let addend: Word<AB::Expr> = Word([
@@ -132,16 +141,18 @@ where
         <AddOperation<AB::F> as SP1Operation<AB>>::eval(builder, op_input);
 
         // Constrain the program and register reads.
-        JTypeReader::<AB::F>::eval(
+        <JTypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state.clk_high::<AB>(),
-            local.state.clk_low::<AB>(),
-            local.state.pc,
-            opcode,
-            [base_opcode, funct3, funct7],
-            local.add_operation.value,
-            local.adapter,
-            local.is_real.into(),
+            JTypeReaderInput::new(
+                local.state.clk_high::<AB>(),
+                local.state.clk_low::<AB>(),
+                local.state.pc,
+                opcode,
+                [instr_type, base_opcode, funct3, funct7],
+                local.add_operation.value.map(|x| x.into()),
+                local.adapter,
+                local.is_real.into(),
+            ),
         );
     }
 }
@@ -213,10 +224,6 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
         }
     }
 
-    fn local_only(&self) -> bool {
-        true
-    }
-
     fn column_names(&self) -> Vec<String> {
         UTypeColumns::<F>::struct_reflection().unwrap()
     }
@@ -226,14 +233,14 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
 // mod tests {
 //     use std::borrow::BorrowMut;
 
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use slop_algebra::AbstractField;
 //     use slop_matrix::dense::RowMajorMatrix;
 //     use sp1_core_executor::{
 //         ExecutionError, ExecutionRecord, Executor, Instruction, Opcode, Program, Simple,
 //     };
-//     use sp1_stark::{
-//         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+//     use sp1_hypercube::{
+//         air::MachineAir, koala_bear_poseidon2::SP1CoreJaggedConfig, chip_name, CpuProver,
 //         MachineProver, SP1CoreOpts, Val,
 //     };
 
@@ -254,12 +261,12 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
 //     //     let program = Program::new(instructions, 0, 0);
 //     //     let stdin = SP1Stdin::new();
 
-//     //     type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+//     //     type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
 
 //     //     let malicious_trace_pv_generator =
 //     //         |prover: &P,
 //     //          record: &mut ExecutionRecord|
-//     //          -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+//     //          -> Vec<(String, RowMajorMatrix<Val<SP1CoreJaggedConfig>>)> {
 //     //             // Create a malicious record where the AUIPC instruction result is incorrect.
 //     //             let mut malicious_record = record.clone();
 //     //             malicious_record.auipc_events[0].a = 8;
@@ -280,21 +287,21 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
 //         let program = Program::new(instructions, 0, 0);
 //         let stdin = SP1Stdin::new();
 
-//         type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+//         type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
 
 //         let malicious_trace_pv_generator =
 //             |prover: &P,
 //              record: &mut ExecutionRecord|
-//              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+//              -> Vec<(String, RowMajorMatrix<Val<SP1CoreJaggedConfig>>)> {
 //                 // Modify the branch chip to have a row that has multiple opcode flags set.
 //                 let mut traces = prover.generate_traces(record);
-//                 let auipc_chip_name = chip_name!(AuipcChip, BabyBear);
+//                 let auipc_chip_name = chip_name!(AuipcChip, SP1Field);
 //                 for (chip_name, trace) in traces.iter_mut() {
 //                     if *chip_name == auipc_chip_name {
-//                         let first_row: &mut [BabyBear] = trace.row_mut(0);
-//                         let first_row: &mut AuipcColumns<BabyBear> = first_row.borrow_mut();
-//                         assert!(first_row.is_auipc == BabyBear::one());
-//                         first_row.is_unimp = BabyBear::one();
+//                         let first_row: &mut [SP1Field] = trace.row_mut(0);
+//                         let first_row: &mut AuipcColumns<SP1Field> = first_row.borrow_mut();
+//                         assert!(first_row.is_auipc == SP1Field::one());
+//                         first_row.is_unimp = SP1Field::one();
 //                     }
 //                 }
 //                 traces

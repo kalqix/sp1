@@ -1,22 +1,34 @@
 use serde::{Deserialize, Serialize};
+use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField32};
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use sp1_core_executor::{events::ByteRecord, ByteOpcode};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
-use sp1_stark::Word;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-use crate::air::SP1CoreAirBuilder;
+use crate::air::{SP1Operation, SP1OperationBuilder};
 
-use super::AddrAddOperation;
+use super::{AddrAddOperation, AddrAddOperationInput};
 
 /// A set of columns needed to validate the address and return the aligned address.
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(
+    AlignedBorrow,
+    StructReflection
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoShape,
+    SP1OperationBuilder,
+)]
 #[repr(C)]
 pub struct AddressOperation<T> {
-    /// Instance of `AddOperation` for addr_word.
-    pub addr_word_operation: AddrAddOperation<T>,
+    /// Instance of `AddOperation` for addr.
+    pub addr_operation: AddrAddOperation<T>,
 
     /// This is used to check if the top two limbs of the address is not both zero.
     pub top_two_limb_inv: T,
@@ -25,12 +37,12 @@ pub struct AddressOperation<T> {
 impl<F: PrimeField32> AddressOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, b: u64, c: u64) -> u64 {
         let memory_addr = b.wrapping_add(c);
-        let addr_word_limbs = u64_to_u16_limbs(memory_addr);
-        self.addr_word_operation.populate(record, b, c);
+        let addr_limbs = u64_to_u16_limbs(memory_addr);
+        self.addr_operation.populate(record, b, c);
         let sum_top_two_limb =
-            F::from_canonical_u16(addr_word_limbs[1]) + F::from_canonical_u16(addr_word_limbs[2]);
+            F::from_canonical_u16(addr_limbs[1]) + F::from_canonical_u16(addr_limbs[2]);
         self.top_two_limb_inv = sum_top_two_limb.inverse();
-        record.add_bit_range_check(addr_word_limbs[0] / 8, 13);
+        record.add_bit_range_check(addr_limbs[0] / 8, 13);
         memory_addr
     }
 }
@@ -41,7 +53,7 @@ impl<F: Field> AddressOperation<F> {
     /// Both `is_real` and offset bits are constrained to be boolean and correct.
     /// The returned value is the aligned memory address used for memory access.
     #[allow(clippy::too_many_arguments)]
-    pub fn eval<AB: SP1CoreAirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         b: Word<AB::Expr>,
         c: Word<AB::Expr>,
@@ -50,7 +62,10 @@ impl<F: Field> AddressOperation<F> {
         offset_bit2: AB::Expr,
         is_real: AB::Expr,
         cols: AddressOperation<AB::Var>,
-    ) -> [AB::Expr; 3] {
+    ) -> [AB::Expr; 3]
+    where
+        AB: SP1AirBuilder + SP1OperationBuilder<AddrAddOperation<<AB as AirBuilder>::F>>,
+    {
         // Check that `is_real` and offset bits are boolean.
         builder.assert_bool(is_real.clone());
         builder.assert_bool(offset_bit0.clone());
@@ -58,8 +73,11 @@ impl<F: Field> AddressOperation<F> {
         builder.assert_bool(offset_bit2.clone());
 
         // `addr` is computed as `op_b + op_c`, and is range checked to be three u16 limbs.
-        AddrAddOperation::<AB::F>::eval(builder, b, c, cols.addr_word_operation, is_real.clone());
-        let addr = cols.addr_word_operation.value;
+        <AddrAddOperation<AB::F> as SP1Operation<AB>>::eval(
+            builder,
+            AddrAddOperationInput::new(b, c, cols.addr_operation, is_real.clone()),
+        );
+        let addr = cols.addr_operation.value;
 
         let sum_top_two_limb = addr[1] + addr[2];
 
@@ -90,5 +108,37 @@ impl<F: Field> AddressOperation<F> {
             addr[1].into(),
             addr[2].into(),
         ]
+    }
+}
+
+#[derive(Debug, Clone, InputExpr, InputParams)]
+pub struct AddressOperationInput<AB: SP1AirBuilder> {
+    pub b: Word<AB::Expr>,
+    pub c: Word<AB::Expr>,
+    pub offset_bit0: AB::Expr,
+    pub offset_bit1: AB::Expr,
+    pub offset_bit2: AB::Expr,
+    pub is_real: AB::Expr,
+    pub cols: AddressOperation<AB::Var>,
+}
+
+impl<AB> SP1Operation<AB> for AddressOperation<AB::F>
+where
+    AB: SP1AirBuilder + SP1OperationBuilder<AddrAddOperation<<AB as AirBuilder>::F>>,
+{
+    type Input = AddressOperationInput<AB>;
+    type Output = [AB::Expr; 3];
+
+    fn lower(builder: &mut AB, input: Self::Input) -> Self::Output {
+        Self::eval(
+            builder,
+            input.b,
+            input.c,
+            input.offset_bit0,
+            input.offset_bit1,
+            input.offset_bit2,
+            input.is_real,
+            input.cols,
+        )
     }
 }

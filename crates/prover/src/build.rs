@@ -2,13 +2,14 @@
 
 use itertools::Itertools;
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+use sp1_hypercube::{MachineVerifyingKey, ShardProof};
+use sp1_primitives::SP1Field;
 use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1ShapedWitnessValues, SP1WrapVerifier},
-    utils::{babybear_bytes_to_bn254, babybears_to_bn254},
+    utils::{koalabear_bytes_to_bn254, koalabears_to_bn254},
 };
 use sp1_recursion_compiler::{
     config::OuterConfig,
@@ -16,10 +17,8 @@ use sp1_recursion_compiler::{
     ir::Builder,
 };
 use sp1_recursion_executor::RecursionPublicValues;
-use std::{borrow::Borrow, path::PathBuf};
-// use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
-use sp1_stark::{MachineVerifyingKey, ShardProof};
+use std::{borrow::Borrow, path::PathBuf};
 
 pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
 
@@ -135,13 +134,13 @@ pub fn build_constraints_and_witness(
     let constraints =
         tracing::info_span!("wrap circuit").in_scope(|| build_outer_circuit(&template_input));
 
-    let pv: &RecursionPublicValues<BabyBear> = template_proof.public_values.as_slice().borrow();
-    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-    let committed_values_digest_bytes: [BabyBear; 32] =
+    let pv: &RecursionPublicValues<SP1Field> = template_proof.public_values.as_slice().borrow();
+    let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
+    let committed_values_digest_bytes: [SP1Field; 32] =
         words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+    let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
     let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
-    let vk_root = babybears_to_bn254(&pv.vk_root);
+    let vk_root = koalabears_to_bn254(&pv.vk_root);
 
     tracing::info!("building template witness");
     let mut witness = OuterWitness::default();
@@ -156,7 +155,7 @@ pub fn build_constraints_and_witness(
 /// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
 /// the proof.
 pub async fn dummy_proof() -> (MachineVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
-    let elf = include_bytes!("../elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../elf/riscv64im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
     let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
@@ -213,7 +212,16 @@ fn build_outer_circuit(template_input: &SP1ShapedWitnessValues<OuterSC>) -> Vec<
     for (vk_pc, template_vk_pc) in vk.pc_start.iter().zip_eq(template_vk.pc_start.iter()) {
         builder.assert_felt_eq(*vk_pc, *template_vk_pc);
     }
-
+    // Constrain the preprocessed heights to be the same as template `vk`.
+    for ((vk_chip, vk_dimension), (template_vk_chip, template_vk_dimension)) in vk
+        .preprocessed_chip_information
+        .iter()
+        .zip_eq(template_vk.preprocessed_chip_information.iter())
+    {
+        assert_eq!(vk_chip, template_vk_chip);
+        builder.assert_felt_eq(vk_dimension.height, template_vk_dimension.height);
+        builder.assert_felt_eq(vk_dimension.num_polynomials, template_vk_dimension.num_polynomials);
+    }
     // Verify the proof.
     SP1WrapVerifier::verify(&mut builder, &recursive_wrap_verifier, input);
 

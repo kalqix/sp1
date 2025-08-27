@@ -6,10 +6,10 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::{BabyBearPoseidon2, MachineVerifyingKey};
+use sp1_hypercube::{MachineVerifyingKey, SP1CoreJaggedConfig};
 
 use crate::{
-    events::{MemoryEntry, Shard},
+    events::{MemoryEntry, PageProtRecord},
     memory::Memory,
     syscalls::SyscallCode,
     SP1RecursionProof,
@@ -22,8 +22,11 @@ pub struct ExecutionState {
     /// The program counter.
     pub pc: u64,
 
-    /// The shard clock keeps track of how many shards have been executed.
-    pub current_shard: Shard,
+    /// Whether or not the shard is finished.
+    pub shard_finished: bool,
+
+    /// The starting timestamp of the current shard.
+    pub initial_timestamp: u64,
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
@@ -31,7 +34,7 @@ pub struct ExecutionState {
 
     /// The page protection flags for each page in the memory.  The default values should be
     /// `PROT_READ` | `PROT_WRITE`.
-    pub page_prots: HashMap<u64, u8>,
+    pub page_prots: HashMap<u64, PageProtRecord>,
 
     /// The global clock keeps track of how many instructions have been executed through all
     /// shards.
@@ -50,7 +53,7 @@ pub struct ExecutionState {
 
     /// A stream of proofs (reduce vk, proof, verifying key) inputted to the program.
     pub proof_stream:
-        Vec<(SP1RecursionProof<BabyBearPoseidon2>, MachineVerifyingKey<BabyBearPoseidon2>)>,
+        Vec<(SP1RecursionProof<SP1CoreJaggedConfig>, MachineVerifyingKey<SP1CoreJaggedConfig>)>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
     pub proof_stream_ptr: usize,
@@ -72,8 +75,8 @@ impl ExecutionState {
     pub fn new(pc_start: u64) -> Self {
         Self {
             global_clk: 0,
-            // Start at shard 1 since shard 0 is reserved for memory initialization.
-            current_shard: Shard::new(1).unwrap(),
+            shard_finished: false,
+            initial_timestamp: 1,
             clk: 0,
             pc: pc_start,
             memory: Memory::new_preallocated(),
@@ -101,6 +104,8 @@ pub struct ForkState {
     pub pc: u64,
     /// All memory changes since the fork point.
     pub memory_diff: Memory<Option<MemoryEntry>>,
+    /// All page protection changes since the fork point.
+    pub page_prots_diff: HashMap<u64, PageProtRecord>,
 }
 
 impl Default for ForkState {

@@ -11,20 +11,20 @@ use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
+    ALUTypeRecord, ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::{u32_to_u16_limbs, u64_to_u16_limbs, WORD_SIZE};
-use sp1_stark::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
         register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
-        state::CPUState,
+        state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
-    operations::U16MSBOperation,
+    operations::{U16MSBOperation, U16MSBOperationInput},
     utils::{next_multiple_of_32, pad_rows_fixed},
 };
 
@@ -84,8 +84,8 @@ pub struct ShiftLeftCols<T> {
     /// If the opcode is SLLW.
     pub is_sllw: T,
 
-    /// The base opcode for the SLL instruction.
-    pub base_op_code: T,
+    /// If the opcode is SLLW and immediate.
+    pub is_sllw_imm: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
@@ -120,7 +120,7 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
             let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             let mut blu = Vec::new();
             cols.adapter.populate(&mut blu, event.1);
-            self.event_to_row(&event.0, cols, &mut blu);
+            self.event_to_row(&event.0, &event.1, cols, &mut blu);
             cols.state.populate(&mut blu, event.0.clk, event.0.pc);
             rows.push(row);
         }
@@ -170,7 +170,7 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
                     let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
                     let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
-                    self.event_to_row(&event.0, cols, &mut blu);
+                    self.event_to_row(&event.0, &event.1, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                 });
                 blu
@@ -187,10 +187,6 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
             !shard.shift_left_events.is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl ShiftLeft {
@@ -198,6 +194,7 @@ impl ShiftLeft {
     fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
+        record: &ALUTypeRecord,
         cols: &mut ShiftLeftCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -214,20 +211,7 @@ impl ShiftLeft {
         cols.is_sll = F::from_bool(is_sll);
 
         cols.is_sllw = F::from_bool(event.opcode == Opcode::SLLW);
-
-        let (sll_base, sll_imm) = Opcode::SLL.base_opcode();
-        let sll_imm = sll_imm.expect("SLL immediate opcode not found");
-        let (sllw_base, sllw_imm) = Opcode::SLLW.base_opcode();
-        let sllw_imm = sllw_imm.expect("SLLW immediate opcode not found");
-
-        let is_imm_c = cols.adapter.imm_c.is_one();
-        let sll_base_opcode = F::from_canonical_u32(if is_imm_c { sll_imm } else { sll_base });
-        let sllw_base_opcode = F::from_canonical_u32(if is_imm_c { sllw_imm } else { sllw_base });
-        cols.base_op_code = match event.opcode {
-            Opcode::SLL => sll_base_opcode,
-            Opcode::SLLW => sllw_base_opcode,
-            _ => unreachable!(),
-        };
+        cols.is_sllw_imm = F::from_bool(event.opcode == Opcode::SLLW && record.is_imm);
 
         for i in 0..6 {
             cols.c_bits[i] = F::from_canonical_u16((c >> i) & 1);
@@ -405,11 +389,9 @@ where
             builder.when(local.is_sllw).assert_eq(local.sllw_msb.msb * u16_max, local.a[i]);
         }
 
-        U16MSBOperation::<AB::F>::eval_msb(
+        U16MSBOperation::<AB::F>::eval(
             builder,
-            local.a[1].into(),
-            local.sllw_msb,
-            local.is_sllw.into(),
+            U16MSBOperationInput::new(local.a[1].into(), local.sllw_msb, local.is_sllw.into()),
         );
 
         let opcode = local.is_sll * AB::F::from_canonical_u32(Opcode::SLL as u32)
@@ -421,39 +403,58 @@ where
         let funct7 = local.is_sll * AB::Expr::from_canonical_u8(Opcode::SLL.funct7().unwrap_or(0))
             + local.is_sllw * AB::Expr::from_canonical_u8(Opcode::SLLW.funct7().unwrap_or(0));
 
-        // Combine the opcodes based on which instruction is active
-        let base_opcode = local.base_op_code.into();
-
         let (sll_base, sll_imm) = Opcode::SLL.base_opcode();
         let sll_imm = sll_imm.expect("SLL immediate opcode not found");
         let (sllw_base, sllw_imm) = Opcode::SLLW.base_opcode();
         let sllw_imm = sllw_imm.expect("SLLW immediate opcode not found");
 
+        let imm_base_difference = sll_base.checked_sub(sll_imm).unwrap();
+        assert!(imm_base_difference == sllw_base.checked_sub(sllw_imm).unwrap());
+
         let sll_base_expr = AB::Expr::from_canonical_u32(sll_base);
         let sllw_base_expr = AB::Expr::from_canonical_u32(sllw_base);
-        let sll_imm_expr = AB::Expr::from_canonical_u32(sll_imm);
-        let sllw_imm_expr = AB::Expr::from_canonical_u32(sllw_imm);
 
-        let correct_imm_opcode = local.is_sll * sll_imm_expr + local.is_sllw * sllw_imm_expr;
-        let correct_reg_opcode = local.is_sll * sll_base_expr + local.is_sllw * sllw_base_expr;
+        // Start with register opcode, if it's immediate, subtract the difference
+        let calculated_base_opcode = local.is_sll * sll_base_expr + local.is_sllw * sllw_base_expr
+            - AB::Expr::from_canonical_u32(imm_base_difference) * local.adapter.imm_c;
 
-        // Constrain base_op_code to be correct based on imm_c and is_* columns.
-        let correct_opcode =
-            builder.if_else(local.adapter.imm_c.into(), correct_imm_opcode, correct_reg_opcode);
-        builder.when(is_real.clone()).assert_eq(local.base_op_code.into(), correct_opcode);
+        let sll_instr_type = Opcode::SLL.instruction_type().0 as u32;
+        let sll_instr_type_imm =
+            Opcode::SLL.instruction_type().1.expect("SLL immediate instruction type not found")
+                as u32;
+        let sllw_instr_type = Opcode::SLLW.instruction_type().0 as u32;
+        let sllw_instr_type_imm =
+            Opcode::SLLW.instruction_type().1.expect("SLLW immediate instruction type not found")
+                as u32;
+
+        let instr_type_difference = sll_instr_type.checked_sub(sll_instr_type_imm).unwrap();
+        let w_instr_imm_adjustment = sll_instr_type_imm.checked_sub(sllw_instr_type_imm).unwrap();
+        assert_eq!(
+            sllw_instr_type.checked_sub(sllw_instr_type_imm).unwrap(),
+            instr_type_difference + w_instr_imm_adjustment,
+        );
+
+        builder.assert_eq(local.is_sllw_imm, local.is_sllw * local.adapter.imm_c);
+
+        let calculated_instr_type = local.is_sll * AB::Expr::from_canonical_u32(sll_instr_type)
+            + local.is_sllw * AB::Expr::from_canonical_u32(sllw_instr_type)
+            - (AB::Expr::from_canonical_u32(instr_type_difference) * local.adapter.imm_c
+                + AB::Expr::from_canonical_u32(w_instr_imm_adjustment) * local.is_sllw_imm);
 
         // Constrain the CPU state.
         // The program counter and timestamp increment by `4` and `8`.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            is_real.clone(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                is_real.clone(),
+            ),
         );
 
         // Constrain the program and register reads.
@@ -462,7 +463,7 @@ where
             local.state.clk_low::<AB>(),
             local.state.pc,
             opcode,
-            [base_opcode, funct3, funct7],
+            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             local.a.map(|x| x.into()),
             local.adapter,
             is_real.clone(),
@@ -479,16 +480,16 @@ where
 //         riscv::RiscvAir,
 //         utils::{run_malicious_test, run_test_machine, setup_test_machine},
 //     };
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use slop_matrix::dense::RowMajorMatrix;
 //     use rand::{thread_rng, Rng};
 //     use sp1_core_executor::{
 //         events::{AluEvent, MemoryRecordEnum},
 //         ExecutionRecord, Instruction, Opcode, Program,
 //     };
-//     use sp1_stark::{
+//     use sp1_hypercube::{
 //         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         baby_bear_poseidon2::BabyBearPoseidon2,
+//         koala_bear_poseidon2::SP1CoreJaggedConfig,
 //         chip_name, Chip, CpuProver, MachineProver, StarkMachine, Val,
 //     };
 
@@ -499,13 +500,13 @@ where
 //         let mut shard = ExecutionRecord::default();
 //         shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1, false)];
 //         let chip = ShiftLeft::default();
-//         let trace: RowMajorMatrix<BabyBear> =
+//         let trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&shard, &mut ExecutionRecord::default());
 //         println!("{:?}", trace.values)
 //     }
 
 //     #[test]
-//     fn prove_babybear() {
+//     fn prove_koalabear() {
 //         let mut shift_events: Vec<AluEvent> = Vec::new();
 //         let shift_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
 //             (Opcode::SLL, 0x00000002, 0x00000001, 1),
@@ -542,7 +543,7 @@ where
 
 //         // Run setup.
 //         let air = ShiftLeft::default();
-//         let config = BabyBearPoseidon2::new();
+//         let config = SP1CoreJaggedConfig::new();
 //         let chip = Chip::new(air);
 //         let (pk, vk) = setup_test_machine(StarkMachine::new(
 //             config.clone(),
@@ -553,10 +554,10 @@ where
 
 //         // Run the test.
 //         let air = ShiftLeft::default();
-//         let chip: Chip<BabyBear, ShiftLeft> = Chip::new(air);
+//         let chip: Chip<SP1Field, ShiftLeft> = Chip::new(air);
 //         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<BabyBearPoseidon2, ShiftLeft>(vec![shard], machine, pk, vk).unwrap();
-//     }
+//         run_test_machine::<SP1CoreJaggedConfig, ShiftLeft>(vec![shard], machine, pk,
+// vk).unwrap();     }
 
 //     #[test]
 //     fn test_malicious_sll() {
@@ -579,12 +580,12 @@ where
 //             let program = Program::new(instructions, 0, 0);
 //             let stdin = SP1Stdin::new();
 
-//             type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+//             type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
 
 //             let malicious_trace_pv_generator =
 //                 move |prover: &P,
 //                       record: &mut ExecutionRecord|
-//                       -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+//                       -> Vec<(String, RowMajorMatrix<Val<SP1CoreJaggedConfig>>)> {
 //                     let mut malicious_record = record.clone();
 //                     malicious_record.cpu_events[0].a = op_a as u32;
 //                     if let Some(MemoryRecordEnum::Write(mut write_record)) =
@@ -593,11 +594,11 @@ where
 //                         write_record.value = op_a as u32;
 //                     }
 //                     let mut traces = prover.generate_traces(&malicious_record);
-//                     let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
+//                     let shift_left_chip_name = chip_name!(ShiftLeft, SP1Field);
 //                     for (name, trace) in traces.iter_mut() {
 //                         if *name == shift_left_chip_name {
 //                             let first_row = trace.row_mut(0);
-//                             let first_row: &mut ShiftLeftCols<BabyBear> = first_row.borrow_mut();
+//                             let first_row: &mut ShiftLeftCols<SP1Field> = first_row.borrow_mut();
 //                             first_row.a = op_a.into();
 //                         }
 //                     }

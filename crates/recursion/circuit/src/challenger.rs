@@ -1,13 +1,9 @@
-use std::{borrow::BorrowMut, mem::MaybeUninit};
-
-use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, Field, PrimeField32};
-use slop_baby_bear::BabyBear;
+use slop_algebra::{AbstractField, Field};
 use slop_challenger::DuplexChallenger;
 use slop_merkle_tree::{OUTER_CHALLENGER_RATE, OUTER_DIGEST_SIZE};
 use slop_multilinear::Point;
 use slop_symmetric::CryptographicPermutation;
-use sp1_derive::AlignedBorrow;
+use sp1_primitives::SP1Field;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{DslIr, Var},
@@ -19,9 +15,6 @@ use crate::CircuitConfig;
 
 // Constants for the Multifield challenger.
 pub const POSEIDON_2_BB_RATE: usize = 16;
-
-// use crate::{DigestVariable, VerifyingKeyVariable};
-
 pub trait CanCopyChallenger<C: CircuitConfig> {
     fn copy(&self, builder: &mut Builder<C>) -> Self;
 }
@@ -86,7 +79,7 @@ pub struct DuplexChallengerVariable<C: CircuitConfig> {
     pub output_buffer: Vec<Felt<C::F>>,
 }
 
-impl<C: CircuitConfig<F = BabyBear>> DuplexChallengerVariable<C> {
+impl<C: CircuitConfig<F = SP1Field>> DuplexChallengerVariable<C> {
     /// Creates a new duplex challenger with the default state.
     pub fn new(builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::<C> {
@@ -97,9 +90,9 @@ impl<C: CircuitConfig<F = BabyBear>> DuplexChallengerVariable<C> {
     }
 
     /// Creates a new challenger variable with the same state as an existing challenger.
-    pub fn from_challenger<P: CryptographicPermutation<[BabyBear; PERMUTATION_WIDTH]>>(
+    pub fn from_challenger<P: CryptographicPermutation<[SP1Field; PERMUTATION_WIDTH]>>(
         builder: &mut Builder<C>,
-        challenger: &DuplexChallenger<BabyBear, P, PERMUTATION_WIDTH, HASH_RATE>,
+        challenger: &DuplexChallenger<SP1Field, P, PERMUTATION_WIDTH, HASH_RATE>,
     ) -> Self {
         let sponge_state = challenger.sponge_state.map(|x| builder.eval(x));
         let input_buffer = challenger.input_buffer.iter().map(|x| builder.eval(*x)).collect();
@@ -144,52 +137,15 @@ impl<C: CircuitConfig<F = BabyBear>> DuplexChallengerVariable<C> {
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
     }
-
-    pub fn public_values(&self, builder: &mut Builder<C>) -> ChallengerPublicValues<Felt<C::F>> {
-        assert!(self.input_buffer.len() <= PERMUTATION_WIDTH);
-        assert!(self.output_buffer.len() <= PERMUTATION_WIDTH);
-
-        let sponge_state = self.sponge_state;
-        let num_inputs = builder.eval(C::F::from_canonical_usize(self.input_buffer.len()));
-        let num_outputs = builder.eval(C::F::from_canonical_usize(self.output_buffer.len()));
-
-        let input_buffer: [_; PERMUTATION_WIDTH] = self
-            .input_buffer
-            .iter()
-            .copied()
-            .chain((self.input_buffer.len()..PERMUTATION_WIDTH).map(|_| builder.eval(C::F::zero())))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        let output_buffer: [_; PERMUTATION_WIDTH] = self
-            .output_buffer
-            .iter()
-            .copied()
-            .chain(
-                (self.output_buffer.len()..PERMUTATION_WIDTH).map(|_| builder.eval(C::F::zero())),
-            )
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        ChallengerPublicValues {
-            sponge_state,
-            num_inputs,
-            input_buffer,
-            num_outputs,
-            output_buffer,
-        }
-    }
 }
 
-impl<C: CircuitConfig<F = BabyBear>> CanCopyChallenger<C> for DuplexChallengerVariable<C> {
+impl<C: CircuitConfig<F = SP1Field>> CanCopyChallenger<C> for DuplexChallengerVariable<C> {
     fn copy(&self, builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::copy(self, builder)
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>> CanObserveVariable<C, Felt<C::F>>
+impl<C: CircuitConfig<F = SP1Field>> CanObserveVariable<C, Felt<C::F>>
     for DuplexChallengerVariable<C>
 {
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
@@ -207,7 +163,7 @@ impl<C: CircuitConfig<F = BabyBear>> CanObserveVariable<C, Felt<C::F>>
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>, const N: usize> CanObserveVariable<C, [Felt<C::F>; N]>
+impl<C: CircuitConfig<F = SP1Field>, const N: usize> CanObserveVariable<C, [Felt<C::F>; N]>
     for DuplexChallengerVariable<C>
 {
     fn observe(&mut self, builder: &mut Builder<C>, values: [Felt<C::F>; N]) {
@@ -217,7 +173,7 @@ impl<C: CircuitConfig<F = BabyBear>, const N: usize> CanObserveVariable<C, [Felt
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>> CanSampleVariable<C, Felt<C::F>>
+impl<C: CircuitConfig<F = SP1Field>> CanSampleVariable<C, Felt<C::F>>
     for DuplexChallengerVariable<C>
 {
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
@@ -225,7 +181,7 @@ impl<C: CircuitConfig<F = BabyBear>> CanSampleVariable<C, Felt<C::F>>
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>> CanSampleBitsVariable<C, Felt<C::F>>
+impl<C: CircuitConfig<F = SP1Field>> CanSampleBitsVariable<C, Felt<C::F>>
     for DuplexChallengerVariable<C>
 {
     fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
@@ -233,7 +189,7 @@ impl<C: CircuitConfig<F = BabyBear>> CanSampleBitsVariable<C, Felt<C::F>>
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>> FieldChallengerVariable<C, Felt<C::F>>
+impl<C: CircuitConfig<F = SP1Field>> FieldChallengerVariable<C, Felt<C::F>>
     for DuplexChallengerVariable<C>
 {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
@@ -266,7 +222,7 @@ impl<C: CircuitConfig<F = BabyBear>> FieldChallengerVariable<C, Felt<C::F>>
         self.sponge_state = C::poseidon2_permute_v2(builder, self.sponge_state);
 
         self.output_buffer.clear();
-        self.output_buffer.extend_from_slice(&self.sponge_state);
+        self.output_buffer.extend_from_slice(&self.sponge_state[0..HASH_RATE]);
     }
 }
 
@@ -304,12 +260,11 @@ impl<C: CircuitConfig> MultiField32ChallengerVariable<C> {
         }
         self.input_buffer.clear();
 
-        // TODO make this a method for the builder.
         builder.push_op(DslIr::CircuitPoseidon2Permute(self.sponge_state));
 
         self.output_buffer.clear();
         self.output_var_buffer.clear();
-        for &pf_val in self.sponge_state.iter() {
+        for &pf_val in self.sponge_state[0..OUTER_CHALLENGER_RATE].iter() {
             self.output_var_buffer.push(pf_val);
         }
     }
@@ -483,54 +438,6 @@ pub fn split_32<C: CircuitConfig>(
     results
 }
 
-pub const CHALLENGER_STATE_NUM_ELTS: usize = size_of::<ChallengerPublicValues<u8>>();
-
-#[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
-#[repr(C)]
-pub struct ChallengerPublicValues<T> {
-    pub sponge_state: [T; PERMUTATION_WIDTH],
-    pub num_inputs: T,
-    pub input_buffer: [T; PERMUTATION_WIDTH],
-    pub num_outputs: T,
-    pub output_buffer: [T; PERMUTATION_WIDTH],
-}
-
-impl<T: Clone> ChallengerPublicValues<T> {
-    pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
-        &self,
-        challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH, HASH_RATE>,
-    ) where
-        T: PrimeField32,
-    {
-        challenger.sponge_state = self.sponge_state;
-        let num_inputs = self.num_inputs.as_canonical_u32() as usize;
-        challenger.input_buffer = self.input_buffer[..num_inputs].to_vec();
-        let num_outputs = self.num_outputs.as_canonical_u32() as usize;
-        challenger.output_buffer = self.output_buffer[..num_outputs].to_vec();
-    }
-
-    pub fn as_array(&self) -> [T; CHALLENGER_STATE_NUM_ELTS]
-    where
-        T: Copy,
-    {
-        unsafe {
-            let mut ret = [MaybeUninit::<T>::zeroed().assume_init(); CHALLENGER_STATE_NUM_ELTS];
-            let pv: &mut ChallengerPublicValues<T> = ret.as_mut_slice().borrow_mut();
-            *pv = *self;
-            ret
-        }
-    }
-}
-
-impl<T: Copy> IntoIterator for ChallengerPublicValues<T> {
-    type Item = T;
-    type IntoIter = std::array::IntoIter<T, CHALLENGER_STATE_NUM_ELTS>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.as_array().into_iter()
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     #![allow(clippy::print_stdout)]
@@ -543,17 +450,17 @@ pub(crate) mod tests {
         witness::OuterWitness,
     };
     use slop_algebra::AbstractField;
-    use slop_baby_bear::BabyBear;
+
     use slop_bn254::Bn254Fr;
     use slop_challenger::{
         CanObserve, CanSample, CanSampleBits, DuplexChallenger, FieldChallenger,
         MultiField32Challenger,
     };
     use slop_jagged::JaggedConfig;
-    use slop_merkle_tree::{
-        my_bb_16_perm, outer_perm, DefaultMerkleTreeConfig, OuterPerm, Perm, Poseidon2Bn254Config,
-    };
+    use slop_merkle_tree::{outer_perm, DefaultMerkleTreeConfig, OuterPerm, Poseidon2Bn254Config};
     use slop_symmetric::{CryptographicHasher, Hash, PseudoCompressionFunction};
+    use sp1_hypercube::{inner_perm, SP1CoreJaggedConfig, SP1OuterConfig};
+    use sp1_primitives::{SP1Field, SP1Perm};
     use sp1_recursion_compiler::{
         circuit::{AsmBuilder, AsmCompiler, AsmConfig},
         config::OuterConfig,
@@ -562,11 +469,10 @@ pub(crate) mod tests {
     };
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
     use sp1_recursion_machine::test::run_recursion_test_machines;
-    use sp1_stark::{BabyBearPoseidon2, Bn254JaggedConfig};
 
     use crate::challenger::{DuplexChallengerVariable, FieldChallengerVariable};
 
-    type SC = BabyBearPoseidon2;
+    type SC = SP1CoreJaggedConfig;
     type C = OuterConfig;
     type F = <SC as JaggedConfig>::F;
     type EF = <SC as JaggedConfig>::EF;
@@ -574,16 +480,17 @@ pub(crate) mod tests {
     #[tokio::test]
     #[allow(clippy::uninlined_format_args)]
     async fn test_compiler_challenger() {
-        let default_perm = my_bb_16_perm();
-        let mut challenger = DuplexChallenger::<BabyBear, Perm, 16, 8>::new(default_perm.clone());
+        let default_perm = inner_perm();
+        let mut challenger =
+            DuplexChallenger::<SP1Field, SP1Perm, 16, 8>::new(default_perm.clone());
         challenger.observe(F::one());
         challenger.observe(F::two());
         challenger.observe(F::two());
         challenger.observe(F::two());
         let result: F = challenger.sample();
-        println!("expected result: {}", result);
+        println!("expected result: {result}");
         let result_ef: EF = challenger.sample_ext_element();
-        println!("expected result_ef: {}", result_ef);
+        println!("expected result_ef: {result_ef}");
 
         let mut builder = AsmBuilder::<F, EF>::default();
 
@@ -620,14 +527,14 @@ pub(crate) mod tests {
     #[tokio::test]
     #[allow(clippy::uninlined_format_args)]
     async fn test_challenger_outer() {
-        type SC = Bn254JaggedConfig;
+        type SC = SP1OuterConfig;
         type F = <SC as JaggedConfig>::F;
         type EF = <SC as JaggedConfig>::EF;
         type N = <C as Config>::N;
 
         let default_perm = outer_perm();
         let mut challenger =
-            MultiField32Challenger::<BabyBear, Bn254Fr, OuterPerm, 3, 2>::new(default_perm.clone())
+            MultiField32Challenger::<SP1Field, Bn254Fr, OuterPerm, 3, 2>::new(default_perm.clone())
                 .unwrap();
         challenger.observe(F::one());
         challenger.observe(F::two());
@@ -636,16 +543,16 @@ pub(crate) mod tests {
         let commit = Hash::from([N::two()]);
         challenger.observe(commit);
         let result: F = challenger.sample();
-        println!("expected result: {}", result);
+        println!("expected result: {result}");
         let result_ef: EF = challenger.sample_ext_element();
-        println!("expected result_ef: {}", result_ef);
+        println!("expected result_ef: {result_ef}");
         let mut bits = challenger.sample_bits(30);
         let mut bits_vec = vec![];
         for _ in 0..30 {
             bits_vec.push(bits % 2);
             bits >>= 1;
         }
-        println!("expected bits: {:?}", bits_vec);
+        println!("expected bits: {bits_vec:?}");
 
         let mut builder = Builder::<C>::default();
 
@@ -695,7 +602,7 @@ pub(crate) mod tests {
         let two: Var<_> = builder.eval(N::two());
 
         let to_swap = [[one], [two]];
-        let result = Bn254JaggedConfig::select_chain_digest(&mut builder, one, to_swap);
+        let result = SP1OuterConfig::select_chain_digest(&mut builder, one, to_swap);
 
         builder.assert_var_eq(result[0][0], two);
         builder.assert_var_eq(result[1][0], one);
@@ -710,14 +617,14 @@ pub(crate) mod tests {
     fn test_p2_hash() {
         let (hasher, _) = Poseidon2Bn254Config::default_hasher_and_compressor();
 
-        let input: [BabyBear; 7] = [
-            BabyBear::from_canonical_u32(0),
-            BabyBear::from_canonical_u32(1),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
+        let input: [SP1Field; 7] = [
+            SP1Field::from_canonical_u32(0),
+            SP1Field::from_canonical_u32(1),
+            SP1Field::from_canonical_u32(2),
+            SP1Field::from_canonical_u32(2),
+            SP1Field::from_canonical_u32(2),
+            SP1Field::from_canonical_u32(2),
+            SP1Field::from_canonical_u32(2),
         ];
         let output: [Bn254Fr; 1] = hasher.hash_iter(input);
 
@@ -729,7 +636,7 @@ pub(crate) mod tests {
         let e: Felt<_> = builder.eval(input[4]);
         let f: Felt<_> = builder.eval(input[5]);
         let g: Felt<_> = builder.eval(input[6]);
-        let result = Bn254JaggedConfig::hash(&mut builder, &[a, b, c, d, e, f, g]);
+        let result = SP1OuterConfig::hash(&mut builder, &[a, b, c, d, e, f, g]);
 
         builder.assert_var_eq(result[0], output[0]);
 
@@ -741,7 +648,7 @@ pub(crate) mod tests {
     #[test]
     fn test_p2_compress() {
         type OuterDigestVariable = [Var<<C as Config>::N>; BN254_DIGEST_SIZE];
-        let (_, compressor) = Poseidon2Bn254Config::default_hasher_and_compressor();
+        let (_, compressor) = Poseidon2Bn254Config::<SP1Field>::default_hasher_and_compressor();
 
         let a: [Bn254Fr; 1] = [Bn254Fr::two()];
         let b: [Bn254Fr; 1] = [Bn254Fr::two()];
@@ -750,7 +657,7 @@ pub(crate) mod tests {
         let mut builder = Builder::<C>::default();
         let a: OuterDigestVariable = [builder.eval(a[0])];
         let b: OuterDigestVariable = [builder.eval(b[0])];
-        let result = Bn254JaggedConfig::compress(&mut builder, [a, b]);
+        let result = SP1OuterConfig::compress(&mut builder, [a, b]);
         builder.assert_var_eq(result[0], gt[0]);
 
         let mut backend = ConstraintCompiler::<C>::default();
