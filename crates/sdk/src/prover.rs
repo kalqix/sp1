@@ -15,7 +15,7 @@ use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::types::Elf;
 use sp1_prover::{
-    components::{CpuSP1ProverComponents, SP1ProverComponents},
+    components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     local::LocalProver,
     CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
@@ -53,7 +53,7 @@ pub trait Prover: Clone + Send + Sync {
         Self: 'a;
 
     /// The inner [`LocalProver`] struct used by the prover.
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ProverComponents>>;
+    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>>;
 
     /// The version of the current SP1 circuit.
     fn version(&self) -> &str {
