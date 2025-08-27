@@ -229,7 +229,7 @@ impl Sp1BusInteractionHandler {
                 // By the assumption that x0 is never written to, we know the result.
                 repeat_n(RangeConstraint::from_value(BabyBearField::zero()), 4)
             } else {
-                // By the assumption that all data written to registers or memory is range-checked,
+                // By the assumption that all data written to registers or memory are range-checked,
                 // we can return a 16-Bit range constraint for the data limbs.
                 repeat_n(bit16_constraint(), 4)
             };
