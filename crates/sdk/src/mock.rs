@@ -6,7 +6,7 @@ use std::pin::Pin;
 
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
-    components::CpuSP1ProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
+    components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
     SP1VerifyingKey,
 };
 
@@ -30,7 +30,7 @@ impl MockProver {
     /// Create a new mock prover.
     #[must_use]
     pub async fn new() -> Self {
-        Self { inner: CpuProver::new().await }
+        Self { inner: CpuProver::new(Vec::new()).await }
     }
 }
 
@@ -41,7 +41,7 @@ impl Prover for MockProver {
 
     type ProveRequest<'a> = MockProveRequest<'a>;
 
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ProverComponents>> {
+    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
         self.inner.inner()
     }
 

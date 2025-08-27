@@ -53,6 +53,8 @@ alloy-primitives = { version = "1.0", default-features = false, optional = true,
   "serde",
 ] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+powdr-autoprecompiles.workspace = true
+slop-baby-bear = { workspace = true }
 
 # TEE Dependencies
 k256 = { version = "0.13.3", features = ["serde"] } # Signing

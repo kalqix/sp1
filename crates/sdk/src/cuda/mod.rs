@@ -21,8 +21,8 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::{CudaClientError, CudaProver as CudaProverImpl, CudaProvingKey};
 use sp1_primitives::Elf;
 use sp1_prover::{
-    components::CpuSP1ProverComponents, local::LocalProver, SP1CoreProofData, SP1ProofWithMetadata,
-    SP1VerifyingKey,
+    components::CpuSP1ApcProverComponents, local::LocalProver, SP1CoreProofData,
+    SP1ProofWithMetadata, SP1VerifyingKey,
 };
 
 /// A prover that uses the CPU for execution and the CUDA for proving.
@@ -37,7 +37,7 @@ impl Prover for CudaProver {
     type Error = CudaClientError;
     type ProveRequest<'a> = CudaProveRequest<'a>;
 
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ProverComponents>> {
+    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
         self.cpu_prover.inner()
     }
 
