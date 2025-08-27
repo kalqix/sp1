@@ -2030,11 +2030,13 @@ impl<'a> Executor<'a> {
                 if self.print_report && !E::UNCONSTRAINED {
                     self.report.apc_counts.entry(apc.id).or_default().state_bump_error += 1;
                 }
+                apc.executor.record = Box::default();
                 Err(ApcExecutionError::StateBump)
             } else if !apc.executor.record.bump_memory_events.is_empty() {
                 if self.print_report && !E::UNCONSTRAINED {
                     self.report.apc_counts.entry(apc.id).or_default().memory_bump_error += 1;
                 }
+                apc.executor.record = Box::default();
                 Err(ApcExecutionError::MemoryBump)
             } else {
                 Ok(())
