@@ -65,6 +65,7 @@ hex = "0.4"
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
+rand = "0.8"
 
 # [[bin]]
 # name = "build_plonk_bn254"

@@ -1,3 +1,5 @@
+use core::fmt;
+
 use powdr_autoprecompiles::blocks::Instruction;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
@@ -11,6 +13,12 @@ pub struct Sp1Instruction(pub sp1_core_executor::Instruction);
 impl From<sp1_core_executor::Instruction> for Sp1Instruction {
     fn from(instr: sp1_core_executor::Instruction) -> Self {
         Self(instr)
+    }
+}
+
+impl fmt::Display for Sp1Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
     }
 }
 
