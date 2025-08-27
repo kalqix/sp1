@@ -61,6 +61,35 @@ pub enum DeferredProofVerification {
     Disabled,
 }
 
+/// The choice available for the prover at this pc
+#[derive(Clone, Copy)]
+pub enum ProverChoice<I> {
+    /// The prover must execute the software version
+    Software(I),
+    /// The prover can choose between the APC and software versions
+    ApcOrSoftware(I, I),
+}
+
+impl<I: Clone> ProverChoice<&I> {
+    fn cloned(&self) -> ProverChoice<I> {
+        match *self {
+            ProverChoice::Software(instruction) => ProverChoice::Software(instruction.clone()),
+            ProverChoice::ApcOrSoftware(apc, software) => {
+                ProverChoice::ApcOrSoftware(apc.clone(), software.clone())
+            }
+        }
+    }
+}
+
+impl<I> ProverChoice<I> {
+    fn software(&self) -> &I {
+        match self {
+            ProverChoice::Software(instruction) => instruction,
+            ProverChoice::ApcOrSoftware(_, software) => software,
+        }
+    }
+}
+
 impl From<bool> for DeferredProofVerification {
     fn from(value: bool) -> Self {
         if value {
@@ -1569,35 +1598,40 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
+    fn fetch<E: ExecutorConfig>(&mut self) -> ProverChoice<Instruction> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            *instruction
+            instruction.cloned()
         } else {
-            // Check that the page is executable.
-            let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
-            let page_prot =
-                self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
-            assert!(*page_prot & PROT_EXEC != 0);
+            ProverChoice::Software({
+                // Check that the page is executable.
+                let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
+                let page_prot = self
+                    .state
+                    .page_prots
+                    .get(&page_prot_page_idx)
+                    .unwrap_or(&(PROT_READ | PROT_WRITE));
+                assert!(*page_prot & PROT_EXEC != 0);
 
-            // Fetch it from memory.
-            let aligned_pc = align(self.state.pc);
+                // Fetch it from memory.
+                let aligned_pc = align(self.state.pc);
 
-            // TODO: Add a record for a dynamic program entry.
-            let memory_value = self.double_word::<E>(aligned_pc);
+                // TODO: Add a record for a dynamic program entry.
+                let memory_value = self.double_word::<E>(aligned_pc);
 
-            let alignment_offset = self.state.pc - aligned_pc;
-            let instruction_value: u32 =
-                (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
+                let alignment_offset = self.state.pc - aligned_pc;
+                let instruction_value: u32 =
+                    (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
-            if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
-                *instruction
-            } else {
-                let instruction =
-                    process_instruction(&mut self.transpiler, instruction_value).unwrap();
-                self.decoded_instruction_cache.insert(self.state.pc, instruction);
-                instruction
-            }
+                if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
+                    *instruction
+                } else {
+                    let instruction =
+                        process_instruction(&mut self.transpiler, instruction_value).unwrap();
+                    self.decoded_instruction_cache.insert(self.state.pc, instruction);
+                    instruction
+                }
+            })
         }
     }
 
@@ -1605,8 +1639,10 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_instruction<E: ExecutorConfig>(
         &mut self,
-        instruction: &Instruction,
+        instruction: &ProverChoice<Instruction>,
     ) -> Result<(), ExecutionError> {
+        let instruction = instruction.software();
+
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
@@ -2752,7 +2788,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log<E: ExecutorConfig>(&mut self, _: &Instruction) {
+    fn log<E: ExecutorConfig>(&mut self, _: &ProverChoice<Instruction>) {
         #[cfg(feature = "profiling")]
         if let Some((ref mut profiler, _)) = self.profiler {
             if !E::UNCONSTRAINED {
