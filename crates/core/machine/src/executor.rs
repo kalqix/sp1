@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::{self, Seek, SeekFrom},
     marker::PhantomData,
@@ -107,7 +106,7 @@ pub fn trace_checkpoint(
     program: Arc<Program>,
     file: &File,
     opts: SP1CoreOpts,
-    apc_costs: BTreeMap<u64, u64>,
+    apc_costs: Vec<u64>,
 ) -> (Vec<ExecutionRecord>, ExecutionReport) {
     let noop = NoOpSubproofVerifier;
 

@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 use slop_algebra::Field;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use crate::{air::MachineAir, Chip, MachineRecord};
 
@@ -56,17 +56,22 @@ where
     /// Calculates the cost of each APC as its air width, which is the number of columns.
     /// This is used in the cost estimator to determine when to segment.
     #[must_use]
-    pub fn apc_costs(&self) -> BTreeMap<u64, u64> {
+    pub fn apc_costs(&self) -> Vec<u64> {
         // Searching name by "ApcChip" is more of a hack, but is the best that we can do
         // because pattern matching on RiscvAirWithApcs::ApcChip requires dependency on
         // sp1-core-machine which depends on this crate and thus creates a circular
         // dependency.
         self.chips
             .iter()
-            .filter(|chip| chip.name().starts_with("ApcChip"))
-            .enumerate()
-            // We rely on the fact that APC id is the same as ApcChip insertion order in Machine
-            .map(|(id, chip)| (id as u64, chip.air.width() as u64))
+            .filter_map(|chip| {
+                if chip.name().starts_with("ApcChip") {
+                    // We also rely on the fact that APC id is the same as ApcChip insertion order
+                    // in Machine. APC id is the index of the returned vector.
+                    Some(chip.air.width() as u64)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
