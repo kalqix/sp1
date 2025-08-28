@@ -13,7 +13,7 @@ use crate::air::{SP1Operation, WordAirBuilder};
 /// A set of columns needed to compute the addition of two Words as an u48 address.
 #[derive(
     AlignedBorrow,
-    StructReflection
+    StructReflection,
     Default,
     Copy,
     Serialize,

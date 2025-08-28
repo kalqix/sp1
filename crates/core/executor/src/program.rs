@@ -46,7 +46,7 @@ pub struct Program {
 
 /// Instructions of a program, including the proving instructions (which end up in the Program
 /// chip), the ranges which have APC chips, and the execution instructions used by the executor.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Instructions {
     /// The original instructions of the program.
     proving: Vec<Instruction>,
@@ -69,7 +69,7 @@ fn apc_instruction(apc_index: usize) -> Instruction {
 }
 
 /// Represents a APC range.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct ApcRange {
     start_idx: usize,
     len: usize,

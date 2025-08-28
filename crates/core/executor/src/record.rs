@@ -23,9 +23,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
-        InstructionDecodeEvent, InstructionFetchEvent, JumpEvent, MemInstrEvent,
-        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
+        AluEvent, ApcEvent, ApcEvents, BranchEvent, ByteLookupEvent, ByteRecord,
+        GlobalInteractionEvent, InstructionDecodeEvent, InstructionFetchEvent, JumpEvent,
+        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PrecompileEvent, PrecompileEvents,
         SyscallEvent, UTypeEvent,
     },
@@ -435,14 +435,10 @@ impl ExecutionRecord {
     #[inline]
     pub fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
         let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
-        precompile_local_page_prot_events.chain(self.cpu_local_page_prot_access.iter())
-    }
-
-    /// Get all the local page prot events.
-    #[inline]
-    pub fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
-        let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
-        precompile_local_page_prot_events.chain(self.cpu_local_page_prot_access.iter())
+        let apc_local_page_prot_events = self.apc_events.get_local_page_prot_events();
+        precompile_local_page_prot_events
+            .chain(apc_local_page_prot_events)
+            .chain(self.cpu_local_page_prot_access.iter())
     }
 }
 

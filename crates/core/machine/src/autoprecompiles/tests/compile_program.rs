@@ -175,7 +175,7 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
 
     let sp1_program = Sp1Program::from(Arc::new(Program::from(&elf).unwrap()));
     let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
-    let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
+    let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::SP1Field>::new();
 
     // Check total number of basic blocks produced
     let basic_blocks =

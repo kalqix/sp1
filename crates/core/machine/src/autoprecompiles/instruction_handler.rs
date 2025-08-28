@@ -11,7 +11,6 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, Register, RiscvAirId};
-use sp1_stark::air::MachineAir;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstructionType {

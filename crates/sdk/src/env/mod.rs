@@ -19,7 +19,7 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-use slop_baby_bear::BabyBear;
+use slop_baby_bear::SP1Field;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_primitives::Elf;
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
@@ -47,7 +47,7 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {}
+    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {}
 
     pub async fn new() -> Self {
         Self::from_env_with_opts(None).await

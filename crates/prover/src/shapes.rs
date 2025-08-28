@@ -71,7 +71,7 @@ pub const DEFAULT_ARITY: usize = 4;
 /// single core shard proof.
 #[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SP1NormalizeInputShape<A: MachineAir<SP1Field>> {
-    pub proof_shapes: Vec<CoreProofShape<BabyBear, A>>,
+    pub proof_shapes: Vec<CoreProofShape<SP1Field, A>>,
     pub max_log_row_count: usize,
     pub log_blowup: usize,
     pub log_stacking_height: usize,
@@ -97,7 +97,7 @@ pub enum VkBuildError {
     Bincode(#[from] bincode::Error),
 }
 
-impl<A: MachineAir<BabyBear>> SP1NormalizeInputShape<A> {
+impl<A: MachineAir<SP1Field>> SP1NormalizeInputShape<A> {
     pub fn dummy_input(&self, vk: SP1VerifyingKey) -> SP1NormalizeWitnessValues<CoreSC> {
         let shard_proofs = self
             .proof_shapes
@@ -131,7 +131,7 @@ pub struct SP1NormalizeCache<A: MachineAir<SP1Field>> {
     hits: AtomicUsize,
 }
 
-impl<A: MachineAir<BabyBear>> SP1NormalizeCache<A> {
+impl<A: MachineAir<SP1Field>> SP1NormalizeCache<A> {
     pub fn new(size: usize) -> Self {
         let size = NonZero::new(size).expect("size must be non-zero");
         let lru = LruCache::new(size);
@@ -315,7 +315,7 @@ impl SP1RecursionProofShape {
     #[allow(dead_code)]
     async fn max_arity<C: SP1ProverComponents>(&self, prover: &SP1RecursionProver<C>) -> usize
     where
-        <C::CoreComponents as MachineProverComponents>::Air: MachineAir<BabyBear>
+        <C::CoreComponents as MachineProverComponents>::Air: MachineAir<SP1Field>
             + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
     {
         let mut arity = 0;
@@ -579,7 +579,7 @@ pub async fn build_vk_map_to_file<C: SP1ProverComponents + 'static>(
     prover: Arc<SP1Prover<C>>,
 ) -> Result<(), VkBuildError>
 where
-    <C::CoreComponents as MachineProverComponents>::Air: MachineAir<BabyBear>
+    <C::CoreComponents as MachineProverComponents>::Air: MachineAir<SP1Field>
         + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     // Create the build directory if it doesn't exist.
@@ -614,7 +614,7 @@ fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> 
 }
 
 fn create_all_input_shapes<A: MachineAir<SP1Field>>(
-    core_shape: &MachineShape<BabyBear, A>,
+    core_shape: &MachineShape<SP1Field, A>,
     max_arity: usize,
 ) -> Vec<SP1RecursionProgramShape<A>> {
     let (max_preprocessed_multiple, _, capacity) = normalize_program_parameter_space();

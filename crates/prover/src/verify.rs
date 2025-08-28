@@ -68,7 +68,7 @@ where
 {
     pub fn machine(
         &self,
-    ) -> &Machine<BabyBear, <C::CoreComponents as MachineProverComponents>::Air> {
+    ) -> &Machine<SP1Field, <C::CoreComponents as MachineProverComponents>::Air> {
         self.core_prover.machine()
     }
 

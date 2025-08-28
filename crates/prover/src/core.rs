@@ -88,11 +88,11 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
         elf: &[u8],
     ) -> (
         PreprocessedData<MachineProvingKey<C>>,
-        Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
+        Arc<<<C as MachineProverComponents>::Air as MachineAir<SP1Field>>::Program>,
         SP1VerifyingKey,
     ) {
         let program =
-            <<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program::from_elf(elf)
+            <<C as MachineProverComponents>::Air as MachineAir<SP1Field>>::Program::from_elf(elf)
                 .unwrap();
         let program = self.machine().customize_program(program);
         let program = Arc::new(program);
@@ -104,7 +104,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     #[must_use]
     pub async fn setup_with_vk(
         &self,
-        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
+        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<SP1Field>>::Program>,
         vk: SP1VerifyingKey,
     ) -> PreprocessedData<MachineProvingKey<C>> {
         let (pk, _) = self.prover.setup(program, Some(vk.vk)).await;
@@ -136,7 +136,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
     #[must_use]
     pub async fn setup_and_prove_shard(
         &self,
-        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<BabyBear>>::Program>,
+        program: Arc<<<C as MachineProverComponents>::Air as MachineAir<SP1Field>>::Program>,
         vk: Option<SP1VerifyingKey>,
         record: ExecutionRecord,
     ) -> (MachineVerifyingKey<CoreSC>, ShardProof<CoreSC>) {

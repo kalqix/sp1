@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::ExecutionRecord;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+use super::PageProtLocalEvent;
+
+#[derive(Deserialize, Serialize, Debug, Clone, deepsize2::DeepSizeOf)]
 /// Represents an apc event in the executor.
 pub struct ApcEvent {
     /// The apc id
@@ -19,7 +21,7 @@ pub struct ApcEvent {
 }
 
 /// A record of all the apc events.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, deepsize2::DeepSizeOf)]
 pub struct ApcEvents {
     #[serde(serialize_with = "serialize_hashmap_as_vec")]
     #[serde(deserialize_with = "deserialize_hashmap_as_vec")]
@@ -79,6 +81,17 @@ impl ApcEvents {
 
         iterators.into_iter().flatten()
     }
+
+    /// Get all the local page prot events from all the precompile events.
+    pub(crate) fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
+        let mut iterators = Vec::new();
+
+        for (_, events) in self.events.iter() {
+            iterators.push(events.get_local_page_prot_events());
+        }
+
+        iterators.into_iter().flatten()
+    }
 }
 
 impl PrecompileLocalMemory for Vec<ApcEvent> {
@@ -87,5 +100,10 @@ impl PrecompileLocalMemory for Vec<ApcEvent> {
             .flat_map(|event| event.record.get_local_mem_events())
             .collect::<Vec<_>>() // collecting because otherwise we get a recursive opaque type error
             .into_iter()
+    }
+
+    fn get_local_page_prot_events(&self) -> impl IntoIterator<Item = &PageProtLocalEvent> {
+        todo!();
+        std::iter::empty()
     }
 }

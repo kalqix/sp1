@@ -638,7 +638,7 @@ where
 /// The program that proves the correct execution of the verifier of a single shard of the core
 /// (RISC-V) machine.
 pub fn normalize_program_from_input<
-    A: MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+    A: MachineAir<SP1Field> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 >(
     recursive_verifier: &RecursiveShardVerifier<A, CoreSC, InnerConfig, JC<InnerConfig, CoreSC>>,
     input: &SP1NormalizeWitnessValues<CoreSC>,

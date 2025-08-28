@@ -10,8 +10,7 @@ use sp1_hypercube::{
 };
 
 use crate::memory::{
-    MemoryAccessCols, MemoryAccessTimestamp, PageProtAccessCols, RegisterAccessCols,
-    RegisterAccessTimestamp,
+    MemoryAccessCols, MemoryAccessTimestamp, RegisterAccessCols, RegisterAccessTimestamp,
 };
 
 pub trait MemoryAirBuilder: BaseAirBuilder {

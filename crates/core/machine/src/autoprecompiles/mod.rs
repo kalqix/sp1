@@ -20,8 +20,7 @@ use powdr_autoprecompiles::{
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
-use slop_baby_bear::BabyBear;
-use sp1_build::{BuildArgs, DEFAULT_TARGET_64};
+use sp1_build::{BuildArgs, DEFAULT_TARGET};
 use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
 use std::{collections::HashMap, sync::Arc};
 
@@ -44,7 +43,7 @@ const DEFAULT_DEGREE_BOUND: DegreeBound =
 
 pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     'a,
-    Sp1InstructionHandler<BabyBear>,
+    Sp1InstructionHandler<SP1Field>,
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
@@ -53,7 +52,7 @@ pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
 }
 
-pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<BabyBear>) -> VmConfig<'a> {
+pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<SP1Field>) -> VmConfig<'a> {
     // Need to pass in a handler due to VmConfig lifetime OR return a static lifetime VmConfig
     VmConfig {
         instruction_handler: handler,
@@ -128,7 +127,7 @@ impl CompiledProgram {
         let program = Sp1Program::from(Arc::new(Program::from(elf).unwrap()));
         let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
-        let airs = Sp1InstructionHandler::<BabyBear>::new();
+        let airs = Sp1InstructionHandler::<SP1Field>::new();
         let vm_config = sp1_vm_config(&airs);
 
         // Currently we don't support the max_total_apc_columns option for cell PGO
@@ -186,7 +185,7 @@ pub fn create_apcs(
             // Build the APC from the block
             powdr_autoprecompiles::build::<Sp1ApcAdapter>(
                 block,
-                sp1_vm_config(&Sp1InstructionHandler::<BabyBear>::new()),
+                sp1_vm_config(&Sp1InstructionHandler::<SP1Field>::new()),
                 DEFAULT_DEGREE_BOUND,
                 None,
             )

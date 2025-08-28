@@ -110,7 +110,13 @@ pub struct ForkState {
 
 impl Default for ForkState {
     fn default() -> Self {
-        Self { global_clk: 0, clk: 0, pc: 0, memory_diff: Memory::new_preallocated() }
+        Self {
+            global_clk: 0,
+            clk: 0,
+            pc: 0,
+            memory_diff: Memory::new_preallocated(),
+            page_prots_diff: HashMap::default(),
+        }
     }
 }
 

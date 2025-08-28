@@ -14,7 +14,7 @@ use powdr_constraint_solver::{
 use powdr_number::{BabyBearField, FieldElement, LargeInt};
 use sp1_core_executor::ByteOpcode;
 use sp1_curves::{One, Zero};
-use sp1_stark::InteractionKind;
+use sp1_hypercube::InteractionKind;
 use std::{collections::BTreeMap, fmt::Display, hash::Hash};
 
 #[derive(Clone)]

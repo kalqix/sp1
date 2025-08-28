@@ -15,7 +15,7 @@ use super::{AddrAddOperation, AddrAddOperationInput};
 /// A set of columns needed to validate the address and return the aligned address.
 #[derive(
     AlignedBorrow,
-    StructReflection
+    StructReflection,
     Default,
     Debug,
     Clone,

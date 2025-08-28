@@ -91,7 +91,7 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
     maximum_compose_arity: usize,
     normalize_programs: BTreeMap<
         SP1NormalizeInputShape<<C::CoreComponents as MachineProverComponents>::Air>,
-        Arc<RecursionProgram<BabyBear>>,
+        Arc<RecursionProgram<SP1Field>>,
     >,
     vk_verification: bool,
     compute_recursion_vks_at_initialization: bool,
@@ -101,7 +101,7 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
 impl<C: SP1ProverComponents> SP1ProverBuilder<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air:
-        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+        MachineAir<SP1Field> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new_multi_permits(

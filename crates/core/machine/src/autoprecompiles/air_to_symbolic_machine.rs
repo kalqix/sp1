@@ -18,10 +18,6 @@ use slop_algebra::PrimeField32;
 use slop_uni_stark::{
     get_symbolic_constraints, Entry, SymbolicAirBuilder, SymbolicExpression, SymbolicVariable,
 };
-use sp1_stark::{
-    air::{InteractionScope, MachineAir},
-    PROOF_MAX_NUM_PVS,
-};
 
 use crate::autoprecompiles::{
     bus_map::sp1_bus_map,

@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
+use crate::{apc::Apcs, events::ApcEvent};
 use crate::{
     estimator::RecordEstimator,
     events::{
@@ -1751,7 +1751,7 @@ impl<'a> Executor<'a> {
     fn fetch<E: ExecutorConfig>(&mut self) -> Result<ProverChoice<Instruction>, ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            Ok(instruction.clone())
+            Ok(instruction.cloned())
         } else if self.opts.page_protect {
             let aligned_pc = align(self.state.pc);
 
@@ -2180,7 +2180,7 @@ impl<'a> Executor<'a> {
 
         // Execute as many cycles as the APC has original instructions.
         for _ in 0..apc.original_instructions_count {
-            let instruction = apc.executor.fetch::<E>();
+            let instruction = apc.executor.fetch::<E>().unwrap();
             debug_assert!(matches!(instruction, ProverChoice::Software(_)));
             apc.executor.execute_instruction::<E>(&instruction)?;
 
