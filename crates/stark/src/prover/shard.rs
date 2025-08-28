@@ -23,7 +23,7 @@ use slop_multilinear::{
 use slop_sumcheck::{reduce_sumcheck_to_evaluation, PartialSumcheckProof};
 use slop_tensor::Tensor;
 use std::borrow::Borrow;
-use tracing::Instrument;
+use tracing::{Instrument, Level};
 
 use crate::{
     air::{MachineAir, MachineProgram},
@@ -33,6 +33,7 @@ use crate::{
     ConstraintSumcheckFolder, LogUpEvaluations, LogUpGkrProver, Machine, MachineConfig,
     MachineRecord, MachineVerifyingKey, ShardOpenedValues, ShardProof,
 };
+use std::time::Instant;
 
 use super::{TraceGenerator, Traces, ZercocheckBackend, ZerocheckProverData};
 
@@ -656,6 +657,8 @@ impl<C: ShardProverComponents> ShardProver<C> {
         let ShardData { pk, main_trace_data } = data;
         let MainTraceData { traces, public_values, shard_chips, permit } = main_trace_data;
 
+        let start_time = Instant::now();
+
         // Log the shard data.
         let mut total_number_of_cells = 0;
         tracing::info!("Proving shard");
@@ -784,6 +787,17 @@ impl<C: ShardProverComponents> ShardProver<C> {
             public_values,
             shard_chips,
         };
+
+        // Emit machine-readable event to collect shard proof time.
+        let total_ms = start_time.elapsed().as_millis() as u64;
+        let shard = shard.to_string();
+        tracing::event!(
+            Level::INFO,
+            shard = shard,
+            total_ms = total_ms,
+            total_cells = total_number_of_cells as u64,
+            "prove_shard_with_data finished"
+        );
 
         (proof, permit)
     }

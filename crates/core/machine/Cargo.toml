@@ -57,7 +57,7 @@ num_cpus = "1.16.0"
 tempfile = "3.10.1"
 tracing = { workspace = true }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
-tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["std", "env-filter", "json"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = "1.0.63"
