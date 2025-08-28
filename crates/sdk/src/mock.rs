@@ -4,7 +4,9 @@
 
 use std::pin::Pin;
 
-use sp1_core_machine::io::SP1Stdin;
+use powdr_autoprecompiles::Apc;
+use slop_baby_bear::BabyBear;
+use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_prover::{
     components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
     SP1VerifyingKey,
@@ -29,8 +31,8 @@ pub struct MockProver {
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-    pub async fn new() -> Self {
-        Self { inner: CpuProver::new(Vec::new()).await }
+    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+        Self { inner: CpuProver::new(apcs).await }
     }
 }
 

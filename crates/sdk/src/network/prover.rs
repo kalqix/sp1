@@ -30,7 +30,9 @@ use crate::network::proto::types::GetProofRequestParamsResponse;
 
 use alloy_primitives::{Address, B256};
 use anyhow::{Context, Result};
-use sp1_core_machine::io::SP1Stdin;
+use powdr_autoprecompiles::Apc;
+use slop_baby_bear::BabyBear;
+use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_primitives::Elf;
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver, SP1_CIRCUIT_VERSION};
 
@@ -103,8 +105,12 @@ impl NetworkProver {
     /// let prover = NetworkProver::new("...", "...");
     /// ```
     #[must_use]
-    pub async fn new(private_key: &str, rpc_url: &str) -> Self {
-        let prover = CpuProver::new(Vec::new()).await;
+    pub async fn new(
+        private_key: &str,
+        rpc_url: &str,
+        apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>,
+    ) -> Self {
+        let prover = CpuProver::new(apcs).await;
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client: Arc::new(client), prover, tee_signers: Arc::new([]) }
     }

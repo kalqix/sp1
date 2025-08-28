@@ -2,8 +2,13 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
+use std::sync::Arc;
+
 use super::CudaProver;
 use crate::cpu::CpuProver;
+use powdr_autoprecompiles::Apc;
+use slop_baby_bear::BabyBear;
+use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
 use sp1_cuda::CudaProver as CudaProverImpl;
 
 /// A builder for the [`CudaProver`].
@@ -12,6 +17,7 @@ use sp1_cuda::CudaProver as CudaProverImpl;
 #[derive(Debug, Default)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
+    apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>,
 }
 
 impl CudaProverBuilder {
@@ -33,6 +39,13 @@ impl CudaProverBuilder {
         self
     }
 
+    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
+    #[must_use]
+    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+        self.apcs = apcs;
+        self
+    }
+
     /// Builds a [`CudaProver`].
     ///
     /// # Details
@@ -46,7 +59,7 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
-        let cpu_prover = CpuProver::new(Vec::new()).await;
+        let cpu_prover = CpuProver::new(self.apcs).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,
