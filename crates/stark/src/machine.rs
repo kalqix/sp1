@@ -53,6 +53,9 @@ where
     F: Field,
     A: MachineAir<F>,
 {
+    /// Calculates the cost of each APC as its air width, which is the number of columns.
+    /// This is used in the cost estimator to determine when to segment.
+    #[must_use]
     pub fn apc_costs(&self) -> BTreeMap<u64, u64> {
         // Searching name by "ApcChip" is more of a hack, but is the best that we can do
         // because pattern matching on RiscvAirWithApcs::ApcChip requires dependency on

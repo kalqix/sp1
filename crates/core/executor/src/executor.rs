@@ -340,6 +340,8 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
+    /// Create a new [``Executor``] from a program, options, and APC costs.
+    #[must_use]
     pub fn new_with_apc_costs(
         program: Arc<Program>,
         opts: SP1CoreOpts,
@@ -388,12 +390,13 @@ impl<'a> Executor<'a> {
         }
     }
 
+    /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         Self::with_context_and_apc_costs(program, opts, context, BTreeMap::new())
     }
 
-    /// Create a new runtime from a program, options, and a context.
+    /// Create a new runtime from a program, options, a context, and APC costs.
     #[must_use]
     pub fn with_context_and_apc_costs(
         program: Arc<Program>,
@@ -497,7 +500,18 @@ impl<'a> Executor<'a> {
     /// Recover runtime state from a program and existing execution state.
     #[must_use]
     pub fn recover(program: Arc<Program>, state: ExecutionState, opts: SP1CoreOpts) -> Self {
-        let mut runtime = Self::new(program, opts);
+        Self::recover_with_apc_costs(program, state, opts, BTreeMap::new())
+    }
+
+    /// Recover runtime state from a program and existing execution state and APC costs.
+    #[must_use]
+    pub fn recover_with_apc_costs(
+        program: Arc<Program>,
+        state: ExecutionState,
+        opts: SP1CoreOpts,
+        apc_costs: BTreeMap<u64, u64>,
+    ) -> Self {
+        let mut runtime = Self::new_with_apc_costs(program, opts, apc_costs);
         runtime.state = state;
         // Disable deferred proof verification since we're recovering from a checkpoint, and the
         // checkpoint creator already had a chance to check the proofs.
@@ -1651,7 +1665,7 @@ impl<'a> Executor<'a> {
             }
             if instruction.is_apc_instruction() {
                 // increment apc count by apc id
-                *self.local_counts.event_counts.1.get_mut(&instruction.op_b).unwrap() += 1;
+                *self.local_counts.event_counts.1.entry(instruction.op_b).or_insert(0) += 1;
             } else {
                 self.local_counts.event_counts.0[instruction.opcode] += 1;
             }
@@ -2185,10 +2199,12 @@ impl<'a> Executor<'a> {
                 if let Some(ShardingThreshold { element_threshold, height_threshold }) =
                     self.sharding_threshold
                 {
-                    let padded_event_counts =
-                        pad_rv32im_event_counts(self.event_counts, self.size_check_frequency);
+                    let padded_event_counts = pad_rv32im_event_counts(
+                        self.event_counts.clone(),
+                        self.size_check_frequency,
+                    );
                     let (padded_element_count, max_height) = estimate_trace_elements(
-                        padded_event_counts,
+                        &padded_event_counts,
                         &self.costs,
                         self.program_len,
                         &self.internal_syscalls_air_id,
@@ -2241,10 +2257,10 @@ impl<'a> Executor<'a> {
                 &self.internal_syscalls_air_id,
             );
             // The above method estimates event counts only for core shards.
-            estimator.core_records.push(self.event_counts);
+            estimator.core_records.push(self.event_counts.clone());
         }
         self.record.estimated_trace_area = estimate_trace_elements(
-            self.event_counts,
+            &self.event_counts,
             &self.costs,
             self.program_len,
             &self.internal_syscalls_air_id,

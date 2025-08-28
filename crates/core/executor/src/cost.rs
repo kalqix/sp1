@@ -9,7 +9,7 @@ const RANGE_NUM_ROWS: u64 = 1 << 17;
 /// Estimates the LDE area.
 #[must_use]
 pub fn estimate_trace_elements(
-    num_events_per_air: (EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
+    num_events_per_air: &(EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
     costs_per_air: &(EnumMap<RiscvAirId, u64>, BTreeMap<u64, u64>),
     program_size: u64,
     internal_syscalls_air_id: &[RiscvAirId],
@@ -17,21 +17,24 @@ pub fn estimate_trace_elements(
     let mut max_height = 0;
 
     // Compute APC costs
-    let mut apc_cells = 0;
+    let mut cells = 0;
     for (apc_id, num_events) in num_events_per_air.1.iter() {
+        tracing::info!("apc id: {:?}", apc_id);
+        tracing::info!("apc costs: {:?}", costs_per_air.1);
         let width = costs_per_air.1[apc_id];
         tracing::info!(
-            "apc_id: {:?}, num_events: {}, width: {}, apc_cells: {}",
+            "apc_id: {}, num_events: {}, width: {}, apc_cells: {}",
             apc_id,
             num_events,
             width,
             num_events * width
         );
-        apc_cells += num_events * width;
+        cells += num_events * width;
+        max_height = max_height.max(*num_events);
     }
 
     // Compute the byte chip contribution.
-    let mut cells = BYTE_NUM_ROWS * costs_per_air.0[RiscvAirId::Byte];
+    cells += BYTE_NUM_ROWS * costs_per_air.0[RiscvAirId::Byte];
 
     // Compute the range chip contribution.
     cells += RANGE_NUM_ROWS * costs_per_air.0[RiscvAirId::Range];
