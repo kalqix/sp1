@@ -437,6 +437,13 @@ impl ExecutionRecord {
         let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
         precompile_local_page_prot_events.chain(self.cpu_local_page_prot_access.iter())
     }
+
+    /// Get all the local page prot events.
+    #[inline]
+    pub fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
+        let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
+        precompile_local_page_prot_events.chain(self.cpu_local_page_prot_access.iter())
+    }
 }
 
 /// A memory access record.

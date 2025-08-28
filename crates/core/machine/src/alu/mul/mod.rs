@@ -13,7 +13,10 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
+<<<<<<< HEAD
 use struct_reflection::{StructReflection, StructReflectionHelper};
+=======
+>>>>>>> 97e41af957ca8c9e38f35947627fed6a0e7ee56c
 use sp1_hypercube::{air::MachineAir, Word};
 
 use crate::{

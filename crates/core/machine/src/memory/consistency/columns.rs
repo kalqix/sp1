@@ -62,13 +62,9 @@ pub struct RegisterAccessTimestamp<T> {
 #[derive(
     AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
 )]
-#[repr(C)]
 pub struct RegisterAccessCols<T> {
     pub prev_value: Word<T>,
     pub access_timestamp: RegisterAccessTimestamp<T>,
-}
-
-/// Page Permission Access Columns, when the shard and previous shard are known to be equal
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct PageProtAccessCols<T> {

@@ -139,7 +139,7 @@ where
             SP1NormalizeInputShape<
                 <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
             >,
-            Arc<RecursionProgram<BabyBear>>,
+            Arc<RecursionProgram<Sp1Field>>,
         >,
         max_compose_arity: usize,
         vk_verification: bool,

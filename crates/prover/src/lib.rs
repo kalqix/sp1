@@ -29,9 +29,7 @@ use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use slop_air::Air;
 use slop_uni_stark::SymbolicAirBuilder;
 use sp1_core_executor::Program;
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-use sp1_recursion_compiler::config::InnerConfig;
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use sp1_hypercube::prover::{CpuShardProver, MachineProverBuilder, ProverSemaphore};
 use sp1_recursion_executor::RecursionProgram;
@@ -94,10 +92,6 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
     normalize_programs: BTreeMap<
         SP1NormalizeInputShape<<C::CoreComponents as MachineProverComponents>::Air>,
         Arc<RecursionProgram<BabyBear>>,
-    >,
-    normalize_programs: BTreeMap<
-        SP1NormalizeInputShape<<C::CoreComponents as MachineProverComponents>::Air>,
-        Arc<RecursionProgram<SP1Field>>,
     >,
     vk_verification: bool,
     compute_recursion_vks_at_initialization: bool,

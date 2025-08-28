@@ -47,9 +47,8 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-<<<<<<< HEAD
-    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
-=======
+    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {}
+
     pub async fn new() -> Self {
         Self::from_env_with_opts(None).await
     }
@@ -79,7 +78,6 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
@@ -93,11 +91,7 @@ impl EnvProver {
         }
 
         match prover.as_str() {
-<<<<<<< HEAD
-            "cpu" => Self::Cpu(CpuProver::new(apcs).await),
-=======
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts).await),
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
+            "cpu" => Self::Cpu(CpuProver::new_with_opts(apcs, core_opts).await),
             "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
             "mock" => Self::Mock(MockProver::new().await),
             #[cfg(feature = "network")]

@@ -5,12 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-<<<<<<< HEAD
-sp1-zkvm = { package = "sp1-zkvm-64", path = "../../../../crates/zkvm/entrypoint64" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", rev = "patch-2.0.2-sp1-6.0.0", features = [
-=======
 sp1-zkvm = {  path = "../../../../crates/zkvm/entrypoint" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2", features = [
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
   "keccak",
 ] }

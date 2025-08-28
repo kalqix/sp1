@@ -550,17 +550,12 @@ mod tests {
         let (pk, vk) = prover.setup(program.clone(), ProverSemaphore::new(1)).await;
         let pk = unsafe { pk.into_inner() };
         let (proof, _) = prove_core::<
-<<<<<<< HEAD
-            BabyBear,
+            SP1Field,
             CpuMachineProverComponents<
                 slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
-                RiscvAir<BabyBear>,
+                RiscvAir<SP1Field>,
             >,
-            RiscvAir<BabyBear>,
-=======
-            SP1Field,
-            CpuMachineProverComponents<SP1CpuJaggedProverComponents, RiscvAir<SP1Field>>,
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
+            RiscvAir<SP1Field>,
         >(
             verifier.clone(),
             prover,

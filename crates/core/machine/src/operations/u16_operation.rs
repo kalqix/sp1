@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::air::SP1AirBuilder;
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_BYTE_SIZE, WORD_SIZE};
-use sp1_stark::air::SP1AirBuilder;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::{SP1Operation, WordAirBuilder};

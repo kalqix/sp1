@@ -73,10 +73,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {
-<<<<<<< HEAD
-        CpuProver::new(Vec::new()).await
-=======
-        CpuProver::new_with_opts(self.core_opts).await
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
+        CpuProver::new_with_opts(Vec::new(), self.core_opts).await
     }
 }

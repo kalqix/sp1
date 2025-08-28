@@ -1751,15 +1751,8 @@ impl<'a> Executor<'a> {
     fn fetch<E: ExecutorConfig>(&mut self) -> Result<ProverChoice<Instruction>, ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            Ok(instruction.cloned())
+            Ok(instruction.clone())
         } else if self.opts.page_protect {
-            // Check that the page is executable.
-            let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
-            let page_prot =
-                self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
-            assert!(*page_prot & PROT_EXEC != 0);
-
-            // Fetch it from memory.
             let aligned_pc = align(self.state.pc);
 
             let timestamp = self.timestamp(&MemoryAccessPosition::UntrustedInstruction);

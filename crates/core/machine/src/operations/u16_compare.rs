@@ -3,8 +3,8 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode,
 };
-use struct_reflection::{StructReflection, StructReflectionHelper};
 use sp1_hypercube::air::SP1AirBuilder;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};

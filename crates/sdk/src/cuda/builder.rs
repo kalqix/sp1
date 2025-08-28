@@ -82,11 +82,7 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
-<<<<<<< HEAD
-        let cpu_prover = CpuProver::new(Vec::new()).await;
-=======
-        let cpu_prover = CpuProver::new_with_opts(self.core_opts).await;
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
+        let cpu_prover = CpuProver::new_with_opts(Vec::new(), self.core_opts).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,

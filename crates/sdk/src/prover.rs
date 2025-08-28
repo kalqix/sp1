@@ -21,15 +21,12 @@ use sp1_prover::{
     local::LocalProver,
     CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
-<<<<<<< HEAD
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_stark::{
     air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
     VerifierConstraintFolder,
 };
-=======
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 use thiserror::Error;
 
 /// The module that exposes the [`ExecuteRequest`] type.
@@ -155,20 +152,15 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
     version: &str,
     bundle: &SP1ProofWithPublicValues,
     vkey: &SP1VerifyingKey,
-<<<<<<< HEAD
+    status_code: Option<StatusCode>,
 ) -> Result<(), SP1VerificationError>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
-    // Check that the SP1 version matches the version of the currentcircuit.
-=======
-    status_code: Option<StatusCode>,
-) -> Result<(), SP1VerificationError> {
     let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
 
     // Check that the SP1 version matches the version of the current circuit.
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
     if bundle.sp1_version != version {
         return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
     }

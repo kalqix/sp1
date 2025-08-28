@@ -1247,6 +1247,11 @@ pub mod tests {
     use slop_air::BaseAir;
 
     use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_primitives::SP1Field;
+
+    use slop_air::BaseAir;
+
+    use sp1_core_executor::{Instruction, Opcode, Program};
     use sp1_primitives::io::SP1PublicValues;
     use sp1_primitives::SP1Field;
 

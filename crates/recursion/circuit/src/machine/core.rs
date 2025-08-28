@@ -12,12 +12,8 @@ use sp1_primitives::SP1Field;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::RiscvAir;
 
-<<<<<<< HEAD
+use sp1_hypercube::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS};
 use sp1_recursion_executor::PV_DIGEST_NUM_WORDS;
-use sp1_stark::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS};
-=======
-use sp1_hypercube::air::PublicValues;
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 
 use sp1_hypercube::{MachineConfig, MachineVerifyingKey, ShardProof};
 
@@ -66,13 +62,8 @@ pub struct SP1NormalizeWitnessValues<SC: MachineConfig> {
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
-<<<<<<< HEAD
-pub struct SP1RecursiveVerifier<A, C: Config, SC: BabyBearFriConfig, JC: RecursiveJaggedConfig> {
+pub struct SP1RecursiveVerifier<A, C: Config, SC: SP1FieldFriConfig, JC: RecursiveJaggedConfig> {
     _phantom: PhantomData<(A, C, SC, JC)>,
-=======
-pub struct SP1RecursiveVerifier<C: Config, SC: SP1FieldFriConfig, JC: RecursiveJaggedConfig> {
-    _phantom: PhantomData<(C, SC, JC)>,
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
 }
 
 type InnerVal = <InnerSC as JaggedConfig>::F;
@@ -80,12 +71,8 @@ type InnerChallenge = <InnerSC as JaggedConfig>::EF;
 
 impl<A, C, SC, JC> SP1RecursiveVerifier<A, C, SC, JC>
 where
-<<<<<<< HEAD
     A: MachineAir<<SC as JaggedConfig>::F> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
-    SC: BabyBearFriConfigVariable<
-=======
-    SC: SP1FieldConfigVariable<
->>>>>>> 65e12dc97d2dc327097c7b8f3ef49d507ea8100f
+    SC: Sp1FieldFriConfigVariable<
             C,
             FriChallengerVariable = DuplexChallengerVariable<C>,
             DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],

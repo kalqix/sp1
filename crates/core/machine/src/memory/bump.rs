@@ -63,7 +63,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
         let blu_batches = event_iter
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
-                events.iter().for_each(|(event, _)| {
+                events.iter().for_each(|(event, addr)| {
                     let mut row = [F::zero(); NUM_MEMORY_BUMP_COLS];
                     let cols: &mut MemoryBumpCols<F> = row.as_mut_slice().borrow_mut();
                     let bump_event = MemoryRecordEnum::Read(MemoryReadRecord {
