@@ -32,7 +32,7 @@ use alloy_primitives::{Address, B256};
 use anyhow::{Context, Result};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::Elf;
-use sp1_prover::{components::CpuSP1ProverComponents, local::LocalProver, SP1_CIRCUIT_VERSION};
+use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver, SP1_CIRCUIT_VERSION};
 
 use tokio::time::sleep;
 
@@ -50,7 +50,7 @@ impl Prover for NetworkProver {
     type Error = anyhow::Error;
     type ProveRequest<'a> = NetworkProveBuilder<'a>;
 
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ProverComponents>> {
+    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
         self.prover.prover.clone()
     }
 
@@ -104,7 +104,7 @@ impl NetworkProver {
     /// ```
     #[must_use]
     pub async fn new(private_key: &str, rpc_url: &str) -> Self {
-        let prover = CpuProver::new().await;
+        let prover = CpuProver::new(Vec::new()).await;
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client: Arc::new(client), prover, tee_signers: Arc::new([]) }
     }

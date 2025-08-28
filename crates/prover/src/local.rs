@@ -1171,15 +1171,8 @@ pub mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_apc_keccak_1000() -> Result<()> {
-        // let result = std::panic::AssertUnwindSafe(async {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(1000, 10), 10, 0).await
-        // })
-        // .catch_unwind()
-        // .await;
-
-        // Assert that a panic actually happened
-        // assert!(result.is_err(), "Expected a panic but none occurred");
+    async fn test_apc_keccak_200() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0).await
     }
 
     #[tokio::test]

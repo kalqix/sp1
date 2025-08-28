@@ -8,6 +8,17 @@ use hashbrown::HashMap;
 
 use crate::{events::generate_execution_report, syscalls::SyscallCode, Opcode};
 
+/// Counts the number of times an APC was invoked along with its success and failure reasons.
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
+pub struct ApcCount {
+    /// The number of successful runs of this apc
+    pub success: u64,
+    /// The number of runs of this apc which failed because of a state bump error
+    pub state_bump_error: u64,
+    /// The number of runs of this apc which failed because of a memory bump error
+    pub memory_bump_error: u64,
+}
+
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
@@ -15,6 +26,8 @@ pub struct ExecutionReport {
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
     /// The syscall counts.
     pub syscall_counts: Box<EnumMap<SyscallCode, u64>>,
+    /// The apc counts.
+    pub apc_counts: Box<HashMap<u64, ApcCount>>,
     /// The cycle tracker counts.
     pub cycle_tracker: HashMap<String, u64>,
     /// Tracker for the number of `cycle-tracker-report-*` invocations for a specific label.

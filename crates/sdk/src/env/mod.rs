@@ -16,10 +16,12 @@ pub mod pk;
 /// The module that defines the prove request for the [`EnvProver`].
 pub mod prove;
 pub use pk::EnvProvingKey;
+use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-use sp1_core_machine::io::SP1Stdin;
+use slop_baby_bear::BabyBear;
+use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_primitives::Elf;
-use sp1_prover::{components::CpuSP1ProverComponents, local::LocalProver};
+use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
 use std::sync::Arc;
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
@@ -44,14 +46,21 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new() -> Self {
+    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
+        if prover.as_str() != "cpu" && !apcs.is_empty() {
+            unimplemented!(
+                "APCs are only supported for the CPU prover. \
+                Please set the SP1_PROVER environment variable to 'cpu' or remove the APCs."
+            );
+        }
+
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new().await),
+            "cpu" => Self::Cpu(CpuProver::new(apcs).await),
             "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
             "mock" => Self::Mock(MockProver::new().await),
             #[cfg(feature = "network")]
@@ -77,7 +86,7 @@ impl Prover for EnvProver {
     type ProvingKey = EnvProvingKey;
     type ProveRequest<'a> = prove::EnvProveRequest<'a>;
 
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ProverComponents>> {
+    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
         match self {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),

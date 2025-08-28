@@ -24,6 +24,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {
-        CpuProver::new().await
+        CpuProver::new(Vec::new()).await
     }
 }
