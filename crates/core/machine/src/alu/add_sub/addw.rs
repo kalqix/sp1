@@ -19,10 +19,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
-<<<<<<< HEAD
 use struct_reflection::{StructReflection, StructReflectionHelper};
-=======
->>>>>>> 97e41af957ca8c9e38f35947627fed6a0e7ee56c
 
 use crate::{
     adapter::{

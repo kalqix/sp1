@@ -15,13 +15,9 @@ use crate::{
 };
 
 /// A set of columns needed to compute the sub of two words.
-<<<<<<< HEAD
 #[derive(
     AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder, StructReflection,
 )]
-=======
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder)]
->>>>>>> 97e41af957ca8c9e38f35947627fed6a0e7ee56c
 #[repr(C)]
 pub struct SubwOperation<T> {
     /// The result of `a - b`.

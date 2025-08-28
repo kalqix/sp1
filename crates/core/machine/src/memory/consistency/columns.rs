@@ -65,9 +65,4 @@ pub struct RegisterAccessTimestamp<T> {
 pub struct RegisterAccessCols<T> {
     pub prev_value: Word<T>,
     pub access_timestamp: RegisterAccessTimestamp<T>,
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct PageProtAccessCols<T> {
-    pub prev_prot_bitmap: T,
-    pub access_timestamp: MemoryAccessTimestamp<T>,
 }
