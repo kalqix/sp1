@@ -157,7 +157,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let column_names_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::column_names(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::column_names(x)
                 }
             });
 
@@ -207,7 +207,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 let field_ty = &field.ty;
                 quote! {
                     #name::#variant_name(x) =>
-                        <#field_ty as sp1_stark::air::MachineAir<F>>::customize_program(x, program)
+                        <#field_ty as sp1_hypercube::air::MachineAir<F>>::customize_program(x, program)
                 }
             });
 

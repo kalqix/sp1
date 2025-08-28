@@ -15,6 +15,8 @@ use crate::air::{SP1Operation, WordAirBuilder};
     AlignedBorrow,
     StructReflection,
     Default,
+    Debug,
+    Clone,
     Copy,
     Serialize,
     Deserialize,

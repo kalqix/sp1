@@ -28,7 +28,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use struct_reflection::StructReflection;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadHalfChip;

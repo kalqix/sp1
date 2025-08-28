@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use slop_algebra::PrimeField32;
 use sp1_hypercube::{
-    air::PublicValues,
+    air::{MachineAir, PublicValues},
     prover::{
         MachineProverBuilder, MachineProverComponents, MachineProvingKey, MemoryPermit,
         ProverSemaphore,
@@ -290,7 +290,7 @@ where
         mpsc::unbounded_channel::<(ExecutionRecord, Option<MemoryPermit>)>();
 
     let machine_executor =
-        MachineExecutor::<F>::new(u32::MAX as u64, num_record_workers, opts.clone(), machine);
+        MachineExecutor::<F, A>::new(u32::MAX as u64, num_record_workers, opts.clone(), machine);
 
     let prover_permits = ProverSemaphore::new(5);
     let prover = MachineProverBuilder::<PC>::new(verifier, vec![prover_permits], vec![prover])

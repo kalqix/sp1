@@ -13,7 +13,7 @@ use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program, ProverChoice};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::{MachineAir, SP1AirBuilder};
 
@@ -102,7 +102,11 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                         F::from_canonical_u16(((pc >> 16) & 0xFFFF) as u16),
                         F::from_canonical_u16(((pc >> 32) & 0xFFFF) as u16),
                     ];
-                    let instruction = program.instructions[idx];
+                    let choice = program.instructions.get_choice(idx).unwrap();
+                    let instruction = match choice {
+                        ProverChoice::Software(i) => i,
+                        ProverChoice::ApcOrSoftware(..) => unreachable!(),
+                    };
                     cols.instruction.populate(&instruction);
                 });
             });
@@ -238,8 +242,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut rows = input
             .program
             .instructions
-            .clone()
-            .into_iter()
+            .proving()
+            .cloned()
             .enumerate()
             .map(|(i, _)| {
                 let pc = input.program.pc_base + i as u64 * 4;

@@ -143,7 +143,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut blu_batches = Vec::new();
         for full_event in input.instruction_fetch_events.iter() {
-            let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+            let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
             let mut row = [F::zero(); NUM_INSTRUCTION_FETCH_COLS];
             let cols: &mut InstructionFetchCols<F> = row.as_mut_slice().borrow_mut();
             let (event, memory_access) = full_event;
@@ -177,7 +177,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
 
-        let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+        let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
         for event in input.instruction_fetch_events.iter() {
             let (event, memory_access) = event;
 

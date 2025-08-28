@@ -247,7 +247,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 65] {
+    pub fn airs() -> [RiscvAir<F>; 72] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -1291,7 +1291,7 @@ pub mod tests {
         stdin: SP1Stdin,
         opts: sp1_core_executor::SP1CoreOpts,
     ) -> Result<
-        (SP1PublicValues, sp1_stark::MachineProof<BabyBearPoseidon2>),
+        (SP1PublicValues, sp1_hypercube::MachineProof<BabyBearPoseidon2>),
         MachineVerifierConfigError<BabyBearPoseidon2>,
     > {
         crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await

@@ -12,7 +12,7 @@ use sp1_core_executor::{
     ExecutionState, Executor, Program, SP1Context, SP1CoreOpts,
 };
 use sp1_hypercube::{
-    air::PublicValues,
+    air::{MachineAir, PublicValues},
     prover::{MemoryPermit, MemoryPermitting},
     Machine, MachineRecord,
 };
@@ -22,20 +22,20 @@ use tracing::Span;
 
 use crate::{io::SP1Stdin, utils::concurrency::AsyncTurn};
 
-pub struct MachineExecutor<F: PrimeField32> {
+pub struct MachineExecutor<F: PrimeField32, A> {
     num_record_workers: usize,
     opts: SP1CoreOpts,
-    machine: Machine<F, RiscvAir<F>>,
+    machine: Machine<F, A>,
     memory: MemoryPermitting,
     _marker: std::marker::PhantomData<F>,
 }
 
-impl<F: PrimeField32> MachineExecutor<F> {
+impl<F: PrimeField32, A> MachineExecutor<F, A> {
     pub fn new(
         record_buffer_size: u64,
         num_record_workers: usize,
         opts: SP1CoreOpts,
-        machine: (),
+        machine: Machine<F, A>,
     ) -> Self {
         let memory = MemoryPermitting::new(record_buffer_size);
 

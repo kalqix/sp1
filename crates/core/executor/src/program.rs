@@ -49,7 +49,7 @@ pub struct Program {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Instructions {
     /// The original instructions of the program.
-    proving: Vec<Instruction>,
+    pub proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
     apcs: Vec<ApcRange>,
     /// The execution instructions, which replace the original instructions in the APC ranges with
