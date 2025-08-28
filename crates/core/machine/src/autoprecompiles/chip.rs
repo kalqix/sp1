@@ -18,6 +18,10 @@ use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program,
 };
+use sp1_hypercube::{
+    air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
+    InteractionKind, Machine,
+};
 
 use crate::{
     autoprecompiles::{

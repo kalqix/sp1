@@ -3,6 +3,7 @@ use core::fmt;
 use powdr_autoprecompiles::blocks::Instruction;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
+use sp1_primitives::SP1Field;
 
 use crate::program::instruction::InstructionCols;
 
