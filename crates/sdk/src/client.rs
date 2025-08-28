@@ -76,7 +76,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn cpu(&self) -> CpuProverBuilder {
-        CpuProverBuilder
+        CpuProverBuilder::default()
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -113,6 +113,6 @@ impl ProverClientBuilder {
     #[cfg(feature = "network")]
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
-        NetworkProverBuilder { private_key: None, rpc_url: None, tee_signers: None }
+        NetworkProverBuilder::default()
     }
 }

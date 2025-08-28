@@ -52,17 +52,10 @@ impl EnvProver {
             Err(_) => "cpu".to_string(),
         };
 
-        if prover.as_str() != "cpu" && !apcs.is_empty() {
-            unimplemented!(
-                "APCs are only supported for the CPU prover. \
-                Please set the SP1_PROVER environment variable to 'cpu' or remove the APCs."
-            );
-        }
-
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new(apcs).await),
-            "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
-            "mock" => Self::Mock(MockProver::new().await),
+            "cuda" => Self::Cuda(CudaProverBuilder::default().with_apcs(apcs).build().await),
+            "mock" => Self::Mock(MockProver::new(apcs).await),
             #[cfg(feature = "network")]
             "network" => {
                 let private_key =
@@ -71,8 +64,9 @@ impl EnvProver {
                 Please set it to your private key or use the .private_key() method.",
                     );
 
-                let network_builder =
-                    crate::network::builder::NetworkProverBuilder::new().private_key(&private_key);
+                let network_builder = crate::network::builder::NetworkProverBuilder::new()
+                    .private_key(&private_key)
+                    .apcs(apcs);
 
                 Self::Network(network_builder.build().await)
             }
