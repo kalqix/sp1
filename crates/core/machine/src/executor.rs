@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::{self, Seek, SeekFrom},
     marker::PhantomData,
@@ -107,14 +106,13 @@ pub fn trace_checkpoint(
     program: Arc<Program>,
     file: &File,
     opts: SP1CoreOpts,
-    apc_costs: BTreeMap<u64, u64>,
 ) -> (Vec<ExecutionRecord>, ExecutionReport) {
     let noop = NoOpSubproofVerifier;
 
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover_with_apc_costs(program, state, opts, apc_costs);
+    let mut runtime = Executor::recover(program, state, opts);
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
@@ -156,10 +154,6 @@ impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecuto
     pub fn build(&mut self) -> MachineExecutor<F> {
         let (task_tx, mut task_rx) = mpsc::unbounded_channel::<ExecuteTask>();
 
-        // Calculate apc costs for use in `trace_checkpoint` and `ExecuteTask`.
-        let apc_costs = self.machine.apc_costs();
-        tracing::info!("apc costs in executor builder build: {:?}", apc_costs);
-
         // Spawn the record generation tasks and initialize the channels for them.
         let mut record_worker_channels = Vec::with_capacity(self.num_record_workers);
         for _ in 0..self.num_record_workers {
@@ -167,7 +161,6 @@ impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecuto
             record_worker_channels.push(tx);
             let machine = self.machine.clone();
             let opts = self.opts.clone();
-            let apc_costs = apc_costs.clone();
             tokio::task::spawn_blocking(move || {
                 while let Some(task) = rx.blocking_recv() {
                     let RecordTask {
@@ -189,12 +182,7 @@ impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecuto
 
                     let (mut records, _) =
                         tracing::debug_span!("trace checkpoint").in_scope(|| {
-                            trace_checkpoint(
-                                program.clone(),
-                                &checkpoint_file,
-                                opts.clone(),
-                                apc_costs.clone(),
-                            )
+                            trace_checkpoint(program.clone(), &checkpoint_file, opts.clone())
                         });
 
                     checkpoint_file
@@ -347,12 +335,8 @@ impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecuto
                 }
 
                 // Setup the runtime.
-                let mut runtime = Box::new(Executor::with_context_and_apc_costs(
-                    program.clone(),
-                    opts.clone(),
-                    context,
-                    apc_costs.clone(),
-                ));
+                let mut runtime =
+                    Box::new(Executor::with_context(program.clone(), opts.clone(), context));
                 runtime.write_vecs(&stdin.buffer);
                 for proof in stdin.proofs.iter() {
                     let (proof, vk) = proof.clone();

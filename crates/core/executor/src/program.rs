@@ -13,6 +13,7 @@ use crate::{
     Opcode, ProverChoice, RiscvAirId,
 };
 use hashbrown::HashMap;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -23,6 +24,9 @@ use sp1_stark::{
     shape::Shape,
     InteractionKind,
 };
+
+/// Cost of APC, currently defined as number of columns.
+pub type ApcCost = u64;
 
 /// A program that can be executed by the SP1 zkVM.
 ///
@@ -51,7 +55,7 @@ pub struct Instructions {
     /// The original instructions of the program.
     proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
-    apcs: Vec<ApcRange>,
+    apcs: Vec<(ApcRange, ApcCost)>,
     /// The execution instructions, which replace the original instructions in the APC ranges with
     /// APC instructions.
     execution: Vec<Instruction>,
@@ -174,7 +178,7 @@ impl Instructions {
     }
 
     /// Get the apcs as an iterator.
-    pub(crate) fn apcs(&self) -> impl Iterator<Item = &ApcRange> {
+    pub(crate) fn apcs(&self) -> impl Iterator<Item = &(ApcRange, ApcCost)> {
         self.apcs.iter()
     }
 
@@ -185,9 +189,9 @@ impl Instructions {
     }
 
     /// Add an APC range to the instructions.
-    fn add_apc(mut self, range: ApcRange) -> Instructions {
+    fn add_apc(mut self, range: ApcRange, cost: ApcCost) -> Instructions {
         let apc_index = self.apcs.len();
-        self.apcs.push(range);
+        self.apcs.push((range, cost));
         // replace the whole range
         // the unimplemented instructions are not strictly required, but they help with debugging in
         // case we jump to the middle of a basic block, which should not happen.
@@ -208,15 +212,22 @@ impl Program {
     /// APC ranges.
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
-    pub fn with_apcs<R: Into<ApcRange>>(self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
+    pub fn with_apcs<R: Into<ApcRange>>(
+        self,
+        apc_ranges: impl IntoIterator<Item = R>,
+        apc_costs: impl IntoIterator<Item = ApcCost>,
+    ) -> Self {
         let apc_ranges: Vec<ApcRange> = apc_ranges.into_iter().map(Into::into).collect();
-        apc_ranges.into_iter().fold(self, Program::add_apc)
+        apc_ranges
+            .into_iter()
+            .zip_eq(apc_costs)
+            .fold(self, |program, (range, cost)| program.add_apc(range, cost))
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, range: ApcRange) -> Self {
-        self.instructions = self.instructions.add_apc(range);
+    pub fn add_apc(mut self, range: ApcRange, cost: ApcCost) -> Self {
+        self.instructions = self.instructions.add_apc(range, cost);
         self
     }
 

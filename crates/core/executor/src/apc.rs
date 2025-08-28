@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Executor, Program, SP1Context, SP1CoreOpts};
+use crate::{ApcCost, Executor, Program, SP1Context, SP1CoreOpts};
 
 /// Represents an autoprecompile (APC) in the executor.
 pub struct Apc<'a> {
@@ -8,14 +8,17 @@ pub struct Apc<'a> {
     pub id: u64,
     /// The number of original instructions in the autoprecompile.
     pub original_instructions_count: usize,
+    /// The cost of the autoprecompile for use in the cost estimator, currently defined as the
+    /// number of columns.
+    pub cost: ApcCost,
     /// A single executor which is used each time the autoprecompile is executed.
     /// Before executing the autoprecompile, it is synced with the current state of main execution.
     pub executor: Executor<'a>,
 }
 
 impl<'a> Apc<'a> {
-    pub fn new(id: u64, length: usize, executor: Executor<'a>) -> Self {
-        Self { id, original_instructions_count: length, executor }
+    pub fn new(id: u64, length: usize, cost: ApcCost, executor: Executor<'a>) -> Self {
+        Self { id, original_instructions_count: length, cost, executor }
     }
 }
 
@@ -51,11 +54,11 @@ impl<'a> Apcs<'a> {
             .instructions
             .apcs()
             .enumerate()
-            .map(|(id, range)| {
+            .map(|(id, (range, cost))| {
                 // Create an executor for the APC with the apc-free program
                 let apc_executor =
                     Executor::with_context(apc_free_program.clone(), opts.clone(), context.clone());
-                Apc::new(id as u64, range.len(), apc_executor)
+                Apc::new(id as u64, range.len(), *cost, apc_executor)
             })
             .collect();
         Apcs { apcs }
