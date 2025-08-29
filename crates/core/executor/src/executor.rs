@@ -3063,11 +3063,13 @@ mod tests {
         let program_without_apcs = Program::new(original_instructions, 0, 0);
 
         // Test with different APC ranges
-        for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
-            let should_execute_apcs = !apcs.is_empty();
+        for apc_range_and_cost in
+            [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+        {
+            let should_execute_apcs = !apc_range_and_cost.is_empty();
             // Here we set APC costs to a dummy [1, 1] if there are APCs
             let program = if should_execute_apcs {
-                program_without_apcs.clone().with_apcs(apcs, [1u64, 1u64])
+                program_without_apcs.clone().with_apcs(apc_range_and_cost)
             } else {
                 program_without_apcs.clone()
             };
