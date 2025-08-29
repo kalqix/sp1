@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
+use crate::{apc::Apcs, estimator::RecordEstimator, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -68,17 +68,6 @@ pub enum ProverChoice<I> {
     Software(I),
     /// The prover can choose between the APC and software versions
     ApcOrSoftware(I, I),
-}
-
-impl<I: Clone> ProverChoice<&I> {
-    fn cloned(&self) -> ProverChoice<I> {
-        match *self {
-            ProverChoice::Software(instruction) => ProverChoice::Software(instruction.clone()),
-            ProverChoice::ApcOrSoftware(apc, software) => {
-                ProverChoice::ApcOrSoftware(apc.clone(), software.clone())
-            }
-        }
-    }
 }
 
 impl From<bool> for DeferredProofVerification {
@@ -1193,7 +1182,6 @@ impl<'a> Executor<'a> {
         op_a_0: bool,
         record: MemoryAccessRecord,
         exit_code: u32,
-        apc_record: ExecutionRecord,
     ) {
         self.record.pc_start.get_or_insert(self.state.pc);
         self.record.next_pc = next_pc;
@@ -1252,8 +1240,6 @@ impl<'a> Executor<'a> {
                 exit_code,
                 instruction,
             );
-        } else if instruction.is_apc_instruction() {
-            self.emit_apc_event(b, apc_record);
         } else {
             unreachable!()
         }
@@ -1538,13 +1524,6 @@ impl<'a> Executor<'a> {
         self.record.syscall_events.push((syscall_event, record));
     }
 
-    /// Emit an APC event.
-    fn emit_apc_event(&mut self, apc_id: u64, record: ExecutionRecord) {
-        let event = ApcEvent { id: apc_id, record };
-        self.record.apc_events.add_event(apc_id, event);
-        // We assume that there are no dependencies for APC events.
-    }
-
     /// Fetch the destination register and input operand values for an ALU instruction.
     fn alu_rr<E: ExecutorConfig>(&mut self, instruction: &Instruction) -> (Register, u64, u64) {
         if !instruction.imm_c {
@@ -1607,10 +1586,10 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> ProverChoice<Instruction> {
+    fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            instruction.cloned()
+            *instruction
         } else {
             // Check that the page is executable.
             let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
@@ -1628,17 +1607,14 @@ impl<'a> Executor<'a> {
             let instruction_value: u32 =
                 (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
-            let res = if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc)
-            {
+            if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
                 *instruction
             } else {
                 let instruction =
                     process_instruction(&mut self.transpiler, instruction_value).unwrap();
                 self.decoded_instruction_cache.insert(self.state.pc, instruction);
                 instruction
-            };
-
-            ProverChoice::Software(res)
+            }
         }
     }
 
@@ -1646,14 +1622,13 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_instruction<E: ExecutorConfig>(
         &mut self,
-        choice: &ProverChoice<Instruction>,
+        instruction: &Instruction,
     ) -> Result<(), ExecutionError> {
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
-        let mut apc_record = ExecutionRecord::default();
         // Will be set to a non-default value if the instruction is a syscall.
 
         let (mut a, b, c): (u64, u64, u64);
@@ -1664,29 +1639,6 @@ impl<'a> Executor<'a> {
 
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
-
-        // Determine which instruction to run
-        let (instruction, apc_result) = match choice {
-            // if software is the only option, run software
-            ProverChoice::Software(instruction) => (instruction, None),
-            // if apc is an option, first try to run apc and fall back to software if that fails
-            ProverChoice::ApcOrSoftware(apc, software) => {
-                // Try to run the APC version first
-                match self.execute_apc::<E>(apc) {
-                    // if apc execution works, we are correct to be running apc
-                    Ok(result) => (apc, Some(Ok(result))),
-                    // if apc execution fails with an execution error, we do want to propagate the
-                    // error
-                    Err(ApcExecutionError::Execution(err)) => (apc, Some(Err(err))),
-                    // if apc execution fails with a state bump or memory access error, we want to
-                    // fall back to software
-                    Err(e @ (ApcExecutionError::StateBump | ApcExecutionError::MemoryBump)) => {
-                        tracing::error!("APC execution failed: {:?}, falling back to software", e);
-                        (software, None)
-                    }
-                }
-            }
-        };
 
         if !E::UNCONSTRAINED {
             if self.print_report {
@@ -1716,8 +1668,6 @@ impl<'a> Executor<'a> {
             self.rw_cpu::<E>(rd, a);
         } else if instruction.is_ecall_instruction() {
             (a, b, c, clk, next_pc, syscall, exit_code) = self.execute_ecall::<E>()?;
-        } else if instruction.is_apc_instruction() {
-            (a, b, c, next_pc, apc_record) = apc_result.unwrap()?;
         } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.is_unimp_instruction() {
@@ -1759,7 +1709,6 @@ impl<'a> Executor<'a> {
                 op_a_0,
                 self.memory_accesses,
                 exit_code,
-                apc_record,
             );
         }
 
@@ -1984,93 +1933,93 @@ impl<'a> Executor<'a> {
         (a, b, c, next_pc)
     }
 
-    /// Execute an APC instruction.
-    /// Returns a, b, c, the next pc and the execution record of the APC.
-    /// a and c are always 0 for APC instructions.
-    /// b is the id of the APC being executed.
-    /// The next pc is the pc obtained after executing the original instructions of the APC.
-    #[allow(clippy::type_complexity)]
-    fn execute_apc<E: ExecutorConfig>(
-        &mut self,
-        instruction: &Instruction,
-    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ApcExecutionError> {
-        let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
-        assert_eq!(*opcode, Opcode::APC);
-        assert!(*imm_b);
-        assert!(*imm_c);
-        assert_eq!(*op_a, 0);
-        assert_eq!(*op_c, 0);
+    // Execute an APC instruction.
+    // Returns a, b, c, the next pc and the execution record of the APC.
+    // a and c are always 0 for APC instructions.
+    // b is the id of the APC being executed.
+    // The next pc is the pc obtained after executing the original instructions of the APC.
+    // #[allow(clippy::type_complexity)]
+    // fn execute_apc<E: ExecutorConfig>(
+    //     &mut self,
+    //     instruction: &Instruction,
+    // ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ApcExecutionError> {
+    //     let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
+    //     assert_eq!(*opcode, Opcode::APC);
+    //     assert!(*imm_b);
+    //     assert!(*imm_c);
+    //     assert_eq!(*op_a, 0);
+    //     assert_eq!(*op_c, 0);
 
-        // select the APC using op_b
-        let apc = self
-            .apcs
-            .get_mut(*op_b)
-            // If the APC is not found, return an error.
-            .ok_or(ExecutionError::UnsupportedApc(*op_b))?;
+    //     // select the APC using op_b
+    //     let apc = self
+    //         .apcs
+    //         .get_mut(*op_b)
+    //         // If the APC is not found, return an error.
+    //         .ok_or(ExecutionError::UnsupportedApc(*op_b))?;
 
-        // Save the pc before executing the APC.
-        let original_pc = self.state.pc;
+    //     // Save the pc before executing the APC.
+    //     let original_pc = self.state.pc;
 
-        // Pass all the necessary execution data to the APC
-        // We clone because we may have to roll this back
-        apc.executor.state.clone_from(&self.state);
-        apc.executor.memory_checkpoint.clone_from(&self.memory_checkpoint);
-        apc.executor
-            .uninitialized_memory_checkpoint
-            .clone_from(&self.uninitialized_memory_checkpoint);
-        apc.executor.local_memory_access.clone_from(&self.local_memory_access);
+    //     // Pass all the necessary execution data to the APC
+    //     // We clone because we may have to roll this back
+    //     apc.executor.state.clone_from(&self.state);
+    //     apc.executor.memory_checkpoint.clone_from(&self.memory_checkpoint);
+    //     apc.executor
+    //         .uninitialized_memory_checkpoint
+    //         .clone_from(&self.uninitialized_memory_checkpoint);
+    //     apc.executor.local_memory_access.clone_from(&self.local_memory_access);
 
-        // Execute as many cycles as the APC has original instructions.
-        for _ in 0..apc.original_instructions_count {
-            let instruction = apc.executor.fetch::<E>();
-            debug_assert!(matches!(instruction, ProverChoice::Software(_)));
-            apc.executor.execute_instruction::<E>(&instruction)?;
+    //     // Execute as many cycles as the APC has original instructions.
+    //     for _ in 0..apc.original_instructions_count {
+    //         let instruction = apc.executor.fetch::<E>();
+    //         debug_assert!(matches!(instruction, ProverChoice::Software(_)));
+    //         apc.executor.execute_instruction::<E>(&instruction)?;
 
-            if !apc.executor.record.bump_state_events.is_empty() {
-                if self.print_report && !E::UNCONSTRAINED {
-                    self.report.apc_counts.entry(apc.id).or_default().state_bump_error += 1;
-                }
-                apc.executor.record = Box::default();
-                Err(ApcExecutionError::StateBump)
-            } else if !apc.executor.record.bump_memory_events.is_empty() {
-                if self.print_report && !E::UNCONSTRAINED {
-                    self.report.apc_counts.entry(apc.id).or_default().memory_bump_error += 1;
-                }
-                apc.executor.record = Box::default();
-                Err(ApcExecutionError::MemoryBump)
-            } else {
-                Ok(())
-            }?;
-        }
+    //         if !apc.executor.record.bump_state_events.is_empty() {
+    //             if self.print_report && !E::UNCONSTRAINED {
+    //                 self.report.apc_counts.entry(apc.id).or_default().state_bump_error += 1;
+    //             }
+    //             apc.executor.record = Box::default();
+    //             Err(ApcExecutionError::StateBump)
+    //         } else if !apc.executor.record.bump_memory_events.is_empty() {
+    //             if self.print_report && !E::UNCONSTRAINED {
+    //                 self.report.apc_counts.entry(apc.id).or_default().memory_bump_error += 1;
+    //             }
+    //             apc.executor.record = Box::default();
+    //             Err(ApcExecutionError::MemoryBump)
+    //         } else {
+    //             Ok(())
+    //         }?;
+    //     }
 
-        if self.print_report && !E::UNCONSTRAINED {
-            self.report.apc_counts.entry(apc.id).or_default().success += 1;
-        }
+    //     if self.print_report && !E::UNCONSTRAINED {
+    //         self.report.apc_counts.entry(apc.id).or_default().success += 1;
+    //     }
 
-        // The pc of the apc executor is the next pc in the main execution
-        let next_pc = apc.executor.state.pc;
+    //     // The pc of the apc executor is the next pc in the main execution
+    //     let next_pc = apc.executor.state.pc;
 
-        // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
-        let removed_record = std::mem::replace(
-            &mut apc.executor.record,
-            Box::new(ExecutionRecord::new(apc.executor.program.clone())),
-        );
+    //     // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
+    //     let removed_record = std::mem::replace(
+    //         &mut apc.executor.record,
+    //         Box::new(ExecutionRecord::new(apc.executor.program.clone())),
+    //     );
 
-        // After apc execution, put data back into the main executor
-        self.state = std::mem::take(&mut apc.executor.state);
-        self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
-        self.uninitialized_memory_checkpoint =
-            std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
-        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
-        self.state.pc = original_pc;
+    //     // After apc execution, put data back into the main executor
+    //     self.state = std::mem::take(&mut apc.executor.state);
+    //     self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
+    //     self.uninitialized_memory_checkpoint =
+    //         std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
+    //     self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
+    //     self.state.pc = original_pc;
 
-        // In total, the clock must be incremented by 8 for each instruction. However, this function
-        // is called by `execute_instruction` which also increments it by 8. So we need to
-        // decrement it by 8 here.
-        self.state.clk -= 8;
+    //     // In total, the clock must be incremented by 8 for each instruction. However, this
+    // function     // is called by `execute_instruction` which also increments it by 8. So we
+    // need to     // decrement it by 8 here.
+    //     self.state.clk -= 8;
 
-        Ok((0, apc.id, 0, next_pc, *removed_record))
-    }
+    //     Ok((0, apc.id, 0, next_pc, *removed_record))
+    // }
 
     /// Execute an ecall instruction.
     #[allow(clippy::type_complexity)]
@@ -2839,7 +2788,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log<E: ExecutorConfig>(&mut self, _: &ProverChoice<Instruction>) {
+    fn log<E: ExecutorConfig>(&mut self, _: &Instruction) {
         #[cfg(feature = "profiling")]
         if let Some((ref mut profiler, _)) = self.profiler {
             if !E::UNCONSTRAINED {

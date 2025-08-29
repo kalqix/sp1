@@ -1,16 +1,11 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{
-    fs::File,
-    io::Read,
-    iter::{once, repeat},
-    str::FromStr,
-};
+use std::{fs::File, io::Read, str::FromStr};
 
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    Opcode, ProverChoice, RiscvAirId,
+    RiscvAirId,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -62,10 +57,6 @@ impl From<Vec<Instruction>> for Instructions {
         // We execute and prove the same instructions
         Self { proving: original.clone(), apcs: Vec::new(), execution: original }
     }
-}
-
-fn apc_instruction(apc_index: usize) -> Instruction {
-    Instruction::new(Opcode::APC, 0, apc_index as u64, 0, true, true)
 }
 
 /// Represents a APC range.
@@ -143,23 +134,8 @@ impl Instructions {
 
     /// Get the execution instruction at the given index.
     #[must_use]
-    pub fn get_choice(&self, index: usize) -> Option<ProverChoice<&Instruction>> {
-        // TODO: refactor `Instructions` to encode this more naturally
-        match (self.execution.get(index), self.proving.get(index)) {
-            // for apc instructions, we give the option to run software
-            (Some(i @ Instruction { opcode: Opcode::APC, .. }), Some(original)) => {
-                Some(ProverChoice::ApcOrSoftware(i, original))
-            }
-            // for non-apc instructions, we only give the option to run the software version
-            (Some(instruction), Some(proving)) => {
-                // either we're inside an apc and we should have UNIMP, or we are outside and the
-                // instructions should match
-                debug_assert!(instruction.opcode == Opcode::UNIMP || instruction == proving);
-                Some(ProverChoice::Software(proving))
-            }
-            (None, None) => None,
-            _ => unreachable!(),
-        }
+    pub fn get_instruction(&self, index: usize) -> Option<&Instruction> {
+        self.proving.get(index)
     }
 
     /// Remove the apc ranges and modified instructions.
@@ -186,17 +162,7 @@ impl Instructions {
 
     /// Add an APC range to the instructions.
     fn add_apc(mut self, range: ApcRange) -> Instructions {
-        let apc_index = self.apcs.len();
         self.apcs.push(range);
-        // replace the whole range
-        // the unimplemented instructions are not strictly required, but they help with debugging in
-        // case we jump to the middle of a basic block, which should not happen.
-        for (instruction, value) in self.execution[range.start_idx..range.start_idx + range.len]
-            .iter_mut()
-            .zip(once(apc_instruction(apc_index)).chain(repeat(Instruction::unimp())))
-        {
-            *instruction = value;
-        }
         self
     }
 }
@@ -283,10 +249,10 @@ impl Program {
 
     #[must_use]
     /// Fetch the prover choice at the given program counter.
-    pub fn fetch(&self, pc: u64) -> Option<ProverChoice<&Instruction>> {
+    pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(self.instructions.get_choice(idx).unwrap())
+            Some(self.instructions.get_instruction(idx).unwrap())
         } else {
             None
         }
