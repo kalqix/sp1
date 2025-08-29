@@ -41,9 +41,12 @@ pub struct Program {
     pub apcs_by_start_idx: HashMap<usize, Apc>,
 }
 
+/// Represents an APC in the program, which is a range for which the prover can choose to run an alternative implementation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Apc {
+    /// The id for this APC
     pub id: u64,
+    /// The range for this APC
     pub range: ApcRange,
 }
 

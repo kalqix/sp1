@@ -9,14 +9,18 @@ use hashbrown::HashMap;
 use crate::{events::generate_execution_report, syscalls::SyscallCode, Opcode};
 
 /// Counts the number of times an APC was invoked along with its success and failure reasons.
+/// Note that in theory many reasons can lead to an APC failing, so the sum of the fields is *NOT*
+/// necessarily equal to the total number of invocations.
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct ApcCount {
     /// The number of successful runs of this apc
     pub success: u64,
-    /// The number of runs of this apc which failed because of a state bump error
+    /// The number of runs of this apc in which a state bump error occured
     pub state_bump_error: u64,
-    /// The number of runs of this apc which failed because of a memory bump error
+    /// The number of runs of this apc in which a memory bump error occured
     pub memory_bump_error: u64,
+    /// The number of runs of this apc in which a segmentation occurred
+    pub segmentation_error: u64,
 }
 
 /// An execution report.
