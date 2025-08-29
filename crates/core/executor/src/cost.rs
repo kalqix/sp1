@@ -184,8 +184,9 @@ pub fn pad_rv32im_event_counts(
     });
     // TODO: padding increases ALL apc and non-apc events by `num_cycles`, which defaults to 16.
     // This can preemptively segment if the sum of all APC sizes is very large.
-    // To be more exact, if the sum of all APC sizes is larger than 1/16 of the cell limit per
-    // shard of 1<<29 - 1<<27, segmentation will happen every 16 instructions.
+    // To be more exact, if the sum of all APC columns is larger than 1/16 of the cell limit per
+    // shard of 1<<29 - 1<<27, or 25 million columns, segmentation will happen every 16
+    // instructions.
     event_counts.apc.iter_mut().for_each(|(_, v)| *v += num_cycles);
     event_counts
 }
