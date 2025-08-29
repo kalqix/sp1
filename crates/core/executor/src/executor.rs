@@ -2094,7 +2094,7 @@ impl<'a> Executor<'a> {
                 // revert
                 self.local_counts = apc_candidate.snapshot.local_counts.clone();
                 // add 1 to this apc
-                // self.local_counts.apc_counts[apc_candidate.apc.id as usize] += 1;
+                *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
 
                 // update the report
                 self.report = apc_candidate.snapshot.report.clone();
