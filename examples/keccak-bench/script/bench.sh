@@ -10,4 +10,7 @@ if [ "$3" == "manual" ]; then
   SUFFIX="_manual"
 fi
 
-RUST_LOG_FORMAT=json RUST_LOG=debug cargo run -r -- --num-hashes $NUM_HASHES --apcs $APCS $MANUAL_FLAG | ../../parse_logs.py > results_${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}.csv
+name=${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}
+
+RUST_LOG_FORMAT=json RUST_LOG=debug cargo run -r -- --num-hashes $NUM_HASHES --apcs $APCS $MANUAL_FLAG > $log_${name}.txt
+cat ${name}_log.txt | ../../parse_logs.py > results_${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}.csv
