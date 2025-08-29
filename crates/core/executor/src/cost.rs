@@ -1,6 +1,4 @@
-use enum_map::EnumMap;
-
-use crate::RiscvAirId;
+use crate::{EventCosts, EventCounts, RiscvAirId};
 
 const BYTE_NUM_ROWS: u64 = 1 << 16;
 const RANGE_NUM_ROWS: u64 = 1 << 17;
@@ -8,15 +6,27 @@ const RANGE_NUM_ROWS: u64 = 1 << 17;
 /// Estimates the LDE area.
 #[must_use]
 pub fn estimate_trace_elements(
-    num_events_per_air: EnumMap<RiscvAirId, u64>,
-    costs_per_air: &EnumMap<RiscvAirId, u64>,
+    num_events_per_air: &EventCounts<RiscvAirId>,
+    costs_per_air: &EventCosts,
     program_size: u64,
     internal_syscalls_air_id: &[RiscvAirId],
 ) -> (u64, u64) {
-    let mut max_height = 0;
+    // Compute APC costs
+    let (mut cells, mut max_height) = num_events_per_air.apc.iter().fold(
+        (0u64, 0u64),
+        |(cells, max_height), (apc_id, num_events)| {
+            let width = costs_per_air.apc[apc_id];
+            let new_cells = cells + (num_events * width);
+            let new_max_height = max_height.max(*num_events);
+            (new_cells, new_max_height)
+        },
+    );
+
+    let costs_per_air = costs_per_air.core;
+    let num_events_per_air = num_events_per_air.core;
 
     // Compute the byte chip contribution.
-    let mut cells = BYTE_NUM_ROWS * costs_per_air[RiscvAirId::Byte];
+    cells += BYTE_NUM_ROWS * costs_per_air[RiscvAirId::Byte];
 
     // Compute the range chip contribution.
     cells += RANGE_NUM_ROWS * costs_per_air[RiscvAirId::Range];
@@ -127,7 +137,7 @@ pub fn estimate_trace_elements(
         * costs_per_air[RiscvAirId::StoreWord];
     max_height = max_height.max(num_events_per_air[RiscvAirId::StoreWord]);
     cells += (num_events_per_air[RiscvAirId::StoreDouble]).next_multiple_of(32)
-        * costs_per_air[RiscvAirId::StoreWord];
+        * costs_per_air[RiscvAirId::StoreWord]; // TODO: is this a bug from sp1 original?
     max_height = max_height.max(num_events_per_air[RiscvAirId::StoreDouble]);
 
     // Compute the syscall instruction chip contribution.
@@ -164,13 +174,19 @@ pub fn estimate_trace_elements(
 #[must_use]
 #[allow(clippy::match_same_arms)]
 pub fn pad_rv32im_event_counts(
-    mut event_counts: EnumMap<RiscvAirId, u64>,
+    mut event_counts: EventCounts<RiscvAirId>,
     num_cycles: u64,
-) -> EnumMap<RiscvAirId, u64> {
-    event_counts.iter_mut().for_each(|(k, v)| match k {
+) -> EventCounts<RiscvAirId> {
+    event_counts.core.iter_mut().for_each(|(k, v)| match k {
         RiscvAirId::MemoryLocal => *v += 64 * num_cycles,
         RiscvAirId::Global => *v += 512 * num_cycles,
         _ => *v += num_cycles,
     });
+    // TODO: padding increases ALL apc and non-apc events by `num_cycles`, which defaults to 16.
+    // This can preemptively segment if the sum of all APC sizes is very large.
+    // To be more exact, if the sum of all APC columns is larger than 1/16 of the cell limit per
+    // shard of 1<<29 - 1<<27, or 25 million columns, segmentation will happen every 16
+    // instructions.
+    event_counts.apc.iter_mut().for_each(|(_, v)| *v += num_cycles);
     event_counts
 }

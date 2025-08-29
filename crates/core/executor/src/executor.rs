@@ -1,13 +1,13 @@
+use std::{collections::BTreeMap, num::Wrapping, str::FromStr, sync::Arc};
 #[cfg(feature = "profiling")]
 use std::{fs::File, io::BufWriter};
-use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use crate::{apc::Apcs, estimator::RecordEstimator, events::ApcEvent, NUM_REGISTERS};
 
 use clap::ValueEnum;
-use enum_map::EnumMap;
+use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rrs_lib::process_instruction;
@@ -68,6 +68,43 @@ pub enum ProverChoice<I> {
     Software(I),
     /// The prover can choose between the APC and software versions
     ApcOrSoftware(I, I),
+}
+
+/// The number of events/instructions executed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// The number of core instructions executed.
+    pub core: EnumMap<T, u64>,
+    /// The number of APCs executed, indexed by contiguous APC id.
+    pub apc: BTreeMap<u64, u64>,
+}
+
+// Deriving `Default` requires `T: Default`, which isn't true for `Opcode` and `RiscvAirId`.
+impl<T: EnumArray<u64>> Default for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn default() -> Self {
+        Self {
+            core: EnumMap::default(), // Doesn't require `T: Default`
+            apc: BTreeMap::new(),
+        }
+    }
+}
+
+/// The costs of the program.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct EventCosts {
+    /// The costs of the core instructions, mostly calculated as the number of columns but
+    /// different for syscall instructions.
+    pub core: EnumMap<RiscvAirId, u64>,
+    /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
+    pub apc: BTreeMap<u64, u64>,
 }
 
 impl<I: Clone> ProverChoice<&I> {
@@ -178,7 +215,7 @@ pub struct Executor<'a> {
     pub hook_registry: HookRegistry<'a>,
 
     /// The costs of the program.
-    pub costs: EnumMap<RiscvAirId, u64>,
+    pub costs: EventCosts,
 
     /// Skip deferred proof verification. This check is informational only, not related to circuit
     /// correctness.
@@ -203,7 +240,7 @@ pub struct Executor<'a> {
     pub total_unconstrained_cycles: u64,
 
     /// Temporary event counts for the current shard. This is a field to reuse memory.
-    event_counts: EnumMap<RiscvAirId, u64>,
+    event_counts: EventCounts<RiscvAirId>,
 
     /// The transpiler for the program.
     transpiler: InstructionTranspiler,
@@ -265,7 +302,7 @@ pub enum ExecutorMode {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LocalCounts {
     /// The event counts.
-    pub event_counts: Box<EnumMap<Opcode, u64>>,
+    pub event_counts: Box<EventCounts<Opcode>>,
     /// The retained precompile counts.
     pub retained_precompile_counts: Box<EnumMap<RiscvAirId, u64>>,
     /// The load x0 counts.
@@ -478,10 +515,13 @@ impl<'a> Executor<'a> {
             memory_checkpoint: Memory::new_preallocated(),
             uninitialized_memory_checkpoint: Memory::new_preallocated(),
             local_memory_access: HashMap::new(),
-            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            costs: EventCosts {
+                core: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+                apc: apcs.apcs.iter().map(|apc| (apc.id, apc.cost)).collect(),
+            },
             size_check_frequency: 16,
             sharding_threshold: Some(opts.sharding_threshold),
-            event_counts: EnumMap::default(),
+            event_counts: EventCounts::<RiscvAirId>::default(),
             internal_syscalls_override,
             internal_syscalls_air_id,
             io_options: context.io_options,
@@ -1690,11 +1730,19 @@ impl<'a> Executor<'a> {
 
         if !E::UNCONSTRAINED {
             if self.print_report {
+                // Note: APC counts (both success case and state bump/memory bump fallback cases)
+                // for `print_report` are accumulated in `execute_apc`.
                 self.report.opcode_counts[instruction.opcode] += 1;
             }
-            self.local_counts.event_counts[instruction.opcode] += 1;
+            if instruction.is_apc_instruction() {
+                // increment apc count by apc id, where `event_counts.apc` is already initialized to
+                // 0.
+                *self.local_counts.event_counts.apc.entry(instruction.op_b).or_insert(0) += 1;
+            } else {
+                self.local_counts.event_counts.core[instruction.opcode] += 1;
+            }
             if instruction.is_memory_load_instruction() && instruction.op_a == Register::X0 as u8 {
-                self.local_counts.event_counts[instruction.opcode] -= 1;
+                self.local_counts.event_counts.core[instruction.opcode] -= 1;
                 self.local_counts.load_x0_counts += 1;
             }
         }
@@ -2246,10 +2294,12 @@ impl<'a> Executor<'a> {
                 if let Some(ShardingThreshold { element_threshold, height_threshold }) =
                     self.sharding_threshold
                 {
-                    let padded_event_counts =
-                        pad_rv32im_event_counts(self.event_counts, self.size_check_frequency);
+                    let padded_event_counts = pad_rv32im_event_counts(
+                        self.event_counts.clone(),
+                        self.size_check_frequency,
+                    );
                     let (padded_element_count, max_height) = estimate_trace_elements(
-                        padded_event_counts,
+                        &padded_event_counts,
                         &self.costs,
                         self.program_len,
                         &self.internal_syscalls_air_id,
@@ -2302,10 +2352,10 @@ impl<'a> Executor<'a> {
                 &self.internal_syscalls_air_id,
             );
             // The above method estimates event counts only for core shards.
-            estimator.core_records.push(self.event_counts);
+            estimator.core_records.push(self.event_counts.clone());
         }
         self.record.estimated_trace_area = estimate_trace_elements(
-            self.event_counts,
+            &self.event_counts,
             &self.costs,
             self.program_len,
             &self.internal_syscalls_air_id,
@@ -2727,14 +2777,20 @@ impl<'a> Executor<'a> {
     /// Maps the opcode counts to the number of events in each air.
     fn estimate_riscv_event_counts(
         bump_clk_high: u64,
-        event_counts: &mut EnumMap<RiscvAirId, u64>,
+        event_counts: &mut EventCounts<RiscvAirId>,
         local_counts: &LocalCounts,
         load_x0_counts: u64,
         internal_syscalls_air_id: &[RiscvAirId],
     ) {
         let touched_addresses: u64 = local_counts.local_mem as u64;
         let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
-        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts;
+        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts.core;
+        let apc_events: &BTreeMap<u64, u64> = &local_counts.event_counts.apc;
+
+        // Add apc events
+        event_counts.apc.clone_from(apc_events);
+
+        let event_counts = &mut event_counts.core;
 
         // Compute the maximum number of MemoryBump events.
         // `MemoryBump` chip is used when each register's memory timestamp's top 24 bits increment.
@@ -3009,7 +3065,12 @@ mod tests {
         // Test with different APC ranges
         for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
             let should_execute_apcs = !apcs.is_empty();
-            let program = program_without_apcs.clone().with_apcs(apcs);
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apcs, [1u64, 1u64])
+            } else {
+                program_without_apcs.clone()
+            };
 
             let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
             runtime.run::<Trace>().unwrap();

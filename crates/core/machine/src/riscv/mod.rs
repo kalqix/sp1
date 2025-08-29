@@ -1153,6 +1153,7 @@ pub mod tests {
         riscv::{RiscvAir, RiscvAirWithApcs},
         utils::setup_logger,
     };
+    use itertools::Itertools;
     use sp1_core_executor::add_halt;
     use sp1_stark::{BabyBearPoseidon2, InteractionKind, MachineVerifierConfigError};
     //     use slop_baby_bear::BabyBear;
@@ -1357,7 +1358,12 @@ pub mod tests {
         // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
         // instead of passing them here to `run_test_with_apcs`
         let apcs = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(&apc_ranges);
+        let program = program.with_apcs(
+            &apc_ranges,
+            apcs.iter()
+                .map(|apc| apc.machine.main_columns().collect_vec().len() as u64)
+                .collect::<Vec<_>>(),
+        );
         let stdin = SP1Stdin::new();
         crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
             .await
@@ -1384,7 +1390,12 @@ pub mod tests {
         // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
         // instead of passing them here to `run_test_with_apcs`
         let apcs = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(&apc_ranges);
+        let program = program.with_apcs(
+            &apc_ranges,
+            apcs.iter()
+                .map(|apc| apc.machine.main_columns().collect_vec().len() as u64)
+                .collect::<Vec<_>>(),
+        );
         let stdin = SP1Stdin::new();
         let mut opts = SP1CoreOpts::default();
         opts.sharding_threshold =
