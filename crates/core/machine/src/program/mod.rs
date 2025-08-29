@@ -108,7 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                     ];
                     // let instruction =
                     //     program.instructions[idx].preprocess::<F>(program.pc_base, pc);
-                    let instruction = program.instructions.get_proving(idx).unwrap();
+                    let instruction = &program.instructions[idx];
                     cols.instruction.populate(instruction);
 
                     if instruction.opcode != Opcode::UNIMP {
@@ -256,7 +256,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut rows = input
             .program
             .instructions
-            .proving()
+            .iter()
+            .cloned()
             .enumerate()
             .map(|(i, _)| {
                 let pc = input.program.pc_base + i as u64 * 4;
@@ -337,8 +338,7 @@ mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ]
-        .into();
+        ];
         let shard = ExecutionRecord {
             program: Arc::new(Program {
                 instructions,
@@ -347,6 +347,7 @@ mod tests {
                 pc_base: 0,
                 memory_image: HashMap::new(),
                 preprocessed_shape: None,
+                apcs_by_start_idx: HashMap::new(),
             }),
             ..Default::default()
         };

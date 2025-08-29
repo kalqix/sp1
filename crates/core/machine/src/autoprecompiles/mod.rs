@@ -168,9 +168,8 @@ pub fn create_apcs(
     apc_ranges
         .iter()
         .map(|range| {
-            let instructions = program
-                .instructions
-                .get_proving_range(*range)
+            let instructions = program.instructions
+                [range.start().unwrap()..range.end().unwrap() + 1]
                 .iter()
                 .cloned()
                 .map(Sp1Instruction::from)

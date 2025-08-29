@@ -26,7 +26,7 @@ use sp1_stark::{
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     /// The instructions of the program.
-    pub instructions: Instructions,
+    pub instructions: Vec<Instruction>,
     /// The encoded instructions of the program. Only used if program is untrusted
     pub instructions_encoded: Option<Vec<u32>>,
     /// The start address of the program. It is absolute, meaning not relative to `pc_base`.
@@ -37,23 +37,8 @@ pub struct Program {
     pub memory_image: HashMap<u64, u64>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
-}
-
-/// Instructions of a program, including the proving instructions (which end up in the Program
-/// chip), the ranges which have APC chips, and the execution instructions used by the executor.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Instructions {
-    /// The original instructions of the program.
-    proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
     pub apcs_by_start_idx: HashMap<usize, ApcRange>,
-}
-
-impl From<Vec<Instruction>> for Instructions {
-    fn from(original: Vec<Instruction>) -> Self {
-        // We execute and prove the same instructions
-        Self { proving: original.clone(), apcs_by_start_idx: Default::default() }
-    }
 }
 
 /// Represents a APC range.
@@ -110,49 +95,6 @@ impl From<&(usize, usize)> for ApcRange {
     }
 }
 
-impl Instructions {
-    /// The number of instructions
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.proving.len()
-    }
-
-    /// Check if there are no instructions.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.proving.is_empty()
-    }
-
-    /// Get the proving instruction at the given index.
-    #[must_use]
-    pub fn get_proving(&self, index: usize) -> Option<&Instruction> {
-        self.proving.get(index)
-    }
-
-    /// Get the execution instruction at the given index.
-    #[must_use]
-    pub fn get_instruction(&self, index: usize) -> Option<&Instruction> {
-        self.proving.get(index)
-    }
-
-    /// Get the original instructions as an iterator.
-    pub fn proving(&self) -> impl Iterator<Item = &Instruction> {
-        self.proving.iter()
-    }
-
-    /// Get a range of proving instructions based on pc indices.
-    #[must_use]
-    pub fn get_proving_range(&self, apc_range: ApcRange) -> &[Instruction] {
-        &self.proving[apc_range.start().unwrap()..=apc_range.end().unwrap()]
-    }
-
-    /// Add an APC range to the instructions.
-    fn add_apc(mut self, range: ApcRange) -> Instructions {
-        self.apcs_by_start_idx.insert(range.start_idx, range);
-        self
-    }
-}
-
 impl Program {
     /// Set the APC ranges for this program.
     /// Assumes the ranges are non-overlapping and sorted.
@@ -168,7 +110,7 @@ impl Program {
     /// Add an APC range to the program.
     #[must_use]
     pub fn add_apc(mut self, range: ApcRange) -> Self {
-        self.instructions = self.instructions.add_apc(range);
+        self.apcs_by_start_idx.insert(range.start_idx, range);
         self
     }
 
@@ -176,12 +118,13 @@ impl Program {
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
         Self {
-            instructions: instructions.into(),
+            instructions,
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
             memory_image: HashMap::new(),
             preprocessed_shape: None,
+            apcs_by_start_idx: HashMap::new(),
         }
     }
 
@@ -203,12 +146,13 @@ impl Program {
 
         // Return the program.
         Ok(Program {
-            instructions: instructions.into(),
+            instructions,
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
             preprocessed_shape: None,
+            apcs_by_start_idx: HashMap::new(),
         })
     }
 
@@ -238,7 +182,7 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(self.instructions.get_instruction(idx).unwrap())
+            Some(&self.instructions[idx])
         } else {
             None
         }
