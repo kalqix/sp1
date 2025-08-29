@@ -13,7 +13,6 @@ use crate::{
     Opcode, ProverChoice, RiscvAirId,
 };
 use hashbrown::HashMap;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -189,9 +188,10 @@ impl Instructions {
     }
 
     /// Add an APC range to the instructions.
-    fn add_apc(mut self, range: ApcRange, cost: ApcCost) -> Instructions {
+    fn add_apc(mut self, range_and_cost: (ApcRange, ApcCost)) -> Instructions {
         let apc_index = self.apcs.len();
-        self.apcs.push((range, cost));
+        let range = range_and_cost.0;
+        self.apcs.push(range_and_cost);
         // replace the whole range
         // the unimplemented instructions are not strictly required, but they help with debugging in
         // case we jump to the middle of a basic block, which should not happen.
@@ -214,20 +214,17 @@ impl Program {
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(
         self,
-        apc_ranges: impl IntoIterator<Item = R>,
-        apc_costs: impl IntoIterator<Item = ApcCost>,
+        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost)>,
     ) -> Self {
-        let apc_ranges: Vec<ApcRange> = apc_ranges.into_iter().map(Into::into).collect();
-        apc_ranges
+        apc_ranges_and_costs
             .into_iter()
-            .zip_eq(apc_costs)
-            .fold(self, |program, (range, cost)| program.add_apc(range, cost))
+            .fold(self, |program, (range, cost)| program.add_apc((range.into(), cost)))
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, range: ApcRange, cost: ApcCost) -> Self {
-        self.instructions = self.instructions.add_apc(range, cost);
+    pub fn add_apc(mut self, range_and_cost: (ApcRange, ApcCost)) -> Self {
+        self.instructions = self.instructions.add_apc(range_and_cost);
         self
     }
 

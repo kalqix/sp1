@@ -349,7 +349,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 as usize,
             self.apc().block.statements.len(),
         );
-        program.add_apc(range, self.cached_apc.width() as u64)
+        program.add_apc((range, self.cached_apc.width() as u64))
     }
 }
 
