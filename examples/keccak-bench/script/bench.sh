@@ -12,5 +12,5 @@ fi
 
 name=${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}
 
-RUST_LOG_FORMAT=json RUST_LOG=debug cargo run -r -- --num-hashes $NUM_HASHES --apcs $APCS $MANUAL_FLAG > $log_${name}.txt
-cat ${name}_log.txt | ../../parse_logs.py > results_${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}.csv
+RUST_LOG_FORMAT=json RUST_LOG=debug cargo run -r -- --num-hashes $NUM_HASHES --apcs $APCS $MANUAL_FLAG &> log_${name}.txt
+cat log_${name}.txt | ../../parse_logs.py > results_${NUM_HASHES}_hashes_${APCS}_apcs${SUFFIX}.csv
