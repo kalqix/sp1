@@ -118,8 +118,10 @@ pub fn trace_checkpoint(
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Some(Arc::new(noop));
 
+    tracing::debug!("execute record");
     // Execute from the checkpoint.
     let (records, done) = runtime.execute_record(true).unwrap();
+    tracing::debug!("execute record done");
 
     let mut records = records.into_iter().map(|r| *r).collect::<Vec<_>>();
     let pv = records.last().unwrap().public_values;
