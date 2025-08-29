@@ -349,7 +349,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 as usize,
             self.apc().block.statements.len(),
         );
-        program.add_apc(range)
+        let apc = sp1_core_executor::Apc { id: self.id, range };
+        program.add_apc(apc)
     }
 }
 

@@ -38,7 +38,13 @@ pub struct Program {
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
     /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, ApcRange>,
+    pub apcs_by_start_idx: HashMap<usize, Apc>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Apc {
+    pub id: u64,
+    pub range: ApcRange,
 }
 
 /// Represents a APC range.
@@ -103,14 +109,19 @@ impl Program {
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
-        let apc_ranges: Vec<ApcRange> = apc_ranges.into_iter().map(Into::into).collect();
+        let apc_ranges: Vec<Apc> = apc_ranges
+            .into_iter()
+            .map(|r| r.into())
+            .enumerate()
+            .map(|(id, range)| Apc { id: id as u64, range })
+            .collect();
         apc_ranges.into_iter().fold(self, Program::add_apc)
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, range: ApcRange) -> Self {
-        self.apcs_by_start_idx.insert(range.start_idx, range);
+    pub fn add_apc(mut self, apc: Apc) -> Self {
+        self.apcs_by_start_idx.insert(apc.range.start_idx, apc);
         self
     }
 
@@ -179,10 +190,10 @@ impl Program {
 
     #[must_use]
     /// Fetch the prover choice at the given program counter.
-    pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
+    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&Apc>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(&self.instructions[idx])
+            Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))
         } else {
             None
         }

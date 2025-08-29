@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{estimator::RecordEstimator, NUM_REGISTERS};
+use crate::{estimator::RecordEstimator, instruction, Apc, ApcRange, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -209,7 +209,10 @@ struct ApcCandidate {
     snapshot: ExecutionSnapshot,
 }
 
-struct ExecutionSnapshot {}
+struct ExecutionSnapshot {
+    record: ExecutionRecord,
+    counts: LocalCounts,
+}
 
 /// The configuration of the executor.
 pub trait ExecutorConfig {
@@ -1594,10 +1597,10 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> Instruction {
+    fn fetch<E: ExecutorConfig>(&mut self) -> (Instruction, Option<Apc>) {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            *instruction
+            (*instruction.0, instruction.1.cloned())
         } else {
             // Check that the page is executable.
             let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
@@ -1616,12 +1619,12 @@ impl<'a> Executor<'a> {
                 (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
             if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
-                *instruction
+                (*instruction, None)
             } else {
                 let instruction =
                     process_instruction(&mut self.transpiler, instruction_value).unwrap();
                 self.decoded_instruction_cache.insert(self.state.pc, instruction);
-                instruction
+                (instruction, None)
             }
         }
     }
@@ -2165,10 +2168,24 @@ impl<'a> Executor<'a> {
         tracing::trace!(pc = self.state.pc, "executing instruction");
 
         // Fetch the instruction at the current program counter.
-        let instruction = self.fetch::<E>();
+        let res = self.fetch::<E>();
 
         // Log the current state of the runtime.
-        self.log::<E>(&instruction);
+        self.log::<E>(&res);
+
+        let (instruction, apc_range) = res;
+
+        if let Some(apc_range) = apc_range {
+            // We are at the start of an APC range.
+            // Add it as candidate
+            assert!(self.apc_candidate.is_none());
+            let snapshot = ExecutionSnapshot {
+                record: *self.record.clone(),
+                counts: self.local_counts.clone(),
+            };
+            let apc_candidate = ApcCandidate { id: todo!(), snapshot };
+            self.apc_candidate = Some(apc_candidate);
+        }
 
         // Execute the instruction.
         self.execute_instruction::<E>(&instruction)?;
@@ -2432,7 +2449,11 @@ impl<'a> Executor<'a> {
         let mut done = false;
         while !done {
             // Fetch the instruction at the current program counter.
-            let instruction = self.fetch::<Unconstrained>();
+            let res = self.fetch::<Unconstrained>();
+
+            // ignore the apc candidate in unconstrained mode
+            // TODO: is this fine?
+            let (instruction, _) = res;
 
             // Execute the instruction.
             self.execute_instruction::<Unconstrained>(&instruction)?;
@@ -2796,7 +2817,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log<E: ExecutorConfig>(&mut self, _: &Instruction) {
+    fn log<E: ExecutorConfig>(&mut self, _: &(Instruction, Option<Apc>)) {
         #[cfg(feature = "profiling")]
         if let Some((ref mut profiler, _)) = self.profiler {
             if !E::UNCONSTRAINED {
