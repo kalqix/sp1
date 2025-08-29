@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{estimator::RecordEstimator, instruction, Apc, ApcRange, NUM_REGISTERS};
+use crate::{estimator::RecordEstimator, Apc, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -203,13 +203,14 @@ pub struct Executor<'a> {
 }
 
 struct ApcCandidate {
-    /// The id of the apc candidate being run
-    id: u64,
+    /// The apc candidate being run
+    apc: Apc,
     /// The state of the execution when this candidate was introduced
     snapshot: ExecutionSnapshot,
 }
 
 struct ExecutionSnapshot {
+    shard_count: usize,
     record: ExecutionRecord,
     counts: LocalCounts,
 }
@@ -1600,7 +1601,7 @@ impl<'a> Executor<'a> {
     fn fetch<E: ExecutorConfig>(&mut self) -> (Instruction, Option<Apc>) {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            (*instruction.0, instruction.1.cloned())
+            (*instruction.0, instruction.1.copied())
         } else {
             // Check that the page is executable.
             let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
@@ -1721,6 +1722,30 @@ impl<'a> Executor<'a> {
                 self.memory_accesses,
                 exit_code,
             );
+        }
+
+        // remove the apc candidate if a state bump or memory bump was encountered
+        // TODO: what about segmentation?
+        if let Some(apc_candidate) = &self.apc_candidate {
+            let created_bump_state_event = self.record.bump_state_events.len()
+                > apc_candidate.snapshot.record.bump_state_events.len();
+            let created_bump_memory_event = self.record.bump_memory_events.len()
+                > apc_candidate.snapshot.record.bump_memory_events.len();
+            let segmented = self.records.len() > apc_candidate.snapshot.shard_count;
+
+            if created_bump_state_event || created_bump_memory_event || segmented {
+                self.apc_candidate = None;
+            }
+        }
+
+        if let Some(apc_candidate) = &self.apc_candidate {
+            let pc_step = 4;
+
+            if ((self.state.pc - self.program.pc_base) / pc_step as u64) as usize
+                == apc_candidate.apc.range.end().unwrap()
+            {
+                unimplemented!("APC end pc hit, need to revert state and add apc event");
+            }
         }
 
         // Update the program counter.
@@ -2175,15 +2200,18 @@ impl<'a> Executor<'a> {
 
         let (instruction, apc_range) = res;
 
-        if let Some(apc_range) = apc_range {
+        if let Some(apc) = apc_range {
             // We are at the start of an APC range.
             // Add it as candidate
             assert!(self.apc_candidate.is_none());
             let snapshot = ExecutionSnapshot {
+                shard_count: self.records.len(),
+                // TODO: reduce cloning
                 record: *self.record.clone(),
+                // TODO: reduce cloning
                 counts: self.local_counts.clone(),
             };
-            let apc_candidate = ApcCandidate { id: todo!(), snapshot };
+            let apc_candidate = ApcCandidate { apc, snapshot };
             self.apc_candidate = Some(apc_candidate);
         }
 

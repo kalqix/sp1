@@ -111,7 +111,7 @@ impl Program {
     pub fn with_apcs<R: Into<ApcRange>>(self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
         let apc_ranges: Vec<Apc> = apc_ranges
             .into_iter()
-            .map(|r| r.into())
+            .map(std::convert::Into::into)
             .enumerate()
             .map(|(id, range)| Apc { id: id as u64, range })
             .collect();
