@@ -3064,9 +3064,11 @@ mod tests {
         for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
             let should_execute_apcs = !apcs.is_empty();
             // Here we set APC costs to a dummy [1, 1] if there are APCs
-            let program = should_execute_apcs
-                .then(|| program_without_apcs.clone().with_apcs(apcs, [1u64, 1u64]))
-                .unwrap_or(program_without_apcs.clone());
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apcs, [1u64, 1u64])
+            } else {
+                program_without_apcs.clone()
+            };
 
             let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
             runtime.run::<Trace>().unwrap();
