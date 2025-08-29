@@ -336,11 +336,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.apc_events.is_empty()
-        }
+        shard.apc_events.get_events(self.id).is_some()
     }
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {
