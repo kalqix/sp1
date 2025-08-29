@@ -19,6 +19,9 @@ use sp1_stark::{
     InteractionKind,
 };
 
+/// Cost of APC, currently defined as number of columns.
+pub type ApcCost = u64;
+
 /// A program that can be executed by the SP1 zkVM.
 ///
 /// Contains a series of instructions along with the initial memory image. It also contains the
@@ -41,13 +44,16 @@ pub struct Program {
     pub apcs_by_start_idx: HashMap<usize, Apc>,
 }
 
-/// Represents an APC in the program, which is a range for which the prover can choose to run an alternative implementation.
+/// Represents an APC in the program, which is a range for which the prover can choose to run an
+/// alternative implementation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Apc {
     /// The id for this APC
     pub id: u64,
     /// The range for this APC
     pub range: ApcRange,
+    /// The cost for this APC
+    pub cost: ApcCost,
 }
 
 /// Represents a APC range.
@@ -111,12 +117,15 @@ impl Program {
     /// APC ranges.
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
     #[must_use]
-    pub fn with_apcs<R: Into<ApcRange>>(self, apc_ranges: impl IntoIterator<Item = R>) -> Self {
-        let apc_ranges: Vec<Apc> = apc_ranges
+    pub fn with_apcs<R: Into<ApcRange>>(
+        self,
+        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost)>,
+    ) -> Self {
+        let apc_ranges: Vec<Apc> = apc_ranges_and_costs
             .into_iter()
-            .map(std::convert::Into::into)
+            .map(|(r, c)| (r.into(), c))
             .enumerate()
-            .map(|(id, range)| Apc { id: id as u64, range })
+            .map(|(id, (range, cost))| Apc { id: id as u64, range, cost })
             .collect();
         apc_ranges.into_iter().fold(self, Program::add_apc)
     }
