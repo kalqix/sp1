@@ -4,7 +4,7 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apcs, estimator::RecordEstimator, NUM_REGISTERS};
+use crate::{estimator::RecordEstimator, NUM_REGISTERS};
 
 use clap::ValueEnum;
 use enum_map::EnumMap;
@@ -128,8 +128,6 @@ pub struct Executor<'a> {
     /// The maximum number of shards to execute at once.
     pub shard_batch_size: u32,
 
-    /// The APCs that are available for this execution.
-    pub apcs: Apcs<'a>,
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 
@@ -199,7 +197,19 @@ pub struct Executor<'a> {
 
     /// Decoded instruction cache.
     decoded_instruction_cache: HashMap<u64, Instruction>,
+
+    /// The apc candidate at this point in the execution, if any
+    apc_candidate: Option<ApcCandidate>,
 }
+
+struct ApcCandidate {
+    /// The id of the apc candidate being run
+    id: u64,
+    /// The state of the execution when this candidate was introduced
+    snapshot: ExecutionSnapshot,
+}
+
+struct ExecutionSnapshot {}
 
 /// The configuration of the executor.
 pub trait ExecutorConfig {
@@ -409,8 +419,6 @@ impl<'a> Executor<'a> {
     /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
-        let apcs = Apcs::new(&program, &opts, &context);
-
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
 
@@ -478,7 +486,7 @@ impl<'a> Executor<'a> {
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HashMap::new(),
             opts,
-            apcs,
+            apc_candidate: None,
         }
     }
 

@@ -46,16 +46,13 @@ pub struct Instructions {
     /// The original instructions of the program.
     proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
-    apcs: Vec<ApcRange>,
-    /// The execution instructions, which replace the original instructions in the APC ranges with
-    /// APC instructions.
-    execution: Vec<Instruction>,
+    pub apcs_by_start_idx: HashMap<usize, ApcRange>,
 }
 
 impl From<Vec<Instruction>> for Instructions {
     fn from(original: Vec<Instruction>) -> Self {
         // We execute and prove the same instructions
-        Self { proving: original.clone(), apcs: Vec::new(), execution: original }
+        Self { proving: original.clone(), apcs_by_start_idx: Default::default() }
     }
 }
 
@@ -138,20 +135,9 @@ impl Instructions {
         self.proving.get(index)
     }
 
-    /// Remove the apc ranges and modified instructions.
-    pub(crate) fn clear_apcs(&mut self) {
-        self.apcs.clear();
-        self.execution = self.proving.clone();
-    }
-
     /// Get the original instructions as an iterator.
     pub fn proving(&self) -> impl Iterator<Item = &Instruction> {
         self.proving.iter()
-    }
-
-    /// Get the apcs as an iterator.
-    pub(crate) fn apcs(&self) -> impl Iterator<Item = &ApcRange> {
-        self.apcs.iter()
     }
 
     /// Get a range of proving instructions based on pc indices.
@@ -162,7 +148,7 @@ impl Instructions {
 
     /// Add an APC range to the instructions.
     fn add_apc(mut self, range: ApcRange) -> Instructions {
-        self.apcs.push(range);
+        self.apcs_by_start_idx.insert(range.start_idx, range);
         self
     }
 }
