@@ -5,16 +5,18 @@ use crate::{
     serialize_hashmap_as_vec,
 };
 use hashbrown::HashMap;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use sp1_stark::MachineRecord;
 
 use crate::ExecutionRecord;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-/// Represents an apc event in the executor.
-pub struct ApcEvent {
-    /// The apc id
-    pub id: u64,
-    /// The record of the original instructions executed by the apc.
+/// A record of all the apc events for a specific apc id.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ApcEventsForId {
+    /// The number of events.
+    pub count: usize,
+    /// The cumulative record of all events.
     pub record: ExecutionRecord,
 }
 
@@ -24,23 +26,26 @@ pub struct ApcEvents {
     #[serde(serialize_with = "serialize_hashmap_as_vec")]
     #[serde(deserialize_with = "deserialize_hashmap_as_vec")]
     /// The apc events mapped by apc id.
-    pub events: HashMap<u64, Vec<ApcEvent>>,
+    pub events: HashMap<u64, ApcEventsForId>,
 }
 
 impl ApcEvents {
     pub(crate) fn append(&mut self, other: &mut ApcEvents) {
         for (id, event) in other.events.iter_mut() {
-            if !event.is_empty() {
-                self.events.entry(*id).or_default().append(event);
-            }
+            let entry = self.events.entry(*id).or_default();
+            entry.count += event.count;
+            entry.record.append(&mut event.record);
         }
     }
 
     #[inline]
     /// Add a precompile event for a given apc id.
-    pub fn add_event(&mut self, apc_id: u64, event: ApcEvent) {
-        assert_eq!(apc_id, event.id);
-        self.events.entry(apc_id).or_default().push(event);
+    pub fn add_event(&mut self, apc_id: u64, mut event: ExecutionRecord) {
+        tracing::error!("add event {:#?}", event.stats());
+        let entry = self.events.entry(apc_id).or_default();
+        entry.count += 1;
+        entry.record.append(&mut event);
+        tracing::error!("resulting event {:#?}", entry.record.stats());
     }
 
     /// Checks if the precompile events are empty.
@@ -51,8 +56,8 @@ impl ApcEvents {
     }
 
     /// Get all the precompile events.
-    pub fn all_events(&self) -> impl Iterator<Item = &ApcEvent> {
-        self.events.values().flatten()
+    pub fn all_events(&self) -> impl Iterator<Item = (&u64, &ApcEventsForId)> {
+        self.events.iter()
     }
 
     /// Get the number of precompile events.
@@ -65,7 +70,7 @@ impl ApcEvents {
     /// Get all the precompile events for a given apc id.
     #[inline]
     #[must_use]
-    pub fn get_events(&self, apc_id: u64) -> Option<&Vec<ApcEvent>> {
+    pub fn get_events(&self, apc_id: u64) -> Option<&ApcEventsForId> {
         self.events.get(&apc_id)
     }
 
@@ -81,11 +86,8 @@ impl ApcEvents {
     }
 }
 
-impl PrecompileLocalMemory for Vec<ApcEvent> {
+impl PrecompileLocalMemory for ApcEventsForId {
     fn get_local_mem_events(&self) -> impl IntoIterator<Item = &MemoryLocalEvent> {
-        self.iter()
-            .flat_map(|event| event.record.get_local_mem_events())
-            .collect::<Vec<_>>() // collecting because otherwise we get a recursive opaque type error
-            .into_iter()
+        self.record.get_local_mem_events().collect_vec().into_iter()
     }
 }

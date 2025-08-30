@@ -6,7 +6,7 @@ use std::{fs::File, io::BufWriter};
 use crate::profiler::Profiler;
 use crate::{
     estimator::RecordEstimator,
-    events::{ApcEvent, ApcEvents, ByteLookupEvent, PrecompileEvents},
+    events::{ApcEvents, ByteLookupEvent, PrecompileEvents},
     Apc, NUM_REGISTERS,
 };
 
@@ -1903,7 +1903,10 @@ impl<'a> Executor<'a> {
                     // Construct the apc_record from the current record and the snapshot.
                     let apc_record = ExecutionRecord {
                         program: self.record.program.clone(),
-                        cpu_event_count: 0, // this is not accessed
+                        cpu_event_count: self
+                            .record
+                            .cpu_event_count
+                            .saturating_sub(apc_candidate.snapshot.record.cpu_event_count),
                         add_events: self
                             .record
                             .add_events
@@ -2113,12 +2116,10 @@ impl<'a> Executor<'a> {
                     );
 
                     // Add the apc event to the record.
-                    self.record.apc_events.add_event(
-                        apc_candidate.apc.id,
-                        ApcEvent { id: apc_candidate.apc.id, record: apc_record },
-                    );
+                    self.record.apc_events.add_event(apc_candidate.apc.id, apc_record);
 
-                    // Update the CPU event count, since we are running apc, only one cpu_event happened
+                    // Update the CPU event count, since we are running apc, only one cpu_event
+                    // happened
                     self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
                 }
 
