@@ -1166,7 +1166,7 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_apc_keccak_100() -> Result<()> {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(1000, 10), 1, 0).await
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(1000, 10), 100, 0).await
     }
 
     #[tokio::test]

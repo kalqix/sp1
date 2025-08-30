@@ -480,8 +480,10 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("cpu_events".to_string(), self.cpu_event_count as usize);
         stats.insert("add_events".to_string(), self.add_events.len());
         stats.insert("addi_events".to_string(), self.addi_events.len());
+        stats.insert("addw_events".to_string(), self.addw_events.len());
         stats.insert("mul_events".to_string(), self.mul_events.len());
         stats.insert("sub_events".to_string(), self.sub_events.len());
+        stats.insert("subw_events".to_string(), self.subw_events.len());
         stats.insert("bitwise_events".to_string(), self.bitwise_events.len());
         stats.insert("shift_left_events".to_string(), self.shift_left_events.len());
         stats.insert("shift_right_events".to_string(), self.shift_right_events.len());
@@ -535,7 +537,9 @@ impl MachineRecord for ExecutionRecord {
         other.estimated_trace_area = 0;
         self.add_events.append(&mut other.add_events);
         self.addi_events.append(&mut other.addi_events);
+        self.addw_events.append(&mut other.addw_events);
         self.sub_events.append(&mut other.sub_events);
+        self.subw_events.append(&mut other.subw_events);
         self.mul_events.append(&mut other.mul_events);
         self.bitwise_events.append(&mut other.bitwise_events);
         self.shift_left_events.append(&mut other.shift_left_events);
