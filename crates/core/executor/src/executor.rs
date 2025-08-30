@@ -2142,7 +2142,7 @@ impl<'a> Executor<'a> {
                     self.report.apc_counts.entry(apc_candidate.apc.id).or_default().success += 1;
                 }
 
-                tracing::error!("APC candidate completed");
+                tracing::trace!("APC candidate completed");
             }
         }
 
@@ -2520,7 +2520,7 @@ impl<'a> Executor<'a> {
             let pc_step = 4;
             let end_pc = apc.range.end().unwrap() as u64 * pc_step + self.program.pc_base;
             let apc_candidate = ApcCandidate { end_pc, apc, snapshot };
-            tracing::error!("APC candidate created");
+            tracing::trace!("APC candidate created");
             self.apc_candidate = Some(apc_candidate);
         }
 
