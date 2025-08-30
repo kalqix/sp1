@@ -9,7 +9,6 @@ use slop_air::Air;
 use slop_algebra::{extension::BinomialExtensionField, AbstractField, PrimeField32};
 use slop_jagged::JaggedConfig;
 use sp1_core_executor::SP1RecursionProof;
-use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     inner_perm,
@@ -34,6 +33,7 @@ use sp1_recursion_circuit::{
     },
     shard::RecursiveShardVerifier,
     witness::Witnessable,
+    zerocheck::RecursiveVerifierConstraintFolder,
     CircuitConfig, SP1FieldConfigVariable, WrapConfig as CircuitWrapConfig,
 };
 use sp1_recursion_compiler::{
@@ -139,7 +139,7 @@ where
             SP1NormalizeInputShape<
                 <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
             >,
-            Arc<RecursionProgram<Sp1Field>>,
+            Arc<RecursionProgram<SP1Field>>,
         >,
         max_compose_arity: usize,
         vk_verification: bool,

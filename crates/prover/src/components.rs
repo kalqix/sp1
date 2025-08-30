@@ -1,8 +1,8 @@
 use slop_jagged::{JaggedConfig, Poseidon2Bn254JaggedCpuProverComponents};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_hypercube::{
     prover::{CpuMachineProverComponents, MachineProverComponents},
-    MachineVerifier, SP1CpuJaggedProverComponents,
+    Machine, MachineVerifier, SP1CpuJaggedProverComponents,
 };
 use sp1_primitives::SP1Field;
 use sp1_recursion_circuit::machine::InnerVal;
@@ -74,11 +74,11 @@ pub struct CpuSP1ApcProverComponents;
 
 impl SP1ProverComponents for CpuSP1ApcProverComponents {
     type CoreComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         RiscvAirWithApcs<<CoreSC as JaggedConfig>::F>,
     >;
     type RecursionComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         CompressAir<<InnerSC as JaggedConfig>::F>,
     >;
     type WrapComponents = CpuMachineProverComponents<

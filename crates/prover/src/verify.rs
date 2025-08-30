@@ -10,14 +10,13 @@ use sp1_core_executor::{subproof::SubproofVerifier, SP1RecursionProof};
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    MachineVerifierConfigError, MachineVerifierError, SP1CoreJaggedConfig, SP1OuterConfig,
+    prover::MachineProverComponents,
+    Machine, MachineVerifierConfigError, MachineVerifierError, SP1CoreJaggedConfig, SP1OuterConfig,
 };
-use sp1_primitives::io::{blake3_hash, SP1PublicValues};
 use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
     SP1Field,
 };
-use sp1_recursion_circuit::machine::RootPublicValues;
 use sp1_recursion_circuit::{
     machine::RootPublicValues, zerocheck::RecursiveVerifierConstraintFolder,
 };
@@ -25,12 +24,7 @@ use sp1_recursion_executor::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
-use sp1_stark::{
-    air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    prover::MachineProverComponents,
-    BabyBearPoseidon2, Bn254JaggedConfig, Machine, MachineVerifierConfigError,
-    MachineVerifierError,
-};
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

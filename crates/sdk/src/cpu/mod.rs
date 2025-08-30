@@ -12,7 +12,6 @@ use powdr_autoprecompiles::Apc;
 use prove::CpuProveBuilder;
 use slop_baby_bear::BabyBear;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
-use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::{
     autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin, riscv::RiscvAirWithApcs,
 };

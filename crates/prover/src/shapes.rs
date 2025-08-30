@@ -24,7 +24,10 @@ use sp1_core_machine::{
 use sp1_hypercube::{
     air::MachineAir,
     log2_ceil_usize,
-    prover::{CoreProofShape, DefaultTraceGenerator, ProverSemaphore, TraceGenerator},
+    prover::{
+        CoreProofShape, DefaultTraceGenerator, MachineProverComponents, ProverSemaphore,
+        TraceGenerator,
+    },
     Chip, ChipDimensions, Machine, MachineShape,
 };
 use sp1_primitives::SP1Field;
@@ -36,6 +39,7 @@ use sp1_recursion_circuit::{
     },
     zerocheck::RecursiveVerifierConstraintFolder,
 };
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{
     shape::RecursionShape, RecursionAirEventCount, RecursionProgram, DIGEST_SIZE,
 };
@@ -697,9 +701,9 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
     }
 }
 
-pub fn create_test_shape(
-    cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
-) -> SP1NormalizeInputShape {
+pub fn create_test_shape<A: MachineAir<SP1Field>>(
+    cluster: &BTreeSet<Chip<SP1Field, A>>,
+) -> SP1NormalizeInputShape<A> {
     let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
         + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
         + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)

@@ -30,7 +30,7 @@ pub struct MachineExecutor<F: PrimeField32, A> {
     _marker: std::marker::PhantomData<F>,
 }
 
-impl<F: PrimeField32, A> MachineExecutor<F, A> {
+impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecutor<F, A> {
     pub fn new(
         record_buffer_size: u64,
         num_record_workers: usize,

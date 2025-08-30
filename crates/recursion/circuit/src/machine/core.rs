@@ -72,7 +72,7 @@ type InnerChallenge = <InnerSC as JaggedConfig>::EF;
 impl<A, C, SC, JC> SP1RecursiveVerifier<A, C, SC, JC>
 where
     A: MachineAir<<SC as JaggedConfig>::F> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
-    SC: Sp1FieldFriConfigVariable<
+    SC: SP1FieldConfigVariable<
             C,
             FriChallengerVariable = DuplexChallengerVariable<C>,
             DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],

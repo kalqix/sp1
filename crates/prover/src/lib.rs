@@ -27,19 +27,26 @@ use core::SP1CoreProver;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use slop_air::Air;
+use slop_jagged::JaggedConfig;
 use slop_uni_stark::SymbolicAirBuilder;
 use sp1_core_executor::Program;
 use std::{collections::BTreeMap, sync::Arc};
 
-use sp1_hypercube::prover::{CpuShardProver, MachineProverBuilder, ProverSemaphore};
+use sp1_hypercube::{
+    prover::{CpuShardProver, MachineProverBuilder, MachineProverComponents, ProverSemaphore},
+    ConstraintSumcheckFolder,
+};
 use sp1_recursion_executor::RecursionProgram;
 
 use sp1_hypercube::{SP1CoreJaggedConfig, SP1OuterConfig};
 use sp1_primitives::SP1Field;
-
-pub use types::*;
+use sp1_recursion_compiler::config::InnerConfig;
+use std::fmt;
 
 pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
+use sp1_hypercube::{air::MachineAir, Machine};
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
+pub use types::*;
 
 /// The global version for all components of SP1.
 ///
@@ -384,7 +391,7 @@ where
             >,
         > + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
         <C as SP1ProverComponents>::CoreComponents: MachineProverComponents<
-            Prover = ShardProver<
+            Prover = CpuShardProver<
                 CpuShardProverComponents<
                     Poseidon2BabyBearJaggedCpuProverComponents,
                     <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air

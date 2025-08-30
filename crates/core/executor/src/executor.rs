@@ -4,11 +4,11 @@ use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
-use crate::{apc::Apcs, events::ApcEvent};
 use crate::{
+    apc::Apcs,
     estimator::RecordEstimator,
     events::{
-        InstructionDecodeEvent, InstructionFetchEvent, PageProtInitializeFinalizeEvent,
+        ApcEvent, InstructionDecodeEvent, InstructionFetchEvent, PageProtInitializeFinalizeEvent,
         PageProtLocalEvent, PageProtRecord, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
         NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },

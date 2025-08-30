@@ -14,6 +14,7 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{executor::MachineExecutor, io::SP1Stdin};
 use sp1_hypercube::{
+    air::MachineAir,
     prover::{MachineProvingKey, MemoryPermit},
     MachineVerifierConfigError, MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof,
 };
@@ -45,6 +46,11 @@ use crate::{
     components::SP1ProverComponents, error::SP1ProverError, recursion::SP1RecursionProver, CoreSC,
     HashableKey, OuterSC, SP1CircuitWitness, SP1CoreProof, SP1CoreProofData, SP1Prover,
     SP1VerifyingKey,
+};
+
+use sp1_hypercube::{
+    prover::{MachineProverComponents, Record},
+    VerifierConstraintFolder,
 };
 
 #[derive(Debug, Clone)]
@@ -91,15 +97,15 @@ impl Default for LocalProverOpts {
     }
 }
 
-pub struct LocalProver<C: SP1ProverComponents> {
+pub struct LocalProver<C: SP1ProverComponents, A: MachineAir<SP1Field>> {
     prover: SP1Prover<C>,
-    executor: MachineExecutor<SP1Field>,
+    executor: MachineExecutor<SP1Field, A>,
     compose_batch_size: usize,
     normalize_batch_size: usize,
     num_recursion_executors: usize,
 }
 
-impl<C: SP1ProverComponents> LocalProver<C>
+impl<C: SP1ProverComponents, A: MachineAir<SP1Field>> LocalProver<C, A>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
@@ -181,7 +187,7 @@ where
         context.subproof_verifier = Some(Arc::new(self.clone()));
 
         let (records_tx, mut records_rx) =
-            mpsc::unbounded_channel::<(Record<C::CoreComponents>>, Option<MemoryPermit>)>();
+            mpsc::unbounded_channel::<(Record<C::CoreComponents>, Option<MemoryPermit>)>();
 
         let prover = self.clone();
 
