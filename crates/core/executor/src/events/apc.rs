@@ -55,11 +55,6 @@ impl ApcEvents {
         self.events.is_empty()
     }
 
-    /// Get all the precompile events.
-    pub fn all_events(&self) -> impl Iterator<Item = (&u64, &ApcEventsForId)> {
-        self.events.iter()
-    }
-
     /// Get the number of precompile events.
     #[inline]
     #[must_use]

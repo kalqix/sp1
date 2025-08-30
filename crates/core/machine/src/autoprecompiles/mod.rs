@@ -109,13 +109,9 @@ pub fn execution_profile_from_program(
         executor.write_vecs(&input.buffer)
     }
 
-    let start = std::time::Instant::now();
-    let result = execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program), || {
+    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program), || {
         executor.run_fast().unwrap();
-    });
-    let duration = start.elapsed();
-    tracing::error!("execution_profile_from_program took {:?}", duration);
-    result
+    })
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {

@@ -2116,6 +2116,9 @@ impl<'a> Executor<'a> {
                     );
 
                     // Add the apc event to the record.
+                    // TODO: we could merge directly into the cummulative record inside
+                    // `self.record.apc_events` instead of going through this intermediate
+                    // `apc_record`
                     self.record.apc_events.add_event(apc_candidate.apc.id, apc_record);
 
                     // Update the CPU event count, since we are running apc, only one cpu_event
