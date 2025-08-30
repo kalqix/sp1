@@ -1177,6 +1177,18 @@ pub mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn keccak_10_no_apc() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(10, 10), 0, 0).await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn keccak_10_apc() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(1, 10), 1, 0).await
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_deferred_compress() -> Result<()> {
         setup_logger();
 

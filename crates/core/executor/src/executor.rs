@@ -244,6 +244,8 @@ pub struct Executor<'a> {
 }
 
 struct ApcCandidate {
+    /// The pc at which this candidate ends
+    end_pc: u64,
     /// The apc candidate being run
     apc: Apc,
     /// The state of the execution when this candidate was introduced
@@ -1853,10 +1855,10 @@ impl<'a> Executor<'a> {
             );
         }
 
-        // remove the apc candidate if a state bump, memory bump or segmentation happened
-        // TODO: in theory we don't have to run this at each cycle, but we do have to run it if
-        // segmentation happens
-        if let Some(apc_candidate) = &self.apc_candidate {
+        // If we reached the end of the block, we can finalize the APC candidate.
+        if let Some(apc_candidate) =
+            self.apc_candidate.take_if(|apc_candidate| apc_candidate.end_pc == self.state.pc)
+        {
             let created_bump_state_event = self.record.bump_state_events.len()
                 > apc_candidate.snapshot.record.bump_state_events_len;
             let created_bump_memory_event = self.record.bump_memory_events.len()
@@ -1896,252 +1898,248 @@ impl<'a> Executor<'a> {
                     apc_candidate.apc.id
                 );
             }
-            if created_bump_state_event || created_bump_memory_event || segmented {
-                self.apc_candidate = None;
+            if !(created_bump_state_event || created_bump_memory_event || segmented) {
+                if E::MODE == ExecutorMode::Trace {
+                    // Construct the apc_record from the current record and the snapshot.
+                    let apc_record = ExecutionRecord {
+                        program: self.record.program.clone(),
+                        cpu_event_count: 0, // this is not accessed
+                        add_events: self
+                            .record
+                            .add_events
+                            .drain(apc_candidate.snapshot.record.add_events_len..)
+                            .collect(),
+                        addw_events: self
+                            .record
+                            .addw_events
+                            .drain(apc_candidate.snapshot.record.addw_events_len..)
+                            .collect(),
+                        addi_events: self
+                            .record
+                            .addi_events
+                            .drain(apc_candidate.snapshot.record.addi_events_len..)
+                            .collect(),
+                        mul_events: self
+                            .record
+                            .mul_events
+                            .drain(apc_candidate.snapshot.record.mul_events_len..)
+                            .collect(),
+                        sub_events: self
+                            .record
+                            .sub_events
+                            .drain(apc_candidate.snapshot.record.sub_events_len..)
+                            .collect(),
+                        subw_events: self
+                            .record
+                            .subw_events
+                            .drain(apc_candidate.snapshot.record.subw_events_len..)
+                            .collect(),
+                        bitwise_events: self
+                            .record
+                            .bitwise_events
+                            .drain(apc_candidate.snapshot.record.bitwise_events_len..)
+                            .collect(),
+                        shift_left_events: self
+                            .record
+                            .shift_left_events
+                            .drain(apc_candidate.snapshot.record.shift_left_events_len..)
+                            .collect(),
+                        shift_right_events: self
+                            .record
+                            .shift_right_events
+                            .drain(apc_candidate.snapshot.record.shift_right_events_len..)
+                            .collect(),
+                        divrem_events: self
+                            .record
+                            .divrem_events
+                            .drain(apc_candidate.snapshot.record.divrem_events_len..)
+                            .collect(),
+                        lt_events: self
+                            .record
+                            .lt_events
+                            .drain(apc_candidate.snapshot.record.lt_events_len..)
+                            .collect(),
+                        memory_load_byte_events: self
+                            .record
+                            .memory_load_byte_events
+                            .drain(apc_candidate.snapshot.record.memory_load_byte_events_len..)
+                            .collect(),
+                        memory_load_half_events: self
+                            .record
+                            .memory_load_half_events
+                            .drain(apc_candidate.snapshot.record.memory_load_half_events_len..)
+                            .collect(),
+                        memory_load_word_events: self
+                            .record
+                            .memory_load_word_events
+                            .drain(apc_candidate.snapshot.record.memory_load_word_events_len..)
+                            .collect(),
+                        memory_load_x0_events: self
+                            .record
+                            .memory_load_x0_events
+                            .drain(apc_candidate.snapshot.record.memory_load_x0_events_len..)
+                            .collect(),
+                        memory_load_double_events: self
+                            .record
+                            .memory_load_double_events
+                            .drain(apc_candidate.snapshot.record.memory_load_double_events_len..)
+                            .collect(),
+                        memory_store_byte_events: self
+                            .record
+                            .memory_store_byte_events
+                            .drain(apc_candidate.snapshot.record.memory_store_byte_events_len..)
+                            .collect(),
+                        memory_store_half_events: self
+                            .record
+                            .memory_store_half_events
+                            .drain(apc_candidate.snapshot.record.memory_store_half_events_len..)
+                            .collect(),
+                        memory_store_word_events: self
+                            .record
+                            .memory_store_word_events
+                            .drain(apc_candidate.snapshot.record.memory_store_word_events_len..)
+                            .collect(),
+                        memory_store_double_events: self
+                            .record
+                            .memory_store_double_events
+                            .drain(apc_candidate.snapshot.record.memory_store_double_events_len..)
+                            .collect(),
+                        utype_events: self
+                            .record
+                            .utype_events
+                            .drain(apc_candidate.snapshot.record.utype_events_len..)
+                            .collect(),
+                        branch_events: self
+                            .record
+                            .branch_events
+                            .drain(apc_candidate.snapshot.record.branch_events_len..)
+                            .collect(),
+                        jal_events: self
+                            .record
+                            .jal_events
+                            .drain(apc_candidate.snapshot.record.jal_events_len..)
+                            .collect(),
+                        jalr_events: self
+                            .record
+                            .jalr_events
+                            .drain(apc_candidate.snapshot.record.jalr_events_len..)
+                            .collect(),
+                        // revert byte lookups to before the block in the main record and return the
+                        // diff in the apc record
+                        byte_lookups: self
+                            .record
+                            .byte_lookups
+                            .iter_mut()
+                            .map(|(e, count)| {
+                                let old = apc_candidate
+                                    .snapshot
+                                    .record
+                                    .byte_lookups
+                                    .get(e)
+                                    .copied()
+                                    .unwrap_or_default();
+                                let diff = *count - old;
+                                *count = old;
+                                (*e, diff)
+                            })
+                            .filter(|(_, diff)| *diff != 0)
+                            .collect(),
+                        precompile_events: PrecompileEvents::default(),
+                        global_memory_initialize_events: self
+                            .record
+                            .global_memory_initialize_events
+                            .drain(
+                                apc_candidate.snapshot.record.global_memory_initialize_events_len..,
+                            )
+                            .collect(),
+                        global_memory_finalize_events: self
+                            .record
+                            .global_memory_finalize_events
+                            .drain(
+                                apc_candidate.snapshot.record.global_memory_finalize_events_len..,
+                            )
+                            .collect(),
+                        cpu_local_memory_access: self
+                            .record
+                            .cpu_local_memory_access
+                            .drain(apc_candidate.snapshot.record.cpu_local_memory_access_len..)
+                            .collect(),
+                        syscall_events: self
+                            .record
+                            .syscall_events
+                            .drain(apc_candidate.snapshot.record.syscall_events_len..)
+                            .collect(),
+                        apc_events: ApcEvents::default(),
+                        global_interaction_events: Vec::default(),
+                        global_cumulative_sum: self.record.global_cumulative_sum.clone(),
+                        global_interaction_event_count: self.record.global_interaction_event_count,
+                        bump_memory_events: vec![],
+                        bump_state_events: vec![],
+                        public_values: self.record.public_values,
+                        next_nonce: self.record.next_nonce,
+                        shape: self.record.shape.clone(), // we might be fine with `Default` here
+                        counts: self.record.counts,
+                        estimated_trace_area: self.record.estimated_trace_area,
+                        initial_timestamp: self.record.initial_timestamp,
+                        last_timestamp: self.record.last_timestamp,
+                        pc_start: self.record.pc_start,
+                        next_pc: self.state.pc,
+                        exit_code: self.record.exit_code,
+                    };
+                    assert_eq!(
+                        self.record.precompile_events.len(),
+                        apc_candidate.snapshot.record.precompile_events_len,
+                        "New precompile events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.apc_events.len(),
+                        apc_candidate.snapshot.record.apc_events_len,
+                        "New apc events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.global_interaction_event_count,
+                        apc_candidate.snapshot.record.global_interaction_event_count,
+                        "New global interaction events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.bump_state_events.len(),
+                        apc_candidate.snapshot.record.bump_state_events_len,
+                        "New bump state events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.bump_memory_events.len(),
+                        apc_candidate.snapshot.record.bump_memory_events_len,
+                        "New bump memory events generated within apc block"
+                    );
+
+                    // Add the apc event to the record.
+                    self.record.apc_events.add_event(
+                        apc_candidate.apc.id,
+                        ApcEvent { id: apc_candidate.apc.id, record: apc_record },
+                    );
+
+                    // Update the CPU event count, since we are running apc, only one cpu_event happened
+                    self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
+                }
+
+                // update the counts
+                if !E::UNCONSTRAINED {
+                    self.local_counts = apc_candidate.snapshot.local_counts;
+                    // add 1 to this apc
+                    *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() +=
+                        1;
+                }
+
+                // update the report
+                if self.print_report {
+                    // revert to the report before the block
+                    self.report = apc_candidate.snapshot.report.clone();
+                    // update the apc counts with a success for this apc
+                    self.report.apc_counts.entry(apc_candidate.apc.id).or_default().success += 1;
+                }
+
+                tracing::error!("APC candidate completed");
             }
-        }
-
-        // If we reached the end of the block, we can finalize the APC candidate.
-        if let Some(apc_candidate) = self.apc_candidate.take_if(|apc_candidate| {
-            let pc_step = 4;
-            ((self.state.pc - self.program.pc_base) / pc_step as u64) as usize
-                == apc_candidate.apc.range.end().unwrap()
-        }) {
-            if E::MODE == ExecutorMode::Trace {
-                // Construct the apc_record from the current record and the snapshot.
-                let apc_record = ExecutionRecord {
-                    program: self.record.program.clone(),
-                    cpu_event_count: 0, // this is not accessed
-                    add_events: self
-                        .record
-                        .add_events
-                        .drain(apc_candidate.snapshot.record.add_events_len..)
-                        .collect(),
-                    addw_events: self
-                        .record
-                        .addw_events
-                        .drain(apc_candidate.snapshot.record.addw_events_len..)
-                        .collect(),
-                    addi_events: self
-                        .record
-                        .addi_events
-                        .drain(apc_candidate.snapshot.record.addi_events_len..)
-                        .collect(),
-                    mul_events: self
-                        .record
-                        .mul_events
-                        .drain(apc_candidate.snapshot.record.mul_events_len..)
-                        .collect(),
-                    sub_events: self
-                        .record
-                        .sub_events
-                        .drain(apc_candidate.snapshot.record.sub_events_len..)
-                        .collect(),
-                    subw_events: self
-                        .record
-                        .subw_events
-                        .drain(apc_candidate.snapshot.record.subw_events_len..)
-                        .collect(),
-                    bitwise_events: self
-                        .record
-                        .bitwise_events
-                        .drain(apc_candidate.snapshot.record.bitwise_events_len..)
-                        .collect(),
-                    shift_left_events: self
-                        .record
-                        .shift_left_events
-                        .drain(apc_candidate.snapshot.record.shift_left_events_len..)
-                        .collect(),
-                    shift_right_events: self
-                        .record
-                        .shift_right_events
-                        .drain(apc_candidate.snapshot.record.shift_right_events_len..)
-                        .collect(),
-                    divrem_events: self
-                        .record
-                        .divrem_events
-                        .drain(apc_candidate.snapshot.record.divrem_events_len..)
-                        .collect(),
-                    lt_events: self
-                        .record
-                        .lt_events
-                        .drain(apc_candidate.snapshot.record.lt_events_len..)
-                        .collect(),
-                    memory_load_byte_events: self
-                        .record
-                        .memory_load_byte_events
-                        .drain(apc_candidate.snapshot.record.memory_load_byte_events_len..)
-                        .collect(),
-                    memory_load_half_events: self
-                        .record
-                        .memory_load_half_events
-                        .drain(apc_candidate.snapshot.record.memory_load_half_events_len..)
-                        .collect(),
-                    memory_load_word_events: self
-                        .record
-                        .memory_load_word_events
-                        .drain(apc_candidate.snapshot.record.memory_load_word_events_len..)
-                        .collect(),
-                    memory_load_x0_events: self
-                        .record
-                        .memory_load_x0_events
-                        .drain(apc_candidate.snapshot.record.memory_load_x0_events_len..)
-                        .collect(),
-                    memory_load_double_events: self
-                        .record
-                        .memory_load_double_events
-                        .drain(apc_candidate.snapshot.record.memory_load_double_events_len..)
-                        .collect(),
-                    memory_store_byte_events: self
-                        .record
-                        .memory_store_byte_events
-                        .drain(apc_candidate.snapshot.record.memory_store_byte_events_len..)
-                        .collect(),
-                    memory_store_half_events: self
-                        .record
-                        .memory_store_half_events
-                        .drain(apc_candidate.snapshot.record.memory_store_half_events_len..)
-                        .collect(),
-                    memory_store_word_events: self
-                        .record
-                        .memory_store_word_events
-                        .drain(apc_candidate.snapshot.record.memory_store_word_events_len..)
-                        .collect(),
-                    memory_store_double_events: self
-                        .record
-                        .memory_store_double_events
-                        .drain(apc_candidate.snapshot.record.memory_store_double_events_len..)
-                        .collect(),
-                    utype_events: self
-                        .record
-                        .utype_events
-                        .drain(apc_candidate.snapshot.record.utype_events_len..)
-                        .collect(),
-                    branch_events: self
-                        .record
-                        .branch_events
-                        .drain(apc_candidate.snapshot.record.branch_events_len..)
-                        .collect(),
-                    jal_events: self
-                        .record
-                        .jal_events
-                        .drain(apc_candidate.snapshot.record.jal_events_len..)
-                        .collect(),
-                    jalr_events: self
-                        .record
-                        .jalr_events
-                        .drain(apc_candidate.snapshot.record.jalr_events_len..)
-                        .collect(),
-                    // revert byte lookups to before the block in the main record and return the
-                    // diff in the apc record
-                    byte_lookups: self
-                        .record
-                        .byte_lookups
-                        .iter_mut()
-                        .map(|(e, count)| {
-                            let old = apc_candidate
-                                .snapshot
-                                .record
-                                .byte_lookups
-                                .get(e)
-                                .copied()
-                                .unwrap_or_default();
-                            let diff = *count - old;
-                            *count = old;
-                            (*e, diff)
-                        })
-                        .filter(|(_, diff)| *diff != 0)
-                        .collect(),
-                    precompile_events: PrecompileEvents::default(),
-                    global_memory_initialize_events: self
-                        .record
-                        .global_memory_initialize_events
-                        .drain(apc_candidate.snapshot.record.global_memory_initialize_events_len..)
-                        .collect(),
-                    global_memory_finalize_events: self
-                        .record
-                        .global_memory_finalize_events
-                        .drain(apc_candidate.snapshot.record.global_memory_finalize_events_len..)
-                        .collect(),
-                    cpu_local_memory_access: self
-                        .record
-                        .cpu_local_memory_access
-                        .drain(apc_candidate.snapshot.record.cpu_local_memory_access_len..)
-                        .collect(),
-                    syscall_events: self
-                        .record
-                        .syscall_events
-                        .drain(apc_candidate.snapshot.record.syscall_events_len..)
-                        .collect(),
-                    apc_events: ApcEvents::default(),
-                    global_interaction_events: Vec::default(),
-                    global_cumulative_sum: self.record.global_cumulative_sum.clone(),
-                    global_interaction_event_count: self.record.global_interaction_event_count,
-                    bump_memory_events: vec![],
-                    bump_state_events: vec![],
-                    public_values: self.record.public_values,
-                    next_nonce: self.record.next_nonce,
-                    shape: self.record.shape.clone(), // we might be fine with `Default` here
-                    counts: self.record.counts,
-                    estimated_trace_area: self.record.estimated_trace_area,
-                    initial_timestamp: self.record.initial_timestamp,
-                    last_timestamp: self.record.last_timestamp,
-                    pc_start: self.record.pc_start,
-                    next_pc: self.state.pc,
-                    exit_code: self.record.exit_code,
-                };
-                assert_eq!(
-                    self.record.precompile_events.len(),
-                    apc_candidate.snapshot.record.precompile_events_len,
-                    "New precompile events generated within apc block"
-                );
-                assert_eq!(
-                    self.record.apc_events.len(),
-                    apc_candidate.snapshot.record.apc_events_len,
-                    "New apc events generated within apc block"
-                );
-                assert_eq!(
-                    self.record.global_interaction_event_count,
-                    apc_candidate.snapshot.record.global_interaction_event_count,
-                    "New global interaction events generated within apc block"
-                );
-                assert_eq!(
-                    self.record.bump_state_events.len(),
-                    apc_candidate.snapshot.record.bump_state_events_len,
-                    "New bump state events generated within apc block"
-                );
-                assert_eq!(
-                    self.record.bump_memory_events.len(),
-                    apc_candidate.snapshot.record.bump_memory_events_len,
-                    "New bump memory events generated within apc block"
-                );
-
-                // Add the apc event to the record.
-                self.record.apc_events.add_event(
-                    apc_candidate.apc.id,
-                    ApcEvent { id: apc_candidate.apc.id, record: apc_record },
-                );
-
-                // Update the CPU event count, since we are running apc, only one cpu_event happened
-                self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
-            }
-
-            // update the counts
-            if !E::UNCONSTRAINED {
-                self.local_counts = apc_candidate.snapshot.local_counts;
-                // add 1 to this apc
-                *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
-            }
-
-            // update the report
-            if self.print_report {
-                // revert to the report before the block
-                self.report = apc_candidate.snapshot.report.clone();
-                // update the apc counts with a success for this apc
-                self.report.apc_counts.entry(apc_candidate.apc.id).or_default().success += 1;
-            }
-
-            tracing::trace!("APC candidate completed");
         }
 
         // Update the program counter.
@@ -2515,8 +2513,10 @@ impl<'a> Executor<'a> {
                 local_counts: self.local_counts.clone(),
                 report: self.report.clone(),
             };
-            let apc_candidate = ApcCandidate { apc, snapshot };
-            tracing::trace!("APC candidate created");
+            let pc_step = 4;
+            let end_pc = apc.range.end().unwrap() as u64 * pc_step + self.program.pc_base;
+            let apc_candidate = ApcCandidate { end_pc, apc, snapshot };
+            tracing::error!("APC candidate created");
             self.apc_candidate = Some(apc_candidate);
         }
 

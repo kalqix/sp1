@@ -102,6 +102,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        tracing::error!("generate trace for APC ID: {}", self.id);
+
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id).expect("APC events not found");
 
@@ -193,11 +195,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // Assert number of rows is correct
         assert_eq!(rows.len(), <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap());
 
+        tracing::trace!("Generated {} rows for APC ID: {}", rows.len(), self.id);
+
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        tracing::error!("Generating dependencies for APC ID: {}", self.id);
+
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id);
         // Because `generate_dependencies` is run during execution for all chips, it's not
@@ -211,6 +217,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         }
         let events = events.unwrap();
 
+        tracing::error!("Found {} APC events for APC ID: {}", events.len(), self.id);
+
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
             .apc()
@@ -219,6 +227,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .enumerate()
             .map(|(index, c)| (c.id, index))
             .collect::<BTreeMap<_, _>>();
+
+        tracing::error!("build index");
 
         // Get is_valid_index to manually fill with 1 for witness generation
         let is_valid_column =
@@ -229,21 +239,27 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // to ExecutionRecord
         // TODO: can we combine all events into a single record, and run trace generation a
         // single time?
+
+        tracing::error!("go through {} events in parallel", events.len());
+
         let byte_interactions_deltas = events
             .par_iter()
             .map(|event| {
                 assert!(event.id == self.id, "APC ID mismatch");
-                let airs = self.machine.chips().to_vec();
+                let airs = self.machine.chips();
 
+                tracing::error!("go through {} airs in parallel", airs.len());
                 // Generate traces for each included air in parallel
                 let chips_and_traces = airs
-                    .into_par_iter()
+                    .par_iter()
                     .filter(|air| air.included(&event.record))
                     .map(|air| {
                         let trace = air.generate_trace(&event.record, &mut Default::default());
                         (air, trace)
                     })
                     .collect::<BTreeMap<_, _>>();
+
+                tracing::error!("generated traces for {} airs", chips_and_traces.len());
 
                 // Create iterators over the rows of the traces
                 let mut iterators = chips_and_traces
@@ -256,6 +272,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
                 // Go through the original instructions of the APC and map the relevant rows to the APC row
                 let original_instructions = self.apc().block.statements.iter().map(|instr| instr.0);
+
+                tracing::error!("go through {} original instructions", original_instructions.len());
 
                 for (original_instruction, sub) in original_instructions.zip_eq(&self.apc().subs) {
                     // Get the air ID for the instruction
@@ -321,18 +339,24 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     }
                 }
 
-                tracing::trace!("Final row: {row:?}");
+                tracing::error!("Final row");
 
                 byte_interactions_delta
             })
             .collect::<Vec<_>>();
 
+        tracing::error!("collected deltas for {} events", byte_interactions_deltas.len());
+
         // Replay byte lookups (can only mutate output after map)
         for delta in byte_interactions_deltas.into_iter() {
+            tracing::error!("replaying delta with {} entries", delta.len());
             for (event, mult) in delta.into_iter() {
+                tracing::error!("replaying event: {event:?}, mult: {mult}");
                 *output.byte_lookups.entry(event).or_insert(0) += mult;
             }
         }
+
+        tracing::error!("done generating dependencies for APC ID: {}", self.id);
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
