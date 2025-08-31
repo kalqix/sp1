@@ -798,7 +798,8 @@ mod tests {
     use crate::{local::LocalProver, recursion::normalize_program_from_input};
     use sp1_core_executor::SP1Context;
 
-    use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
+    use crate::CpuSP1ProverComponents;
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
     use sp1_recursion_executor::RecursionAirEventCount;
 
     use crate::SP1ProverBuilder;
@@ -809,8 +810,11 @@ mod tests {
     #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
-        let prover =
-            SP1ProverBuilder::new(RiscvAir::machine()).without_recursion_vks().build().await;
+        let prover: SP1Prover<_> =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+                .without_recursion_vks()
+                .build()
+                .await;
 
         let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY)
             .expect("default arity shape should be valid");
@@ -841,8 +845,10 @@ mod tests {
     async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover =
-            SP1ProverBuilder::new().without_recursion_vks(RiscvAir::machine()).build().await;
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+            .without_recursion_vks()
+            .build()
+            .await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
         let context =
@@ -906,6 +912,7 @@ mod tests {
         }
         Ok(())
     }
+
     #[tokio::test]
     #[serial]
     async fn test_build_vk_map() {
@@ -918,7 +925,8 @@ mod tests {
         // Clean up any existing file from previous runs
         let _ = std::fs::remove_file(&vk_map_path);
 
-        let prover = SP1ProverBuilder::new(RiscvAir::machine()).build().await;
+        let prover =
+            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, program, vk) = prover.core().setup(&elf).await;
@@ -974,7 +982,7 @@ mod tests {
         tracing::info!("Built vk map with {} shapes", shape_indices_len);
 
         // Build a new prover that performs the vk verification check using the built vk map.
-        let prover = SP1ProverBuilder::new(RiscvAir::machine())
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
             .with_vk_map_path(vk_map_path.display().to_string())
             .build()
             .await;
@@ -1011,7 +1019,10 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
+        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+            .without_recursion_vks()
+            .build()
+            .await;
         let (_, _, vk) = prover.core().setup(&elf).await;
 
         let machine = RiscvAir::<SP1Field>::machine();

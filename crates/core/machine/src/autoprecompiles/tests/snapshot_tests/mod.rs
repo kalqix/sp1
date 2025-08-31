@@ -1,7 +1,7 @@
 use powdr_autoprecompiles::{blocks::BasicBlock, build, evaluation::evaluate_apc};
 use pretty_assertions::assert_eq;
-use slop_baby_bear::BabyBear;
 use sp1_core_executor::Instruction;
+use sp1_primitives::SP1Field;
 use std::{fs, path::Path};
 
 use crate::autoprecompiles::{
@@ -14,7 +14,7 @@ mod pseudo_instructions;
 mod single_instructions;
 
 fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_name: &str) {
-    let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
+    let instruction_handler = Sp1InstructionHandler::<SP1Field>::new();
     let vm_config = sp1_vm_config(&instruction_handler);
     let block = BasicBlock {
         start_pc: 0,

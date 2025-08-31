@@ -652,7 +652,7 @@ mod tests {
         ];
         let shard = ExecutionRecord {
             program: Arc::new(Program {
-                instructions,
+                instructions: instructions.into(),
                 instructions_encoded: None,
                 pc_start_abs: 0,
                 pc_base: 0,

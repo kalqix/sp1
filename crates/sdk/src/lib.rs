@@ -155,7 +155,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new_unsound().await;
+        let client = CpuProver::new_unsound(vec![]).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();

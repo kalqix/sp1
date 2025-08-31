@@ -3204,9 +3204,8 @@ mod tests {
             runtime.run::<Trace>().unwrap();
             assert_eq!(runtime.register::<Trace>(Register::X31), 42);
             assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-            assert_eq!(runtime.records.len(), 1);
             // Check that the APCs were executed iff there were any
-            assert_eq!(!runtime.records[0].apc_events.is_empty(), should_execute_apcs);
+            assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
         }
     }
 

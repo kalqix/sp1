@@ -2,7 +2,7 @@ use std::{fs, io, path::Path};
 
 use itertools::Itertools;
 use pretty_assertions::assert_eq;
-use slop_baby_bear::SP1Field;
+use sp1_primitives::SP1Field;
 
 use crate::{
     autoprecompiles::{bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler},

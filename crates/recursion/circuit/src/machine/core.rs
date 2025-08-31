@@ -12,8 +12,7 @@ use sp1_primitives::SP1Field;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::RiscvAir;
 
-use sp1_hypercube::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS};
-use sp1_recursion_executor::PV_DIGEST_NUM_WORDS;
+use sp1_hypercube::air::{MachineAir, PublicValues};
 
 use sp1_hypercube::{MachineConfig, MachineVerifyingKey, ShardProof};
 

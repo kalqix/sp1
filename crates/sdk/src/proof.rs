@@ -436,7 +436,7 @@ mod tests {
     async fn test_round_trip_proof_save_load() {
         use crate::{ProveRequest, Prover};
 
-        let prover = crate::CpuProver::new_unsound().await;
+        let prover = crate::CpuProver::new_unsound(vec![]).await;
         let pk = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF).await.unwrap();
         let proof = prover.prove(&pk, crate::SP1Stdin::new()).compressed().await.unwrap();
 

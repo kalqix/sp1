@@ -551,10 +551,7 @@ mod tests {
         let pk = unsafe { pk.into_inner() };
         let (proof, _) = prove_core::<
             SP1Field,
-            CpuMachineProverComponents<
-                slop_jagged::Poseidon2BabyBearJaggedCpuProverComponents,
-                RiscvAir<SP1Field>,
-            >,
+            CpuMachineProverComponents<SP1CpuJaggedProverComponents, RiscvAir<SP1Field>>,
             RiscvAir<SP1Field>,
         >(
             verifier.clone(),

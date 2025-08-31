@@ -1249,10 +1249,7 @@ pub mod tests {
     use sp1_core_executor::{Instruction, Opcode, Program};
     use sp1_primitives::SP1Field;
 
-    use slop_air::BaseAir;
-
-    use sp1_core_executor::{Instruction, Opcode, Program};
-    use sp1_primitives::{io::SP1PublicValues, SP1Field};
+    use sp1_primitives::io::SP1PublicValues;
 
     use crate::{
         autoprecompiles::create_apcs,
@@ -1261,7 +1258,7 @@ pub mod tests {
         utils::setup_logger,
     };
     use sp1_core_executor::add_halt;
-    use sp1_hypercube::InteractionKind;
+    use sp1_hypercube::{InteractionKind, MachineVerifierConfigError, SP1CoreJaggedConfig};
     //     use sp1_primitives::SP1Field;
     //     use sp1_core_executor::{Instruction, Opcode, Program, SP1Context};
     //     use sp1_hypercube::{
@@ -1280,19 +1277,19 @@ pub mod tests {
     // }
 
     async fn run_test(
-        program: Program,
+        program: Arc<Program>,
         stdin: SP1Stdin,
-    ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
         crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
     }
 
     async fn run_test_with_opts(
-        program: Program,
+        program: Arc<Program>,
         stdin: SP1Stdin,
         opts: sp1_core_executor::SP1CoreOpts,
     ) -> Result<
-        (SP1PublicValues, sp1_hypercube::MachineProof<BabyBearPoseidon2>),
-        MachineVerifierConfigError<BabyBearPoseidon2>,
+        (SP1PublicValues, sp1_hypercube::MachineProof<SP1CoreJaggedConfig>),
+        MachineVerifierConfigError<SP1CoreJaggedConfig>,
     > {
         crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
     }
@@ -1439,7 +1436,7 @@ pub mod tests {
         // checks for segmentation.
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        let (_, proofs) = run_test_with_opts(program, stdin, opts).await.unwrap();
+        let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
         // Number of segments
         assert!(proofs.shard_proofs.len() == 3);
     }
@@ -1465,9 +1462,13 @@ pub mod tests {
         let apcs = create_apcs(&program, &apc_ranges);
         let program = program.with_apcs(&apc_ranges);
         let stdin = SP1Stdin::new();
-        crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
-            .await
-            .unwrap();
+        crate::utils::run_test_with_machine(
+            Arc::new(program),
+            stdin,
+            RiscvAirWithApcs::machine(apcs),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1496,7 +1497,7 @@ pub mod tests {
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
         let (_, proofs) = crate::utils::run_test_with_machine_opts(
-            program,
+            Arc::new(program),
             stdin,
             RiscvAirWithApcs::machine(apcs),
             opts,

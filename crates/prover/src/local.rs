@@ -14,7 +14,6 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{executor::MachineExecutor, io::SP1Stdin};
 use sp1_hypercube::{
-    air::MachineAir,
     prover::{MachineProvingKey, MemoryPermit},
     MachineVerifierConfigError, MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof,
 };
@@ -48,7 +47,6 @@ use crate::{
     SP1VerifyingKey,
 };
 
-use sp1_core_executor::ExecutionRecord;
 use sp1_hypercube::{
     prover::{MachineProverComponents, Record},
     VerifierConstraintFolder,

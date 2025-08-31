@@ -20,7 +20,7 @@ use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     error::SP1ProverError,
     local::{LocalProver, LocalProverOpts},
-    CpuSP1ProverComponents, SP1ProverBuilder, SP1VerifyingKey,
+    SP1ProverBuilder, SP1VerifyingKey,
 };
 use sp1_prover::{
     // verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},

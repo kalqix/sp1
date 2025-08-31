@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use slop_jagged::JaggedConfig;
-use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_executor::{ExecutionRecord, HEIGHT_THRESHOLD};
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{
