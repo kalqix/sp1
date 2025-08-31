@@ -14,8 +14,9 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{executor::MachineExecutor, io::SP1Stdin};
 use sp1_hypercube::{
-    prover::{MachineProvingKey, MemoryPermit},
+    prover::{MachineProverComponents, MachineProvingKey, MemoryPermit, Record},
     MachineVerifierConfigError, MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof,
+    VerifierConstraintFolder,
 };
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_recursion_circuit::{
@@ -45,11 +46,6 @@ use crate::{
     components::SP1ProverComponents, error::SP1ProverError, recursion::SP1RecursionProver, CoreSC,
     HashableKey, OuterSC, SP1CircuitWitness, SP1CoreProof, SP1CoreProofData, SP1Prover,
     SP1VerifyingKey,
-};
-
-use sp1_hypercube::{
-    prover::{MachineProverComponents, Record},
-    VerifierConstraintFolder,
 };
 
 #[derive(Debug, Clone)]

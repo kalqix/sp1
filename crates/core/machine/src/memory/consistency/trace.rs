@@ -1,11 +1,9 @@
 use slop_algebra::PrimeField32;
 use sp1_core_executor::events::{ByteRecord, MemoryRecordEnum, PageProtRecord};
 
-use crate::memory::PageProtAccessCols;
-
 use super::{
-    MemoryAccessCols, MemoryAccessColsU8, MemoryAccessTimestamp, RegisterAccessCols,
-    RegisterAccessTimestamp,
+    MemoryAccessCols, MemoryAccessColsU8, MemoryAccessTimestamp, PageProtAccessCols,
+    RegisterAccessCols, RegisterAccessTimestamp,
 };
 
 impl<F: PrimeField32> MemoryAccessCols<F> {

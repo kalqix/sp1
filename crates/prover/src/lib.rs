@@ -33,24 +33,23 @@ use sp1_core_executor::Program;
 use std::{collections::BTreeMap, sync::Arc};
 
 use sp1_hypercube::{
-    prover::{CpuShardProver, MachineProverBuilder, MachineProverComponents, ProverSemaphore},
-    ConstraintSumcheckFolder, SP1CpuJaggedProverComponents,
+    air::MachineAir,
+    prover::{
+        CpuShardProver, CpuShardProverComponents, MachineProverBuilder, MachineProverComponents,
+        ProverSemaphore, ShardProver,
+    },
+    ConstraintSumcheckFolder, Machine, SP1CpuJaggedProverComponents,
 };
 use sp1_recursion_executor::RecursionProgram;
 
 use sp1_hypercube::{SP1CoreJaggedConfig, SP1OuterConfig};
 use sp1_primitives::SP1Field;
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
-use std::fmt;
+
+pub use types::*;
 
 pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
-use sp1_hypercube::{
-    air::MachineAir,
-    prover::{CpuShardProverComponents, ShardProver},
-    Machine,
-};
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-pub use types::*;
 
 /// The global version for all components of SP1.
 ///
@@ -377,7 +376,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 impl<C: SP1ProverComponents<RecursionComponents = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionComponents, WrapComponents = <CpuSP1ProverComponents as SP1ProverComponents>::WrapComponents>>
     SP1ProverBuilder<C>
 where
-    <C::CoreComponents as MachineProverComponents>::Air: fmt::Debug
+    <C::CoreComponents as MachineProverComponents>::Air: std::fmt::Debug
         + Air<SymbolicAirBuilder<<CoreSC as JaggedConfig>::F>>
         + for<'b> Air<
             ConstraintSumcheckFolder<

@@ -103,7 +103,9 @@ impl PrecompileLocalMemory for Vec<ApcEvent> {
     }
 
     fn get_local_page_prot_events(&self) -> impl IntoIterator<Item = &PageProtLocalEvent> {
-        todo!();
-        std::iter::empty()
+        self.iter()
+            .flat_map(|event| event.record.get_local_page_prot_events())
+            .collect::<Vec<_>>() // collecting because otherwise we get a recursive opaque type error
+            .into_iter()
     }
 }
