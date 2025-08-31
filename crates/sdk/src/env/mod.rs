@@ -19,9 +19,8 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-use slop_baby_bear::SP1Field;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
-use sp1_primitives::Elf;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
 use std::sync::Arc;
 
@@ -47,10 +46,8 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {}
-
-    pub async fn new() -> Self {
-        Self::from_env_with_opts(None).await
+    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+        Self::from_env_with_opts(None, apcs).await
     }
 
     /// Updates the core options for this prover.
@@ -68,7 +65,7 @@ impl EnvProver {
     /// client = client.with_opts(opts).await;
     /// ```
     pub async fn with_opts(self, opts: SP1CoreOpts) -> Self {
-        Self::from_env_with_opts(Some(opts)).await
+        Self::from_env_with_opts(Some(opts), vec![]).await
     }
 
     /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
@@ -77,7 +74,10 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
+    pub async fn from_env_with_opts(
+        core_opts: Option<SP1CoreOpts>,
+        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
@@ -91,7 +91,7 @@ impl EnvProver {
         }
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(apcs, core_opts).await),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, apcs).await),
             "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
             "mock" => Self::Mock(MockProver::new().await),
             #[cfg(feature = "network")]

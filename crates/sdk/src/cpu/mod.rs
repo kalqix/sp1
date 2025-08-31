@@ -10,25 +10,23 @@ use std::sync::Arc;
 use anyhow::Result;
 use powdr_autoprecompiles::Apc;
 use prove::CpuProveBuilder;
-use slop_baby_bear::BabyBear;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
 use sp1_core_machine::{
     autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin, riscv::RiscvAirWithApcs,
 };
 use sp1_hypercube::prover::MachineProvingKey;
-use sp1_primitives::Elf;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     error::SP1ProverError,
     local::{LocalProver, LocalProverOpts},
-    SP1ProverBuilder, SP1VerifyingKey,
+    CpuSP1ProverComponents, SP1ProverBuilder, SP1VerifyingKey,
 };
 use sp1_prover::{
     // verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
     SP1CoreProofData,
     SP1ProofWithMetadata,
 };
-use sp1_stark::prover::MachineProvingKey;
 
 use crate::{
     install::try_install_circuit_artifacts,
@@ -109,23 +107,20 @@ impl Prover for CpuProver {
 
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
-    #[must_use]
-    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
-        let prover =
-            SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
-                .build()
-                .await;
-        let opts = LocalProverOpts::default();
-    }
-
-    pub async fn new() -> Self {
-        Self::new_with_opts(None).await
+    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+        Self::new_with_opts(None, apcs).await
     }
 
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
-    pub async fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new().build().await;
+    pub async fn new_with_opts(
+        core_opts: Option<sp1_core_executor::SP1CoreOpts>,
+        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    ) -> Self {
+        let prover =
+            SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
+                .build()
+                .await;
         let mut opts = LocalProverOpts::default();
 
         // Override core_opts if provided
@@ -146,7 +141,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "unsound")]
     #[must_use]
-    pub async fn new_unsound(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub async fn new_unsound(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
                 .without_vk_verification()

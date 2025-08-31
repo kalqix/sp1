@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use powdr_autoprecompiles::Apc;
-use slop_baby_bear::SP1Field;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_primitives::SP1Field;
 
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
 

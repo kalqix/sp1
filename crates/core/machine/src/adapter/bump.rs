@@ -17,7 +17,7 @@ use sp1_core_executor::{
     ByteOpcode, ExecutionRecord, Program, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::{InteractionScope, MachineAir};
+use sp1_hypercube::air::MachineAir;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 pub(crate) const NUM_STATE_BUMP_COLS: usize = size_of::<StateBumpCols<u8>>();
 

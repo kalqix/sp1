@@ -4,7 +4,7 @@ use slop_jagged::JaggedConfig;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
-    air::MachineAir,
+    air::{MachineAir, MachineProgram},
     prover::{
         CoreProofShape, MachineProver, MachineProverComponents, MachineProvingKey,
         PreprocessedData, Record,
@@ -98,7 +98,7 @@ impl<C: CoreProverComponents> SP1CoreProver<C> {
                 .unwrap();
         let program = self.machine().customize_program(program);
         let program = Arc::new(program);
-        let (pk, vk) = self.prover.setup(program.clone(), None).await.unwrap();
+        let (pk, vk) = self.prover.setup(program.clone(), None).await;
         (pk, program, SP1VerifyingKey { vk })
     }
 

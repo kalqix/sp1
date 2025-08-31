@@ -24,7 +24,7 @@ use sp1_recursion_executor::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
-use std::path::Path;
+use std::{borrow::Borrow, path::Path, str::FromStr};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -58,7 +58,7 @@ impl<C: SP1ProverComponents> SP1Prover<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
             RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
-        > + for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+        > + for<'a> Air<sp1_hypercube::VerifierConstraintFolder<'a, CoreSC>>,
 {
     pub fn machine(
         &self,
@@ -706,7 +706,7 @@ impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
             RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
-        > + for<'a> Air<sp1_stark::VerifierConstraintFolder<'a, CoreSC>>,
+        > + for<'a> Air<sp1_hypercube::VerifierConstraintFolder<'a, CoreSC>>,
 {
     fn verify_deferred_proof(
         &self,

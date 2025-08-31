@@ -34,7 +34,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use sp1_hypercube::{
     prover::{CpuShardProver, MachineProverBuilder, MachineProverComponents, ProverSemaphore},
-    ConstraintSumcheckFolder,
+    ConstraintSumcheckFolder, SP1CpuJaggedProverComponents,
 };
 use sp1_recursion_executor::RecursionProgram;
 
@@ -44,7 +44,11 @@ use sp1_recursion_compiler::config::InnerConfig;
 use std::fmt;
 
 pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
-use sp1_hypercube::{air::MachineAir, Machine};
+use sp1_hypercube::{
+    air::MachineAir,
+    prover::{CpuShardProverComponents, ShardProver},
+    Machine,
+};
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 pub use types::*;
 
@@ -391,9 +395,9 @@ where
             >,
         > + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
         <C as SP1ProverComponents>::CoreComponents: MachineProverComponents<
-            Prover = CpuShardProver<
+            Prover = ShardProver<
                 CpuShardProverComponents<
-                    Poseidon2BabyBearJaggedCpuProverComponents,
+                    SP1CpuJaggedProverComponents,
                     <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air
                 >
             >

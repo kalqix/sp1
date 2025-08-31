@@ -14,7 +14,10 @@ use itertools::Itertools;
 use slop_air::Air;
 use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{air::PublicValues, MachineVerifierConfigError};
+use sp1_hypercube::{
+    air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
+    VerifierConstraintFolder,
+};
 use sp1_primitives::types::Elf;
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
@@ -23,10 +26,6 @@ use sp1_prover::{
 };
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
-use sp1_stark::{
-    air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
-    VerifierConstraintFolder,
-};
 use thiserror::Error;
 
 /// The module that exposes the [`ExecuteRequest`] type.

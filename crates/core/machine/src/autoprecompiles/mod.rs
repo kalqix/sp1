@@ -20,7 +20,7 @@ use powdr_autoprecompiles::{
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
-use sp1_build::{BuildArgs, DEFAULT_TARGET};
+use sp1_build::BuildArgs;
 use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
 use std::{collections::HashMap, sync::Arc};

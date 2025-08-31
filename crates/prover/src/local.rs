@@ -48,6 +48,7 @@ use crate::{
     SP1VerifyingKey,
 };
 
+use sp1_core_executor::ExecutionRecord;
 use sp1_hypercube::{
     prover::{MachineProverComponents, Record},
     VerifierConstraintFolder,
@@ -97,22 +98,26 @@ impl Default for LocalProverOpts {
     }
 }
 
-pub struct LocalProver<C: SP1ProverComponents, A: MachineAir<SP1Field>> {
+pub struct LocalProver<C: SP1ProverComponents> {
     prover: SP1Prover<C>,
-    executor: MachineExecutor<SP1Field, A>,
+    executor: MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air>,
     compose_batch_size: usize,
     normalize_batch_size: usize,
     num_recursion_executors: usize,
 }
 
-impl<C: SP1ProverComponents, A: MachineAir<SP1Field>> LocalProver<C, A>
+impl<C: SP1ProverComponents> LocalProver<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
-        let executor =
-            MachineExecutor::new(opts.records_buffer_size, opts.num_record_workers, opts.core_opts);
+        let executor = MachineExecutor::new(
+            opts.records_buffer_size,
+            opts.num_record_workers,
+            opts.core_opts,
+            prover.machine().clone(),
+        );
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
@@ -169,7 +174,9 @@ where
     /// Get a reference to the underlying [MachineExecutor]
     #[inline]
     #[must_use]
-    pub fn executor(&self) -> &MachineExecutor<SP1Field> {
+    pub fn executor(
+        &self,
+    ) -> &MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air> {
         &self.executor
     }
 
@@ -903,7 +910,7 @@ pub mod tests {
         autoprecompiles::{build_elf, sp1_powdr_config},
         riscv::{RiscvAir, RiscvAirWithApcs},
     };
-    use sp1_stark::air::MachineAir;
+    use sp1_hypercube::air::MachineAir;
     use tracing::Instrument;
 
     use slop_algebra::PrimeField32;

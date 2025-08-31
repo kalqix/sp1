@@ -107,7 +107,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                         ProverChoice::Software(i) => i,
                         ProverChoice::ApcOrSoftware(..) => unreachable!(),
                     };
-                    cols.instruction.populate(&instruction);
+                    cols.instruction.populate(instruction);
                 });
             });
 
