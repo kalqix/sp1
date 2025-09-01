@@ -41,11 +41,9 @@ impl ApcEvents {
     #[inline]
     /// Add a precompile event for a given apc id.
     pub fn add_event(&mut self, apc_id: u64, mut event: ExecutionRecord) {
-        tracing::error!("add event {:#?}", event.stats());
         let entry = self.events.entry(apc_id).or_default();
         entry.count += 1;
         entry.record.append(&mut event);
-        tracing::error!("resulting event {:#?}", entry.record.stats());
     }
 
     /// Checks if the precompile events are empty.
