@@ -2772,6 +2772,19 @@ impl<'a> Executor<'a> {
 
             if !maximal_size_reached {
                 self.state.shard_finished = true;
+                // If an apc candidate was being run, report a segmentation error.
+                if let Some(apc_candidate) = self.apc_candidate.take() {
+                    self.report
+                        .apc_counts
+                        .entry(apc_candidate.apc.id)
+                        .or_default()
+                        .segmentation_error += 1;
+                    tracing::error!(
+                        "global clock {}: APC {} cancelled: segmentation error detected",
+                        self.state.global_clk,
+                        apc_candidate.apc.id
+                    );
+                }
                 self.state.initial_timestamp = self.state.clk;
                 self.record.last_timestamp = self.state.clk;
                 self.bump_record::<E>();
