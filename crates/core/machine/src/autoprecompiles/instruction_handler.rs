@@ -203,7 +203,6 @@ pub fn try_instruction_type_to_air_id(instruction_type: InstructionType) -> Opti
             Opcode::ADDW => Some(RiscvAirId::Addw),
             Opcode::SUBW => Some(RiscvAirId::Subw),
             Opcode::UNIMP => None,
-            Opcode::APC => None,
         },
         InstructionType::LoadX0 => Some(RiscvAirId::LoadX0),
     }

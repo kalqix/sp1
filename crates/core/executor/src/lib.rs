@@ -21,7 +21,6 @@
 #![warn(missing_docs)]
 
 mod air;
-mod apc;
 mod context;
 mod cost;
 mod disassembler;

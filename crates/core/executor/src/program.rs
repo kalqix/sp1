@@ -1,16 +1,11 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{
-    fs::File,
-    io::Read,
-    iter::{once, repeat},
-    str::FromStr,
-};
+use std::{fs::File, io::Read, str::FromStr};
 
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    Opcode, ProverChoice, RiscvAirId,
+    RiscvAirId,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -34,7 +29,7 @@ pub type ApcCost = u64;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     /// The instructions of the program.
-    pub instructions: Instructions,
+    pub instructions: Vec<Instruction>,
     /// The encoded instructions of the program. Only used if program is untrusted
     pub instructions_encoded: Option<Vec<u32>>,
     /// The start address of the program. It is absolute, meaning not relative to `pc_base`.
@@ -45,30 +40,20 @@ pub struct Program {
     pub memory_image: HashMap<u64, u64>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
-}
-
-/// Instructions of a program, including the proving instructions (which end up in the Program
-/// chip), the ranges which have APC chips, and the execution instructions used by the executor.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Instructions {
-    /// The original instructions of the program.
-    proving: Vec<Instruction>,
     /// The ranges of instructions that have APC chips.
-    apcs: Vec<(ApcRange, ApcCost)>,
-    /// The execution instructions, which replace the original instructions in the APC ranges with
-    /// APC instructions.
-    execution: Vec<Instruction>,
+    pub apcs_by_start_idx: HashMap<usize, Apc>,
 }
 
-impl From<Vec<Instruction>> for Instructions {
-    fn from(original: Vec<Instruction>) -> Self {
-        // We execute and prove the same instructions
-        Self { proving: original.clone(), apcs: Vec::new(), execution: original }
-    }
-}
-
-fn apc_instruction(apc_index: usize) -> Instruction {
-    Instruction::new(Opcode::APC, 0, apc_index as u64, 0, true, true)
+/// Represents an APC in the program, which is a range for which the prover can choose to run an
+/// alternative implementation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Apc {
+    /// The id for this APC
+    pub id: u64,
+    /// The range for this APC
+    pub range: ApcRange,
+    /// The cost for this APC
+    pub cost: ApcCost,
 }
 
 /// Represents a APC range.
@@ -125,86 +110,6 @@ impl From<&(usize, usize)> for ApcRange {
     }
 }
 
-impl Instructions {
-    /// The number of instructions
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.proving.len()
-    }
-
-    /// Check if there are no instructions.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.proving.is_empty()
-    }
-
-    /// Get the proving instruction at the given index.
-    #[must_use]
-    pub fn get_proving(&self, index: usize) -> Option<&Instruction> {
-        self.proving.get(index)
-    }
-
-    /// Get the execution instruction at the given index.
-    #[must_use]
-    pub fn get_choice(&self, index: usize) -> Option<ProverChoice<&Instruction>> {
-        // TODO: refactor `Instructions` to encode this more naturally
-        match (self.execution.get(index), self.proving.get(index)) {
-            // for apc instructions, we give the option to run software
-            (Some(i @ Instruction { opcode: Opcode::APC, .. }), Some(original)) => {
-                Some(ProverChoice::ApcOrSoftware(i, original))
-            }
-            // for non-apc instructions, we only give the option to run the software version
-            (Some(instruction), Some(proving)) => {
-                // either we're inside an apc and we should have UNIMP, or we are outside and the
-                // instructions should match
-                debug_assert!(instruction.opcode == Opcode::UNIMP || instruction == proving);
-                Some(ProverChoice::Software(proving))
-            }
-            (None, None) => None,
-            _ => unreachable!(),
-        }
-    }
-
-    /// Remove the apc ranges and modified instructions.
-    pub(crate) fn clear_apcs(&mut self) {
-        self.apcs.clear();
-        self.execution = self.proving.clone();
-    }
-
-    /// Get the original instructions as an iterator.
-    pub fn proving(&self) -> impl Iterator<Item = &Instruction> {
-        self.proving.iter()
-    }
-
-    /// Get the apcs as an iterator.
-    pub(crate) fn apcs(&self) -> impl Iterator<Item = &(ApcRange, ApcCost)> {
-        self.apcs.iter()
-    }
-
-    /// Get a range of proving instructions based on pc indices.
-    #[must_use]
-    pub fn get_proving_range(&self, apc_range: ApcRange) -> &[Instruction] {
-        &self.proving[apc_range.start().unwrap()..=apc_range.end().unwrap()]
-    }
-
-    /// Add an APC range to the instructions.
-    fn add_apc(mut self, range_and_cost: (ApcRange, ApcCost)) -> Instructions {
-        let apc_index = self.apcs.len();
-        let range = range_and_cost.0;
-        self.apcs.push(range_and_cost);
-        // replace the whole range
-        // the unimplemented instructions are not strictly required, but they help with debugging in
-        // case we jump to the middle of a basic block, which should not happen.
-        for (instruction, value) in self.execution[range.start_idx..range.start_idx + range.len]
-            .iter_mut()
-            .zip(once(apc_instruction(apc_index)).chain(repeat(Instruction::unimp())))
-        {
-            *instruction = value;
-        }
-        self
-    }
-}
-
 impl Program {
     /// Set the APC ranges for this program.
     /// Assumes the ranges are non-overlapping and sorted.
@@ -216,15 +121,19 @@ impl Program {
         self,
         apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost)>,
     ) -> Self {
-        apc_ranges_and_costs
+        let apc_ranges: Vec<Apc> = apc_ranges_and_costs
             .into_iter()
-            .fold(self, |program, (range, cost)| program.add_apc((range.into(), cost)))
+            .map(|(r, c)| (r.into(), c))
+            .enumerate()
+            .map(|(id, (range, cost))| Apc { id: id as u64, range, cost })
+            .collect();
+        apc_ranges.into_iter().fold(self, Program::add_apc)
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, range_and_cost: (ApcRange, ApcCost)) -> Self {
-        self.instructions = self.instructions.add_apc(range_and_cost);
+    pub fn add_apc(mut self, apc: Apc) -> Self {
+        self.apcs_by_start_idx.insert(apc.range.start_idx, apc);
         self
     }
 
@@ -232,12 +141,13 @@ impl Program {
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
         Self {
-            instructions: instructions.into(),
+            instructions,
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
             memory_image: HashMap::new(),
             preprocessed_shape: None,
+            apcs_by_start_idx: HashMap::new(),
         }
     }
 
@@ -259,12 +169,13 @@ impl Program {
 
         // Return the program.
         Ok(Program {
-            instructions: instructions.into(),
+            instructions,
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
             preprocessed_shape: None,
+            apcs_by_start_idx: HashMap::new(),
         })
     }
 
@@ -291,10 +202,10 @@ impl Program {
 
     #[must_use]
     /// Fetch the prover choice at the given program counter.
-    pub fn fetch(&self, pc: u64) -> Option<ProverChoice<&Instruction>> {
+    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&Apc>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some(self.instructions.get_choice(idx).unwrap())
+            Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))
         } else {
             None
         }
