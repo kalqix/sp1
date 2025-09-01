@@ -172,9 +172,6 @@ pub struct Executor<'a> {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
-    /// The maximum number of shards to execute at once.
-    pub shard_batch_size: u32,
-
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 
@@ -296,6 +293,11 @@ struct ExecutionRecordSnapshot {
     pub branch_events_len: usize,
     pub jal_events_len: usize,
     pub jalr_events_len: usize,
+    pub instruction_fetch_events_len: usize,
+    pub instruction_decode_events_len: usize,
+    pub global_page_prot_initialize_events_len: usize,
+    pub global_page_prot_finalize_events_len: usize,
+    pub cpu_local_page_prot_access_len: usize,
     pub byte_lookups: HashMap<ByteLookupEvent, isize>,
     pub precompile_events_len: usize,
     pub global_memory_initialize_events_len: usize,
@@ -346,6 +348,11 @@ impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
             global_interaction_event_count: record.global_interaction_event_count,
             bump_memory_events_len: record.bump_memory_events.len(),
             bump_state_events_len: record.bump_state_events.len(),
+            instruction_fetch_events_len: record.instruction_fetch_events.len(),
+            instruction_decode_events_len: record.instruction_decode_events.len(),
+            global_page_prot_initialize_events_len: record.global_page_prot_initialize_events.len(),
+            global_page_prot_finalize_events_len: record.global_page_prot_finalize_events.len(),
+            cpu_local_page_prot_access_len: record.cpu_local_page_prot_access.len(),
         }
     }
 }
@@ -652,7 +659,6 @@ impl<'a> Executor<'a> {
             decoded_instruction_events: HashMap::new(),
             opts,
             apc_candidate: None,
-            shard_batch_size: todo!(),
         }
     }
 
@@ -2232,11 +2238,44 @@ impl<'a> Executor<'a> {
                         pc_start: self.record.pc_start,
                         next_pc: self.state.pc,
                         exit_code: self.record.exit_code,
-                        global_page_prot_initialize_events: todo!(),
-                        global_page_prot_finalize_events: todo!(),
-                        cpu_local_page_prot_access: todo!(),
-                        instruction_fetch_events: todo!(),
-                        instruction_decode_events: todo!(),
+                        global_page_prot_initialize_events: self
+                            .record
+                            .global_page_prot_initialize_events
+                            .drain(
+                                apc_candidate
+                                    .snapshot
+                                    .record
+                                    .global_page_prot_initialize_events_len..,
+                            )
+                            .collect(),
+                        global_page_prot_finalize_events: self
+                            .record
+                            .global_page_prot_finalize_events
+                            .drain(
+                                apc_candidate
+                                    .snapshot
+                                    .record
+                                    .global_page_prot_finalize_events_len..,
+                            )
+                            .collect(),
+                        cpu_local_page_prot_access: self
+                            .record
+                            .cpu_local_page_prot_access
+                            .drain(apc_candidate.snapshot.record.cpu_local_page_prot_access_len..)
+                            .collect(),
+                        instruction_fetch_events: self
+                            .record
+                            .instruction_fetch_events
+                            .drain(apc_candidate.snapshot.record.instruction_fetch_events_len..)
+                            .collect(),
+                        instruction_decode_events: {
+                            self.record
+                                .instruction_decode_events
+                                .drain(
+                                    apc_candidate.snapshot.record.instruction_decode_events_len..,
+                                )
+                                .collect()
+                        },
                     };
                     assert_eq!(
                         self.record.precompile_events.len(),
