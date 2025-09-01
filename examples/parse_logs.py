@@ -5,10 +5,11 @@ TARGET_MESSAGE = "prove_shard_with_data finished"
 
 def main():
     w = csv.writer(sys.stdout)
-    w.writerow(["shard", "total_ms", "total_cells"])
+    w.writerow(["shard", "total_ms", "total_cells", "bus_interactions"])
 
     time_sum = 0
     cells_sum = 0
+    bus_interactions_sum = 0
 
     for line in sys.stdin:
         line = line.strip()
@@ -26,18 +27,21 @@ def main():
         shard = obj.get("shard")
         total_ms = obj.get("total_ms")
         total_cells = obj.get("total_cells")
+        bus_interactions = obj.get("bus_interactions")
 
         shard_num = int(shard)
         total_ms_num = int(total_ms)
         total_cells_num = int(total_cells)
+        bus_interactions_num = int(bus_interactions)
 
         time_sum += total_ms_num
         cells_sum += total_cells_num
+        bus_interactions_sum += bus_interactions_num
 
-        w.writerow([shard_num, total_ms_num, total_cells_num])
+        w.writerow([shard_num, total_ms_num, total_cells_num, bus_interactions_num])
 
     # Write the totals row
-    w.writerow(["total", time_sum, cells_sum])
+    w.writerow(["total", time_sum, cells_sum, bus_interactions_sum])
 
 if __name__ == "__main__":
     main()
