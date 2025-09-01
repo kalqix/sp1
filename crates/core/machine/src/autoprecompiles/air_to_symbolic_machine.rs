@@ -20,7 +20,7 @@ use slop_uni_stark::{
 };
 use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
-    PROOF_MAX_NUM_PVS,
+    InteractionKind, PROOF_MAX_NUM_PVS,
 };
 
 use crate::autoprecompiles::{
@@ -96,6 +96,24 @@ pub fn sort_memory_interactions<F: PrimeField32>(
         constraints: machine.constraints,
         bus_interactions: other_interactions.into_iter().chain(memory_bus_interactions).collect(),
     }
+}
+
+/// Takes a machine and constrains its `is_trusted` variable to 1.
+pub fn constrain_is_trusted_to_one<F: PrimeField32>(
+    mut machine: SymbolicMachine<F>,
+) -> SymbolicMachine<F> {
+    let is_trusted = machine
+        .bus_interactions
+        .iter()
+        .find(|i| i.id == InteractionKind::Program as u64)
+        .expect("expected instruction air to interact on the `Program` bus")
+        .args
+        .last()
+        .unwrap();
+    machine.constraints.push(SymbolicConstraint {
+        expr: is_trusted.clone() - AlgebraicExpression::Number(F::one()),
+    });
+    machine
 }
 
 fn is_negation<F: PrimeField32>(expr: &AlgebraicExpression<F, AlgebraicReference>) -> bool {
