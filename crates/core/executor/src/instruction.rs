@@ -242,13 +242,6 @@ impl Instruction {
         matches!(self.opcode, Opcode::UNIMP)
     }
 
-    /// Returns if the instruction is an APC instruction.
-    #[must_use]
-    #[inline]
-    pub const fn is_apc_instruction(&self) -> bool {
-        matches!(self.opcode, Opcode::APC)
-    }
-
     /// Returns the encoded RISC-V instruction.
     #[must_use]
     #[inline]

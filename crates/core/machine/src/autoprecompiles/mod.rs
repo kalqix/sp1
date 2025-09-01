@@ -162,15 +162,14 @@ impl CompiledProgram {
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> Vec<Arc<AdapterApc<Sp1ApcAdapter>>> {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64)>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges
-        .iter()
+        .into_iter()
         .map(|range| {
-            let instructions = program
-                .instructions
-                .get_proving_range(*range)
+            let instructions = program.instructions
+                [range.start().unwrap()..range.end().unwrap() + 1]
                 .iter()
                 .cloned()
                 .map(Sp1Instruction::from)
@@ -184,14 +183,17 @@ pub fn create_apcs(
             let block = BasicBlock { start_pc, statements: instructions };
 
             // Build the APC from the block
-            powdr_autoprecompiles::build::<Sp1ApcAdapter>(
+            let apc = powdr_autoprecompiles::build::<Sp1ApcAdapter>(
                 block,
                 sp1_vm_config(&Sp1InstructionHandler::<SP1Field>::new()),
                 DEFAULT_DEGREE_BOUND,
                 None,
             )
-            .expect("Failed to build APC")
+            .expect("Failed to build APC");
+
+            let apc_cost = apc.machine.main_columns().count() as u64;
+
+            (Arc::new(apc), (range, apc_cost))
         })
-        .map(Arc::new)
-        .collect()
+        .unzip()
 }

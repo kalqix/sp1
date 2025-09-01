@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, ApcEvent, ApcEvents, BranchEvent, ByteLookupEvent, ByteRecord,
+        AluEvent, ApcEvents, ApcEventsForId, BranchEvent, ByteLookupEvent, ByteRecord,
         GlobalInteractionEvent, InstructionDecodeEvent, InstructionFetchEvent, JumpEvent,
         MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PrecompileEvent, PrecompileEvents,
@@ -417,7 +417,7 @@ impl ExecutionRecord {
     /// Get all the apc events for an apc id.
     #[inline]
     #[must_use]
-    pub fn get_apc_events(&self, apc_id: u64) -> Option<&Vec<ApcEvent>> {
+    pub fn get_apc_events(&self, apc_id: u64) -> Option<&ApcEventsForId> {
         self.apc_events.get_events(apc_id)
     }
 
@@ -603,8 +603,11 @@ impl MachineRecord for ExecutionRecord {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_event_count as usize);
         stats.insert("add_events".to_string(), self.add_events.len());
+        stats.insert("addi_events".to_string(), self.addi_events.len());
+        stats.insert("addw_events".to_string(), self.addw_events.len());
         stats.insert("mul_events".to_string(), self.mul_events.len());
         stats.insert("sub_events".to_string(), self.sub_events.len());
+        stats.insert("subw_events".to_string(), self.subw_events.len());
         stats.insert("bitwise_events".to_string(), self.bitwise_events.len());
         stats.insert("shift_left_events".to_string(), self.shift_left_events.len());
         stats.insert("shift_right_events".to_string(), self.shift_right_events.len());
@@ -613,9 +616,11 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("load_byte_events".to_string(), self.memory_load_byte_events.len());
         stats.insert("load_half_events".to_string(), self.memory_load_half_events.len());
         stats.insert("load_word_events".to_string(), self.memory_load_word_events.len());
+        stats.insert("load_double_events".to_string(), self.memory_load_double_events.len());
         stats.insert("load_x0_events".to_string(), self.memory_load_x0_events.len());
         stats.insert("store_byte_events".to_string(), self.memory_store_byte_events.len());
         stats.insert("store_half_events".to_string(), self.memory_store_half_events.len());
+        stats.insert("store_double_events".to_string(), self.memory_store_double_events.len());
         stats.insert("store_word_events".to_string(), self.memory_store_word_events.len());
         stats.insert("branch_events".to_string(), self.branch_events.len());
         stats.insert("jal_events".to_string(), self.jal_events.len());
@@ -667,7 +672,10 @@ impl MachineRecord for ExecutionRecord {
         self.estimated_trace_area += other.estimated_trace_area;
         other.estimated_trace_area = 0;
         self.add_events.append(&mut other.add_events);
+        self.addi_events.append(&mut other.addi_events);
+        self.addw_events.append(&mut other.addw_events);
         self.sub_events.append(&mut other.sub_events);
+        self.subw_events.append(&mut other.subw_events);
         self.mul_events.append(&mut other.mul_events);
         self.bitwise_events.append(&mut other.bitwise_events);
         self.shift_left_events.append(&mut other.shift_left_events);
@@ -677,9 +685,11 @@ impl MachineRecord for ExecutionRecord {
         self.memory_load_byte_events.append(&mut other.memory_load_byte_events);
         self.memory_load_half_events.append(&mut other.memory_load_half_events);
         self.memory_load_word_events.append(&mut other.memory_load_word_events);
+        self.memory_load_double_events.append(&mut other.memory_load_double_events);
         self.memory_load_x0_events.append(&mut other.memory_load_x0_events);
         self.memory_store_byte_events.append(&mut other.memory_store_byte_events);
         self.memory_store_half_events.append(&mut other.memory_store_half_events);
+        self.memory_store_double_events.append(&mut other.memory_store_double_events);
         self.memory_store_word_events.append(&mut other.memory_store_word_events);
         self.branch_events.append(&mut other.branch_events);
         self.jal_events.append(&mut other.jal_events);

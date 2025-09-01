@@ -1,22 +1,21 @@
+use std::{collections::BTreeMap, num::Wrapping, str::FromStr, sync::Arc};
 #[cfg(feature = "profiling")]
 use std::{fs::File, io::BufWriter};
-use std::{num::Wrapping, str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use crate::{
-    apc::Apcs,
     estimator::RecordEstimator,
     events::{
-        ApcEvent, InstructionDecodeEvent, InstructionFetchEvent, PageProtInitializeFinalizeEvent,
-        PageProtLocalEvent, PageProtRecord, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
-        NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
+        ApcEvents, ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
+        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord, PrecompileEvents,
+        NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
-    StatusCode, NUM_REGISTERS,
+    Apc, StatusCode, NUM_REGISTERS,
 };
 
 use clap::ValueEnum;
-use enum_map::EnumMap;
+use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use rrs_lib::process_instruction;
@@ -81,15 +80,41 @@ pub enum ProverChoice<I> {
     ApcOrSoftware(I, I),
 }
 
-impl<I: Clone> ProverChoice<&I> {
-    fn cloned(&self) -> ProverChoice<I> {
-        match *self {
-            ProverChoice::Software(instruction) => ProverChoice::Software(instruction.clone()),
-            ProverChoice::ApcOrSoftware(apc, software) => {
-                ProverChoice::ApcOrSoftware(apc.clone(), software.clone())
-            }
+/// The number of events/instructions executed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// The number of core instructions executed.
+    pub core: EnumMap<T, u64>,
+    /// The number of APCs executed, indexed by contiguous APC id.
+    pub apc: BTreeMap<u64, u64>,
+}
+
+// Deriving `Default` requires `T: Default`, which isn't true for `Opcode` and `RiscvAirId`.
+impl<T: EnumArray<u64>> Default for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn default() -> Self {
+        Self {
+            core: EnumMap::default(), // Doesn't require `T: Default`
+            apc: BTreeMap::new(),
         }
     }
+}
+
+/// The costs of the program.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct EventCosts {
+    /// The costs of the core instructions, mostly calculated as the number of columns but
+    /// different for syscall instructions.
+    pub core: EnumMap<RiscvAirId, u64>,
+    /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
+    pub apc: BTreeMap<u64, u64>,
 }
 
 impl From<bool> for DeferredProofVerification {
@@ -147,8 +172,8 @@ pub struct Executor<'a> {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
-    /// The APCs that are available for this execution.
-    pub apcs: Apcs<'a>,
+    /// The maximum number of shards to execute at once.
+    pub shard_batch_size: u32,
 
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
@@ -187,7 +212,7 @@ pub struct Executor<'a> {
     pub hook_registry: HookRegistry<'a>,
 
     /// The costs of the program.
-    pub costs: EnumMap<RiscvAirId, u64>,
+    pub costs: EventCosts,
 
     /// Skip deferred proof verification. This check is informational only, not related to circuit
     /// correctness.
@@ -215,7 +240,7 @@ pub struct Executor<'a> {
     pub expected_exit_code: StatusCode,
 
     /// Temporary event counts for the current shard. This is a field to reuse memory.
-    event_counts: EnumMap<RiscvAirId, u64>,
+    event_counts: EventCounts<RiscvAirId>,
 
     /// The transpiler for the program.
     transpiler: InstructionTranspiler,
@@ -225,6 +250,104 @@ pub struct Executor<'a> {
 
     /// Decoded instruction events.
     decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
+
+    /// The apc candidate at this point in the execution, if any
+    apc_candidate: Option<ApcCandidate>,
+}
+
+struct ApcCandidate {
+    /// The pc at which this candidate ends
+    end_pc: u64,
+    /// The apc candidate being run
+    apc: Apc,
+    /// The state of the execution when this candidate was introduced
+    snapshot: ExecutionSnapshot,
+}
+
+struct ExecutionSnapshot {
+    record: ExecutionRecordSnapshot,
+    local_counts: LocalCounts,
+    report: ExecutionReport,
+}
+
+struct ExecutionRecordSnapshot {
+    pub cpu_event_count: u32,
+    pub add_events_len: usize,
+    pub addw_events_len: usize,
+    pub addi_events_len: usize,
+    pub mul_events_len: usize,
+    pub sub_events_len: usize,
+    pub subw_events_len: usize,
+    pub bitwise_events_len: usize,
+    pub shift_left_events_len: usize,
+    pub shift_right_events_len: usize,
+    pub divrem_events_len: usize,
+    pub lt_events_len: usize,
+    pub memory_load_byte_events_len: usize,
+    pub memory_load_half_events_len: usize,
+    pub memory_load_word_events_len: usize,
+    pub memory_load_x0_events_len: usize,
+    pub memory_load_double_events_len: usize,
+    pub memory_store_byte_events_len: usize,
+    pub memory_store_half_events_len: usize,
+    pub memory_store_word_events_len: usize,
+    pub memory_store_double_events_len: usize,
+    pub utype_events_len: usize,
+    pub branch_events_len: usize,
+    pub jal_events_len: usize,
+    pub jalr_events_len: usize,
+    pub byte_lookups: HashMap<ByteLookupEvent, isize>,
+    pub precompile_events_len: usize,
+    pub global_memory_initialize_events_len: usize,
+    pub global_memory_finalize_events_len: usize,
+    pub cpu_local_memory_access_len: usize,
+    pub syscall_events_len: usize,
+    pub apc_events_len: usize,
+    pub global_interaction_event_count: u32,
+    pub bump_memory_events_len: usize,
+    pub bump_state_events_len: usize,
+}
+
+impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
+    fn from(record: &ExecutionRecord) -> Self {
+        ExecutionRecordSnapshot {
+            cpu_event_count: record.cpu_event_count,
+            add_events_len: record.add_events.len(),
+            addw_events_len: record.addw_events.len(),
+            addi_events_len: record.addi_events.len(),
+            mul_events_len: record.mul_events.len(),
+            sub_events_len: record.sub_events.len(),
+            subw_events_len: record.subw_events.len(),
+            bitwise_events_len: record.bitwise_events.len(),
+            shift_left_events_len: record.shift_left_events.len(),
+            shift_right_events_len: record.shift_right_events.len(),
+            divrem_events_len: record.divrem_events.len(),
+            lt_events_len: record.lt_events.len(),
+            memory_load_byte_events_len: record.memory_load_byte_events.len(),
+            memory_load_half_events_len: record.memory_load_half_events.len(),
+            memory_load_word_events_len: record.memory_load_word_events.len(),
+            memory_load_x0_events_len: record.memory_load_x0_events.len(),
+            memory_load_double_events_len: record.memory_load_double_events.len(),
+            memory_store_byte_events_len: record.memory_store_byte_events.len(),
+            memory_store_half_events_len: record.memory_store_half_events.len(),
+            memory_store_word_events_len: record.memory_store_word_events.len(),
+            memory_store_double_events_len: record.memory_store_double_events.len(),
+            utype_events_len: record.utype_events.len(),
+            branch_events_len: record.branch_events.len(),
+            jal_events_len: record.jal_events.len(),
+            jalr_events_len: record.jalr_events.len(),
+            byte_lookups: record.byte_lookups.clone(),
+            precompile_events_len: record.precompile_events.len(),
+            global_memory_initialize_events_len: record.global_memory_initialize_events.len(),
+            global_memory_finalize_events_len: record.global_memory_finalize_events.len(),
+            cpu_local_memory_access_len: record.cpu_local_memory_access.len(),
+            syscall_events_len: record.syscall_events.len(),
+            apc_events_len: record.apc_events.len(),
+            global_interaction_event_count: record.global_interaction_event_count,
+            bump_memory_events_len: record.bump_memory_events.len(),
+            bump_state_events_len: record.bump_state_events.len(),
+        }
+    }
 }
 
 /// The configuration of the executor.
@@ -280,7 +403,7 @@ pub enum ExecutorMode {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LocalCounts {
     /// The event counts.
-    pub event_counts: Box<EnumMap<Opcode, u64>>,
+    pub event_counts: Box<EventCounts<Opcode>>,
     /// The retained precompile counts.
     pub retained_precompile_counts: Box<EnumMap<RiscvAirId, u64>>,
     /// The load x0 counts.
@@ -455,8 +578,6 @@ impl<'a> Executor<'a> {
     /// Create a new runtime from a program, options, and a context.
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
-        let apcs = Apcs::new(&program, &opts, &context);
-
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
 
@@ -487,6 +608,8 @@ impl<'a> Executor<'a> {
             .sorted()
             .collect();
 
+        let apc_costs = program.apcs_by_start_idx.values().map(|apc| (apc.id, apc.cost)).collect();
+
         Self {
             record: Box::new(record),
             state: ExecutionState::new(program.pc_start_abs),
@@ -512,10 +635,13 @@ impl<'a> Executor<'a> {
             uninitialized_memory_checkpoint: Memory::new_preallocated(),
             local_memory_access: HashMap::new(),
             local_page_prot_access: HashMap::new(),
-            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            costs: EventCosts {
+                core: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+                apc: apc_costs,
+            },
             size_check_frequency: 16,
             sharding_threshold: Some(opts.sharding_threshold),
-            event_counts: EnumMap::default(),
+            event_counts: EventCounts::<RiscvAirId>::default(),
             internal_syscalls_override,
             internal_syscalls_air_id,
             io_options: context.io_options,
@@ -525,7 +651,8 @@ impl<'a> Executor<'a> {
             decoded_instruction_cache: HashMap::new(),
             decoded_instruction_events: HashMap::new(),
             opts,
-            apcs,
+            apc_candidate: None,
+            shard_batch_size: todo!(),
         }
     }
 
@@ -1303,7 +1430,6 @@ impl<'a> Executor<'a> {
         op_a_0: bool,
         record: &MemoryAccessRecord,
         exit_code: u32,
-        apc_record: ExecutionRecord,
     ) {
         self.record.pc_start.get_or_insert(self.state.pc);
         self.record.next_pc = next_pc;
@@ -1362,8 +1488,6 @@ impl<'a> Executor<'a> {
                 exit_code,
                 instruction,
             );
-        } else if instruction.is_apc_instruction() {
-            self.emit_apc_event(b, apc_record);
         } else {
             unreachable!()
         }
@@ -1662,13 +1786,6 @@ impl<'a> Executor<'a> {
         self.record.syscall_events.push((syscall_event, record));
     }
 
-    /// Emit an APC event.
-    fn emit_apc_event(&mut self, apc_id: u64, record: ExecutionRecord) {
-        let event = ApcEvent { id: apc_id, record };
-        self.record.apc_events.add_event(apc_id, event);
-        // We assume that there are no dependencies for APC events.
-    }
-
     /// Emit a instruction fetch event.
     #[allow(clippy::too_many_arguments)]
     fn emit_instruction_fetch_event(
@@ -1748,10 +1865,10 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> Result<ProverChoice<Instruction>, ExecutionError> {
+    fn fetch<E: ExecutorConfig>(&mut self) -> Result<(Instruction, Option<Apc>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            Ok(instruction.cloned())
+            Ok((*instruction.0, instruction.1.copied()))
         } else if self.opts.page_protect {
             let aligned_pc = align(self.state.pc);
 
@@ -1797,7 +1914,7 @@ impl<'a> Executor<'a> {
                 .shard_distinct_instructions
                 .insert((self.state.pc, instruction_value));
 
-            Ok(ProverChoice::Software(instruction))
+            Ok((instruction, None))
         } else {
             Err(ExecutionError::InstructionNotFound())
         }
@@ -1807,14 +1924,13 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_instruction<E: ExecutorConfig>(
         &mut self,
-        choice: &ProverChoice<Instruction>,
+        instruction: &Instruction,
     ) -> Result<(), ExecutionError> {
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
-        let mut apc_record = ExecutionRecord::default();
         // Will be set to a non-default value if the instruction is a syscall.
 
         let (mut a, b, c): (u64, u64, u64);
@@ -1822,36 +1938,15 @@ impl<'a> Executor<'a> {
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
 
-        // Determine which instruction to run
-        let (instruction, apc_result) = match choice {
-            // if software is the only option, run software
-            ProverChoice::Software(instruction) => (instruction, None),
-            // if apc is an option, first try to run apc and fall back to software if that fails
-            ProverChoice::ApcOrSoftware(apc, software) => {
-                // Try to run the APC version first
-                match self.execute_apc::<E>(apc) {
-                    // if apc execution works, we are correct to be running apc
-                    Ok(result) => (apc, Some(Ok(result))),
-                    // if apc execution fails with an execution error, we do want to propagate the
-                    // error
-                    Err(ApcExecutionError::Execution(err)) => (apc, Some(Err(err))),
-                    // if apc execution fails with a state bump or memory access error, we want to
-                    // fall back to software
-                    Err(e @ (ApcExecutionError::StateBump | ApcExecutionError::MemoryBump)) => {
-                        tracing::error!("APC execution failed: {:?}, falling back to software", e);
-                        (software, None)
-                    }
-                }
-            }
-        };
-
         if !E::UNCONSTRAINED {
             if self.print_report {
+                // Note: APC counts are updated upon success or failure of apcs, reverting opcode
+                // counts in the former case
                 self.report.opcode_counts[instruction.opcode] += 1;
             }
-            self.local_counts.event_counts[instruction.opcode] += 1;
+            self.local_counts.event_counts.core[instruction.opcode] += 1;
             if instruction.is_memory_load_instruction() && instruction.op_a == Register::X0 as u8 {
-                self.local_counts.event_counts[instruction.opcode] -= 1;
+                self.local_counts.event_counts.core[instruction.opcode] -= 1;
                 self.local_counts.load_x0_counts += 1;
             }
         }
@@ -1873,8 +1968,6 @@ impl<'a> Executor<'a> {
             self.rw_cpu::<E>(rd, a);
         } else if instruction.is_ecall_instruction() {
             (a, b, c, clk, next_pc, syscall, exit_code) = self.execute_ecall::<E>()?;
-        } else if instruction.is_apc_instruction() {
-            (a, b, c, next_pc, apc_record) = apc_result.unwrap()?;
         } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.is_unimp_instruction() {
@@ -1917,8 +2010,289 @@ impl<'a> Executor<'a> {
                 op_a_0,
                 &memory_accesses,
                 exit_code,
-                apc_record,
             );
+        }
+
+        // If we reached the end of the block, we can finalize the APC candidate.
+        if let Some(apc_candidate) =
+            self.apc_candidate.take_if(|apc_candidate| apc_candidate.end_pc == self.state.pc)
+        {
+            let created_bump_state_event = self.record.bump_state_events.len()
+                > apc_candidate.snapshot.record.bump_state_events_len;
+            let created_bump_memory_event = self.record.bump_memory_events.len()
+                > apc_candidate.snapshot.record.bump_memory_events_len;
+
+            if created_bump_state_event {
+                self.report.apc_counts.entry(apc_candidate.apc.id).or_default().state_bump_error +=
+                    1;
+                tracing::error!(
+                    "global clock {}: APC {} cancelled: state bump error detected",
+                    self.state.global_clk,
+                    apc_candidate.apc.id
+                );
+            }
+            if created_bump_memory_event {
+                self.report
+                    .apc_counts
+                    .entry(apc_candidate.apc.id)
+                    .or_default()
+                    .memory_bump_error += 1;
+                tracing::error!(
+                    "global clock {}: APC {} cancelled: memory bump error detected",
+                    self.state.global_clk,
+                    apc_candidate.apc.id
+                );
+            }
+            if !(created_bump_state_event || created_bump_memory_event) {
+                if E::MODE == ExecutorMode::Trace {
+                    // Construct the apc_record from the current record and the snapshot.
+                    let apc_record = ExecutionRecord {
+                        program: self.record.program.clone(),
+                        cpu_event_count: self
+                            .record
+                            .cpu_event_count
+                            .saturating_sub(apc_candidate.snapshot.record.cpu_event_count),
+                        add_events: self
+                            .record
+                            .add_events
+                            .drain(apc_candidate.snapshot.record.add_events_len..)
+                            .collect(),
+                        addw_events: self
+                            .record
+                            .addw_events
+                            .drain(apc_candidate.snapshot.record.addw_events_len..)
+                            .collect(),
+                        addi_events: self
+                            .record
+                            .addi_events
+                            .drain(apc_candidate.snapshot.record.addi_events_len..)
+                            .collect(),
+                        mul_events: self
+                            .record
+                            .mul_events
+                            .drain(apc_candidate.snapshot.record.mul_events_len..)
+                            .collect(),
+                        sub_events: self
+                            .record
+                            .sub_events
+                            .drain(apc_candidate.snapshot.record.sub_events_len..)
+                            .collect(),
+                        subw_events: self
+                            .record
+                            .subw_events
+                            .drain(apc_candidate.snapshot.record.subw_events_len..)
+                            .collect(),
+                        bitwise_events: self
+                            .record
+                            .bitwise_events
+                            .drain(apc_candidate.snapshot.record.bitwise_events_len..)
+                            .collect(),
+                        shift_left_events: self
+                            .record
+                            .shift_left_events
+                            .drain(apc_candidate.snapshot.record.shift_left_events_len..)
+                            .collect(),
+                        shift_right_events: self
+                            .record
+                            .shift_right_events
+                            .drain(apc_candidate.snapshot.record.shift_right_events_len..)
+                            .collect(),
+                        divrem_events: self
+                            .record
+                            .divrem_events
+                            .drain(apc_candidate.snapshot.record.divrem_events_len..)
+                            .collect(),
+                        lt_events: self
+                            .record
+                            .lt_events
+                            .drain(apc_candidate.snapshot.record.lt_events_len..)
+                            .collect(),
+                        memory_load_byte_events: self
+                            .record
+                            .memory_load_byte_events
+                            .drain(apc_candidate.snapshot.record.memory_load_byte_events_len..)
+                            .collect(),
+                        memory_load_half_events: self
+                            .record
+                            .memory_load_half_events
+                            .drain(apc_candidate.snapshot.record.memory_load_half_events_len..)
+                            .collect(),
+                        memory_load_word_events: self
+                            .record
+                            .memory_load_word_events
+                            .drain(apc_candidate.snapshot.record.memory_load_word_events_len..)
+                            .collect(),
+                        memory_load_x0_events: self
+                            .record
+                            .memory_load_x0_events
+                            .drain(apc_candidate.snapshot.record.memory_load_x0_events_len..)
+                            .collect(),
+                        memory_load_double_events: self
+                            .record
+                            .memory_load_double_events
+                            .drain(apc_candidate.snapshot.record.memory_load_double_events_len..)
+                            .collect(),
+                        memory_store_byte_events: self
+                            .record
+                            .memory_store_byte_events
+                            .drain(apc_candidate.snapshot.record.memory_store_byte_events_len..)
+                            .collect(),
+                        memory_store_half_events: self
+                            .record
+                            .memory_store_half_events
+                            .drain(apc_candidate.snapshot.record.memory_store_half_events_len..)
+                            .collect(),
+                        memory_store_word_events: self
+                            .record
+                            .memory_store_word_events
+                            .drain(apc_candidate.snapshot.record.memory_store_word_events_len..)
+                            .collect(),
+                        memory_store_double_events: self
+                            .record
+                            .memory_store_double_events
+                            .drain(apc_candidate.snapshot.record.memory_store_double_events_len..)
+                            .collect(),
+                        utype_events: self
+                            .record
+                            .utype_events
+                            .drain(apc_candidate.snapshot.record.utype_events_len..)
+                            .collect(),
+                        branch_events: self
+                            .record
+                            .branch_events
+                            .drain(apc_candidate.snapshot.record.branch_events_len..)
+                            .collect(),
+                        jal_events: self
+                            .record
+                            .jal_events
+                            .drain(apc_candidate.snapshot.record.jal_events_len..)
+                            .collect(),
+                        jalr_events: self
+                            .record
+                            .jalr_events
+                            .drain(apc_candidate.snapshot.record.jalr_events_len..)
+                            .collect(),
+                        // revert byte lookups to before the block in the main record and return the
+                        // diff in the apc record
+                        byte_lookups: self
+                            .record
+                            .byte_lookups
+                            .iter_mut()
+                            .map(|(e, count)| {
+                                let old = apc_candidate
+                                    .snapshot
+                                    .record
+                                    .byte_lookups
+                                    .get(e)
+                                    .copied()
+                                    .unwrap_or_default();
+                                let diff = *count - old;
+                                *count = old;
+                                (*e, diff)
+                            })
+                            .filter(|(_, diff)| *diff != 0)
+                            .collect(),
+                        precompile_events: PrecompileEvents::default(),
+                        global_memory_initialize_events: self
+                            .record
+                            .global_memory_initialize_events
+                            .drain(
+                                apc_candidate.snapshot.record.global_memory_initialize_events_len..,
+                            )
+                            .collect(),
+                        global_memory_finalize_events: self
+                            .record
+                            .global_memory_finalize_events
+                            .drain(
+                                apc_candidate.snapshot.record.global_memory_finalize_events_len..,
+                            )
+                            .collect(),
+                        cpu_local_memory_access: self
+                            .record
+                            .cpu_local_memory_access
+                            .drain(apc_candidate.snapshot.record.cpu_local_memory_access_len..)
+                            .collect(),
+                        syscall_events: self
+                            .record
+                            .syscall_events
+                            .drain(apc_candidate.snapshot.record.syscall_events_len..)
+                            .collect(),
+                        apc_events: ApcEvents::default(),
+                        global_interaction_events: Vec::default(),
+                        global_cumulative_sum: self.record.global_cumulative_sum.clone(),
+                        global_interaction_event_count: self.record.global_interaction_event_count,
+                        bump_memory_events: vec![],
+                        bump_state_events: vec![],
+                        public_values: self.record.public_values,
+                        next_nonce: self.record.next_nonce,
+                        shape: self.record.shape.clone(), // we might be fine with `Default` here
+                        estimated_trace_area: self.record.estimated_trace_area,
+                        initial_timestamp: self.record.initial_timestamp,
+                        last_timestamp: self.record.last_timestamp,
+                        pc_start: self.record.pc_start,
+                        next_pc: self.state.pc,
+                        exit_code: self.record.exit_code,
+                        global_page_prot_initialize_events: todo!(),
+                        global_page_prot_finalize_events: todo!(),
+                        cpu_local_page_prot_access: todo!(),
+                        instruction_fetch_events: todo!(),
+                        instruction_decode_events: todo!(),
+                    };
+                    assert_eq!(
+                        self.record.precompile_events.len(),
+                        apc_candidate.snapshot.record.precompile_events_len,
+                        "New precompile events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.apc_events.len(),
+                        apc_candidate.snapshot.record.apc_events_len,
+                        "New apc events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.global_interaction_event_count,
+                        apc_candidate.snapshot.record.global_interaction_event_count,
+                        "New global interaction events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.bump_state_events.len(),
+                        apc_candidate.snapshot.record.bump_state_events_len,
+                        "New bump state events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.bump_memory_events.len(),
+                        apc_candidate.snapshot.record.bump_memory_events_len,
+                        "New bump memory events generated within apc block"
+                    );
+
+                    // Add the apc event to the record.
+                    // TODO: we could merge directly into the cummulative record inside
+                    // `self.record.apc_events` instead of going through this intermediate
+                    // `apc_record`
+                    self.record.apc_events.add_event(apc_candidate.apc.id, apc_record);
+
+                    // Update the CPU event count, since we are running apc, only one cpu_event
+                    // happened
+                    self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
+                }
+
+                // update the counts
+                if !E::UNCONSTRAINED {
+                    self.local_counts = apc_candidate.snapshot.local_counts;
+                    // add 1 to this apc
+                    *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() +=
+                        1;
+                }
+
+                // update the report
+                if self.print_report {
+                    // revert to the report before the block
+                    self.report = apc_candidate.snapshot.report.clone();
+                    // update the apc counts with a success for this apc
+                    self.report.apc_counts.entry(apc_candidate.apc.id).or_default().success += 1;
+                }
+
+                tracing::trace!("APC candidate completed");
+            }
         }
 
         // Update the program counter.
@@ -2142,92 +2516,6 @@ impl<'a> Executor<'a> {
         (a, b, c, next_pc)
     }
 
-    /// Execute an APC instruction.
-    /// Returns a, b, c, the next pc and the execution record of the APC.
-    /// a and c are always 0 for APC instructions.
-    /// b is the id of the APC being executed.
-    /// The next pc is the pc obtained after executing the original instructions of the APC.
-    #[allow(clippy::type_complexity)]
-    fn execute_apc<E: ExecutorConfig>(
-        &mut self,
-        instruction: &Instruction,
-    ) -> Result<(u64, u64, u64, u64, ExecutionRecord), ApcExecutionError> {
-        let Instruction { opcode, op_a, op_b, op_c, imm_b, imm_c } = instruction;
-        assert_eq!(*opcode, Opcode::APC);
-        assert!(*imm_b);
-        assert!(*imm_c);
-        assert_eq!(*op_a, 0);
-        assert_eq!(*op_c, 0);
-
-        // select the APC using op_b
-        let apc = self
-            .apcs
-            .get_mut(*op_b)
-            // If the APC is not found, return an error.
-            .ok_or(ExecutionError::UnsupportedApc(*op_b))?;
-
-        // Save the pc before executing the APC.
-        let original_pc = self.state.pc;
-
-        // Pass all the necessary execution data to the APC
-        // We clone because we may have to roll this back
-        apc.executor.state.clone_from(&self.state);
-        apc.executor.memory_checkpoint.clone_from(&self.memory_checkpoint);
-        apc.executor
-            .uninitialized_memory_checkpoint
-            .clone_from(&self.uninitialized_memory_checkpoint);
-        apc.executor.local_memory_access.clone_from(&self.local_memory_access);
-
-        // Execute as many cycles as the APC has original instructions.
-        for _ in 0..apc.original_instructions_count {
-            let instruction = apc.executor.fetch::<E>().unwrap();
-            debug_assert!(matches!(instruction, ProverChoice::Software(_)));
-            apc.executor.execute_instruction::<E>(&instruction)?;
-
-            if !apc.executor.record.bump_state_events.is_empty() {
-                if self.print_report && !E::UNCONSTRAINED {
-                    self.report.apc_counts.entry(apc.id).or_default().state_bump_error += 1;
-                }
-                Err(ApcExecutionError::StateBump)
-            } else if !apc.executor.record.bump_memory_events.is_empty() {
-                if self.print_report && !E::UNCONSTRAINED {
-                    self.report.apc_counts.entry(apc.id).or_default().memory_bump_error += 1;
-                }
-                Err(ApcExecutionError::MemoryBump)
-            } else {
-                Ok(())
-            }?;
-        }
-
-        if self.print_report && !E::UNCONSTRAINED {
-            self.report.apc_counts.entry(apc.id).or_default().success += 1;
-        }
-
-        // The pc of the apc executor is the next pc in the main execution
-        let next_pc = apc.executor.state.pc;
-
-        // TODO: maybe this is not necessary and we can just rely on apc.executor.record?
-        let removed_record = std::mem::replace(
-            &mut apc.executor.record,
-            Box::new(ExecutionRecord::new(apc.executor.program.clone())),
-        );
-
-        // After apc execution, put data back into the main executor
-        self.state = std::mem::take(&mut apc.executor.state);
-        self.memory_checkpoint = std::mem::take(&mut apc.executor.memory_checkpoint);
-        self.uninitialized_memory_checkpoint =
-            std::mem::take(&mut apc.executor.uninitialized_memory_checkpoint);
-        self.local_memory_access = std::mem::take(&mut apc.executor.local_memory_access);
-        self.state.pc = original_pc;
-
-        // In total, the clock must be incremented by 8 for each instruction. However, this function
-        // is called by `execute_instruction` which also increments it by 8. So we need to
-        // decrement it by 8 here.
-        self.state.clk -= 8;
-
-        Ok((0, apc.id, 0, next_pc, *removed_record))
-    }
-
     /// Execute an ecall instruction.
     #[allow(clippy::type_complexity)]
     fn execute_ecall<E: ExecutorConfig>(
@@ -2368,10 +2656,25 @@ impl<'a> Executor<'a> {
         }
 
         // Fetch the instruction at the current program counter.
-        let instruction = self.fetch::<E>()?;
+        let (instruction, apc_range) = self.fetch::<E>()?;
 
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
+
+        if let Some(apc) = apc_range {
+            // We are at the start of an APC range, so we add it as a candidate
+            assert!(self.apc_candidate.is_none(), "Attempting to add an apc candidate while one is already present. Check that apc ranges do not overlap.");
+            let snapshot = ExecutionSnapshot {
+                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                local_counts: self.local_counts.clone(),
+                report: self.report.clone(),
+            };
+            let pc_step = 4;
+            let end_pc = apc.range.end().unwrap() as u64 * pc_step + self.program.pc_base;
+            let apc_candidate = ApcCandidate { end_pc, apc, snapshot };
+            tracing::trace!("APC candidate created");
+            self.apc_candidate = Some(apc_candidate);
+        }
 
         // Execute the instruction.
         self.execute_instruction::<E>(&instruction)?;
@@ -2406,10 +2709,12 @@ impl<'a> Executor<'a> {
                 if let Some(ShardingThreshold { element_threshold, height_threshold }) =
                     self.sharding_threshold
                 {
-                    let padded_event_counts =
-                        pad_rv64im_event_counts(self.event_counts, self.size_check_frequency);
+                    let padded_event_counts = pad_rv64im_event_counts(
+                        self.event_counts.clone(),
+                        self.size_check_frequency,
+                    );
                     let (padded_element_count, max_height) = estimate_trace_elements(
-                        padded_event_counts,
+                        &padded_event_counts,
                         &self.costs,
                         self.program_len,
                         &self.internal_syscalls_air_id,
@@ -2462,10 +2767,10 @@ impl<'a> Executor<'a> {
                 &self.internal_syscalls_air_id,
             );
             // The above method estimates event counts only for core shards.
-            estimator.core_records.push(self.event_counts);
+            estimator.core_records.push(self.event_counts.clone());
         }
         self.record.estimated_trace_area = estimate_trace_elements(
-            self.event_counts,
+            &self.event_counts,
             &self.costs,
             self.program_len,
             &self.internal_syscalls_air_id,
@@ -2633,7 +2938,11 @@ impl<'a> Executor<'a> {
         let mut done = false;
         while !done {
             // Fetch the instruction at the current program counter.
-            let instruction = self.fetch::<Unconstrained>()?;
+            let res = self.fetch::<Unconstrained>()?;
+
+            // ignore the apc candidate in unconstrained mode
+            // TODO: is this fine?
+            let (instruction, _) = res;
 
             // Execute the instruction.
             self.execute_instruction::<Unconstrained>(&instruction)?;
@@ -2898,7 +3207,7 @@ impl<'a> Executor<'a> {
     /// Maps the opcode counts to the number of events in each air.
     fn estimate_riscv_event_counts(
         bump_clk_high: u64,
-        event_counts: &mut EnumMap<RiscvAirId, u64>,
+        event_counts: &mut EventCounts<RiscvAirId>,
         local_counts: &LocalCounts,
         load_x0_counts: u64,
         internal_syscalls_air_id: &[RiscvAirId],
@@ -2909,7 +3218,13 @@ impl<'a> Executor<'a> {
         let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
         let instruction_fetch: u64 = local_counts.local_instruction_fetch as u64;
         let instruction_decode: u64 = local_counts.shard_distinct_instructions.len() as u64;
-        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts;
+        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts.core;
+        let apc_events: &BTreeMap<u64, u64> = &local_counts.event_counts.apc;
+
+        // Add apc events
+        event_counts.apc.clone_from(apc_events);
+
+        let event_counts = &mut event_counts.core;
 
         // Compute the maximum number of MemoryBump events.
         // `MemoryBump` chip is used when each register's memory timestamp's top 24 bits increment.
@@ -3028,7 +3343,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log<E: ExecutorConfig>(&mut self, _: &ProverChoice<Instruction>) {
+    fn log<E: ExecutorConfig>(&mut self, _: &Instruction) {
         #[cfg(feature = "profiling")]
         if let Some((ref mut profiler, _)) = self.profiler {
             if !E::UNCONSTRAINED {
@@ -3196,9 +3511,16 @@ mod tests {
         let program_without_apcs = Program::new(original_instructions, 0, 0);
 
         // Test with different APC ranges
-        for apcs in [&[] as &[_], &[(0, 2), (3, 5)], &[(0, 1), (3, 4)]] {
-            let should_execute_apcs = !apcs.is_empty();
-            let program = program_without_apcs.clone().with_apcs(apcs);
+        for apc_range_and_cost in
+            [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+        {
+            let should_execute_apcs = !apc_range_and_cost.is_empty();
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apc_range_and_cost)
+            } else {
+                program_without_apcs.clone()
+            };
 
             let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
             runtime.run::<Trace>().unwrap();

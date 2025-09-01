@@ -2,6 +2,12 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
+use std::sync::Arc;
+
+use powdr_autoprecompiles::Apc;
+use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_primitives::SP1Field;
+
 use super::CpuProver;
 use sp1_core_executor::SP1CoreOpts;
 
@@ -11,6 +17,7 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
+    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
 }
 
 impl Default for CpuProverBuilder {
@@ -23,7 +30,14 @@ impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
     pub const fn new() -> Self {
-        Self { core_opts: None }
+        Self { core_opts: None, apcs: Vec::new() }
+    }
+
+    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
+    #[must_use]
+    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+        self.apcs = apcs;
+        self
     }
 
     /// Sets the core options for the prover.
@@ -73,6 +87,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {
-        CpuProver::new_with_opts(self.core_opts, Vec::new()).await
+        CpuProver::new(self.apcs).await
     }
 }

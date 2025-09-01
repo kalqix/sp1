@@ -358,12 +358,13 @@ mod tests {
         ];
         let shard = ExecutionRecord {
             program: Arc::new(Program {
-                instructions: instructions.into(),
+                instructions,
                 instructions_encoded: None,
                 pc_start_abs: 0,
                 pc_base: 0,
                 memory_image: HashMap::new(),
                 preprocessed_shape: None,
+                apcs_by_start_idx: HashMap::new(),
             }),
             ..Default::default()
         };

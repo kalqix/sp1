@@ -1459,8 +1459,8 @@ pub mod tests {
         // TODO: The API is not great here, we should be able to pass the full apcs (not just the
         // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
         // instead of passing them here to `run_test_with_apcs`
-        let apcs = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(&apc_ranges);
+        let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(apc_range_and_costs);
         let stdin = SP1Stdin::new();
         crate::utils::run_test_with_machine(
             Arc::new(program),
@@ -1490,8 +1490,8 @@ pub mod tests {
         // TODO: The API is not great here, we should be able to pass the full apcs (not just the
         // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
         // instead of passing them here to `run_test_with_apcs`
-        let apcs = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(&apc_ranges);
+        let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(apc_range_and_costs);
         let stdin = SP1Stdin::new();
         let mut opts = SP1CoreOpts::default();
         opts.sharding_threshold =

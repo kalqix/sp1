@@ -2,7 +2,12 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
+use std::sync::Arc;
+
 use alloy_primitives::Address;
+use powdr_autoprecompiles::Apc;
+use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_primitives::SP1Field;
 
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
@@ -14,13 +19,14 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
+    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
     pub const fn new() -> Self {
-        Self { private_key: None, rpc_url: None, tee_signers: None }
+        Self { private_key: None, rpc_url: None, tee_signers: None, apcs: Vec::new() }
     }
 
     /// Sets the Secp256k1 private key (same format as the one used by Ethereum).
@@ -66,6 +72,13 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
+    #[must_use]
+    pub fn apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+        self.apcs = apcs;
+        self
+    }
+
     /// Builds a [`NetworkProver`].
     ///
     /// # Details
@@ -95,6 +108,6 @@ impl NetworkProverBuilder {
 
         let tee_signers = self.tee_signers.unwrap_or_default();
 
-        NetworkProver::new(&private_key, &rpc_url).await.with_tee_signers(tee_signers)
+        NetworkProver::new(&private_key, &rpc_url, self.apcs).await.with_tee_signers(tee_signers)
     }
 }

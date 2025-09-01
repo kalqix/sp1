@@ -151,8 +151,6 @@ pub enum Opcode {
     REMUW = 51,
     /// Unimplemented instruction.
     UNIMP = 52,
-    /// APC opcode, used for the APC chips.
-    APC = 53,
 }
 /// Byte Opcode.
 ///
@@ -238,7 +236,6 @@ impl Opcode {
             Opcode::REMW => "remw",
             Opcode::REMUW => "remuw",
             Opcode::UNIMP => "unimp",
-            Opcode::APC => "apc",
         }
     }
 
@@ -313,7 +310,7 @@ impl Opcode {
             Opcode::ECALL | Opcode::EBREAK => 0b000,
 
             // Instructions without funct3 field
-            Opcode::JAL | Opcode::AUIPC | Opcode::LUI | Opcode::UNIMP | Opcode::APC => return None,
+            Opcode::JAL | Opcode::AUIPC | Opcode::LUI | Opcode::UNIMP => return None,
         })
     }
 
@@ -322,10 +319,10 @@ impl Opcode {
     #[allow(clippy::match_same_arms)]
     pub fn funct7(self: Opcode) -> Option<u8> {
         use Opcode::{
-            ADD, ADDI, ADDW, AND, APC, AUIPC, BEQ, BGE, BGEU, BLT, BLTU, BNE, DIV, DIVU, DIVUW,
-            DIVW, EBREAK, ECALL, JAL, JALR, LB, LBU, LD, LH, LHU, LUI, LW, LWU, MUL, MULH, MULHSU,
-            MULHU, MULW, OR, REM, REMU, REMUW, REMW, SB, SD, SH, SLL, SLLW, SLT, SLTU, SRA, SRAW,
-            SRL, SRLW, SUB, SUBW, SW, UNIMP, XOR,
+            ADD, ADDI, ADDW, AND, AUIPC, BEQ, BGE, BGEU, BLT, BLTU, BNE, DIV, DIVU, DIVUW, DIVW,
+            EBREAK, ECALL, JAL, JALR, LB, LBU, LD, LH, LHU, LUI, LW, LWU, MUL, MULH, MULHSU, MULHU,
+            MULW, OR, REM, REMU, REMUW, REMW, SB, SD, SH, SLL, SLLW, SLT, SLTU, SRA, SRAW, SRL,
+            SRLW, SUB, SUBW, SW, UNIMP, XOR,
         };
         Some(match self {
             ADD | SLL | SLT | SLTU | XOR | SRL | OR | AND | ADDW | SLLW | SRLW => 0b0000000,
@@ -334,7 +331,7 @@ impl Opcode {
             | REMUW => 0b0000001,
             ECALL | EBREAK => 0b0000000,
             ADDI | LB | LH | LW | LBU | LHU | SB | SH | SW | BEQ | BNE | BLT | BGE | BLTU
-            | BGEU | JAL | JALR | AUIPC | LUI | UNIMP | LWU | LD | SD | APC => return None,
+            | BGEU | JAL | JALR | AUIPC | LUI | UNIMP | LWU | LD | SD => return None,
         })
     }
 
@@ -409,9 +406,6 @@ impl Opcode {
             | Opcode::DIVUW
             | Opcode::REMW
             | Opcode::REMUW => (OPCODE_OP_32, None),
-
-            // APC opcode
-            Opcode::APC => (0xeadbeef, None),
 
             _ => unreachable!("Opcode {:?} has no base opcode", self),
         }
