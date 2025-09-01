@@ -48,7 +48,8 @@ impl IsBusStateful<KoalaBearField> for Sp1BusInteractionHandler {
             Some(InteractionKind::Program) => false,
             Some(InteractionKind::Byte) => false,
             Some(InteractionKind::State) => true,
-            // All instruction AIRs only use the four buses above.
+            Some(InteractionKind::InstructionFetch) => false,
+            // All instruction AIRs only use the five buses above.
             _ => unreachable!("Unexpected bus ID: {bus_id}"),
         }
     }
@@ -82,6 +83,7 @@ impl BusInteractionHandler<KoalaBearField> for Sp1BusInteractionHandler {
             // make any assumptions about the clk values, so we simply return the original range
             // constraints.
             Some(InteractionKind::State) => bus_interaction.payload,
+            Some(InteractionKind::InstructionFetch) => bus_interaction.payload,
             _ => unreachable!("Unexpected bus ID: {bus_id}"),
         };
 

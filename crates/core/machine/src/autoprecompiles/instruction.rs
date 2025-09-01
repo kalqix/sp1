@@ -41,6 +41,6 @@ impl Instruction<SP1Field> for Sp1Instruction {
             [None, None, None]
         };
 
-        pc_limbs.into_iter().chain(instruction_cols).chain([None, None, None]).collect()
+        pc_limbs.into_iter().chain(instruction_cols).collect()
     }
 }

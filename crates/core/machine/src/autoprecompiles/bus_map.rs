@@ -5,12 +5,14 @@ use powdr_autoprecompiles::bus_map::BusType;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sp1SpecificBuses {
     Byte,
+    UntrustedInstruction,
 }
 
 impl Display for Sp1SpecificBuses {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Sp1SpecificBuses::Byte => write!(f, "BYTE"),
+            Sp1SpecificBuses::UntrustedInstruction => write!(f, "UNTRUSTED_INSTRUCTION"),
         }
     }
 }
@@ -24,5 +26,6 @@ pub fn sp1_bus_map() -> BusMap {
         (2, BusType::PcLookup),
         (5, BusType::Other(Sp1SpecificBuses::Byte)),
         (7, BusType::ExecutionBridge),
+        (16, BusType::Other(Sp1SpecificBuses::UntrustedInstruction)),
     ])
 }
