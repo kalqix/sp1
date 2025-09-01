@@ -2302,6 +2302,26 @@ impl<'a> Executor<'a> {
                         apc_candidate.snapshot.record.bump_memory_events_len,
                         "New bump memory events generated within apc block"
                     );
+                    assert_eq!(
+                        self.record.global_page_prot_finalize_events.len(),
+                        apc_candidate.snapshot.record.global_page_prot_finalize_events_len,
+                        "New global page protection finalize events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.cpu_local_page_prot_access.len(),
+                        apc_candidate.snapshot.record.cpu_local_page_prot_access_len,
+                        "New CPU local page protection access events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.instruction_fetch_events.len(),
+                        apc_candidate.snapshot.record.instruction_fetch_events_len,
+                        "New instruction fetch events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.instruction_decode_events.len(),
+                        apc_candidate.snapshot.record.instruction_decode_events_len,
+                        "New instruction decode events generated within apc block"
+                    );
 
                     // Add the apc event to the record.
                     // TODO: we could merge directly into the cummulative record inside

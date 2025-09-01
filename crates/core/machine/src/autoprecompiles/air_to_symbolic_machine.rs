@@ -142,6 +142,7 @@ pub fn air_to_symbolic_machine<
     A: MachineAir<F> + Air<SymbolicAirBuilder<F>> + Air<InteractionBuilder<F>>,
 >(
     air: &A,
+    first_public_input_id: &mut Option<usize>,
 ) -> Result<SymbolicMachine<F>, UnsupportedConstraintError> {
     let column_names = air.column_names().into_iter().map(Arc::new).collect::<Vec<_>>();
 
@@ -149,7 +150,11 @@ pub fn air_to_symbolic_machine<
     let constraints = get_symbolic_constraints(air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
     let constraints = constraints
         .into_iter()
-        .map(|c| Ok(SymbolicConstraint { expr: symbolic_to_algebraic(&c, &column_names)? }))
+        .map(|c| {
+            Ok(SymbolicConstraint {
+                expr: symbolic_to_algebraic(&c, &column_names, first_public_input_id)?,
+            })
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     // Get interactions
@@ -158,7 +163,9 @@ pub fn air_to_symbolic_machine<
     let interactions = builder.interactions();
     let bus_interactions = interactions
         .into_iter()
-        .map(|interaction| sp1_bus_interaction_to_powdr(&interaction, &column_names))
+        .map(|interaction| {
+            sp1_bus_interaction_to_powdr(&interaction, &column_names, first_public_input_id)
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut machine = SymbolicMachine { constraints, bus_interactions };
@@ -183,6 +190,7 @@ pub fn air_to_symbolic_machine<
 fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
     interaction: &Interaction<F>,
     columns: &[Arc<String>],
+    first_public_input_id: &mut Option<usize>,
 ) -> Result<SymbolicBusInteraction<F>, UnsupportedConstraintError> {
     match interaction.scope {
         InteractionScope::Global => {
@@ -192,12 +200,13 @@ fn sp1_bus_interaction_to_powdr<F: PrimeField32>(
     }
 
     let id = interaction.message.kind as u64;
-    let mult = symbolic_to_algebraic(&interaction.message.multiplicity, columns)?;
+    let mult =
+        symbolic_to_algebraic(&interaction.message.multiplicity, columns, first_public_input_id)?;
     let args = interaction
         .message
         .values
         .iter()
-        .map(|e| symbolic_to_algebraic(e, columns))
+        .map(|e| symbolic_to_algebraic(e, columns, first_public_input_id))
         .collect::<Result<_, _>>()?;
 
     Ok(SymbolicBusInteraction { id, mult, args })
@@ -216,36 +225,40 @@ fn number_to_algebraic<F: PrimeField32>(value: &F) -> AlgebraicExpression<F, Alg
     AlgebraicExpression::Number(*value)
 }
 
+/// Convert a symbolic expression to an algebraic expression
+/// Replace the first public input by 0
+/// Returns an error if there is more than one public input
 fn symbolic_to_algebraic<F: PrimeField32>(
     expr: &SymbolicExpression<F>,
     columns: &[Arc<String>],
+    first_public_input_id: &mut Option<usize>,
 ) -> Result<AlgebraicExpression<F, AlgebraicReference>, UnsupportedConstraintError> {
     Ok(match expr {
         SymbolicExpression::Constant(c) => number_to_algebraic(c),
         SymbolicExpression::Add { x, y, .. } => {
             AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
-                left: Box::new(symbolic_to_algebraic(x, columns)?),
-                right: Box::new(symbolic_to_algebraic(y, columns)?),
+                left: Box::new(symbolic_to_algebraic(x, columns, first_public_input_id)?),
+                right: Box::new(symbolic_to_algebraic(y, columns, first_public_input_id)?),
                 op: AlgebraicBinaryOperator::Add,
             })
         }
         SymbolicExpression::Sub { x, y, .. } => {
             AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
-                left: Box::new(symbolic_to_algebraic(x, columns)?),
-                right: Box::new(symbolic_to_algebraic(y, columns)?),
+                left: Box::new(symbolic_to_algebraic(x, columns, first_public_input_id)?),
+                right: Box::new(symbolic_to_algebraic(y, columns, first_public_input_id)?),
                 op: AlgebraicBinaryOperator::Sub,
             })
         }
         SymbolicExpression::Mul { x, y, .. } => {
             AlgebraicExpression::BinaryOperation(AlgebraicBinaryOperation {
-                left: Box::new(symbolic_to_algebraic(x, columns)?),
-                right: Box::new(symbolic_to_algebraic(y, columns)?),
+                left: Box::new(symbolic_to_algebraic(x, columns, first_public_input_id)?),
+                right: Box::new(symbolic_to_algebraic(y, columns, first_public_input_id)?),
                 op: AlgebraicBinaryOperator::Mul,
             })
         }
         SymbolicExpression::Neg { x, .. } => {
             AlgebraicExpression::UnaryOperation(AlgebraicUnaryOperation {
-                expr: Box::new(symbolic_to_algebraic(x, columns)?),
+                expr: Box::new(symbolic_to_algebraic(x, columns, first_public_input_id)?),
                 op: AlgebraicUnaryOperator::Minus,
             })
         }
@@ -269,7 +282,18 @@ fn symbolic_to_algebraic<F: PrimeField32>(
                 return Err(UnsupportedConstraintError("Permutation column".to_string()))
             }
             Entry::Public => {
-                return Err(UnsupportedConstraintError("Public reference".to_string()))
+                // If an id exists, check that it matches the public id. Otherwise, set it to the
+                // id.
+                if let Some(id) = first_public_input_id {
+                    if *id != *index {
+                        return Err(UnsupportedConstraintError(
+                            "Expected at most one public input, found at least two".to_string(),
+                        ));
+                    }
+                } else {
+                    *first_public_input_id = Some(*index);
+                }
+                number_to_algebraic(&F::zero())
             }
             Entry::Challenge => {
                 return Err(UnsupportedConstraintError("Challenge reference".to_string()))

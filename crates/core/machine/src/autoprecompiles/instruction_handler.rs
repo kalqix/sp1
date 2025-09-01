@@ -58,7 +58,7 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
             // Not an instruction AIR.
             return;
         }
-        let machine = match air_to_symbolic_machine(riscv_air) {
+        let machine = match air_to_symbolic_machine(riscv_air, &mut None) {
             Ok(machine) => machine,
             Err(err) => {
                 tracing::warn!("Failed to convert {} to symbolic machine: {err}", riscv_air.name());

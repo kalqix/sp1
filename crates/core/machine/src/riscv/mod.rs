@@ -1093,8 +1093,10 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster =
-            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+        let base_precompile_cluster = extend_base(
+            &preprocessed_chips,
+            [SyscallPrecompile, MemoryLocal, PageProtLocal, Global],
+        );
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -1122,6 +1124,7 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
             [Bn254Fp2AddSub].as_slice(),
             [Bn254Fp2Mul].as_slice(),
             [Bls12381Decompress].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ]
         .into_iter()
@@ -1157,9 +1160,13 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 Jalr,
                 SyscallInstrs,
                 MemoryBump,
+                PageProt,
+                PageProtLocal,
                 StateBump,
                 MemoryLocal,
                 Global,
+                InstructionDecode,
+                InstructionFetch,
             ],
         )
         .into_iter()
@@ -1167,16 +1174,20 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
         .chain((0..apcs_len).map(|i| RiscvAirWithApcDiscriminants::Apc(i as u64)))
         .collect::<BTreeSet<_>>();
 
-        let memory_boundary_cluster =
-            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+        let memory_boundary_cluster = extend_base(
+            &preprocessed_chips,
+            [MemoryGlobalInit, MemoryGlobalFinal, Global, PageProtGlobalInit, PageProtGlobalFinal],
+        );
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
+            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
+                .as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
             [Uint256Ops].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ];
 
@@ -1213,6 +1224,8 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 [
                     MemoryGlobalInit,
                     MemoryGlobalFinal,
+                    PageProtGlobalInit,
+                    PageProtGlobalFinal,
                     Sha256Extend,
                     Sha256ExtendControl,
                     Sha256Compress,
