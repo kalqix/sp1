@@ -324,6 +324,10 @@ pub struct ChipStatistics<F> {
     preprocessed_cols: usize,
     /// The number of main columns.
     main_cols: usize,
+    /// The number of sends of the chip.
+    sends: usize,
+    /// The number of receives of the chip.
+    receives: usize,
     _marker: std::marker::PhantomData<F>,
 }
 
@@ -334,7 +338,17 @@ impl<F: Field> ChipStatistics<F> {
         let name = chip.name();
         let preprocessed_cols = chip.preprocessed_width();
         let main_cols = chip.width();
-        Self { name, height, preprocessed_cols, main_cols, _marker: std::marker::PhantomData }
+        let sends = chip.sends().len();
+        let receives = chip.receives().len();
+        Self {
+            name,
+            height,
+            preprocessed_cols,
+            main_cols,
+            sends,
+            receives,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     /// Returns the total width of the chip.
@@ -349,6 +363,13 @@ impl<F: Field> ChipStatistics<F> {
     #[inline]
     pub const fn total_number_of_cells(&self) -> usize {
         self.total_width() * self.height
+    }
+
+    /// Returns the total number of local bus interactions (sends + receives) in the chip.
+    #[must_use]
+    #[inline]
+    pub const fn total_number_of_local_bus_interactions(&self) -> usize {
+        (self.sends + self.receives) * self.height
     }
 
     /// Returns the total memory size of the chip in bytes.

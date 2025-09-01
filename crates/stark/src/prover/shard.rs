@@ -661,20 +661,23 @@ impl<C: ShardProverComponents> ShardProver<C> {
 
         // Log the shard data.
         let mut total_number_of_cells = 0;
+        let mut total_local_bus_interactions = 0;
         tracing::info!("Proving shard");
         for (chip, trace) in shard_chips.iter().zip_eq(traces.values()) {
             let height = trace.num_real_entries();
             let stats = ChipStatistics::new(chip, height);
             tracing::info!("{}", stats);
             total_number_of_cells += stats.total_number_of_cells();
+            total_local_bus_interactions += stats.total_number_of_local_bus_interactions();
         }
         let public_values_struct: &PublicValues<[C::F; 4], [C::F; 3], [C::F; 4], C::F> =
             public_values.as_slice().borrow();
         let shard = public_values_struct.shard;
         tracing::info!(
-            "Total number of cells: {}, number of variables: {}, shard: {}",
+            "Total number of cells: {}, number of variables: {}, bus_interactions: {}, shard: {}",
             total_number_of_cells,
             total_number_of_cells.next_power_of_two().ilog2(),
+            total_local_bus_interactions,
             shard,
         );
 
@@ -796,6 +799,7 @@ impl<C: ShardProverComponents> ShardProver<C> {
             shard = shard,
             total_ms = total_ms,
             total_cells = total_number_of_cells as u64,
+            bus_interactions = total_local_bus_interactions as u64,
             "prove_shard_with_data finished"
         );
 
