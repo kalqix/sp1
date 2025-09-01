@@ -105,8 +105,9 @@ pub fn constrain_is_trusted_to_one<F: PrimeField32>(
     let is_trusted = &machine
         .bus_interactions
         .iter()
-        .find(|i| i.id == InteractionKind::Program as u64)
-        .expect("expected instruction air to interact on the `Program` bus")
+        .filter(|i| i.id == InteractionKind::Program as u64)
+        .exactly_one()
+        .expect("Expected exactly one program interaction")
         .mult;
     machine.constraints.push(SymbolicConstraint {
         expr: is_trusted.clone() - AlgebraicExpression::Number(F::one()),

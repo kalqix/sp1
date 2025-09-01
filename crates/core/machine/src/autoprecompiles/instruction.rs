@@ -25,7 +25,7 @@ impl fmt::Display for Sp1Instruction {
 impl Instruction<SP1Field> for Sp1Instruction {
     fn pc_lookup_row(&self, pc: Option<u64>) -> Vec<Option<SP1Field>> {
         // The PC lookup row has the following structure:
-        // [pc_0, pc_1, pc_2, instruction_cols..., instruction_field_consts... (3 elements)]
+        // [pc_0, pc_1, pc_2, ...instruction_cols]
         let mut instruction_cols = InstructionCols::<SP1Field>::default();
         instruction_cols.populate(&self.0);
         let instruction_cols = instruction_cols.into_iter().map(Some);
