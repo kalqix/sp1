@@ -285,10 +285,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 let a = args.next().unwrap() as u16;
                 let b = args.next().unwrap() as u8;
                 let c = args.next().unwrap() as u8;
+                assert!(args.next().is_none());
 
                 if bus_interaction.id == InteractionKind::Byte as u64 {
                     // byte lookup
-                    assert_eq!(args.len(), 4);
                     *output
                         .byte_lookups
                         .entry(ByteLookupEvent {
