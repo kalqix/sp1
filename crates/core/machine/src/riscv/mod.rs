@@ -1451,7 +1451,7 @@ pub mod tests {
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
         let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
         // Number of segments
-        assert!(proofs.shard_proofs.len() == 3);
+        assert_eq!(proofs.shard_proofs.len(), 1);
     }
 
     #[tokio::test]
@@ -1517,7 +1517,7 @@ pub mod tests {
         )
         .await
         .unwrap();
-        assert!(proofs.shard_proofs.len() == 3);
+        assert_eq!(proofs.shard_proofs.len(), 3);
     }
 
     #[test]
