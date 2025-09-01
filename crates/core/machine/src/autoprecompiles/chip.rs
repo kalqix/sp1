@@ -1,8 +1,5 @@
 use core::panic;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
@@ -272,51 +269,48 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 row[is_valid_index] = F::one();
             }
 
-            // Collect and replay side effects as events
+            // Replay side effects as events
             // Only need to do this for byte lookup bus, as other buses are implicitly balanced via
             // main trace values rather than via events
-            let mut byte_interactions_delta = HashMap::new(); // map of event to sum of multiplicities
 
             let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
-            for bus_interaction in self.apc().machine.bus_interactions.iter() {
+            for bus_interaction in &self.apc().machine.bus_interactions {
                 let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
-                let args = bus_interaction
+                let mut args = bus_interaction
                     .args
                     .iter()
-                    .map(|arg| evaluator.eval_expr(arg).as_canonical_u32())
-                    .collect_vec();
+                    .map(|arg| evaluator.eval_expr(arg).as_canonical_u32());
+                let opcode = args.next().unwrap() as usize;
+                let a = args.next().unwrap() as u16;
+                let b = args.next().unwrap() as u8;
+                let c = args.next().unwrap() as u8;
 
                 if bus_interaction.id == InteractionKind::Byte as u64 {
                     // byte lookup
                     assert_eq!(args.len(), 4);
-                    *byte_interactions_delta
+                    *output
+                        .byte_lookups
                         .entry(ByteLookupEvent {
-                            opcode: match args[0] {
-                                0 => ByteOpcode::AND,
-                                1 => ByteOpcode::OR,
-                                2 => ByteOpcode::XOR,
-                                3 => ByteOpcode::U8Range,
-                                4 => ByteOpcode::LTU,
-                                5 => ByteOpcode::MSB,
-                                6 => ByteOpcode::Range,
-                                _ => unreachable!("Unexpected byte lookup Opcode: {}", args[0]),
+                            opcode: match opcode {
+                                o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
+                                o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
+                                o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
+                                o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
+                                o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
+                                o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
+                                o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
+                                _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
                             },
-                            a: args[1] as u16,
-                            b: args[2] as u8,
-                            c: args[3] as u8,
+                            a,
+                            b,
+                            c,
                         })
                         .or_insert(0) += mult as isize;
                 }
             }
 
             tracing::trace!("Final row: {row:?}");
-
-            // Replay byte lookups (can only mutate output after map)
-
-            for (event, mult) in byte_interactions_delta {
-                *output.byte_lookups.entry(event).or_insert(0) += mult;
-            }
         }
     }
 
