@@ -370,6 +370,9 @@ where
                 id if *id == InteractionKind::Program as u64 => InteractionKind::Program,
                 id if *id == InteractionKind::Byte as u64 => InteractionKind::Byte,
                 id if *id == InteractionKind::State as u64 => InteractionKind::State,
+                id if *id == InteractionKind::InstructionFetch as u64 => {
+                    InteractionKind::InstructionFetch
+                }
                 _ => unreachable!("Unexpected bus ID: {id}"),
             };
 

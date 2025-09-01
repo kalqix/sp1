@@ -102,14 +102,12 @@ pub fn sort_memory_interactions<F: PrimeField32>(
 pub fn constrain_is_trusted_to_one<F: PrimeField32>(
     mut machine: SymbolicMachine<F>,
 ) -> SymbolicMachine<F> {
-    let is_trusted = machine
+    let is_trusted = &machine
         .bus_interactions
         .iter()
         .find(|i| i.id == InteractionKind::Program as u64)
         .expect("expected instruction air to interact on the `Program` bus")
-        .args
-        .last()
-        .unwrap();
+        .mult;
     machine.constraints.push(SymbolicConstraint {
         expr: is_trusted.clone() - AlgebraicExpression::Number(F::one()),
     });
