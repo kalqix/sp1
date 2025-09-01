@@ -2694,6 +2694,9 @@ impl<'a> Executor<'a> {
             self.memory_accesses = MemoryAccessRecord::default();
         }
 
+        // Log the current PC to be collected
+        tracing::trace!(pc = self.state.pc, "executing instruction");
+
         // Fetch the instruction at the current program counter.
         let (instruction, apc_range) = self.fetch::<E>()?;
 
