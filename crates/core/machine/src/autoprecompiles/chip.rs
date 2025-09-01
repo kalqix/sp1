@@ -275,7 +275,13 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
             let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
 
-            for bus_interaction in &self.apc().machine.bus_interactions {
+            for bus_interaction in self
+                .apc()
+                .machine
+                .bus_interactions
+                .iter()
+                .filter(|bus_interaction| bus_interaction.id == InteractionKind::Byte as u64)
+            {
                 let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
                 let mut args = bus_interaction
                     .args
@@ -287,27 +293,25 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 let c = args.next().unwrap() as u8;
                 assert!(args.next().is_none());
 
-                if bus_interaction.id == InteractionKind::Byte as u64 {
-                    // byte lookup
-                    *output
-                        .byte_lookups
-                        .entry(ByteLookupEvent {
-                            opcode: match opcode {
-                                o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
-                                o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
-                                o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
-                                o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
-                                o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
-                                o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
-                                o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
-                                _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
-                            },
-                            a,
-                            b,
-                            c,
-                        })
-                        .or_insert(0) += mult as isize;
-                }
+                // byte lookup
+                *output
+                    .byte_lookups
+                    .entry(ByteLookupEvent {
+                        opcode: match opcode {
+                            o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
+                            o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
+                            o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
+                            o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
+                            o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
+                            o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
+                            o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
+                            _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
+                        },
+                        a,
+                        b,
+                        c,
+                    })
+                    .or_insert(0) += mult as isize;
             }
 
             tracing::trace!("Final row: {row:?}");
