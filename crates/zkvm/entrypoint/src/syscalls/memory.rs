@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(all(target_os = "zkvm", feature = "bump"))]
 use sp1_primitives::consts::MAXIMUM_MEMORY_SIZE;
 
 /// Allocate memory aligned to the given alignment.
 ///
-/// Only available when the `bump` feature is enabled.
+/// Only available when the `embedded` feature is not enabled.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-#[cfg(feature = "bump")]
+#[cfg(all(target_os = "zkvm", feature = "bump"))]
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
     // Pointer to next heap address to use, or 0 if the heap has not yet been
     // initialized.
@@ -46,10 +47,22 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     let (heap_pos, overflowed) = heap_pos.overflowing_add(bytes);
 
     if overflowed || MAXIMUM_MEMORY_SIZE < heap_pos as u64 {
-        panic!("Memory limit exceeded (0x78000000)");
+        panic!("Memory limit exceeded");
     }
 
     unsafe { HEAP_POS = heap_pos };
 
     ptr
+}
+
+/// Allocate memory aligned to the given alignment.
+///
+/// Only available when the `embedded` feature is enabled.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+#[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
+    use core::alloc::GlobalAlloc;
+    crate::allocators::embedded::INNER_HEAP
+        .alloc(std::alloc::Layout::from_size_align(bytes, align).unwrap())
 }

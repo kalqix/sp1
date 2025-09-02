@@ -28,6 +28,22 @@ mod libm;
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub const POSEIDON_NUM_WORDS: usize = 8;
 
+#[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+const MAX_MEMORY: usize = 1 << 37;
+
+/// Size of the reserved region for input values with the embedded allocator.
+#[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+pub(crate) const EMBEDDED_RESERVED_INPUT_REGION_SIZE: usize = 1 << 34;
+
+/// Start of the reserved region for inputs with the embedded allocator.
+#[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+pub(crate) const EMBEDDED_RESERVED_INPUT_START: usize =
+    MAX_MEMORY - EMBEDDED_RESERVED_INPUT_REGION_SIZE;
+
+/// Pointer to the current position in the reserved region for inputs with the embedded allocator.
+#[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+static mut EMBEDDED_RESERVED_INPUT_PTR: usize = EMBEDDED_RESERVED_INPUT_START;
+
 #[repr(C)]
 pub struct ReadVecResult {
     pub ptr: *mut u8,
@@ -66,8 +82,26 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
         let capacity = (len + 7) / 8 * 8;
 
         cfg_if! {
-            if #[cfg(feature = "bump")] {
-                // Allocate a buffer of the required length that is 4 byte aligned.
+            if #[cfg(not(feature = "bump"))] {
+                // Get the existing pointer in the reserved region which is the start of the vec.
+                // Increment the pointer by the capacity to set the new pointer to the end of the vec.
+                let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
+                if ptr.saturating_add(capacity) > MAX_MEMORY {
+                    panic!("Input region overflowed.")
+                }
+
+                // SAFETY: The VM is single threaded.
+                unsafe { EMBEDDED_RESERVED_INPUT_PTR += capacity };
+
+                // Read the vec into uninitialized memory. The syscall assumes the memory is
+                // uninitialized, which is true because the input ptr is incremented manually on each
+                // read.
+                syscall_hint_read(ptr as *mut u8, len);
+
+                // Return the result.
+                ReadVecResult { ptr: ptr as *mut u8, len, capacity }
+            } else {
+                // Allocate a buffer of the required length that is 8 byte aligned.
                 let layout = std::alloc::Layout::from_size_align(capacity, 8).expect("vec is too large");
 
                 // SAFETY: The layout was made through the checked constructor.
@@ -84,9 +118,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     len,
                     capacity,
                 }
-            } else {
-                // An allocator must be selected.
-                compile_error!("There is no allocator selected. Please enable the `bump` feature.");
+
             }
         }
     }
@@ -120,6 +152,9 @@ mod zkvm {
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
+            #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+            crate::allocators::init();
+
             cfg_if::cfg_if! {
                 if #[cfg(feature = "blake3")] {
                     PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
