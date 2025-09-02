@@ -31,6 +31,8 @@ members = [
   "json/script",
   "keccak/program",
   "keccak/script",
+  "keccak-bench/program",
+  "keccak-bench/script",
   "mprotect/program",
   "mprotect/script",
   "untrusted_program/jit-program",
