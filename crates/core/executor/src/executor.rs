@@ -456,24 +456,6 @@ pub struct LocalCounts {
     pub shard_distinct_instructions: HashSet<(u64, u32)>,
 }
 
-/// Errors that can occur during APC execution and which lead to rolling back and running software
-/// instead
-#[derive(Debug)]
-pub enum ApcExecutionError {
-    /// A state bump event was generated
-    StateBump,
-    /// A memory bump event was generated
-    MemoryBump,
-    /// An execution error occurred
-    Execution(ExecutionError),
-}
-
-impl From<ExecutionError> for ApcExecutionError {
-    fn from(err: ExecutionError) -> Self {
-        ApcExecutionError::Execution(err)
-    }
-}
-
 /// Errors that the [``Executor``] can throw.
 #[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
@@ -512,10 +494,6 @@ pub enum ExecutionError {
     /// The unconstrained cycle limit was exceeded.
     #[error("unconstrained cycle limit exceeded")]
     UnconstrainedCycleLimitExceeded(u64),
-
-    /// The execution failed with an unimplemented apc
-    #[error("unimplemented apc {0}")]
-    UnsupportedApc(u64),
 
     /// The program ended with an unexpected status code.
     #[error("Unexpected exit code: {0}")]
@@ -2897,11 +2875,8 @@ impl<'a> Executor<'a> {
         self.emit_global_memory_events = emit_global_memory_events;
 
         // Clone self.state without memory, uninitialized_memory, proof_stream in it so it's faster.
-        let memory = std::mem::replace(&mut self.state.memory, Memory::<_>::new_preallocated());
-        let uninitialized_memory = std::mem::replace(
-            &mut self.state.uninitialized_memory,
-            Memory::<_>::new_preallocated(),
-        );
+        let memory = std::mem::take(&mut self.state.memory);
+        let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
         let proof_stream = std::mem::take(&mut self.state.proof_stream);
         let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;

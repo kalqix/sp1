@@ -65,7 +65,7 @@ pub const fn validate_sign_extension(value: u64, bit_width: u32) -> bool {
 /// The structure of the instruction differs from the RISC-V ISA. We do not encode the instructions
 /// as 32-bit words, but instead use a custom encoding that is more friendly to decode in the
 /// SP1 zkVM.
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, deepsize2::DeepSizeOf)]
+#[derive(Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 #[repr(C)]
 pub struct Instruction {
     /// The operation to execute.
