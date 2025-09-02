@@ -7,12 +7,14 @@ use crate::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use sp1_stark::MachineRecord;
+use sp1_hypercube::MachineRecord;
 
 use crate::ExecutionRecord;
 
+use super::PageProtLocalEvent;
+
 /// A record of all the apc events for a specific apc id.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, deepsize2::DeepSizeOf)]
 pub struct ApcEventsForId {
     /// The number of events.
     pub count: usize,
@@ -21,7 +23,7 @@ pub struct ApcEventsForId {
 }
 
 /// A record of all the apc events.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, deepsize2::DeepSizeOf)]
 pub struct ApcEvents {
     #[serde(serialize_with = "serialize_hashmap_as_vec")]
     #[serde(deserialize_with = "deserialize_hashmap_as_vec")]
@@ -77,10 +79,25 @@ impl ApcEvents {
 
         iterators.into_iter().flatten()
     }
+
+    /// Get all the local page prot events from all the precompile events.
+    pub(crate) fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
+        let mut iterators = Vec::new();
+
+        for (_, events) in self.events.iter() {
+            iterators.push(events.get_local_page_prot_events());
+        }
+
+        iterators.into_iter().flatten()
+    }
 }
 
 impl PrecompileLocalMemory for ApcEventsForId {
     fn get_local_mem_events(&self) -> impl IntoIterator<Item = &MemoryLocalEvent> {
         self.record.get_local_mem_events().collect_vec().into_iter()
+    }
+
+    fn get_local_page_prot_events(&self) -> impl IntoIterator<Item = &PageProtLocalEvent> {
+        self.record.get_local_page_prot_events().collect_vec().into_iter()
     }
 }

@@ -5,21 +5,23 @@ use futures::{
 };
 use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
-use slop_baby_bear::BabyBear;
 use slop_bn254::Bn254Fr;
 use slop_futures::queue::WorkerQueue;
+use slop_jagged::JaggedConfig;
 use sp1_core_executor::{
     subproof::SubproofVerifier, ExecutionError, ExecutionReport, Executor, Program, SP1Context,
     SP1CoreOpts, SP1RecursionProof,
 };
-use sp1_core_machine::{
-    executor::{MachineExecutor, MachineExecutorBuilder},
-    io::SP1Stdin,
+use sp1_core_machine::{executor::MachineExecutor, io::SP1Stdin};
+use sp1_hypercube::{
+    prover::{MachineProverComponents, MachineProvingKey, MemoryPermit, Record},
+    MachineVerifierConfigError, MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof,
+    VerifierConstraintFolder,
 };
-use sp1_primitives::io::SP1PublicValues;
+use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_recursion_circuit::{
     machine::{SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1ShapedWitnessValues},
-    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    utils::{koalabear_bytes_to_bn254, koalabears_to_bn254, words_to_bytes},
     witness::{OuterWitness, Witnessable},
     zerocheck::RecursiveVerifierConstraintFolder,
     InnerSC,
@@ -29,11 +31,6 @@ use sp1_recursion_executor::{ExecutionRecord as RecursionRecord, RecursionPublic
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };
-use sp1_stark::{
-    prover::{MachineProverComponents, MachineProverError, MachineProvingKey, Record},
-    BabyBearPoseidon2, MachineVerifierConfigError, MachineVerifyingKey, ShardProof,
-    VerifierConstraintFolder,
-};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, VecDeque},
@@ -42,10 +39,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use tokio::sync::{
-    mpsc::{self, UnboundedReceiver, UnboundedSender},
-    Semaphore,
-};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::Instrument;
 
 use crate::{
@@ -57,8 +51,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct LocalProverOpts {
     pub core_opts: SP1CoreOpts,
-    pub records_capacity_buffer: usize,
-    pub prover_task_capacity_buffer: usize,
+    pub records_buffer_size: u64,
     pub num_record_workers: usize,
     pub num_recursion_executors: usize,
 }
@@ -67,45 +60,41 @@ impl Default for LocalProverOpts {
     fn default() -> Self {
         let core_opts = SP1CoreOpts::default();
 
-        const DEFAULT_RECORDS_CAPACITY_BUFFER: usize = 1;
-        let records_capacity_buffer = env::var("SP1_PROVER_RECORDS_CAPACITY_BUFFER")
-            .unwrap_or_else(|_| DEFAULT_RECORDS_CAPACITY_BUFFER.to_string())
-            .parse::<usize>()
-            .unwrap_or(DEFAULT_RECORDS_CAPACITY_BUFFER);
+        let sysinfo = sysinfo::System::new_all();
+        let total_memory = sysinfo.total_memory();
+        let used_memory = sysinfo.used_memory();
+        let free_memory = total_memory - used_memory;
 
-        const DEFAULT_PROVER_TASK_CAPACITY_BUFFER: usize = 2;
-        let prover_task_capacity_buffer = env::var("SP1_PROVER_PROVER_TASK_CAPACITY_BUFFER")
-            .unwrap_or_else(|_| DEFAULT_PROVER_TASK_CAPACITY_BUFFER.to_string())
-            .parse::<usize>()
-            .unwrap_or(DEFAULT_PROVER_TASK_CAPACITY_BUFFER);
+        tracing::info!("Free memory at prover init: {} bytes", free_memory);
+
+        // Allow half the available memory for tracegen by default.
+        let records_buffer_size = free_memory / 2;
+
+        // Reserve ~12Gb of memory for records by default.
+        let records_buffer_size = env::var("SP1_PROVER_RECORDS_CAPACITY_BUFFER")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(records_buffer_size);
 
         const DEFAULT_NUM_RECORD_WORKERS: usize = 2;
         let num_record_workers = env::var("SP1_PROVER_NUM_RECORD_WORKERS")
-            .unwrap_or_else(|_| DEFAULT_NUM_RECORD_WORKERS.to_string())
-            .parse::<usize>()
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_NUM_RECORD_WORKERS);
 
         const DEFAULT_NUM_RECURSION_EXECUTORS: usize = 4;
         let num_recursion_executors = env::var("SP1_PROVER_NUM_RECURSION_EXECUTORS")
-            .unwrap_or_else(|_| DEFAULT_NUM_RECURSION_EXECUTORS.to_string())
-            .parse::<usize>()
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_NUM_RECURSION_EXECUTORS);
 
-        Self {
-            core_opts,
-            records_capacity_buffer,
-            prover_task_capacity_buffer,
-            num_record_workers,
-            num_recursion_executors,
-        }
+        Self { core_opts, records_buffer_size, num_record_workers, num_recursion_executors }
     }
 }
 
 pub struct LocalProver<C: SP1ProverComponents> {
     prover: SP1Prover<C>,
-    executor: MachineExecutor<BabyBear>,
-    records_task_capacity: usize,
-    prover_task_capacity: usize,
+    executor: MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air>,
     compose_batch_size: usize,
     normalize_batch_size: usize,
     num_recursion_executors: usize,
@@ -117,24 +106,18 @@ where
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
-        let records_task_capacity =
-            prover.core().num_prover_workers() * opts.records_capacity_buffer;
-        let prover_task_capacity =
-            prover.core().num_prover_workers() * opts.prover_task_capacity_buffer;
-        let executor = MachineExecutorBuilder::new(
-            opts.core_opts,
+        let executor = MachineExecutor::new(
+            opts.records_buffer_size,
             opts.num_record_workers,
+            opts.core_opts,
             prover.machine().clone(),
-        )
-        .build();
+        );
 
         let compose_batch_size = prover.recursion().max_compose_arity();
         let normalize_batch_size = prover.recursion().normalize_batch_size();
         Self {
             prover,
             executor,
-            records_task_capacity,
-            prover_task_capacity,
             compose_batch_size,
             normalize_batch_size,
             num_recursion_executors: opts.num_recursion_executors,
@@ -147,8 +130,8 @@ where
         stdin: &SP1Stdin,
         mut context: SP1Context,
     ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
-        context.subproof_verifier = Some(self);
-        let opts = SP1CoreOpts::default();
+        context.subproof_verifier = Some(self.clone());
+        let opts = self.executor.opts().clone();
         let program = Arc::new(Program::from(elf).unwrap());
         let mut runtime = Executor::with_context(program, opts, context);
         runtime.maybe_setup_profiler(elf);
@@ -185,7 +168,9 @@ where
     /// Get a reference to the underlying [MachineExecutor]
     #[inline]
     #[must_use]
-    pub fn executor(&self) -> &MachineExecutor<BabyBear> {
+    pub fn executor(
+        &self,
+    ) -> &MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air> {
         &self.executor
     }
 
@@ -203,32 +188,32 @@ where
         context.subproof_verifier = Some(Arc::new(self.clone()));
 
         let (records_tx, mut records_rx) =
-            mpsc::channel::<Record<C::CoreComponents>>(self.records_task_capacity);
+            mpsc::unbounded_channel::<(Record<C::CoreComponents>, Option<MemoryPermit>)>();
 
         let prover = self.clone();
 
-        let prover_task_capacity = prover.prover_task_capacity;
         let shard_proofs = tokio::spawn(async move {
             let mut shape_count = 0;
             let mut shard_proofs = Vec::new();
-            let mut tasks = FuturesOrdered::new();
-            let prover_spawn_permits = Semaphore::new(prover_task_capacity);
-            let mut permits = Vec::with_capacity(prover_task_capacity);
+            let mut prove_shard_task = FuturesOrdered::new();
             loop {
                 tokio::select! {
-                    Ok((permit, Some(record))) = prover_spawn_permits.acquire()
-                        .and_then(|permit|
-                            records_rx.recv().map(|record| Ok((permit, record)))) => {
-                        let span = tracing::debug_span!("prove core shard").entered();
+                    // Accquire a permit and start the exeuction.
+                    Some((record, memory_permit)) = records_rx.recv() => {
                         let shape = prover.prover.core().core_shape_from_record(&record).unwrap();
 
-                        let handle = prover
-                            .prover
-                            .core()
-                            .prove_shard(pk.clone(), record);
-                        span.exit();
-                        tasks.push_back(handle);
-                        permits.push(permit);
+                        let proof = async {
+                            let proof = prover
+                                .prover
+                                .core()
+                                .prove_shard(pk.clone(), record)
+                                .await;
+
+                            drop(memory_permit);
+                            proof
+                        };
+
+                        prove_shard_task.push_back(proof);
 
                         if shape_count < 3 {
                             let prover = prover.clone();
@@ -246,10 +231,8 @@ where
                             shape_count += 1;
                         }
                     }
-                    Some(result) = tasks.next() => {
-                        let proof = result.map_err(SP1ProverError::CoreProverError)?;
+                    Some(proof) = prove_shard_task.next() => {
                         shard_proofs.push(proof);
-                        permits.pop();
                     }
                     else => {
                         break;
@@ -269,6 +252,7 @@ where
 
         // Wait for the executor to finish.
         let output = output.await.unwrap().map_err(SP1ProverError::CoreExecutorError)?;
+
         let pv_stream = output.public_value_stream;
         let cycles = output.cycles;
         let public_values = SP1PublicValues::from(&pv_stream);
@@ -362,32 +346,31 @@ where
                         let ProveTask { keys, range, record } = task;
                         if let Some((pk, vk)) = keys {
                             let span = tracing::debug_span!("prove compress shard").entered();
-                            let handle = prover.prover().recursion().prove_shard(pk, record)
-                            .map_ok(move |proof|{
+                            let handle = async {
+                                let proof = prover.prover().recursion().prove_shard(pk, record).await;
                                 let proof = SP1RecursionProof { vk, proof };
                                 RecursionProof { shard_range: range, proof }
-                            });
+                            };
+
                             prove_tasks.push(handle);
                             span.exit();
                         }
                         else {
-                        let span = tracing::debug_span!("prove compress shard").entered();
-                        let handle = prover.prover().recursion().setup_and_prove_shard(record.program.clone(), None, record)
-                            .map_ok(move |(vk, proof)|  {
-                            let proof = SP1RecursionProof { vk, proof };
+                            let span = tracing::debug_span!("prove compress shard").entered();
+                            let handle = async {
+                                let (vk, proof) = prover.prover().recursion().setup_and_prove_shard(record.program.clone(), None, record).await;
+                                let proof = SP1RecursionProof { vk, proof };
+                                RecursionProof { shard_range: range, proof }
+                            };
 
-                            RecursionProof { shard_range: range, proof }
-                          });
-                          span.exit();
-                          setup_and_prove_tasks.push(handle);
+                            setup_and_prove_tasks.push(handle);
+                            span.exit();
                         }
                     }
-                    Some(result) = setup_and_prove_tasks.next() => {
-                        let proof = result.unwrap();
+                    Some(proof) = setup_and_prove_tasks.next() => {
                         tree_tx.send(proof).unwrap();
                     }
-                    Some(result) = prove_tasks.next() => {
-                        let proof = result.unwrap();
+                    Some(proof) = prove_tasks.next() => {
                         tree_tx.send(proof).unwrap();
                     }
                     else => {
@@ -427,7 +410,7 @@ where
         }
         drop(compress_tree_tx);
 
-        Err(SP1ProverError::RecursionProverError(MachineProverError::ProverClosed))
+        unreachable!("todo explain this")
     }
 
     #[tracing::instrument(name = "prove shrink", skip_all)]
@@ -460,12 +443,7 @@ where
 
         let (vk, record) = tokio::try_join!(key_task, execute_task)?;
 
-        let proof = self
-            .prover
-            .recursion()
-            .prove_shrink(record)
-            .await
-            .map_err(SP1ProverError::RecursionProverError)?;
+        let proof = self.prover.recursion().prove_shrink(record).await;
 
         Ok(SP1RecursionProof { vk, proof })
     }
@@ -497,12 +475,7 @@ where
 
         let (vk, record) = tokio::try_join!(key_task, execute_task)?;
 
-        let proof = self
-            .prover
-            .recursion()
-            .prove_wrap(record)
-            .await
-            .map_err(SP1ProverError::RecursionProverError)?;
+        let proof = self.prover.recursion().prove_wrap(record).await;
 
         Ok(SP1RecursionProof { vk, proof })
     }
@@ -519,14 +492,14 @@ where
             is_complete: true,
         };
 
-        let pv: &RecursionPublicValues<BabyBear> = wrap_proof.public_values.as_slice().borrow();
+        let pv: &RecursionPublicValues<SP1Field> = wrap_proof.public_values.as_slice().borrow();
 
-        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-        let committed_values_digest_bytes: [BabyBear; 32] =
+        let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
+        let committed_values_digest_bytes: [SP1Field; 32] =
             words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+        let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
         let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
-        let vk_root = babybears_to_bn254(&pv.vk_root);
+        let vk_root = koalabears_to_bn254(&pv.vk_root);
         let mut witness = OuterWitness::default();
         input.write(&mut witness);
         witness.write_committed_values_digest(committed_values_digest);
@@ -563,14 +536,14 @@ where
             is_complete: true,
         };
 
-        let pv: &RecursionPublicValues<BabyBear> = wrap_proof.public_values.as_slice().borrow();
+        let pv: &RecursionPublicValues<SP1Field> = wrap_proof.public_values.as_slice().borrow();
 
-        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-        let committed_values_digest_bytes: [BabyBear; 32] =
+        let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
+        let committed_values_digest_bytes: [SP1Field; 32] =
             words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+        let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
         let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
-        let vk_root = babybears_to_bn254(&pv.vk_root);
+        let vk_root = koalabears_to_bn254(&pv.vk_root);
         let mut witness = OuterWitness::default();
         input.write(&mut witness);
         witness.write_committed_values_digest(committed_values_digest);
@@ -604,8 +577,14 @@ where
         deferred_proofs: &[SP1RecursionProof<InnerSC>],
         batch_size: usize,
     ) -> Vec<SP1CircuitWitness> {
+        // We arbitrarily grab the page prot value from the first shard because it should be the
+        // same for all shards.
+        let pv: &RecursionPublicValues<<CoreSC as JaggedConfig>::F> =
+            shard_proofs[0].public_values.as_slice().borrow();
+        let is_page_protect_active = pv.is_page_protect_active;
+
         let (deferred_inputs, deferred_digest) =
-            self.get_deferred_inputs(&vk.vk, deferred_proofs, batch_size);
+            self.get_deferred_inputs(&vk.vk, deferred_proofs, batch_size, is_page_protect_active);
 
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         let core_inputs = self.get_normalize_witnesses(
@@ -628,12 +607,14 @@ where
         vk: &'a MachineVerifyingKey<CoreSC>,
         deferred_proofs: &[SP1RecursionProof<InnerSC>],
         batch_size: usize,
-    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
+        is_page_protect_active: SP1Field,
+    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [SP1Field; 8]) {
         self.get_deferred_inputs_with_initial_digest(
             vk,
             deferred_proofs,
-            [BabyBear::zero(); 8],
+            [SP1Field::zero(); 8],
             batch_size,
+            is_page_protect_active,
         )
     }
 
@@ -641,9 +622,10 @@ where
         &'a self,
         vk: &'a MachineVerifyingKey<CoreSC>,
         deferred_proofs: &[SP1RecursionProof<InnerSC>],
-        initial_deferred_digest: [BabyBear; 8],
+        initial_deferred_digest: [SP1Field; 8],
         batch_size: usize,
-    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
+        is_page_protect_active: SP1Field,
+    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [SP1Field; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = initial_deferred_digest;
         let mut deferred_inputs = Vec::new();
@@ -659,21 +641,9 @@ where
                 vks_and_proofs: input.compress_val.vks_and_proofs,
                 vk_merkle_data: input.merkle_val,
                 start_reconstruct_deferred_digest: deferred_digest,
-                is_complete: false,
-                sp1_vk_digest: vk.hash_babybear(),
+                sp1_vk_digest: vk.hash_koalabear(),
                 end_pc: vk.pc_start,
-                end_shard: BabyBear::one(),
-                end_execution_shard: BabyBear::one(),
-                end_timestamp: [
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                    BabyBear::one(),
-                ],
-                init_addr_word: [BabyBear::zero(); 3],
-                finalize_addr_word: [BabyBear::zero(); 3],
-                committed_value_digest: [[BabyBear::zero(); 4]; 8],
-                deferred_proofs_digest: [BabyBear::zero(); 8],
+                is_page_protect_active,
             });
 
             deferred_digest = SP1RecursionProver::<C>::hash_deferred_proofs(deferred_digest, batch);
@@ -687,19 +657,18 @@ where
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
         is_complete: bool,
-        deferred_digest: [BabyBear; 8],
+        deferred_digest: [SP1Field; 8],
     ) -> Vec<SP1NormalizeWitnessValues<CoreSC>> {
         let mut core_inputs = Vec::new();
 
         // Prepare the inputs for the recursion programs.
-        for (batch_idx, batch) in shard_proofs.chunks(batch_size).enumerate() {
+        for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
             core_inputs.push(SP1NormalizeWitnessValues {
                 vk: vk.vk.clone(),
                 shard_proofs: proofs.clone(),
                 is_complete,
-                is_first_shard: batch_idx == 0,
                 vk_root: self.prover.recursion().recursion_vk_root,
                 reconstruct_deferred_digest: deferred_digest,
             });
@@ -715,11 +684,11 @@ where
 {
     fn verify_deferred_proof(
         &self,
-        proof: &SP1RecursionProof<BabyBearPoseidon2>,
-        vk: &MachineVerifyingKey<BabyBearPoseidon2>,
+        proof: &SP1RecursionProof<SP1CoreJaggedConfig>,
+        vk: &MachineVerifyingKey<SP1CoreJaggedConfig>,
         vk_hash: [u64; 4],
         committed_value_digest: [u64; 4],
-    ) -> Result<(), MachineVerifierConfigError<BabyBearPoseidon2>> {
+    ) -> Result<(), MachineVerifierConfigError<SP1CoreJaggedConfig>> {
         self.prover.verify_deferred_proof(proof, vk, vk_hash, committed_value_digest)
     }
 }
@@ -892,7 +861,8 @@ impl CompressTree {
                 self.insert(proofs);
             }
         }
-        Err(SP1ProverError::RecursionProverError(MachineProverError::ProverClosed))
+
+        unreachable!("todo explain this")
     }
 }
 
@@ -923,7 +893,7 @@ struct ExecuteTask {
 struct ProveTask<C: SP1ProverComponents> {
     keys: Option<(Arc<MachineProvingKey<C::RecursionComponents>>, MachineVerifyingKey<InnerSC>)>,
     range: Range<usize>,
-    record: RecursionRecord<BabyBear>,
+    record: RecursionRecord<SP1Field>,
 }
 
 #[cfg(all(test, feature = "unsound"))]
@@ -934,7 +904,7 @@ pub mod tests {
         autoprecompiles::{build_elf, sp1_powdr_config},
         riscv::{RiscvAir, RiscvAirWithApcs},
     };
-    use sp1_stark::air::MachineAir;
+    use sp1_hypercube::air::MachineAir;
     use tracing::Instrument;
 
     use slop_algebra::PrimeField32;
@@ -1240,7 +1210,7 @@ pub mod tests {
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = keccak_vk.hash_babybear();
+        let vkey_digest = keccak_vk.hash_koalabear();
         let vkey_digest: [u32; 8] = vkey_digest
             .iter()
             .map(|n| n.as_canonical_u32())
@@ -1256,6 +1226,8 @@ pub mod tests {
         tracing::info!("proving verify program (core)");
         let verify_proof =
             prover.clone().prove_core(verify_pk, verify_program, stdin, Default::default()).await?;
+
+        prover.prover().verify(&verify_proof.proof, &verify_vk)?;
 
         // Generate recursive proof of verify program
         tracing::info!("compress verify program");

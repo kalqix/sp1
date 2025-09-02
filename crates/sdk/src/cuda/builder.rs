@@ -1,15 +1,16 @@
-//! # CPU Prover Builder
+//! # CUDA Prover Builder
 //!
-//! This module provides a builder for the [`CpuProver`].
+//! This module provides a builder for the [`CudaProver`].
 
 use std::sync::Arc;
 
 use super::CudaProver;
 use crate::cpu::CpuProver;
 use powdr_autoprecompiles::Apc;
-use slop_baby_bear::BabyBear;
+use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
 use sp1_cuda::CudaProver as CudaProverImpl;
+use sp1_primitives::SP1Field;
 
 /// A builder for the [`CudaProver`].
 ///
@@ -17,7 +18,9 @@ use sp1_cuda::CudaProver as CudaProverImpl;
 #[derive(Debug, Default)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
-    apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>,
+    /// Optional core options to configure the underlying CPU prover.
+    core_opts: Option<SP1CoreOpts>,
+    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
 }
 
 impl CudaProverBuilder {
@@ -39,9 +42,42 @@ impl CudaProverBuilder {
         self
     }
 
+    /// Sets the core options for the underlying CPU prover.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_core_executor::SP1CoreOpts;
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let mut opts = SP1CoreOpts::default();
+    /// opts.page_protect = true;
+    /// let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    /// ```
+    #[must_use]
+    pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
+        self.core_opts = Some(opts);
+        self
+    }
+
+    /// Sets the core options for the underlying CPU prover (alias for `core_opts`).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_core_executor::SP1CoreOpts;
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let mut opts = SP1CoreOpts::default();
+    /// opts.page_protect = true;
+    /// let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    /// ```
+    #[must_use]
+    pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
+        self.core_opts(opts)
+    }
+
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         self.apcs = apcs;
         self
     }
@@ -59,7 +95,7 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
-        let cpu_prover = CpuProver::new(self.apcs).await;
+        let cpu_prover = CpuProver::new_with_opts(self.core_opts, self.apcs).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,

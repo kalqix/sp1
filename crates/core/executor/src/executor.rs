@@ -6,18 +6,24 @@ use std::{fs::File, io::BufWriter};
 use crate::profiler::Profiler;
 use crate::{
     estimator::RecordEstimator,
-    events::{ApcEvents, ByteLookupEvent, PrecompileEvents},
-    Apc, NUM_REGISTERS,
+    events::{
+        ApcEvents, ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
+        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord, PrecompileEvents,
+        NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
+    },
+    Apc, StatusCode, NUM_REGISTERS,
 };
 
 use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
-use sp1_primitives::consts::{MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE};
-use sp1_stark::air::PublicValues;
+use sp1_hypercube::air::PublicValues;
+use sp1_primitives::consts::{
+    DEFAULT_PAGE_PROT, MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE,
+};
 use thiserror::Error;
 
 use crate::{
@@ -25,13 +31,13 @@ use crate::{
     disassembler::InstructionTranspiler,
     estimate_trace_elements,
     events::{
-        AluEvent, BranchEvent, JumpEvent, LogicalShard, MemInstrEvent, MemoryAccessPosition,
-        MemoryEntry, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
-        MemoryWriteRecord, Shard, SyscallEvent, UTypeEvent, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC,
+        AluEvent, BranchEvent, JumpEvent, MemInstrEvent, MemoryAccessPosition, MemoryEntry,
+        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord,
+        SyscallEvent, UTypeEvent, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
-    pad_rv32im_event_counts,
+    pad_rv64im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -157,9 +163,6 @@ pub struct Executor<'a> {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
-    /// The maximum number of shards to execute at once.
-    pub shard_batch_size: u32,
-
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 
@@ -169,11 +172,11 @@ pub struct Executor<'a> {
     /// The current trace of the execution that is being collected.
     pub record: Box<ExecutionRecord>,
 
-    /// The collected records, split by cpu cycles.
-    pub records: Vec<Box<ExecutionRecord>>,
-
     /// Local memory access events.
     pub local_memory_access: HashMap<u64, MemoryLocalEvent>,
+
+    /// Local page prot access events.
+    pub local_page_prot_access: HashMap<u64, PageProtLocalEvent>,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u64, u32)>,
@@ -221,6 +224,9 @@ pub struct Executor<'a> {
     /// The total number of unconstrained cycles.
     pub total_unconstrained_cycles: u64,
 
+    /// The expected exit code of the program.
+    pub expected_exit_code: StatusCode,
+
     /// Temporary event counts for the current shard. This is a field to reuse memory.
     event_counts: EventCounts<RiscvAirId>,
 
@@ -229,6 +235,9 @@ pub struct Executor<'a> {
 
     /// Decoded instruction cache.
     decoded_instruction_cache: HashMap<u64, Instruction>,
+
+    /// Decoded instruction events.
+    decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
 
     /// The apc candidate at this point in the execution, if any
     apc_candidate: Option<ApcCandidate>,
@@ -244,7 +253,6 @@ struct ApcCandidate {
 }
 
 struct ExecutionSnapshot {
-    shard_count: usize,
     record: ExecutionRecordSnapshot,
     local_counts: LocalCounts,
     report: ExecutionReport,
@@ -276,6 +284,11 @@ struct ExecutionRecordSnapshot {
     pub branch_events_len: usize,
     pub jal_events_len: usize,
     pub jalr_events_len: usize,
+    pub instruction_fetch_events_len: usize,
+    pub instruction_decode_events_len: usize,
+    pub global_page_prot_initialize_events_len: usize,
+    pub global_page_prot_finalize_events_len: usize,
+    pub cpu_local_page_prot_access_len: usize,
     pub byte_lookups: HashMap<ByteLookupEvent, isize>,
     pub precompile_events_len: usize,
     pub global_memory_initialize_events_len: usize,
@@ -326,6 +339,11 @@ impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
             global_interaction_event_count: record.global_interaction_event_count,
             bump_memory_events_len: record.bump_memory_events.len(),
             bump_state_events_len: record.bump_state_events.len(),
+            instruction_fetch_events_len: record.instruction_fetch_events.len(),
+            instruction_decode_events_len: record.instruction_decode_events.len(),
+            global_page_prot_initialize_events_len: record.global_page_prot_initialize_events.len(),
+            global_page_prot_finalize_events_len: record.global_page_prot_finalize_events.len(),
+            cpu_local_page_prot_access_len: record.cpu_local_page_prot_access.len(),
         }
     }
 }
@@ -392,6 +410,8 @@ pub struct LocalCounts {
     pub state_bump_counts: u64,
     /// The number of syscalls sent globally in the current shard.
     pub syscalls_sent: usize,
+    /// The number of page protection events that occurred in this shard.
+    pub page_prot: usize,
     /// The number of addresses touched in this shard.
     ///
     /// We increment the local memory event counter precisely when the main shard touches an
@@ -400,30 +420,40 @@ pub struct LocalCounts {
     /// usual RISC-V interpretation.)
     ///
     /// We now describe the logic used to increment the counter (which is replicated in several
-    /// places). Let `lshard` refer to the new/current [`LogicalShard`] and `record.lshard` refer
-    /// to the `LogicalShard` of the last memory operation associated with the address being
-    /// modified. To check for the above situation, we require two conditions:
+    /// places). Let `external_flag` refer to the new/current external flag and
+    /// `record.external_flag` refer to the external flag of the last memory operation
+    /// associated with the address being modified. To check for the above situation, we
+    /// require two conditions:
     ///
-    /// - `!lshard.external_flag()`: checks that the current shard is not an external shard, i.e.
-    ///   it is a main shard.
-    /// - `record.lshard != lshard`: checks that the address was last touched by a shard other than
-    ///   the current one. The (packed) fields of `LogicalShard` check for two cases:
-    ///   - If [`LogicalShard::external_flag`] is different, then one shard is external and one is
-    ///     not. If this field is the only difference, then (currently) one shard is the main shard
-    ///     and the other is a precompile invoked while interpreting in the main shard. This is
-    ///     because we set `external_flag` only when creating a [`SyscallContext`].
-    ///   - If [`LogicalShard::shard`] is different, then the shards are different in the sense of
-    ///     the SP1 proof system and memory argument. If this field is the only difference, then
-    ///     one shard is the current shard and the other is a previous shard in the execution or
-    ///     the memory initialization shard.
+    /// - `!external_flag`: checks that the current shard is a main shard.
+    /// - `record.timestamp < self.state.initial_timestamp || record.external_flag`: checks that
+    ///   the address was last touched by a shard other than the current one. The two checks
+    ///   represent
+    ///   - If `record.timestamp < self.state.initial_timestamp` is true, then the memory was last
+    ///     touched before the current main shard began, so it must have been in another shard.
+    ///   - If `record.external_flag` is on, then the previous memory access was in a precompile
+    ///     shard, which is different from the current shard, which is a main shard. This is
+    ///     because we set the `external_flag` only when creating a [`SyscallContext`] that is not
+    ///     from a retained precompile, which implies the context is for a precompile in a
+    ///     different shard.
+
     ///
-    /// Therefore, comparing equality of consecutive `LogicalShard`s in an address's memory
-    /// operation sequence enables detection of moments when its memory entry is transferred
-    /// between shards via the global (inter-shard) memory argument. By constantly testing
-    /// equality, we can detect these interruptions and calculate the endpoints of an
-    /// uninterrupted telescoping series of memory operations in a single SP1 shard --
+    /// Therefore, comparing the external flags, along with the timestamps and the shard's initial
+    /// timestamp in an address's memory operation sequence enables detection of moments when its
+    /// memory entry is transferred between shards via the global (inter-shard) memory argument.
+    /// By constantly testing this, we can detect these interruptions and calculate the endpoints
+    /// of an uninterrupted telescoping series of memory operations in a single SP1 shard --
     /// that is, the data of a local memory event.
     pub local_mem: usize,
+
+    /// The number of page protection events that occurred in this shard.
+    pub local_page_prot: usize,
+
+    /// The number of instruction fetch events that occurred in this shard.
+    pub local_instruction_fetch: usize,
+
+    /// The number of instruction decode events that occurred in this shard.
+    pub shard_distinct_instructions: HashSet<(u64, u32)>,
 }
 
 /// Errors that can occur during APC execution and which lead to rolling back and running software
@@ -447,13 +477,13 @@ impl From<ExecutionError> for ApcExecutionError {
 /// Errors that the [``Executor``] can throw.
 #[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
-    /// The execution failed with a non-zero exit code.
-    #[error("execution failed with exit code {0}")]
-    HaltWithNonZeroExitCode(u32),
-
     /// The execution failed with an invalid memory access.
     #[error("invalid memory access for opcode {0} and address {1}")]
     InvalidMemoryAccess(Opcode, u64),
+
+    /// The address for a untrusted program instruction is not aligned to 4 bytes.
+    #[error("invalid memory access for untrusted program at address {0}, not aligned to 4 bytes")]
+    InvalidMemoryAccessUntrustedProgram(u64),
 
     /// The execution failed with an unimplemented syscall.
     #[error("unimplemented syscall {0}")]
@@ -486,6 +516,14 @@ pub enum ExecutionError {
     /// The execution failed with an unimplemented apc
     #[error("unimplemented apc {0}")]
     UnsupportedApc(u64),
+
+    /// The program ended with an unexpected status code.
+    #[error("Unexpected exit code: {0}")]
+    UnexpectedExitCode(u32),
+
+    /// Page protect is off, and the instruction is not found.
+    #[error("Instruction not found, page protect/ untrusted program set to off")]
+    InstructionNotFound(),
 }
 
 impl<'a> Executor<'a> {
@@ -544,7 +582,7 @@ impl<'a> Executor<'a> {
         let hook_registry = context.hook_registry.unwrap_or_default();
 
         let costs: HashMap<String, usize> =
-            serde_json::from_str(include_str!("./artifacts/rv32im_costs.json")).unwrap();
+            serde_json::from_str(include_str!("./artifacts/rv64im_costs.json")).unwrap();
         let costs: EnumMap<RiscvAirId, usize> =
             costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect();
 
@@ -572,13 +610,11 @@ impl<'a> Executor<'a> {
 
         Self {
             record: Box::new(record),
-            records: vec![],
             state: ExecutionState::new(program.pc_start_abs),
             program,
             program_len,
             memory_accesses: MemoryAccessRecord::default(),
             shard_size: (opts.shard_size as u32) * 4,
-            shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             #[cfg(feature = "profiling")]
@@ -596,6 +632,7 @@ impl<'a> Executor<'a> {
             memory_checkpoint: Memory::new_preallocated(),
             uninitialized_memory_checkpoint: Memory::new_preallocated(),
             local_memory_access: HashMap::new(),
+            local_page_prot_access: HashMap::new(),
             costs: EventCosts {
                 core: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
                 apc: apc_costs,
@@ -606,9 +643,11 @@ impl<'a> Executor<'a> {
             internal_syscalls_override,
             internal_syscalls_air_id,
             io_options: context.io_options,
+            expected_exit_code: context.expected_exit_code,
             total_unconstrained_cycles: 0,
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HashMap::new(),
+            decoded_instruction_events: HashMap::new(),
             opts,
             apc_candidate: None,
         }
@@ -737,39 +776,79 @@ impl<'a> Executor<'a> {
         self.state.clk + *position as u64
     }
 
-    /// Get the current shard.
-    #[must_use]
-    #[inline]
-    pub fn shard(&self) -> Shard {
-        self.state.current_shard
-    }
+    /// Read a page prot entry and create an access record.
+    pub fn page_prot_access<E: ExecutorConfig>(
+        &mut self,
+        page_idx: u64,
+        page_prot_bitmap: u8,
+        external_flag: bool,
+        timestamp: u64,
+        local_page_prot_access: Option<&mut HashMap<u64, PageProtLocalEvent>>,
+    ) -> PageProtRecord {
+        let page_prot_record = self.state.page_prots.entry(page_idx).or_insert(PageProtRecord {
+            external_flag,
+            timestamp: 0,
+            page_prot: DEFAULT_PAGE_PROT,
+        });
 
-    /// Get the current logical shard.
-    #[must_use]
-    #[inline]
-    pub fn lshard(&self) -> LogicalShard {
-        LogicalShard::new(self.shard(), false)
+        if E::UNCONSTRAINED {
+            self.unconstrained_state.page_prots_diff.entry(page_idx).or_insert(*page_prot_record);
+        }
+
+        if !E::UNCONSTRAINED
+            && ((page_prot_record.timestamp < self.state.initial_timestamp
+                || page_prot_record.external_flag)
+                && !external_flag)
+        {
+            self.local_counts.local_page_prot += 1;
+        }
+
+        // Check the page permissions.
+        assert!(page_prot_record.page_prot & page_prot_bitmap != 0);
+
+        // Generate the previous record.
+        let prev_page_prot_record = *page_prot_record;
+
+        // Update the current record's timestamp.
+        page_prot_record.external_flag = external_flag;
+        page_prot_record.timestamp = timestamp;
+
+        if !E::UNCONSTRAINED && E::MODE == ExecutorMode::Trace {
+            let local_page_prot_access =
+                if let Some(local_page_prot_access) = local_page_prot_access {
+                    local_page_prot_access
+                } else {
+                    &mut self.local_page_prot_access
+                };
+
+            local_page_prot_access
+                .entry(page_idx)
+                .and_modify(|e| {
+                    e.final_page_prot_access = *page_prot_record;
+                })
+                .or_insert(PageProtLocalEvent {
+                    page_idx,
+                    initial_page_prot_access: prev_page_prot_record,
+                    final_page_prot_access: *page_prot_record,
+                });
+        }
+
+        self.local_counts.page_prot += 1;
+
+        prev_page_prot_record
     }
 
     /// Read a word from memory and create an access record.
     pub fn mr<E: ExecutorConfig>(
         &mut self,
         addr: u64,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
         local_memory_access: Option<&mut HashMap<u64, MemoryLocalEvent>>,
     ) -> MemoryReadRecord {
-        // Check that the memory address is within the babybear field and not within the registers'
-        // address space.  Also check that the address is aligned.
         if !addr.is_multiple_of(8) || addr <= Register::X31 as u64 || addr > MAXIMUM_MEMORY_SIZE {
             panic!("Invalid memory access: addr={addr}");
         }
-
-        // Check that the page is readable.
-        let page_prot_page_idx = addr / PAGE_SIZE as u64;
-        let page_prot =
-            self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
-        assert!(*page_prot & PROT_READ != 0);
 
         // Get the memory record entry.
         let entry = self.state.memory.page_table.entry(addr);
@@ -810,12 +889,15 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
         let prev_record = *record;
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
 
         if !E::UNCONSTRAINED && E::MODE == ExecutorMode::Trace {
@@ -838,7 +920,7 @@ impl<'a> Executor<'a> {
         }
 
         // Construct the memory read record.
-        MemoryReadRecord::new(record, &prev_record)
+        MemoryReadRecord::new(record, &prev_record, None)
     }
 
     /// Read a register and return its value.
@@ -847,7 +929,7 @@ impl<'a> Executor<'a> {
     pub fn rr<E: ExecutorConfig>(
         &mut self,
         register: Register,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
     ) -> u64 {
         // Get the memory record entry.
@@ -890,11 +972,14 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
         record.value
     }
@@ -905,7 +990,7 @@ impl<'a> Executor<'a> {
     pub fn rr_traced<E: ExecutorConfig>(
         &mut self,
         register: Register,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
         local_memory_access: Option<&mut HashMap<u64, MemoryLocalEvent>>,
     ) -> MemoryReadRecord {
@@ -947,12 +1032,15 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
         let prev_record = *record;
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
         if !E::UNCONSTRAINED && E::MODE == ExecutorMode::Trace {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
@@ -972,28 +1060,21 @@ impl<'a> Executor<'a> {
                 });
         }
         // Construct the memory read record.
-        MemoryReadRecord::new(record, &prev_record)
+        MemoryReadRecord::new(record, &prev_record, None)
     }
+
     /// Write a word to memory and create an access record.
     pub fn mw<E: ExecutorConfig>(
         &mut self,
         addr: u64,
         value: u64,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
         local_memory_access: Option<&mut HashMap<u64, MemoryLocalEvent>>,
     ) -> MemoryWriteRecord {
-        // Check that the memory address is within the babybear field and not within the registers'
-        // address space.  Also check that the address is aligned.
         if !addr.is_multiple_of(8) || addr <= Register::X31 as u64 || addr > MAXIMUM_MEMORY_SIZE {
             panic!("Invalid memory access: addr={addr}");
         }
-
-        // Check that the page is writable.
-        let page_prot_page_idx = addr / PAGE_SIZE as u64;
-        let page_prot =
-            self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
-        assert!(*page_prot & PROT_WRITE != 0);
 
         // Get the memory record entry.
         let entry = self.state.memory.page_table.entry(addr);
@@ -1033,14 +1114,18 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
         let prev_record = *record;
         record.value = value;
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
+
         if !E::UNCONSTRAINED && E::MODE == ExecutorMode::Trace {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
@@ -1061,7 +1146,7 @@ impl<'a> Executor<'a> {
         }
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(record, &prev_record)
+        MemoryWriteRecord::new(record, &prev_record, None)
     }
 
     /// Write a word to a register and create an access record.
@@ -1071,7 +1156,7 @@ impl<'a> Executor<'a> {
         &mut self,
         register: Register,
         value: u64,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
         local_memory_access: Option<&mut HashMap<u64, MemoryLocalEvent>>,
     ) -> MemoryWriteRecord {
@@ -1117,13 +1202,16 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
         let prev_record = *record;
         record.value = value;
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
 
         if !E::UNCONSTRAINED {
@@ -1146,7 +1234,7 @@ impl<'a> Executor<'a> {
         }
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(record, &prev_record)
+        MemoryWriteRecord::new(record, &prev_record, None)
     }
 
     /// Write a word to a register and create an access record.
@@ -1157,7 +1245,7 @@ impl<'a> Executor<'a> {
         &mut self,
         register: Register,
         value: u64,
-        lshard: LogicalShard,
+        external_flag: bool,
         timestamp: u64,
     ) {
         let addr = register as u64;
@@ -1201,21 +1289,39 @@ impl<'a> Executor<'a> {
         };
 
         // For an explanation of this logic, see the documentation of `LocalCounts::local_mem`.
-        if !E::UNCONSTRAINED && (record.lshard != lshard && !lshard.external_flag()) {
+        if !E::UNCONSTRAINED
+            && ((record.timestamp < self.state.initial_timestamp || record.external_flag)
+                && !external_flag)
+        {
             self.local_counts.local_mem += 1;
         }
 
         record.value = value;
-        record.lshard = lshard;
+        record.external_flag = external_flag;
         record.timestamp = timestamp;
     }
 
     /// Read from memory, assuming that all addresses are aligned.
     #[inline]
     pub fn mr_cpu<E: ExecutorConfig>(&mut self, addr: u64) -> u64 {
+        let timestamp = self.timestamp(&MemoryAccessPosition::Memory);
+
         // Read the address from memory and create a memory read record.
-        let record =
-            self.mr::<E>(addr, self.lshard(), self.timestamp(&MemoryAccessPosition::Memory), None);
+        let mut record =
+            self.mr::<E>(addr, false, self.timestamp(&MemoryAccessPosition::Memory), None);
+
+        if self.opts.page_protect {
+            let page_prot_record = self.page_prot_access::<E>(
+                addr / PAGE_SIZE as u64,
+                PROT_READ,
+                false,
+                timestamp,
+                None,
+            );
+
+            record.prev_page_prot_record = Some(page_prot_record);
+        }
+
         // If we're not in unconstrained mode, record the access for the current cycle.
         if E::MODE == ExecutorMode::Trace {
             self.memory_accesses.memory = Some(record.into());
@@ -1232,8 +1338,7 @@ impl<'a> Executor<'a> {
     ) -> u64 {
         // Read the address from memory and create a memory read record if in trace mode.
         if E::MODE == ExecutorMode::Trace {
-            let record =
-                self.rr_traced::<E>(register, self.lshard(), self.timestamp(&position), None);
+            let record = self.rr_traced::<E>(register, false, self.timestamp(&position), None);
             if !E::UNCONSTRAINED {
                 match position {
                     MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
@@ -1242,11 +1347,14 @@ impl<'a> Executor<'a> {
                     MemoryAccessPosition::Memory => {
                         self.memory_accesses.memory = Some(record.into());
                     }
+                    MemoryAccessPosition::UntrustedInstruction => {
+                        panic!("Untrusted instruction should not be read from rr_cpu")
+                    }
                 }
             }
             record.value
         } else {
-            self.rr::<E>(register, self.lshard(), self.timestamp(&position))
+            self.rr::<E>(register, false, self.timestamp(&position))
         }
     }
 
@@ -1257,14 +1365,24 @@ impl<'a> Executor<'a> {
     /// This function will panic if the address is not aligned or if the memory accesses are already
     /// initialized.
     pub fn mw_cpu<E: ExecutorConfig>(&mut self, addr: u64, value: u64) {
+        let timestamp = self.timestamp(&MemoryAccessPosition::Memory);
+
         // Read the address from memory and create a memory read record.
-        let record = self.mw::<E>(
-            addr,
-            value,
-            self.lshard(),
-            self.timestamp(&MemoryAccessPosition::Memory),
-            None,
-        );
+        let mut record =
+            self.mw::<E>(addr, value, false, self.timestamp(&MemoryAccessPosition::Memory), None);
+
+        if self.opts.page_protect {
+            let page_prot_record = self.page_prot_access::<E>(
+                addr / PAGE_SIZE as u64,
+                PROT_WRITE,
+                false,
+                timestamp,
+                None,
+            );
+
+            record.prev_page_prot_record = Some(page_prot_record);
+        }
+
         // If we're not in unconstrained mode, record the access for the current cycle.
         if E::MODE == ExecutorMode::Trace {
             debug_assert!(self.memory_accesses.memory.is_none());
@@ -1283,20 +1401,15 @@ impl<'a> Executor<'a> {
 
         // Read the address from memory and create a memory read record.
         if E::MODE == ExecutorMode::Trace {
-            let record = self.rw_traced::<E>(
-                register,
-                value,
-                self.lshard(),
-                self.timestamp(&position),
-                None,
-            );
+            let record =
+                self.rw_traced::<E>(register, value, false, self.timestamp(&position), None);
             if !E::UNCONSTRAINED {
                 // The only time we are writing to a register is when it is in operand A.
                 debug_assert!(self.memory_accesses.a.is_none());
                 self.memory_accesses.a = Some(record.into());
             }
         } else {
-            self.rw::<E>(register, value, self.lshard(), self.timestamp(&position));
+            self.rw::<E>(register, value, false, self.timestamp(&position));
         }
     }
 
@@ -1312,7 +1425,7 @@ impl<'a> Executor<'a> {
         b: u64,
         c: u64,
         op_a_0: bool,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         exit_code: u32,
     ) {
         self.record.pc_start.get_or_insert(self.state.pc);
@@ -1375,6 +1488,22 @@ impl<'a> Executor<'a> {
         } else {
             unreachable!()
         }
+
+        if let Some((_record, instruction_value)) = self.memory_accesses.untrusted_instruction {
+            let encoded_instruction = instruction_value;
+            let memory_accesses = self.memory_accesses;
+
+            self.emit_instruction_fetch_event(instruction, encoded_instruction, &memory_accesses);
+
+            self.decoded_instruction_events
+                .entry(encoded_instruction)
+                .and_modify(|e| e.multiplicity += 1)
+                .or_insert_with(|| InstructionDecodeEvent {
+                    instruction: *instruction,
+                    encoded_instruction,
+                    multiplicity: 1,
+                });
+        }
     }
 
     /// Emit an ALU event.
@@ -1384,7 +1513,7 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
         let opcode = instruction.opcode;
@@ -1453,12 +1582,11 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
         let opcode = instruction.opcode;
         let event = MemInstrEvent {
-            shard: self.shard().get(),
             clk: self.state.clk,
             pc: self.state.pc,
             opcode,
@@ -1509,7 +1637,7 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
         next_pc: u64,
     ) {
@@ -1536,7 +1664,7 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
         next_pc: u64,
     ) {
@@ -1563,7 +1691,7 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
         next_pc: u64,
     ) {
@@ -1589,7 +1717,7 @@ impl<'a> Executor<'a> {
         a: u64,
         b: u64,
         c: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
         let event = UTypeEvent {
@@ -1624,7 +1752,6 @@ impl<'a> Executor<'a> {
         SyscallEvent {
             pc: self.state.pc,
             next_pc,
-            shard: self.shard().get(),
             clk,
             op_a_0,
             should_send,
@@ -1644,7 +1771,7 @@ impl<'a> Executor<'a> {
         syscall_code: SyscallCode,
         arg1: u64,
         arg2: u64,
-        record: MemoryAccessRecord,
+        record: &MemoryAccessRecord,
         op_a_0: bool,
         next_pc: u64,
         exit_code: u32,
@@ -1654,6 +1781,23 @@ impl<'a> Executor<'a> {
             self.syscall_event(clk, syscall_code, arg1, arg2, op_a_0, next_pc, exit_code);
         let record = RTypeRecord::new(record, instruction);
         self.record.syscall_events.push((syscall_event, record));
+    }
+
+    /// Emit a instruction fetch event.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_instruction_fetch_event(
+        &mut self,
+        instruction: &Instruction,
+        encoded_instruction: u32,
+        record: &MemoryAccessRecord,
+    ) {
+        let event = InstructionFetchEvent {
+            clk: self.state.clk,
+            pc: self.state.pc,
+            instruction: *instruction,
+            encoded_instruction,
+        };
+        self.record.instruction_fetch_events.push((event, *record));
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
@@ -1718,35 +1862,58 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> (Instruction, Option<Apc>) {
+    fn fetch<E: ExecutorConfig>(&mut self) -> Result<(Instruction, Option<Apc>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            (*instruction.0, instruction.1.copied())
-        } else {
-            // Check that the page is executable.
-            let page_prot_page_idx = self.state.pc / PAGE_SIZE as u64;
-            let page_prot =
-                self.state.page_prots.get(&page_prot_page_idx).unwrap_or(&(PROT_READ | PROT_WRITE));
-            assert!(*page_prot & PROT_EXEC != 0);
-
-            // Fetch it from memory.
+            Ok((*instruction.0, instruction.1.copied()))
+        } else if self.opts.page_protect {
             let aligned_pc = align(self.state.pc);
 
-            // TODO: Add a record for a dynamic program entry.
-            let memory_value = self.double_word::<E>(aligned_pc);
+            let timestamp = self.timestamp(&MemoryAccessPosition::UntrustedInstruction);
+
+            let mut record = self.mr::<E>(aligned_pc, false, timestamp, None);
+            self.local_counts.local_instruction_fetch += 1;
+
+            let page_prot_record = self.page_prot_access::<E>(
+                aligned_pc / PAGE_SIZE as u64,
+                PROT_EXEC,
+                false,
+                timestamp,
+                None,
+            );
+
+            record.prev_page_prot_record = Some(page_prot_record);
+
+            let memory_value = record.value;
 
             let alignment_offset = self.state.pc - aligned_pc;
+            // TODO: What's the best way to return error? Can we have this return a result?
+            if !aligned_pc.is_multiple_of(4) {
+                return Err(ExecutionError::InvalidMemoryAccessUntrustedProgram(aligned_pc));
+            }
             let instruction_value: u32 =
                 (memory_value >> (alignment_offset * 8) & 0xffffffff).try_into().unwrap();
 
-            if let Some(instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
-                (*instruction, None)
-            } else {
-                let instruction =
-                    process_instruction(&mut self.transpiler, instruction_value).unwrap();
-                self.decoded_instruction_cache.insert(self.state.pc, instruction);
-                (instruction, None)
+            if E::MODE == ExecutorMode::Trace {
+                self.memory_accesses.untrusted_instruction =
+                    Some((record.into(), instruction_value));
             }
+
+            let instruction: Instruction;
+            if let Some(cached_instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
+                instruction = *cached_instruction;
+            } else {
+                instruction = process_instruction(&mut self.transpiler, instruction_value).unwrap();
+                self.decoded_instruction_cache.insert(self.state.pc, instruction);
+            }
+
+            self.local_counts
+                .shard_distinct_instructions
+                .insert((self.state.pc, instruction_value));
+
+            Ok((instruction, None))
+        } else {
+            Err(ExecutionError::InstructionNotFound())
         }
     }
 
@@ -1764,10 +1931,6 @@ impl<'a> Executor<'a> {
         // Will be set to a non-default value if the instruction is a syscall.
 
         let (mut a, b, c): (u64, u64, u64);
-
-        if E::MODE == ExecutorMode::Trace {
-            self.memory_accesses = MemoryAccessRecord::default();
-        }
 
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
@@ -1832,6 +1995,7 @@ impl<'a> Executor<'a> {
 
         // Emit the events for this cycle.
         if E::MODE == ExecutorMode::Trace {
+            let memory_accesses = self.memory_accesses;
             self.emit_events(
                 clk,
                 next_pc,
@@ -1841,7 +2005,7 @@ impl<'a> Executor<'a> {
                 b,
                 c,
                 op_a_0,
-                self.memory_accesses,
+                &memory_accesses,
                 exit_code,
             );
         }
@@ -1854,7 +2018,6 @@ impl<'a> Executor<'a> {
                 > apc_candidate.snapshot.record.bump_state_events_len;
             let created_bump_memory_event = self.record.bump_memory_events.len()
                 > apc_candidate.snapshot.record.bump_memory_events_len;
-            let segmented = self.records.len() > apc_candidate.snapshot.shard_count;
 
             if created_bump_state_event {
                 self.report.apc_counts.entry(apc_candidate.apc.id).or_default().state_bump_error +=
@@ -1877,19 +2040,7 @@ impl<'a> Executor<'a> {
                     apc_candidate.apc.id
                 );
             }
-            if segmented {
-                self.report
-                    .apc_counts
-                    .entry(apc_candidate.apc.id)
-                    .or_default()
-                    .segmentation_error += 1;
-                tracing::error!(
-                    "global clock {}: APC {} cancelled: segmentation error detected",
-                    self.state.global_clk,
-                    apc_candidate.apc.id
-                );
-            }
-            if !(created_bump_state_event || created_bump_memory_event || segmented) {
+            if !(created_bump_state_event || created_bump_memory_event) {
                 if E::MODE == ExecutorMode::Trace {
                     // Construct the apc_record from the current record and the snapshot.
                     let apc_record = ExecutionRecord {
@@ -2072,13 +2223,50 @@ impl<'a> Executor<'a> {
                         public_values: self.record.public_values,
                         next_nonce: self.record.next_nonce,
                         shape: self.record.shape.clone(), // we might be fine with `Default` here
-                        counts: self.record.counts,
                         estimated_trace_area: self.record.estimated_trace_area,
                         initial_timestamp: self.record.initial_timestamp,
                         last_timestamp: self.record.last_timestamp,
                         pc_start: self.record.pc_start,
                         next_pc: self.state.pc,
                         exit_code: self.record.exit_code,
+                        global_page_prot_initialize_events: self
+                            .record
+                            .global_page_prot_initialize_events
+                            .drain(
+                                apc_candidate
+                                    .snapshot
+                                    .record
+                                    .global_page_prot_initialize_events_len..,
+                            )
+                            .collect(),
+                        global_page_prot_finalize_events: self
+                            .record
+                            .global_page_prot_finalize_events
+                            .drain(
+                                apc_candidate
+                                    .snapshot
+                                    .record
+                                    .global_page_prot_finalize_events_len..,
+                            )
+                            .collect(),
+                        cpu_local_page_prot_access: self
+                            .record
+                            .cpu_local_page_prot_access
+                            .drain(apc_candidate.snapshot.record.cpu_local_page_prot_access_len..)
+                            .collect(),
+                        instruction_fetch_events: self
+                            .record
+                            .instruction_fetch_events
+                            .drain(apc_candidate.snapshot.record.instruction_fetch_events_len..)
+                            .collect(),
+                        instruction_decode_events: {
+                            self.record
+                                .instruction_decode_events
+                                .drain(
+                                    apc_candidate.snapshot.record.instruction_decode_events_len..,
+                                )
+                                .collect()
+                        },
                     };
                     assert_eq!(
                         self.record.precompile_events.len(),
@@ -2104,6 +2292,26 @@ impl<'a> Executor<'a> {
                         self.record.bump_memory_events.len(),
                         apc_candidate.snapshot.record.bump_memory_events_len,
                         "New bump memory events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.global_page_prot_finalize_events.len(),
+                        apc_candidate.snapshot.record.global_page_prot_finalize_events_len,
+                        "New global page protection finalize events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.cpu_local_page_prot_access.len(),
+                        apc_candidate.snapshot.record.cpu_local_page_prot_access_len,
+                        "New CPU local page protection access events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.instruction_fetch_events.len(),
+                        apc_candidate.snapshot.record.instruction_fetch_events_len,
+                        "New instruction fetch events generated within apc block"
+                    );
+                    assert_eq!(
+                        self.record.instruction_decode_events.len(),
+                        apc_candidate.snapshot.record.instruction_decode_events_len,
+                        "New instruction decode events generated within apc block"
                     );
 
                     // Add the apc event to the record.
@@ -2363,6 +2571,9 @@ impl<'a> Executor<'a> {
     fn execute_ecall<E: ExecutorConfig>(
         &mut self,
     ) -> Result<(u64, u64, u64, u64, u64, SyscallCode, u32), ExecutionError> {
+        // Assert that only the trusted program can call ecall.
+        assert!(self.memory_accesses.untrusted_instruction.is_none());
+
         // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
         // register is that we write to it later.
         let t0 = Register::X5;
@@ -2490,11 +2701,15 @@ impl<'a> Executor<'a> {
     #[inline]
     #[allow(clippy::too_many_lines)]
     fn execute_cycle<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
+        if E::MODE == ExecutorMode::Trace {
+            self.memory_accesses = MemoryAccessRecord::default();
+        }
+
         // Log the current PC to be collected
         tracing::trace!(pc = self.state.pc, "executing instruction");
 
         // Fetch the instruction at the current program counter.
-        let (instruction, apc_range) = self.fetch::<E>();
+        let (instruction, apc_range) = self.fetch::<E>()?;
 
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
@@ -2503,7 +2718,6 @@ impl<'a> Executor<'a> {
             // We are at the start of an APC range, so we add it as a candidate
             assert!(self.apc_candidate.is_none(), "Attempting to add an apc candidate while one is already present. Check that apc ranges do not overlap.");
             let snapshot = ExecutionSnapshot {
-                shard_count: self.records.len(),
                 record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                 local_counts: self.local_counts.clone(),
                 report: self.report.clone(),
@@ -2548,7 +2762,7 @@ impl<'a> Executor<'a> {
                 if let Some(ShardingThreshold { element_threshold, height_threshold }) =
                     self.sharding_threshold
                 {
-                    let padded_event_counts = pad_rv32im_event_counts(
+                    let padded_event_counts = pad_rv64im_event_counts(
                         self.event_counts.clone(),
                         self.size_check_frequency,
                     );
@@ -2563,7 +2777,7 @@ impl<'a> Executor<'a> {
                         tracing::info!(
                             "stopping shard at clk {}, max height {}",
                             self.state.clk,
-                            max_height
+                            max_height,
                         );
                         maximal_size_reached = false;
                     }
@@ -2571,8 +2785,21 @@ impl<'a> Executor<'a> {
             }
 
             if !maximal_size_reached {
-                self.state.current_shard = Shard::new(self.state.current_shard.get() + 1)
-                    .expect("Shard number should not overflow");
+                self.state.shard_finished = true;
+                // If an apc candidate was being run, report a segmentation error.
+                if let Some(apc_candidate) = self.apc_candidate.take() {
+                    self.report
+                        .apc_counts
+                        .entry(apc_candidate.apc.id)
+                        .or_default()
+                        .segmentation_error += 1;
+                    tracing::error!(
+                        "global clock {}: APC {} cancelled: segmentation error detected",
+                        self.state.global_clk,
+                        apc_candidate.apc.id
+                    );
+                }
+                self.state.initial_timestamp = self.state.clk;
                 self.record.last_timestamp = self.state.clk;
                 self.bump_record::<E>();
             }
@@ -2617,23 +2844,27 @@ impl<'a> Executor<'a> {
         .0;
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
+
         if E::MODE == ExecutorMode::Trace {
             for (_, event) in self.local_memory_access.drain() {
                 self.record.cpu_local_memory_access.push(event);
             }
+            if self.opts.page_protect {
+                for (_, event) in self.local_page_prot_access.drain() {
+                    self.record.cpu_local_page_prot_access.push(event);
+                }
+                let decoded_events =
+                    std::mem::replace(&mut self.decoded_instruction_events, HashMap::new());
+                self.record.instruction_decode_events.extend(decoded_events.into_values());
+            } else {
+                assert!(self.local_page_prot_access.is_empty());
+                assert!(self.decoded_instruction_events.is_empty());
+            }
         }
+
         if self.record.last_timestamp == 0 {
             self.record.last_timestamp = self.state.clk;
         }
-
-        let removed_record = std::mem::replace(
-            &mut self.record,
-            Box::new(ExecutionRecord::new(self.program.clone())),
-        );
-        let public_values = removed_record.public_values;
-        self.record.public_values = public_values;
-        self.record.initial_timestamp = self.state.clk;
-        self.records.push(removed_record);
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
@@ -2645,15 +2876,14 @@ impl<'a> Executor<'a> {
     pub fn execute_record(
         &mut self,
         emit_global_memory_events: bool,
-    ) -> Result<(Vec<Box<ExecutionRecord>>, bool), ExecutionError> {
+    ) -> Result<(Box<ExecutionRecord>, bool), ExecutionError> {
         self.emit_global_memory_events = emit_global_memory_events;
         self.print_report = true;
         let done = self.execute::<Trace>()?;
-        Ok((std::mem::take(&mut self.records), done))
+        Ok((std::mem::take(&mut self.record), done))
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning the checkpoint from before execution
-    /// and whether the program ended.
+    /// Execute the program until the shard boundry.
     ///
     /// # Errors
     ///
@@ -2673,7 +2903,6 @@ impl<'a> Executor<'a> {
             Memory::<_>::new_preallocated(),
         );
         let proof_stream = std::mem::take(&mut self.state.proof_stream);
-        let page_prots = self.state.page_prots.clone();
         let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
         self.state.uninitialized_memory = uninitialized_memory;
@@ -2697,7 +2926,6 @@ impl<'a> Executor<'a> {
                 // all memory so that memory events can be emitted from the checkpoint. But we need
                 // to first reset any modified memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
-                checkpoint.page_prots = page_prots;
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
                         checkpoint.memory.insert(addr, record);
@@ -2724,12 +2952,9 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
-        let mut public_values = self.records.last().as_ref().unwrap().public_values;
+        let mut public_values = self.record.public_values;
         public_values.pc_start = next_pc;
         public_values.next_pc = next_pc;
-        if !done {
-            self.records.clear();
-        }
         Ok((checkpoint, public_values, done))
     }
 
@@ -2779,7 +3004,7 @@ impl<'a> Executor<'a> {
         let mut done = false;
         while !done {
             // Fetch the instruction at the current program counter.
-            let res = self.fetch::<Unconstrained>();
+            let res = self.fetch::<Unconstrained>()?;
 
             // ignore the apc candidate in unconstrained mode
             // TODO: is this fine?
@@ -2813,14 +3038,13 @@ impl<'a> Executor<'a> {
         Ok(())
     }
 
-    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
-    /// has finished.
+    /// Executes up to the shard boundry. Returning whether the program has finished.
     pub fn execute<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
 
-        // Get the current shard.
-        let start_shard = self.state.current_shard;
+        // Set the current shard state.
+        self.state.shard_finished = false;
 
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
@@ -2828,6 +3052,7 @@ impl<'a> Executor<'a> {
         }
 
         self.record.initial_timestamp = self.state.clk;
+        self.state.initial_timestamp = self.state.clk;
 
         let unconstrained_cycle_limit =
             std::env::var("UNCONSTRAINED_CYCLE_LIMIT").map(|v| v.parse::<u64>().unwrap()).ok();
@@ -2835,8 +3060,6 @@ impl<'a> Executor<'a> {
         // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is
         // set.
         let mut done = false;
-        let mut current_shard = self.state.current_shard;
-        let mut num_shards_executed = 0;
         loop {
             if self.execute_cycle::<E>()? {
                 done = true;
@@ -2852,12 +3075,8 @@ impl<'a> Executor<'a> {
                 }
             }
 
-            if self.shard_batch_size > 0 && current_shard != self.state.current_shard {
-                num_shards_executed += 1;
-                current_shard = self.state.current_shard;
-                if num_shards_executed == self.shard_batch_size {
-                    break;
-                }
+            if self.state.shard_finished {
+                break;
             }
         }
 
@@ -2889,29 +3108,25 @@ impl<'a> Executor<'a> {
             self.bump_record::<E>();
         }
 
-        // Set the global public values for all shards.
-        let mut last_next_pc = 0;
-        let mut last_exit_code = 0;
-        for (i, record) in self.records.iter_mut().enumerate() {
-            record.program = program.clone();
-            record.public_values = public_values;
-            record.public_values.committed_value_digest = public_values.committed_value_digest;
-            record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
-            record.public_values.execution_shard = start_shard.get() + i as u32;
-            if record.contains_cpu() {
-                record.public_values.pc_start = record.pc_start.unwrap();
-                record.public_values.next_pc = record.next_pc;
-                record.public_values.exit_code = record.exit_code;
-                record.public_values.last_timestamp = record.last_timestamp;
-                record.public_values.initial_timestamp = record.initial_timestamp;
-                last_next_pc = record.public_values.next_pc;
-                last_exit_code = record.public_values.exit_code;
-            } else {
-                record.public_values.pc_start = last_next_pc;
-                record.public_values.next_pc = last_next_pc;
-                record.public_values.prev_exit_code = last_exit_code;
-                record.public_values.exit_code = last_exit_code;
-            }
+        self.record.program = program.clone();
+        self.record.public_values = public_values;
+        self.record.public_values.committed_value_digest = public_values.committed_value_digest;
+        self.record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+        self.record.public_values.commit_syscall = public_values.commit_syscall;
+        self.record.public_values.commit_deferred_syscall = public_values.commit_deferred_syscall;
+        // Set is_page_protect_active from the page_protect option
+        self.record.public_values.is_page_protect_active = self.opts.page_protect as u32;
+
+        if self.record.contains_cpu() {
+            self.record.public_values.pc_start = self.record.pc_start.unwrap();
+            self.record.public_values.next_pc = self.record.next_pc;
+            self.record.public_values.exit_code = self.record.exit_code;
+            self.record.public_values.last_timestamp = self.record.last_timestamp;
+            self.record.public_values.initial_timestamp = self.record.initial_timestamp;
+        }
+
+        if !self.expected_exit_code.is_accepted_code(self.record.exit_code) {
+            return Err(ExecutionError::UnexpectedExitCode(self.record.exit_code));
         }
 
         Ok(done)
@@ -2975,7 +3190,7 @@ impl<'a> Executor<'a> {
 
             let addr_0_final_record = match addr_0_record {
                 Some(record) => record,
-                None => &MemoryEntry { lshard: LogicalShard::default(), timestamp: 0, value: 0 },
+                None => &MemoryEntry { external_flag: false, timestamp: 0, value: 0 },
             };
             memory_finalize_events
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
@@ -3029,6 +3244,29 @@ impl<'a> Executor<'a> {
                 memory_finalize_events
                     .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
             }
+            if self.opts.page_protect {
+                let page_prot_initialize_events =
+                    &mut self.record.global_page_prot_initialize_events;
+                page_prot_initialize_events.reserve_exact(self.state.page_prots.len());
+
+                let page_prot_finalize_events = &mut self.record.global_page_prot_finalize_events;
+                page_prot_finalize_events.reserve_exact(self.state.page_prots.len());
+
+                for page_idx in self.state.page_prots.keys() {
+                    let record = self.state.page_prots.get(page_idx).unwrap();
+
+                    page_prot_initialize_events.push(PageProtInitializeFinalizeEvent::initialize(
+                        *page_idx,
+                        DEFAULT_PAGE_PROT,
+                    ));
+
+                    page_prot_finalize_events.push(
+                        PageProtInitializeFinalizeEvent::finalize_from_record(*page_idx, record),
+                    );
+                }
+            } else {
+                assert!(self.state.page_prots.is_empty());
+            }
         }
     }
 
@@ -3041,7 +3279,11 @@ impl<'a> Executor<'a> {
         internal_syscalls_air_id: &[RiscvAirId],
     ) {
         let touched_addresses: u64 = local_counts.local_mem as u64;
+        let touched_page_prot: u64 = local_counts.local_page_prot as u64;
+        let page_prot: u64 = local_counts.page_prot as u64;
         let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
+        let instruction_fetch: u64 = local_counts.local_instruction_fetch as u64;
+        let instruction_decode: u64 = local_counts.shard_distinct_instructions.len() as u64;
         let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts.core;
         let apc_events: &BTreeMap<u64, u64> = &local_counts.event_counts.apc;
 
@@ -3110,6 +3352,10 @@ impl<'a> Executor<'a> {
         event_counts[RiscvAirId::MemoryLocal] =
             touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
 
+        // Compute the number of events in the page protection local chip.
+        event_counts[RiscvAirId::PageProtLocal] =
+            touched_page_prot.div_ceil(NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC as u64);
+
         // Compute the number of events in the branch chip.
         event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
             + opcode_counts[Opcode::BNE]
@@ -3137,14 +3383,24 @@ impl<'a> Executor<'a> {
         event_counts[RiscvAirId::StoreWord] = opcode_counts[Opcode::SW];
         event_counts[RiscvAirId::StoreDouble] = opcode_counts[Opcode::SD];
 
+        event_counts[RiscvAirId::PageProt] =
+            page_prot.div_ceil(NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC as u64);
+
         // Compute the number of events in the syscall instruction chip.
         event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
 
         // Compute the number of events in the syscall core chip.
         event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
 
+        // Compute the number of events in the instruction fetch chip.
+        event_counts[RiscvAirId::InstructionFetch] = instruction_fetch;
+
+        // Compute the number of events in the instruction decode chip.
+        event_counts[RiscvAirId::InstructionDecode] = instruction_decode;
+
         // Compute the number of events in the global chip.
-        event_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
+        event_counts[RiscvAirId::Global] =
+            2 * touched_addresses + 2 * touched_page_prot + syscalls_sent;
 
         // Compute the number of events in the retained precompiles.
         for &air_id in internal_syscalls_air_id {
@@ -3336,9 +3592,8 @@ mod tests {
             runtime.run::<Trace>().unwrap();
             assert_eq!(runtime.register::<Trace>(Register::X31), 42);
             assert_eq!(runtime.register::<Trace>(Register::X26), 42);
-            assert_eq!(runtime.records.len(), 1);
             // Check that the APCs were executed iff there were any
-            assert_eq!(!runtime.records[0].apc_events.is_empty(), should_execute_apcs);
+            assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
         }
     }
 
@@ -3531,7 +3786,7 @@ mod tests {
         // Updated for 64-bit: negative immediate values must be properly sign-extended
         let mut instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 29, 0xFFFFFFFFFFFFFFFF, false, true), // -1 in 64-bit
+            Instruction::new(Opcode::ADD, 30, 29, 0xFFFFFFFFFFFFFFFF, false, true), /* -1 in 64-bit */
             Instruction::new(Opcode::ADD, 31, 30, 4, false, true),
         ];
         add_halt(&mut instructions);
@@ -3554,7 +3809,7 @@ mod tests {
 
         // Test with 64-bit boundary values
         let mut instructions3 = vec![
-            Instruction::new(Opcode::ADD, 25, 0, 0x7FFFFFFFFFFFFFFF, false, true), // i64::MAX
+            Instruction::new(Opcode::ADD, 25, 0, 0x7FFFFFFFFFFFFFFF, false, true), /* i64::MAX */
             Instruction::new(Opcode::ADD, 24, 25, 1, false, true), // Overflow to negative
         ];
         add_halt(&mut instructions3);

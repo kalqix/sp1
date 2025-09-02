@@ -8,17 +8,17 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode,
 };
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_primitives::consts::{
     u64_to_u16_limbs, BYTE_SIZE, LONG_WORD_BYTE_SIZE, WORD_BYTE_SIZE, WORD_SIZE,
 };
 
-use super::U16toU8Operation;
+use super::{U16MSBOperationInput, U16toU8Operation};
 
 /// The mask for a byte.
 const BYTE_MASK: u8 = 0xff;
@@ -28,7 +28,9 @@ pub const fn get_msb(a: [u8; 8]) -> u8 {
 }
 
 /// A set of columns needed for the MUL operations.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(
+    AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder, StructReflection,
+)]
 #[repr(C)]
 pub struct MulOperation<T> {
     /// Trace.
@@ -154,12 +156,16 @@ impl<F: Field> MulOperation<F> {
     }
 
     /// Evaluate the MUL operation.
-    /// Assumes that `b_word`, `c_word` are valid `Word`s of two u16 limbs.
+    /// Assumes that `b_word`, `c_word` are valid `Word`s of u16 limbs.
     /// Constrains that all flags are boolean.
     /// Constrains that at most one of `is_mul`, `is_mulh`, `is_mulhu`, `is_mulhsu` is true.
     /// If `is_real` is true, constrains that the product is correctly placed at `a_word`.
     #[allow(clippy::too_many_arguments)]
-    pub fn eval<AB: SP1AirBuilder + SP1OperationBuilder<U16toU8OperationSafe>>(
+    pub fn eval<
+        AB: SP1AirBuilder
+            + SP1OperationBuilder<U16toU8OperationSafe>
+            + SP1OperationBuilder<U16MSBOperation<<AB as AirBuilder>::F>>,
+    >(
         builder: &mut AB,
         a_word: Word<AB::Expr>,
         b_word: Word<AB::Expr>,
@@ -199,11 +205,9 @@ impl<F: Field> MulOperation<F> {
             (cols.b_msb, cols.c_msb)
         };
 
-        U16MSBOperation::<AB::F>::eval_msb(
+        <U16MSBOperation<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            a_word.0[1].clone(),
-            cols.product_msb,
-            is_mulw.clone(),
+            U16MSBOperationInput::new(a_word.0[1].clone(), cols.product_msb, is_mulw.clone()),
         );
 
         // Calculate whether to extend b and c's sign.
@@ -324,5 +328,45 @@ impl<F: Field> MulOperation<F> {
             builder.slice_range_check_u16(&cols.carry, is_real.clone());
             builder.slice_range_check_u8(&cols.product, is_real.clone());
         }
+    }
+}
+
+#[derive(Debug, Clone, InputExpr, InputParams)]
+pub struct MulOperationInput<AB: SP1AirBuilder> {
+    pub a_word: Word<AB::Expr>,
+    pub b_word: Word<AB::Expr>,
+    pub c_word: Word<AB::Expr>,
+    pub cols: MulOperation<AB::Var>,
+    pub is_real: AB::Expr,
+    pub is_mul: AB::Expr,
+    pub is_mulh: AB::Expr,
+    pub is_mulw: AB::Expr,
+    pub is_mulhu: AB::Expr,
+    pub is_mulhsu: AB::Expr,
+}
+
+impl<AB> SP1Operation<AB> for MulOperation<AB::F>
+where
+    AB: SP1AirBuilder
+        + SP1OperationBuilder<U16toU8OperationSafe>
+        + SP1OperationBuilder<U16MSBOperation<<AB as AirBuilder>::F>>,
+{
+    type Input = MulOperationInput<AB>;
+    type Output = ();
+
+    fn lower(builder: &mut AB, input: Self::Input) -> Self::Output {
+        Self::eval(
+            builder,
+            input.a_word,
+            input.b_word,
+            input.c_word,
+            input.cols,
+            input.is_real,
+            input.is_mul,
+            input.is_mulh,
+            input.is_mulw,
+            input.is_mulhu,
+            input.is_mulhsu,
+        );
     }
 }

@@ -5,18 +5,18 @@ use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::utils::{next_multiple_of_32, pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::air::MachineAir;
 use sp1_recursion_executor::{
     instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     Block, ExecutionRecord, Instruction, RecursionProgram,
 };
-use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::builder::SP1RecursionAirBuilder;
 
 use super::{MemoryAccessCols, NUM_MEM_ACCESS_COLS};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MemoryVarChip<F, const VAR_EVENTS_PER_ROW: usize> {
     _marker: PhantomData<F>,
 }
@@ -112,8 +112,6 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        // if let Some(shape) = input.program.shape.as_ref() {
-        //     Some(shape.height(self).expect("chip mot included"))
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let nb_rows = input.mem_var_events.len().div_ceil(VAR_EVENTS_PER_ROW);
         let padded_nb_rows = next_multiple_of_32(nb_rows, height);
@@ -137,7 +135,7 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
             .collect::<Vec<_>>();
 
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
-        // Pad the rows to the next power of two.
+        // Pad the rows to the next multiple of 32.
         pad_rows_fixed(
             &mut rows,
             || vec![F::zero(); NUM_MEM_INIT_COLS * VAR_EVENTS_PER_ROW],
@@ -152,10 +150,6 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn local_only(&self) -> bool {
         true
     }
 }
@@ -184,23 +178,42 @@ mod tests {
     #![allow(clippy::print_stdout)]
 
     use slop_algebra::AbstractField;
-    use slop_baby_bear::BabyBear;
+
     use slop_matrix::dense::RowMajorMatrix;
+    use sp1_primitives::SP1Field;
     use sp1_recursion_executor::MemEvent;
+
+    use crate::chips::test_fixtures;
 
     use super::*;
 
+    #[tokio::test]
+    async fn generate_trace() {
+        let shard = test_fixtures::shard().await;
+        let chip = MemoryVarChip::<_, 2>::default();
+        let trace = chip.generate_trace(shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
+    }
+
+    #[tokio::test]
+    async fn generate_preprocessed_trace() {
+        let program = &test_fixtures::program_with_input().await.0;
+        let chip = MemoryVarChip::<_, 2>::default();
+        let trace = chip.generate_preprocessed_trace(program).unwrap();
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
+    }
+
     #[test]
-    pub fn generate_trace() {
-        let shard = ExecutionRecord::<BabyBear> {
+    pub fn generate_trace_simple() {
+        let shard = ExecutionRecord::<SP1Field> {
             mem_var_events: vec![
-                MemEvent { inner: BabyBear::one().into() },
-                MemEvent { inner: BabyBear::one().into() },
+                MemEvent { inner: SP1Field::one().into() },
+                MemEvent { inner: SP1Field::one().into() },
             ],
             ..Default::default()
         };
-        let chip = MemoryVarChip::<BabyBear, 2>::default();
-        let trace: RowMajorMatrix<BabyBear> =
+        let chip = MemoryVarChip::<_, 2>::default();
+        let trace: RowMajorMatrix<SP1Field> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

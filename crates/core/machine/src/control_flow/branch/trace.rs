@@ -9,7 +9,7 @@ use sp1_core_executor::{
     events::{BranchEvent, ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program,
 };
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
 use struct_reflection::StructReflectionHelper;
 
 use crate::utils::{next_multiple_of_32, zeroed_f_vec};
@@ -75,10 +75,6 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
         }
     }
 
-    fn local_only(&self) -> bool {
-        true
-    }
-
     fn column_names(&self) -> Vec<String> {
         BranchColumns::<F>::struct_reflection().unwrap()
     }
@@ -130,7 +126,8 @@ impl BranchChip {
             F::from_canonical_u16(((event.next_pc >> 16) & 0xFFFF) as u16),
             F::from_canonical_u16(((event.next_pc >> 32) & 0xFFFF) as u16),
         ];
-        blu.add_u16_range_checks_field(&cols.next_pc);
+        blu.add_bit_range_check((event.next_pc & 0xFFFF) as u16 / 4, 14);
+        blu.add_u16_range_checks_field(&cols.next_pc[1..3]);
 
         if branching {
             cols.is_branching = F::one();

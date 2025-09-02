@@ -1,12 +1,12 @@
-use enum_map::EnumMap;
+use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
 use slop_air::AirBuilder;
-use slop_algebra::{AbstractField, PrimeField};
-use sp1_stark::{
+use slop_algebra::{AbstractField, Field, PrimeField};
+use sp1_hypercube::{
     air::{
-        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
-        SP1_PROOF_NUM_PV_ELTS,
+        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        PV_DIGEST_NUM_WORDS, SP1_PROOF_NUM_PV_ELTS,
     },
     septic_digest::SepticDigest,
     shape::Shape,
@@ -24,9 +24,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     events::{
         AluEvent, ApcEvents, ApcEventsForId, BranchEvent, ByteLookupEvent, ByteRecord,
-        GlobalInteractionEvent, JumpEvent, MemInstrEvent, MemoryInitializeFinalizeEvent,
-        MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
-        UTypeEvent,
+        GlobalInteractionEvent, InstructionDecodeEvent, InstructionFetchEvent, JumpEvent,
+        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
+        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PrecompileEvent, PrecompileEvents,
+        SyscallEvent, UTypeEvent,
     },
     program::Program,
     syscalls::SyscallCode,
@@ -36,7 +37,7 @@ use crate::{
 /// A record of the execution of a program.
 ///
 /// The trace of the execution is represented as a list of "events" that occur every cycle.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, DeepSizeOf)]
 pub struct ExecutionRecord {
     /// The program.
     pub program: Arc<Program>,
@@ -98,14 +99,24 @@ pub struct ExecutionRecord {
     pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the global memory finalize events.
     pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+    /// A trace of the global page prot initialize events.
+    pub global_page_prot_initialize_events: Vec<PageProtInitializeFinalizeEvent>,
+    /// A trace of the global page prot finalize events.
+    pub global_page_prot_finalize_events: Vec<PageProtInitializeFinalizeEvent>,
     /// A trace of all the shard's local memory events.
     pub cpu_local_memory_access: Vec<MemoryLocalEvent>,
+    /// A trace of all the local page prot events.
+    pub cpu_local_page_prot_access: Vec<PageProtLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<(SyscallEvent, RTypeRecord)>,
     /// A trace for all APC events.
     pub apc_events: ApcEvents,
     /// A trace of all the global interaction events.
     pub global_interaction_events: Vec<GlobalInteractionEvent>,
+    /// A trace of all instruction fetch events.
+    pub instruction_fetch_events: Vec<(InstructionFetchEvent, MemoryAccessRecord)>,
+    /// A trace of all instruction decode events.
+    pub instruction_decode_events: Vec<InstructionDecodeEvent>,
     /// The global culmulative sum.
     pub global_cumulative_sum: Arc<Mutex<SepticDigest<u32>>>,
     /// The global interaction event count.
@@ -120,8 +131,6 @@ pub struct ExecutionRecord {
     pub next_nonce: u64,
     /// The shape of the proof.
     pub shape: Option<Shape<RiscvAirId>>,
-    /// The predicted counts of the proof.
-    pub counts: Option<EnumMap<RiscvAirId, u64>>,
     /// The estimated total trace area of the proof.
     pub estimated_trace_area: u64,
     /// The initial timestamp of the shard.
@@ -166,6 +175,10 @@ impl ExecutionRecord {
             std::mem::take(&mut self.global_memory_initialize_events);
         execution_record.global_memory_finalize_events =
             std::mem::take(&mut self.global_memory_finalize_events);
+        execution_record.global_page_prot_initialize_events =
+            std::mem::take(&mut self.global_page_prot_initialize_events);
+        execution_record.global_page_prot_finalize_events =
+            std::mem::take(&mut self.global_page_prot_finalize_events);
         execution_record
     }
 
@@ -174,6 +187,7 @@ impl ExecutionRecord {
     ///
     /// The optional `last_record` will be provided if there are few enough deferred events that
     /// they can all be packed into the already existing last record.
+    #[allow(clippy::too_many_lines)]
     pub fn split(
         &mut self,
         done: bool,
@@ -213,6 +227,8 @@ impl ExecutionRecord {
                 SyscallCode::BLS12381_FP2_ADD
                 | SyscallCode::BLS12381_FP2_SUB
                 | SyscallCode::BLS12381_FP2_MUL => opts.fp2_operation_384bit,
+                SyscallCode::MPROTECT => opts.mprotect,
+                SyscallCode::POSEIDON2 => opts.poseidon2,
                 _ => opts.deferred,
             };
 
@@ -238,9 +254,6 @@ impl ExecutionRecord {
         }
 
         if done {
-            self.global_memory_initialize_events.sort_by_key(|event| event.addr);
-            self.global_memory_finalize_events.sort_by_key(|event| event.addr);
-
             // If there are no precompile shards, and `last_record` is Some, pack the memory events
             // into the last record.
             let pack_memory_events_into_last_record = last_record.is_some() && shards.is_empty();
@@ -253,8 +266,73 @@ impl ExecutionRecord {
                 &mut blank_record
             };
 
-            let mut init_addr_word = 0;
-            let mut finalize_addr_word = 0;
+            let mut init_page_idx = 0;
+            let mut finalize_page_idx = 0;
+
+            // Put all of the page prot init and finalize events into the last record.
+            if !self.global_page_prot_initialize_events.is_empty()
+                || !self.global_page_prot_finalize_events.is_empty()
+            {
+                self.global_page_prot_initialize_events.sort_by_key(|event| event.page_idx);
+                self.global_page_prot_finalize_events.sort_by_key(|event| event.page_idx);
+
+                for page_prot_chunk in self
+                    .global_page_prot_initialize_events
+                    .chunks(opts.page_prot)
+                    .zip_longest(self.global_page_prot_finalize_events.chunks(opts.page_prot))
+                {
+                    let (page_prot_init_chunk, page_prot_finalize_chunk) = match page_prot_chunk {
+                        EitherOrBoth::Both(page_prot_init_chunk, page_prot_finalize_chunk) => {
+                            (page_prot_init_chunk, page_prot_finalize_chunk)
+                        }
+                        EitherOrBoth::Left(page_prot_init_chunk) => {
+                            (page_prot_init_chunk, [].as_slice())
+                        }
+                        EitherOrBoth::Right(page_prot_finalize_chunk) => {
+                            ([].as_slice(), page_prot_finalize_chunk)
+                        }
+                    };
+
+                    last_record_ref
+                        .global_page_prot_initialize_events
+                        .extend_from_slice(page_prot_init_chunk);
+                    last_record_ref.public_values.previous_init_page_idx = init_page_idx;
+                    if let Some(last_event) = page_prot_init_chunk.last() {
+                        init_page_idx = last_event.page_idx;
+                    }
+                    last_record_ref.public_values.last_init_page_idx = init_page_idx;
+
+                    last_record_ref
+                        .global_page_prot_finalize_events
+                        .extend_from_slice(page_prot_finalize_chunk);
+                    last_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
+                    if let Some(last_event) = page_prot_finalize_chunk.last() {
+                        finalize_page_idx = last_event.page_idx;
+                    }
+                    last_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
+
+                    // Because page prot events are non empty, we set the page protect active flag
+                    last_record_ref.public_values.is_page_protect_active = true as u32;
+
+                    if !pack_memory_events_into_last_record {
+                        // If not packing memory events into the last record, add 'last_record_ref'
+                        // to the returned records. `take` replaces `blank_program` with the
+                        // default.
+                        shards.push(take(last_record_ref));
+
+                        // Reset the last record so its program is the correct one. (The default
+                        // program provided by `take` contains no
+                        // instructions.)
+                        last_record_ref.program = self.program.clone();
+                    }
+                }
+            }
+
+            self.global_memory_initialize_events.sort_by_key(|event| event.addr);
+            self.global_memory_finalize_events.sort_by_key(|event| event.addr);
+
+            let mut init_addr = 0;
+            let mut finalize_addr = 0;
             for mem_chunks in self
                 .global_memory_initialize_events
                 .chunks(opts.memory)
@@ -268,20 +346,25 @@ impl ExecutionRecord {
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
                 last_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
-                last_record_ref.public_values.previous_init_addr_word = init_addr_word;
+                last_record_ref.public_values.previous_init_addr = init_addr;
                 if let Some(last_event) = mem_init_chunk.last() {
-                    init_addr_word = last_event.addr;
+                    init_addr = last_event.addr;
                 }
-                last_record_ref.public_values.last_init_addr_word = init_addr_word;
+                last_record_ref.public_values.last_init_addr = init_addr;
 
                 last_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
-                last_record_ref.public_values.previous_finalize_addr_word = finalize_addr_word;
+                last_record_ref.public_values.previous_finalize_addr = finalize_addr;
                 if let Some(last_event) = mem_finalize_chunk.last() {
-                    finalize_addr_word = last_event.addr;
+                    finalize_addr = last_event.addr;
                 }
-                last_record_ref.public_values.last_finalize_addr_word = finalize_addr_word;
+                last_record_ref.public_values.last_finalize_addr = finalize_addr;
 
                 if !pack_memory_events_into_last_record {
+                    last_record_ref.public_values.previous_init_page_idx = init_page_idx;
+                    last_record_ref.public_values.last_init_page_idx = init_page_idx;
+                    last_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
+                    last_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
+
                     // If not packing memory events into the last record, add 'last_record_ref'
                     // to the returned records. `take` replaces `blank_program` with the default.
                     shards.push(take(last_record_ref));
@@ -292,6 +375,7 @@ impl ExecutionRecord {
                 }
             }
         }
+
         shards
     }
 
@@ -346,10 +430,20 @@ impl ExecutionRecord {
             .chain(apc_local_mem_events)
             .chain(self.cpu_local_memory_access.iter())
     }
+
+    /// Get all the local page prot events.
+    #[inline]
+    pub fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
+        let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
+        let apc_local_page_prot_events = self.apc_events.get_local_page_prot_events();
+        precompile_local_page_prot_events
+            .chain(apc_local_page_prot_events)
+            .chain(self.cpu_local_page_prot_access.iter())
+    }
 }
 
 /// A memory access record.
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, DeepSizeOf)]
 pub struct MemoryAccessRecord {
     /// The memory access of the `a` register.
     pub a: Option<MemoryRecordEnum>,
@@ -359,10 +453,14 @@ pub struct MemoryAccessRecord {
     pub c: Option<MemoryRecordEnum>,
     /// The memory access of the `memory` register.
     pub memory: Option<MemoryRecordEnum>,
+    /// The memory access of the untrusted instruction.
+    /// If memory access for `untrusted_instruction` occurs, we also pass along the selected 32
+    /// bits that is the encoded 32 bit instruction alongside the raw 64bit read
+    pub untrusted_instruction: Option<(MemoryRecordEnum, u32)>,
 }
 
 /// Memory record where all three operands are registers.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
 pub struct RTypeRecord {
     /// The a operand.
     pub op_a: u8,
@@ -376,10 +474,12 @@ pub struct RTypeRecord {
     pub op_c: u64,
     /// The register `op_c` record.
     pub c: MemoryRecordEnum,
+    /// Whether the instruction is untrusted.
+    pub is_untrusted: bool,
 }
 
 impl RTypeRecord {
-    pub(crate) fn new(value: MemoryAccessRecord, instruction: &Instruction) -> Self {
+    pub(crate) fn new(value: &MemoryAccessRecord, instruction: &Instruction) -> Self {
         Self {
             op_a: instruction.op_a,
             a: value.a.expect("expected MemoryRecord for op_a in RTypeRecord"),
@@ -387,11 +487,12 @@ impl RTypeRecord {
             b: value.b.expect("expected MemoryRecord for op_b in RTypeRecord"),
             op_c: instruction.op_c,
             c: value.c.expect("expected MemoryRecord for op_c in RTypeRecord"),
+            is_untrusted: value.untrusted_instruction.is_some(),
         }
     }
 }
 /// Memory record where the first two operands are registers.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
 pub struct ITypeRecord {
     /// The a operand.
     pub op_a: u8,
@@ -403,10 +504,12 @@ pub struct ITypeRecord {
     pub b: MemoryRecordEnum,
     /// The c operand.
     pub op_c: u64,
+    /// Whether the instruction is untrusted.
+    pub is_untrusted: bool,
 }
 
 impl ITypeRecord {
-    pub(crate) fn new(value: MemoryAccessRecord, instruction: &Instruction) -> Self {
+    pub(crate) fn new(value: &MemoryAccessRecord, instruction: &Instruction) -> Self {
         debug_assert!(value.c.is_none());
         Self {
             op_a: instruction.op_a,
@@ -414,12 +517,13 @@ impl ITypeRecord {
             op_b: instruction.op_b,
             b: value.b.expect("expected MemoryRecord for op_b in ITypeRecord"),
             op_c: instruction.op_c,
+            is_untrusted: value.untrusted_instruction.is_some(),
         }
     }
 }
 
 /// Memory record where only one operand is a register.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
 pub struct JTypeRecord {
     /// The a operand.
     pub op_a: u8,
@@ -429,10 +533,12 @@ pub struct JTypeRecord {
     pub op_b: u64,
     /// The c operand.
     pub op_c: u64,
+    /// Whether the instruction is untrusted.
+    pub is_untrusted: bool,
 }
 
 impl JTypeRecord {
-    pub(crate) fn new(value: MemoryAccessRecord, instruction: &Instruction) -> Self {
+    pub(crate) fn new(value: &MemoryAccessRecord, instruction: &Instruction) -> Self {
         debug_assert!(value.b.is_none());
         debug_assert!(value.c.is_none());
         Self {
@@ -440,12 +546,13 @@ impl JTypeRecord {
             a: value.a.expect("expected MemoryRecord for op_a in JTypeRecord"),
             op_b: instruction.op_b,
             op_c: instruction.op_c,
+            is_untrusted: value.untrusted_instruction.is_some(),
         }
     }
 }
 
 /// Memory record where only the first two operands are known to be registers, but the third isn't.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
 pub struct ALUTypeRecord {
     /// The a operand.
     pub op_a: u8,
@@ -459,10 +566,14 @@ pub struct ALUTypeRecord {
     pub op_c: u64,
     /// The register `op_c` record.
     pub c: Option<MemoryRecordEnum>,
+    /// Whether the instruction has an immediate.
+    pub is_imm: bool,
+    /// Whether the instruction is untrusted.
+    pub is_untrusted: bool,
 }
 
 impl ALUTypeRecord {
-    pub(crate) fn new(value: MemoryAccessRecord, instruction: &Instruction) -> Self {
+    pub(crate) fn new(value: &MemoryAccessRecord, instruction: &Instruction) -> Self {
         Self {
             op_a: instruction.op_a,
             a: value.a.expect("expected MemoryRecord for op_a in ALUTypeRecord"),
@@ -470,8 +581,21 @@ impl ALUTypeRecord {
             b: value.b.expect("expected MemoryRecord for op_b in ALUTypeRecord"),
             op_c: instruction.op_c,
             c: value.c,
+            is_imm: instruction.imm_c,
+            is_untrusted: value.untrusted_instruction.is_some(),
         }
     }
+}
+
+/// Memory record for an untrusted program instruction fetch.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct UntrustedProgramInstructionRecord {
+    /// The a operand.
+    pub memory_access_record: MemoryAccessRecord,
+    /// The instruction.
+    pub instruction: Instruction,
+    /// The encoded instruction.
+    pub encoded_instruction: u32,
 }
 
 impl MachineRecord for ExecutionRecord {
@@ -502,6 +626,8 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("jal_events".to_string(), self.jal_events.len());
         stats.insert("jalr_events".to_string(), self.jalr_events.len());
         stats.insert("utype_events".to_string(), self.utype_events.len());
+        stats.insert("instruction_decode_events".to_string(), self.instruction_decode_events.len());
+        stats.insert("instruction_fetch_events".to_string(), self.instruction_fetch_events.len());
 
         for (syscall_code, events) in self.precompile_events.iter() {
             stats.insert(format!("syscall {syscall_code:?}"), events.len());
@@ -516,6 +642,10 @@ impl MachineRecord for ExecutionRecord {
             self.global_memory_finalize_events.len(),
         );
         stats.insert("local_memory_access_events".to_string(), self.cpu_local_memory_access.len());
+        stats.insert(
+            "local_page_prot_access_events".to_string(),
+            self.cpu_local_page_prot_access.len(),
+        );
         if self.contains_cpu() {
             stats.insert("byte_lookups".to_string(), self.byte_lookups.len());
         }
@@ -533,6 +663,12 @@ impl MachineRecord for ExecutionRecord {
         other.public_values.global_init_count = 0;
         self.public_values.global_finalize_count += other.public_values.global_finalize_count;
         other.public_values.global_finalize_count = 0;
+        self.public_values.global_page_prot_init_count +=
+            other.public_values.global_page_prot_init_count;
+        other.public_values.global_page_prot_init_count = 0;
+        self.public_values.global_page_prot_finalize_count +=
+            other.public_values.global_page_prot_finalize_count;
+        other.public_values.global_page_prot_finalize_count = 0;
         self.estimated_trace_area += other.estimated_trace_area;
         other.estimated_trace_area = 0;
         self.add_events.append(&mut other.add_events);
@@ -564,6 +700,8 @@ impl MachineRecord for ExecutionRecord {
         self.bump_memory_events.append(&mut other.bump_memory_events);
         self.bump_state_events.append(&mut other.bump_state_events);
         self.precompile_events.append(&mut other.precompile_events);
+        self.instruction_fetch_events.append(&mut other.instruction_fetch_events);
+        self.instruction_decode_events.append(&mut other.instruction_decode_events);
 
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
@@ -573,7 +711,11 @@ impl MachineRecord for ExecutionRecord {
 
         self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
         self.global_memory_finalize_events.append(&mut other.global_memory_finalize_events);
+        self.global_page_prot_initialize_events
+            .append(&mut other.global_page_prot_initialize_events);
+        self.global_page_prot_finalize_events.append(&mut other.global_page_prot_finalize_events);
         self.cpu_local_memory_access.append(&mut other.cpu_local_memory_access);
+        self.cpu_local_page_prot_access.append(&mut other.cpu_local_page_prot_access);
         self.global_interaction_events.append(&mut other.global_interaction_events);
     }
 
@@ -596,10 +738,20 @@ impl MachineRecord for ExecutionRecord {
             AB::PublicVar,
         > = public_values_slice.as_slice().borrow();
 
+        for var in public_values.empty {
+            builder.assert_zero(var);
+        }
+
         Self::eval_state(public_values, builder);
+        Self::eval_first_shard(public_values, builder);
+        Self::eval_exit_code(public_values, builder);
+        Self::eval_committed_value_digest(public_values, builder);
+        Self::eval_deferred_proofs_digest(public_values, builder);
         Self::eval_global_sum(public_values, builder);
         Self::eval_global_memory_init(public_values, builder);
         Self::eval_global_memory_finalize(public_values, builder);
+        Self::eval_global_page_prot_init(public_values, builder);
+        Self::eval_global_page_prot_finalize(public_values, builder);
     }
 }
 
@@ -651,8 +803,9 @@ impl ExecutionRecord {
         );
         builder.send_byte(
             AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-            public_values.initial_timestamp[3].into(),
-            AB::Expr::from_canonical_u32(16),
+            (public_values.initial_timestamp[3].into() - AB::Expr::one())
+                * AB::F::from_canonical_u8(8).inverse(),
+            AB::Expr::from_canonical_u32(13),
             AB::Expr::zero(),
             AB::Expr::one(),
         );
@@ -665,8 +818,9 @@ impl ExecutionRecord {
         );
         builder.send_byte(
             AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-            public_values.last_timestamp[3].into(),
-            AB::Expr::from_canonical_u32(16),
+            (public_values.last_timestamp[3].into() - AB::Expr::one())
+                * AB::F::from_canonical_u8(8).inverse(),
+            AB::Expr::from_canonical_u32(13),
             AB::Expr::zero(),
             AB::Expr::one(),
         );
@@ -717,29 +871,28 @@ impl ExecutionRecord {
             AB::Expr::one(),
         );
 
-        // If execution shard is not incremented, assert that timestamp and pc remains equal.
-        let increment_execution_shard =
-            public_values.next_execution_shard.into() - public_values.execution_shard.into();
-        builder.assert_bool(increment_execution_shard.clone());
+        // If the shard is not execution shard, assert that timestamp and pc remains equal.
+        let is_execution_shard = public_values.is_execution_shard.into();
+        builder.assert_bool(is_execution_shard.clone());
         builder
-            .when_not(increment_execution_shard.clone())
+            .when_not(is_execution_shard.clone())
             .assert_eq(initial_timestamp_low.clone(), last_timestamp_low.clone());
         builder
-            .when_not(increment_execution_shard.clone())
+            .when_not(is_execution_shard.clone())
             .assert_eq(initial_timestamp_high.clone(), last_timestamp_high.clone());
-        for i in 0..3 {
-            builder
-                .when_not(increment_execution_shard.clone())
-                .assert_eq(public_values.pc_start[i], public_values.next_pc[i]);
-        }
+        builder
+            .when_not(is_execution_shard.clone())
+            .assert_all_eq(public_values.pc_start, public_values.next_pc);
 
         // IsZeroOperation on the high bits of the timestamp.
         builder.assert_bool(public_values.is_timestamp_high_eq);
+        // If high bits are equal, then `is_timestamp_high_eq == 1`.
         builder.assert_eq(
             (last_timestamp_high.clone() - initial_timestamp_high.clone())
                 * public_values.inv_timestamp_high.into(),
             AB::Expr::one() - public_values.is_timestamp_high_eq.into(),
         );
+        // If high bits are distinct, then `is_timestamp_high_eq == 0`.
         builder.assert_zero(
             (last_timestamp_high.clone() - initial_timestamp_high.clone())
                 * public_values.is_timestamp_high_eq.into(),
@@ -747,20 +900,279 @@ impl ExecutionRecord {
 
         // IsZeroOperation on the low bits of the timestamp.
         builder.assert_bool(public_values.is_timestamp_low_eq);
+        // If low bits are equal, then `is_timestamp_low_eq == 1`.
         builder.assert_eq(
             (last_timestamp_low.clone() - initial_timestamp_low.clone())
                 * public_values.inv_timestamp_low.into(),
             AB::Expr::one() - public_values.is_timestamp_low_eq.into(),
         );
+        // If low bits are distinct, then `is_timestamp_low_eq == 0`.
         builder.assert_zero(
             (last_timestamp_low.clone() - initial_timestamp_low.clone())
                 * public_values.is_timestamp_low_eq.into(),
         );
 
-        // If the execution shard is incremented, then the timestamp is different.
+        // If the shard is an execution shard, then the timestamp is different.
         builder.assert_eq(
-            AB::Expr::one() - increment_execution_shard.clone(),
+            AB::Expr::one() - is_execution_shard.clone(),
             public_values.is_timestamp_high_eq.into() * public_values.is_timestamp_low_eq.into(),
+        );
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_first_shard<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        let initial_timestamp_high = public_values.initial_timestamp[1].into()
+            + public_values.initial_timestamp[0].into() * AB::Expr::from_canonical_u32(1 << 8);
+        let initial_timestamp_low = public_values.initial_timestamp[3].into()
+            + public_values.initial_timestamp[2].into() * AB::Expr::from_canonical_u32(1 << 16);
+        let last_timestamp_high = public_values.last_timestamp[1].into()
+            + public_values.last_timestamp[0].into() * AB::Expr::from_canonical_u32(1 << 8);
+        let last_timestamp_low = public_values.last_timestamp[3].into()
+            + public_values.last_timestamp[2].into() * AB::Expr::from_canonical_u32(1 << 16);
+
+        // Check that `is_first_shard` is boolean.
+        builder.assert_bool(public_values.is_first_shard.into());
+
+        // Check that `last_timestamp != 1` by providing an inverse.
+        // The `high + low` value cannot overflow, as they were range checked to be 24 bits.
+        // `high == 1, low == 0` is impossible, as `low == 1 (mod 8)` as checked in `eval_state`.
+        builder.assert_eq(
+            (last_timestamp_high + last_timestamp_low - AB::Expr::one())
+                * public_values.last_timestamp_inv.into(),
+            AB::Expr::one(),
+        );
+
+        // If `is_first_shard` is false, check `initial_timestamp != 1` by providing an inverse.
+        // The logic behind this constraint is the same as the one in `last_timestamp`.
+        builder.when_not(public_values.is_first_shard.into()).assert_eq(
+            (initial_timestamp_high + initial_timestamp_low - AB::Expr::one())
+                * public_values.initial_timestamp_inv.into(),
+            AB::Expr::one(),
+        );
+
+        // If `is_first_shard` is true, check `initial_timestamp == 1`.
+        builder.when(public_values.is_first_shard.into()).assert_all_eq(
+            public_values.initial_timestamp,
+            [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
+        );
+
+        // If `is_first_shard` is true, check `is_execution_shard == 1`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_one(public_values.is_execution_shard);
+
+        // If `is_first_shard` is true, assert the initial boundary conditions.
+
+        // Check `prev_committed_value_digest == 0`.
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            builder
+                .when(public_values.is_first_shard.into())
+                .assert_all_zero(public_values.prev_committed_value_digest[i]);
+        }
+
+        // Check `prev_deferred_proofs_digest == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_all_zero(public_values.prev_deferred_proofs_digest);
+
+        // Check `prev_exit_code == 0`.
+        builder.when(public_values.is_first_shard.into()).assert_zero(public_values.prev_exit_code);
+
+        // Check `previous_init_addr == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_all_zero(public_values.previous_init_addr);
+
+        // Check `previous_finalize_addr == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_all_zero(public_values.previous_finalize_addr);
+
+        // Check `previous_init_page_idx == 0`
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_all_zero(public_values.previous_init_page_idx);
+
+        // Check `previous_finalize_page_idx == 0`
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_all_zero(public_values.previous_finalize_page_idx);
+
+        // Check `prev_commit_syscall == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_zero(public_values.prev_commit_syscall);
+
+        // Check `prev_commit_deferred_syscall == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_zero(public_values.prev_commit_deferred_syscall);
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_exit_code<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        let is_execution_shard = public_values.is_execution_shard.into();
+
+        // If the `prev_exit_code` is non-zero, then the `exit_code` must be equal to it.
+        builder.assert_zero(
+            public_values.prev_exit_code.into()
+                * (public_values.exit_code.into() - public_values.prev_exit_code.into()),
+        );
+
+        // If it's not an execution shard, assert that `exit_code` will not change in that shard.
+        builder
+            .when_not(is_execution_shard.clone())
+            .assert_eq(public_values.prev_exit_code, public_values.exit_code);
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_committed_value_digest<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        let is_execution_shard = public_values.is_execution_shard.into();
+
+        // Assert that both `prev_committed_value_digest` and `committed_value_digest` are bytes.
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            builder.send_byte(
+                AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                AB::Expr::zero(),
+                public_values.prev_committed_value_digest[i][0],
+                public_values.prev_committed_value_digest[i][1],
+                AB::Expr::one(),
+            );
+            builder.send_byte(
+                AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                AB::Expr::zero(),
+                public_values.prev_committed_value_digest[i][2],
+                public_values.prev_committed_value_digest[i][3],
+                AB::Expr::one(),
+            );
+            builder.send_byte(
+                AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                AB::Expr::zero(),
+                public_values.committed_value_digest[i][0],
+                public_values.committed_value_digest[i][1],
+                AB::Expr::one(),
+            );
+            builder.send_byte(
+                AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                AB::Expr::zero(),
+                public_values.committed_value_digest[i][2],
+                public_values.committed_value_digest[i][3],
+                AB::Expr::one(),
+            );
+        }
+
+        // Assert that both `prev_commit_syscall` and `commit_syscall` are boolean.
+        builder.assert_bool(public_values.prev_commit_syscall);
+        builder.assert_bool(public_values.commit_syscall);
+
+        // Assert that `prev_commit_syscall == 1` implies `commit_syscall == 1`.
+        builder.when(public_values.prev_commit_syscall).assert_one(public_values.commit_syscall);
+
+        // Assert that the `commit_syscall` value doesn't change in a non-execution shard.
+        builder
+            .when_not(is_execution_shard.clone())
+            .assert_eq(public_values.prev_commit_syscall, public_values.commit_syscall);
+
+        // Assert that `committed_value_digest` will not change in a non-execution shard.
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            builder.when_not(is_execution_shard.clone()).assert_all_eq(
+                public_values.prev_committed_value_digest[i],
+                public_values.committed_value_digest[i],
+            );
+        }
+
+        // Assert that `prev_committed_value_digest != [0u8; 32]` implies `committed_value_digest`
+        // must remain equal to the `prev_committed_value_digest`.
+        for word in public_values.prev_committed_value_digest {
+            for limb in word {
+                for i in 0..PV_DIGEST_NUM_WORDS {
+                    builder.when(limb).assert_all_eq(
+                        public_values.prev_committed_value_digest[i],
+                        public_values.committed_value_digest[i],
+                    );
+                }
+            }
+        }
+
+        // Assert that if `prev_commit_syscall` is true, `committed_value_digest` doesn't change.
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            builder.when(public_values.prev_commit_syscall).assert_all_eq(
+                public_values.prev_committed_value_digest[i],
+                public_values.committed_value_digest[i],
+            );
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_deferred_proofs_digest<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        let is_execution_shard = public_values.is_execution_shard.into();
+
+        // Assert that `prev_commit_deferred_syscall` and `commit_deferred_syscall` are boolean.
+        builder.assert_bool(public_values.prev_commit_deferred_syscall);
+        builder.assert_bool(public_values.commit_deferred_syscall);
+
+        // Assert that `prev_commit_deferred_syscall == 1` implies `commit_deferred_syscall == 1`.
+        builder
+            .when(public_values.prev_commit_deferred_syscall)
+            .assert_one(public_values.commit_deferred_syscall);
+
+        // Assert that the `commit_deferred_syscall` value doesn't change in a non-execution shard.
+        builder.when_not(is_execution_shard.clone()).assert_eq(
+            public_values.prev_commit_deferred_syscall,
+            public_values.commit_deferred_syscall,
+        );
+
+        // Assert that `deferred_proofs_digest` will not change in a non-execution shard.
+        builder.when_not(is_execution_shard.clone()).assert_all_eq(
+            public_values.prev_deferred_proofs_digest,
+            public_values.deferred_proofs_digest,
+        );
+
+        // Assert that `prev_deferred_proofs_digest != 0` implies `deferred_proofs_digest` must
+        // remain equal to the `prev_deferred_proofs_digest`.
+        for limb in public_values.prev_deferred_proofs_digest {
+            builder.when(limb).assert_all_eq(
+                public_values.prev_deferred_proofs_digest,
+                public_values.deferred_proofs_digest,
+            );
+        }
+
+        // If `prev_commit_deferred_syscall` is true, `deferred_proofs_digest` doesn't change.
+        builder.when(public_values.prev_commit_deferred_syscall).assert_all_eq(
+            public_values.prev_deferred_proofs_digest,
+            public_values.deferred_proofs_digest,
         );
     }
 
@@ -809,10 +1221,28 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
+        // Check the addresses are of valid u16 limbs.
+        for i in 0..3 {
+            builder.send_byte(
+                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+                public_values.previous_init_addr[i].into(),
+                AB::Expr::from_canonical_u32(16),
+                AB::Expr::zero(),
+                AB::Expr::one(),
+            );
+            builder.send_byte(
+                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+                public_values.last_init_addr[i].into(),
+                AB::Expr::from_canonical_u32(16),
+                AB::Expr::zero(),
+                AB::Expr::one(),
+            );
+        }
+
         builder.send(
             AirInteraction::new(
                 once(AB::Expr::zero())
-                    .chain(public_values.previous_init_addr_word.into_iter().map(Into::into))
+                    .chain(public_values.previous_init_addr.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
                 AB::Expr::one(),
@@ -823,7 +1253,7 @@ impl ExecutionRecord {
         builder.receive(
             AirInteraction::new(
                 once(public_values.global_init_count.into())
-                    .chain(public_values.last_init_addr_word.into_iter().map(Into::into))
+                    .chain(public_values.last_init_addr.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
                 AB::Expr::one(),
@@ -843,10 +1273,28 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
+        // Check the addresses are of valid u16 limbs.
+        for i in 0..3 {
+            builder.send_byte(
+                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+                public_values.previous_finalize_addr[i].into(),
+                AB::Expr::from_canonical_u32(16),
+                AB::Expr::zero(),
+                AB::Expr::one(),
+            );
+            builder.send_byte(
+                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+                public_values.last_finalize_addr[i].into(),
+                AB::Expr::from_canonical_u32(16),
+                AB::Expr::zero(),
+                AB::Expr::one(),
+            );
+        }
+
         builder.send(
             AirInteraction::new(
                 once(AB::Expr::zero())
-                    .chain(public_values.previous_finalize_addr_word.into_iter().map(Into::into))
+                    .chain(public_values.previous_finalize_addr.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
                 AB::Expr::one(),
@@ -857,11 +1305,81 @@ impl ExecutionRecord {
         builder.receive(
             AirInteraction::new(
                 once(public_values.global_finalize_count.into())
-                    .chain(public_values.last_finalize_addr_word.into_iter().map(Into::into))
+                    .chain(public_values.last_finalize_addr.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
                 AB::Expr::one(),
                 InteractionKind::MemoryGlobalFinalizeControl,
+            ),
+            InteractionScope::Local,
+        );
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_global_page_prot_init<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        builder.assert_bool(public_values.is_page_protect_active.into());
+        builder.send(
+            AirInteraction::new(
+                once(AB::Expr::zero())
+                    .chain(public_values.previous_init_page_idx.into_iter().map(Into::into))
+                    .chain(once(AB::Expr::one()))
+                    .collect(),
+                public_values.is_page_protect_active.into(),
+                InteractionKind::PageProtGlobalInitControl,
+            ),
+            InteractionScope::Local,
+        );
+        builder.receive(
+            AirInteraction::new(
+                once(public_values.global_page_prot_init_count.into())
+                    .chain(public_values.last_init_page_idx.into_iter().map(Into::into))
+                    .chain(once(AB::Expr::one()))
+                    .collect(),
+                public_values.is_page_protect_active.into(),
+                InteractionKind::PageProtGlobalInitControl,
+            ),
+            InteractionScope::Local,
+        );
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_global_page_prot_finalize<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        builder.assert_bool(public_values.is_page_protect_active.into());
+        builder.send(
+            AirInteraction::new(
+                once(AB::Expr::zero())
+                    .chain(public_values.previous_finalize_page_idx.into_iter().map(Into::into))
+                    .chain(once(AB::Expr::one()))
+                    .collect(),
+                public_values.is_page_protect_active.into(),
+                InteractionKind::PageProtGlobalFinalizeControl,
+            ),
+            InteractionScope::Local,
+        );
+        builder.receive(
+            AirInteraction::new(
+                once(public_values.global_page_prot_finalize_count.into())
+                    .chain(public_values.last_finalize_page_idx.into_iter().map(Into::into))
+                    .chain(once(AB::Expr::one()))
+                    .collect(),
+                public_values.is_page_protect_active.into(),
+                InteractionKind::PageProtGlobalFinalizeControl,
             ),
             InteractionScope::Local,
         );

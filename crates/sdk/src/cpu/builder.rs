@@ -5,25 +5,72 @@
 use std::sync::Arc;
 
 use powdr_autoprecompiles::Apc;
-use slop_baby_bear::BabyBear;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_primitives::SP1Field;
 
 use super::CpuProver;
+use sp1_core_executor::SP1CoreOpts;
 
 /// A builder for the [`CpuProver`].
 ///
 /// The builder is used to configure the [`CpuProver`] before it is built.
-#[derive(Default)]
 pub struct CpuProverBuilder {
-    apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>,
+    /// Optional core options to configure the prover.
+    core_opts: Option<SP1CoreOpts>,
+    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+}
+
+impl Default for CpuProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CpuProverBuilder {
+    /// Creates a new [`CpuProverBuilder`] with default settings.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { core_opts: None, apcs: Vec::new() }
+    }
+
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         self.apcs = apcs;
         self
+    }
+
+    /// Sets the core options for the prover.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_core_executor::SP1CoreOpts;
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let mut opts = SP1CoreOpts::default();
+    /// opts.page_protect = true;
+    /// let prover = ProverClient::builder().cpu().core_opts(opts).build().await;
+    /// ```
+    #[must_use]
+    pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
+        self.core_opts = Some(opts);
+        self
+    }
+
+    /// Sets the core options for the prover (alias for `core_opts`).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_core_executor::SP1CoreOpts;
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let mut opts = SP1CoreOpts::default();
+    /// opts.page_protect = true;
+    /// let prover = ProverClient::builder().cpu().with_opts(opts).build().await;
+    /// ```
+    #[must_use]
+    pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
+        self.core_opts(opts)
     }
 
     /// Builds a [`CpuProver`].
@@ -36,7 +83,7 @@ impl CpuProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().mock().build();
+    /// let prover = ProverClient::builder().cpu().build().await;
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {

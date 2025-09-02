@@ -239,7 +239,7 @@ dependencies = [
  "num",
  "rand 0.8.5",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -319,7 +319,7 @@ dependencies = [
 name = "bls-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -329,14 +329,14 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "bls12381-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -345,7 +345,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -354,7 +354,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -363,7 +363,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -372,7 +372,7 @@ version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -382,14 +382,14 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "bn254-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -398,7 +398,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -407,7 +407,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -416,7 +416,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -425,7 +425,7 @@ version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -588,16 +588,15 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
- "anyhow",
  "cfg-if",
  "cpufeatures",
  "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 3.4.0",
+ "sp1-lib 6.0.0",
  "subtle",
  "zeroize",
 ]
@@ -605,7 +604,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -632,7 +631,7 @@ name = "cycle-tracker-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -877,7 +876,7 @@ dependencies = [
 name = "ed-add-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -885,7 +884,7 @@ name = "ed-decompress-test"
 version = "1.1.0"
 dependencies = [
  "hex-literal",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -913,7 +912,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
@@ -929,7 +928,7 @@ version = "1.1.0"
 dependencies = [
  "ed25519-dalek",
  "hex-literal",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1023,7 +1022,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "fibonacci-program-tests"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1206,7 +1205,7 @@ dependencies = [
 name = "hello-world-program"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1225,7 +1224,7 @@ checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 name = "hint-io-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1398,14 +1397,14 @@ dependencies = [
 name = "keccak-permute-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "keccak256-software-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1413,8 +1412,8 @@ dependencies = [
 name = "keccak256-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0)",
+ "sp1-zkvm",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2)",
 ]
 
 [[package]]
@@ -1584,23 +1583,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-baby-bear"
-version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
-dependencies = [
- "num-bigint",
- "p3-field",
- "p3-mds",
- "p3-poseidon2",
- "p3-symmetric",
- "rand 0.8.5",
- "serde",
-]
-
-[[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1612,7 +1597,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint",
@@ -1623,9 +1608,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-koala-bear"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
+dependencies = [
+ "num-bigint",
+ "p3-field",
+ "p3-mds",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "rand 0.8.5",
+ "serde",
+]
+
+[[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1639,12 +1638,12 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1658,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "gcd",
  "p3-field",
@@ -1671,7 +1670,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1681,7 +1680,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "serde",
 ]
@@ -1690,7 +1689,7 @@ dependencies = [
 name = "panic-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1859,7 +1858,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.104",
@@ -1927,7 +1926,7 @@ name = "rand-test"
 version = "1.1.0"
 dependencies = [
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2192,21 +2191,21 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256k1-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256k1-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2214,7 +2213,7 @@ name = "secp256k1-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2228,14 +2227,14 @@ dependencies = [
  "p256",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256r1-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2249,7 +2248,7 @@ dependencies = [
  "p256",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2364,14 +2363,14 @@ dependencies = [
 name = "sha-compress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "sha-extend-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2414,7 +2413,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "sha2 0.10.6",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2456,24 +2455,28 @@ dependencies = [
 [[package]]
 name = "slop-algebra"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-field",
  "serde",
 ]
 
 [[package]]
-name = "slop-baby-bear"
+name = "slop-koala-bear"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
- "p3-baby-bear",
+ "lazy_static",
+ "p3-koala-bear",
+ "serde",
+ "slop-algebra",
+ "slop-poseidon2",
 ]
 
 [[package]]
 name = "slop-poseidon2"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-poseidon2",
 ]
@@ -2481,7 +2484,7 @@ dependencies = [
 [[package]]
 name = "slop-symmetric"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2557,13 +2560,13 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "slop-algebra",
- "slop-baby-bear",
+ "slop-koala-bear",
  "slop-poseidon2",
  "slop-symmetric",
 ]
 
 [[package]]
-name = "sp1-zkvm-64"
+name = "sp1-zkvm"
 version = "6.0.0"
 dependencies = [
  "cfg-if",
@@ -2574,7 +2577,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "slop-baby-bear",
+ "slop-koala-bear",
  "sp1-lib 6.0.0",
  "sp1-primitives",
 ]
@@ -2599,7 +2602,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2 0.9.8",
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "ssz_rs",
 ]
 
@@ -2737,7 +2740,7 @@ version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "tendermint",
  "tendermint-light-client-verifier",
 ]
@@ -2836,11 +2839,10 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
+source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.0.0",
 ]
 
 [[package]]
@@ -2906,7 +2908,7 @@ dependencies = [
  "num-bigint",
  "rand 0.8.5",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2933,7 +2935,7 @@ version = "1.1.0"
 dependencies = [
  "crypto-bigint",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2967,7 +2969,7 @@ dependencies = [
  "bytemuck",
  "hex",
  "sha2 0.10.9",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]

@@ -8,11 +8,11 @@ use itertools::Itertools;
 use slop_algebra::{AbstractExtensionField, AbstractField, Field, PrimeField64, TwoAdicField};
 #[cfg(feature = "debug")]
 use sp1_core_machine::utils::SpanBuilder;
+use sp1_hypercube::septic_curve::SepticCurve;
 use sp1_recursion_executor::{
     BaseAluInstr, BaseAluOpcode, Block, RecursionPublicValues, PERMUTATION_WIDTH,
     RECURSIVE_PROOF_NUM_PV_ELTS,
 };
-use sp1_stark::septic_curve::SepticCurve;
 use std::{
     borrow::{Borrow, Cow},
     collections::HashMap,
@@ -68,13 +68,13 @@ where
     pub fn read_vaddr_internal(&mut self, vaddr: usize, increment_mult: bool) -> Address<C::F> {
         use vec_map::Entry;
         match self.virtual_to_physical.entry(vaddr) {
-            Entry::Vacant(_) => panic!("expected entry: virtual_physical[{:?}]", vaddr),
+            Entry::Vacant(_) => panic!("expected entry: virtual_physical[{vaddr:?}]"),
             Entry::Occupied(entry) => {
                 if increment_mult {
                     // This is a read, so we increment the mult.
                     match self.addr_to_mult.get_mut(entry.get().as_usize()) {
                         Some(mult) => *mult += C::F::one(),
-                        None => panic!("expected entry: virtual_physical[{:?}]", vaddr),
+                        None => panic!("expected entry: virtual_physical[{vaddr:?}]"),
                     }
                 }
                 *entry.into_mut()
@@ -367,22 +367,6 @@ where
         })
     }
 
-    fn exp_reverse_bits(
-        &mut self,
-        dst: impl Reg<C>,
-        base: impl Reg<C>,
-        exp: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> Instruction<C::F> {
-        Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-            addrs: ExpReverseBitsIo {
-                result: dst.write(self),
-                base: base.read(self),
-                exp: exp.into_iter().map(|r| r.read(self)).collect(),
-            },
-            mult: C::F::zero(),
-        })
-    }
-
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<C>,
@@ -417,57 +401,6 @@ where
             input1_y_addrs: input1.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_x_addrs: input2.x.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_y_addrs: input2.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
-        }))
-    }
-
-    fn fri_fold(
-        &mut self,
-        CircuitV2FriFoldOutput { alpha_pow_output, ro_output }: CircuitV2FriFoldOutput<C>,
-        CircuitV2FriFoldInput {
-            z,
-            alpha,
-            x,
-            mat_opening,
-            ps_at_z,
-            alpha_pow_input,
-            ro_input,
-        }: CircuitV2FriFoldInput<C>,
-    ) -> Instruction<C::F> {
-        Instruction::FriFold(Box::new(FriFoldInstr {
-            // Calculate before moving the vecs.
-            alpha_pow_mults: vec![C::F::zero(); alpha_pow_output.len()],
-            ro_mults: vec![C::F::zero(); ro_output.len()],
-
-            base_single_addrs: FriFoldBaseIo { x: x.read(self) },
-            ext_single_addrs: FriFoldExtSingleIo { z: z.read(self), alpha: alpha.read(self) },
-            ext_vec_addrs: FriFoldExtVecIo {
-                mat_opening: mat_opening.into_iter().map(|e| e.read(self)).collect(),
-                ps_at_z: ps_at_z.into_iter().map(|e| e.read(self)).collect(),
-                alpha_pow_input: alpha_pow_input.into_iter().map(|e| e.read(self)).collect(),
-                ro_input: ro_input.into_iter().map(|e| e.read(self)).collect(),
-                alpha_pow_output: alpha_pow_output.into_iter().map(|e| e.write(self)).collect(),
-                ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
-            },
-        }))
-    }
-
-    fn batch_fri(
-        &mut self,
-        acc: Ext<C::F, C::EF>,
-        alpha_pows: Vec<Ext<C::F, C::EF>>,
-        p_at_zs: Vec<Ext<C::F, C::EF>>,
-        p_at_xs: Vec<Felt<C::F>>,
-    ) -> Instruction<C::F> {
-        Instruction::BatchFRI(Box::new(BatchFRIInstr {
-            base_vec_addrs: BatchFRIBaseVecIo {
-                p_at_x: p_at_xs.into_iter().map(|e| e.read(self)).collect(),
-            },
-            ext_single_addrs: BatchFRIExtSingleIo { acc: acc.write(self) },
-            ext_vec_addrs: BatchFRIExtVecIo {
-                p_at_z: p_at_zs.into_iter().map(|e| e.read(self)).collect(),
-                alpha_pow: alpha_pows.into_iter().map(|e| e.read(self)).collect(),
-            },
-            acc_mult: C::F::zero(),
         }))
     }
 
@@ -655,17 +588,12 @@ where
             DslIr::Poseidon2ExternalSBOX(dst, src) => f(self.poseidon2_external_sbox(dst, src)),
             DslIr::Poseidon2InternalSBOX(dst, src) => f(self.poseidon2_internal_sbox(dst, src)),
 
-            DslIr::CircuitV2Poseidon2PermuteBabyBear(data) => {
+            DslIr::CircuitV2Poseidon2PermuteKoalaBear(data) => {
                 f(self.poseidon2_permute(data.0, data.1))
-            }
-            DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
-                f(self.exp_reverse_bits(dst, base, exp))
             }
             DslIr::CircuitV2HintBitsF(output, value) => {
                 f(self.hint_bit_decomposition(value, output))
             }
-            DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
-            DslIr::CircuitV2BatchFRI(data) => f(self.batch_fri(data.0, data.1, data.2, data.3)),
             DslIr::CircuitV2PrefixSumChecks(data) => {
                 f(self.prefix_sum_checks(data.0, data.1, data.2, data.3, data.4, data.5))
             }
@@ -801,10 +729,8 @@ where
                     }
                 }
                 Instruction::Poseidon2(instr) => {
-                    let Poseidon2SkinnyInstr {
-                        addrs: Poseidon2Io { output: ref addrs, .. },
-                        mults,
-                    } = instr.as_mut();
+                    let Poseidon2Instr { addrs: Poseidon2Io { output: ref addrs, .. }, mults } =
+                        instr.as_mut();
                     mults.iter_mut().zip(addrs).for_each(&mut backfill);
                 }
                 Instruction::Poseidon2LinearLayer(instr) => {
@@ -830,32 +756,9 @@ where
                     backfill((mult1, addr1));
                     backfill((mult2, addr2));
                 }
-                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                    addrs: ExpReverseBitsIo { result: ref addr, .. },
-                    mult,
-                }) => backfill((mult, addr)),
                 Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
                 | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
                     output_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
-                }
-                Instruction::FriFold(instr) => {
-                    let FriFoldInstr {
-                        ext_vec_addrs: FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
-                        alpha_pow_mults,
-                        ro_mults,
-                        ..
-                    } = instr.as_mut();
-                    // Using `.chain` seems to be less performant.
-                    alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
-                    ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
-                }
-                Instruction::BatchFRI(instr) => {
-                    let BatchFRIInstr {
-                        ext_single_addrs: BatchFRIExtSingleIo { ref acc },
-                        acc_mult,
-                        ..
-                    } = instr.as_mut();
-                    backfill((acc_mult, acc));
                 }
                 Instruction::PrefixSumChecks(instr) => {
                     let PrefixSumChecksInstr {
@@ -968,10 +871,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::Poseidon2LinearLayer(_) => "Poseidon2LinearLayer",
         Instruction::Poseidon2SBox(_) => "Poseidon2SBox",
         Instruction::Select(_) => "Select",
-        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
-        Instruction::FriFold(_) => "FriFold",
-        Instruction::BatchFRI(_) => "BatchFRI",
         Instruction::PrefixSumChecks(_) => "PrefixSumChecks",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
@@ -1132,9 +1032,9 @@ mod tests {
 
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::extension::BinomialExtensionField;
-    use slop_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use slop_merkle_tree::my_bb_16_perm;
     use slop_symmetric::Permutation;
+    use sp1_hypercube::inner_perm;
+    use sp1_primitives::{SP1DiffusionMatrix, SP1Field};
 
     // use sp1_core_machine::utils::{run_test_machine};
     use slop_algebra::PrimeField32;
@@ -1145,14 +1045,13 @@ mod tests {
 
     use super::*;
 
-    // type SC = BabyBearPoseidon2;
-    type F = BabyBear;
-    type EF = BinomialExtensionField<BabyBear, 4>;
+    // type SC = SP1CoreJaggedConfig;
+    type F = SP1Field;
+    type EF = BinomialExtensionField<SP1Field, 4>;
     // type EF = <SC as StarkGenericConfig>::Challenge;
     fn test_block(block: DslIrBlock<AsmConfig<F, EF>>) {
         test_block_with_runner(block, |program| {
-            let mut runtime =
-                Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program, my_bb_16_perm());
+            let mut runtime = Runtime::<F, EF, SP1DiffusionMatrix>::new(program, inner_perm());
             runtime.run().unwrap();
             runtime.record
         });
@@ -1168,7 +1067,7 @@ mod tests {
 
         // Run with the poseidon2 wide chip.
         // let wide_machine =
-        //     RecursionAir::<_, 3>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
+        //     RecursionAir::<_, 3>::machine_wide_with_all_chips(SP1CoreJaggedConfig::default());
         // let (pk, vk) = wide_machine.setup(&program);
         // let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
         // if let Err(e) = result {
@@ -1177,7 +1076,7 @@ mod tests {
 
         // Run with the poseidon2 skinny chip.
         // let skinny_machine = RecursionAir::<_, 9>::machine_skinny_with_all_chips(
-        //     BabyBearPoseidon2::ultra_compressed(),
+        //     SP1CoreJaggedConfig::ultra_compressed(),
         // );
         // let (pk, vk) = skinny_machine.setup(&program);
         // let result = run_test_machine(vec![record.clone()], skinny_machine, pk, vk);
@@ -1195,103 +1094,13 @@ mod tests {
             .sample_iter::<[F; PERMUTATION_WIDTH], _>(rand::distributions::Standard);
         for _ in 0..100 {
             let input_1: [F; PERMUTATION_WIDTH] = rng.next().unwrap();
-            let output_1 = my_bb_16_perm().permute(input_1);
+            let output_1 = inner_perm().permute(input_1);
 
             let input_1_felts = input_1.map(|x| builder.eval(x));
             let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
             let expected: [Felt<_>; PERMUTATION_WIDTH] = output_1.map(|x| builder.eval(x));
             for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
                 builder.assert_felt_eq(lhs, rhs);
-            }
-        }
-
-        test_block(builder.into_root_block());
-    }
-
-    #[test]
-    fn test_exp_reverse_bits() {
-        setup_logger();
-
-        let mut builder = AsmBuilder::<F, EF>::default();
-        let mut rng =
-            StdRng::seed_from_u64(0xEC0BEEF).sample_iter::<F, _>(rand::distributions::Standard);
-        for _ in 0..100 {
-            let power_f = rng.next().unwrap();
-            let power = power_f.as_canonical_u32();
-            let power_bits = (0..NUM_BITS).map(|i| (power >> i) & 1).collect::<Vec<_>>();
-
-            let input_felt = builder.eval(power_f);
-            let power_bits_felt = builder.num2bits_v2_f(input_felt, NUM_BITS);
-
-            let base = rng.next().unwrap();
-            let base_felt = builder.eval(base);
-            let result_felt = builder.exp_reverse_bits_v2(base_felt, power_bits_felt);
-
-            let expected = power_bits
-                .into_iter()
-                .rev()
-                .zip(std::iter::successors(Some(base), |x| Some(x.square())))
-                .map(|(bit, base_pow)| match bit {
-                    0 => F::one(),
-                    1 => base_pow,
-                    _ => panic!("not a bit: {bit}"),
-                })
-                .product::<F>();
-            let expected_felt: Felt<_> = builder.eval(expected);
-            builder.assert_felt_eq(result_felt, expected_felt);
-        }
-        test_block(builder.into_root_block());
-    }
-
-    #[test]
-    fn test_fri_fold() {
-        setup_logger();
-
-        let mut builder = AsmBuilder::<F, EF>::default();
-
-        let mut rng = StdRng::seed_from_u64(0xFEB29).sample_iter(rand::distributions::Standard);
-        let mut random_felt = move || -> F { rng.next().unwrap() };
-        let mut rng =
-            StdRng::seed_from_u64(0x0451).sample_iter::<[F; 4], _>(rand::distributions::Standard);
-        let mut random_ext = move || EF::from_base_slice(&rng.next().unwrap());
-
-        for i in 2..17 {
-            // Generate random values for the inputs.
-            let x = random_felt();
-            let z = random_ext();
-            let alpha = random_ext();
-
-            let alpha_pow_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
-            let ro_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
-
-            let ps_at_z = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
-            let mat_opening = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
-
-            // Compute the outputs from the inputs.
-            let alpha_pow_output = (0..i).map(|i| alpha_pow_input[i] * alpha).collect::<Vec<EF>>();
-            let ro_output = (0..i)
-                .map(|i| {
-                    ro_input[i] + alpha_pow_input[i] * (-ps_at_z[i] + mat_opening[i]) / (-z + x)
-                })
-                .collect::<Vec<EF>>();
-
-            // Compute inputs and outputs through the builder.
-            let input_vars = CircuitV2FriFoldInput {
-                z: builder.eval(z.cons()),
-                alpha: builder.eval(alpha.cons()),
-                x: builder.eval(x),
-                mat_opening: mat_opening.iter().map(|e| builder.eval(e.cons())).collect(),
-                ps_at_z: ps_at_z.iter().map(|e| builder.eval(e.cons())).collect(),
-                alpha_pow_input: alpha_pow_input.iter().map(|e| builder.eval(e.cons())).collect(),
-                ro_input: ro_input.iter().map(|e| builder.eval(e.cons())).collect(),
-            };
-
-            let output_vars = builder.fri_fold_v2(input_vars);
-            for (lhs, rhs) in std::iter::zip(output_vars.alpha_pow_output, alpha_pow_output) {
-                builder.assert_ext_eq(lhs, rhs.cons());
-            }
-            for (lhs, rhs) in std::iter::zip(output_vars.ro_output, ro_output) {
-                builder.assert_ext_eq(lhs, rhs.cons());
             }
         }
 
@@ -1310,7 +1119,7 @@ mod tests {
             let input = input_f.as_canonical_u32();
             let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();
 
-            let input_felt = builder.eval(input_f);
+            let input_felt: Felt<_> = builder.eval(input_f);
             let output_felts = builder.num2bits_v2_f(input_felt, NUM_BITS);
             let expected: Vec<Felt<_>> =
                 output.into_iter().map(|x| builder.eval(F::from_canonical_u32(x))).collect();
@@ -1361,15 +1170,14 @@ mod tests {
         builder.cycle_tracker_v2_exit();
 
         test_block_with_runner(builder.into_root_block(), |program| {
-            let mut runtime =
-                Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program, my_bb_16_perm());
+            let mut runtime = Runtime::<F, EF, SP1DiffusionMatrix>::new(program, inner_perm());
             runtime.debug_stdout = Box::new(&mut buf);
             runtime.run().unwrap();
             runtime.record
         });
 
-        let input_str_fs = input_fs.into_iter().map(|elt| format!("{}", elt));
-        let input_str_efs = input_efs.into_iter().map(|elt| format!("{:?}", elt));
+        let input_str_fs = input_fs.into_iter().map(|elt| format!("{elt}"));
+        let input_str_efs = input_efs.into_iter().map(|elt| format!("{elt:?}"));
         let input_strs = input_str_fs.chain(input_str_efs);
 
         for (input_str, line) in zip(input_strs, buf.lines()) {

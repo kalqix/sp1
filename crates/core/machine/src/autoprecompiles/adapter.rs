@@ -8,13 +8,13 @@ use crate::autoprecompiles::{
 use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_baby_bear::BabyBear;
+use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
 
 impl Adapter for Sp1ApcAdapter {
-    type Field = BabyBear;
-    type PowdrField = powdr_number::BabyBearField;
+    type Field = SP1Field;
+    type PowdrField = powdr_number::KoalaBearField;
     type InstructionHandler = Sp1InstructionHandler<Self::Field>;
     type BusInteractionHandler = Sp1BusInteractionHandler;
     type Program = Sp1Program;
@@ -24,7 +24,7 @@ impl Adapter for Sp1ApcAdapter {
     type ApcStats = EvaluationResult;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
-        BabyBear::from_canonical_u32(e.to_integer().try_into_u32().unwrap())
+        Self::Field::from_canonical_u32(e.to_integer().try_into_u32().unwrap())
     }
 
     fn from_field(e: Self::Field) -> Self::PowdrField {

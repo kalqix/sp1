@@ -14,10 +14,10 @@
 pub mod build;
 pub mod components;
 // pub mod gas; // TODO reimplement gas
-mod core;
+pub mod core;
 pub mod error;
 pub mod local;
-mod recursion;
+pub mod recursion;
 pub mod shapes;
 mod types;
 pub mod utils;
@@ -27,26 +27,25 @@ use core::SP1CoreProver;
 pub use recursion::SP1RecursionProver;
 use shapes::{SP1NormalizeInputShape, DEFAULT_ARITY};
 use slop_air::Air;
+use slop_jagged::JaggedConfig;
 use slop_uni_stark::SymbolicAirBuilder;
 use sp1_core_executor::Program;
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-use sp1_recursion_compiler::config::InnerConfig;
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
-use slop_baby_bear::BabyBear;
-
-use sp1_recursion_executor::RecursionProgram;
-use sp1_stark::{
+use sp1_hypercube::{
     air::MachineAir,
     prover::{
-        CpuShardProver, CpuShardProverComponents, MachineProverBuilder, ProverSemaphore,
-        ShardProver,
+        CpuShardProver, CpuShardProverComponents, MachineProverBuilder, MachineProverComponents,
+        ProverSemaphore, ShardProver,
     },
-    ConstraintSumcheckFolder, Machine,
+    ConstraintSumcheckFolder, Machine, SP1CpuJaggedProverComponents,
 };
+use sp1_recursion_executor::RecursionProgram;
 
-use slop_jagged::{Bn254JaggedConfig, JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents};
-use sp1_stark::{prover::MachineProverComponents, BabyBearPoseidon2};
+use sp1_hypercube::{SP1CoreJaggedConfig, SP1OuterConfig};
+use sp1_primitives::SP1Field;
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
+use sp1_recursion_compiler::config::InnerConfig;
 
 pub use types::*;
 
@@ -60,19 +59,18 @@ pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
 pub const SP1_CIRCUIT_VERSION: &str = include_str!("../SP1_VERSION");
 
 /// The configuration for the core prover.
-pub type CoreSC = BabyBearPoseidon2;
+pub type CoreSC = SP1CoreJaggedConfig;
 pub const CORE_LOG_BLOWUP: usize = 1;
 
 /// The configuration for the inner prover.
-pub type InnerSC = BabyBearPoseidon2;
-pub const COMPRESS_LOG_BLOWUP: usize = 1;
+pub type InnerSC = SP1CoreJaggedConfig;
 
 /// The configuration for the outer prover.
-pub type OuterSC = Bn254JaggedConfig;
+pub type OuterSC = SP1OuterConfig;
 
 // pub type DeviceProvingKey<C> = <<C as SP1ProverComponents>::CoreProver as MachineProver<
-//     BabyBearPoseidon2,
-//     RiscvAir<BabyBear>,
+//     SP1CoreJaggedConfig,
+//     RiscvAir<SP1Field>,
 // >>::DeviceProvingKey;
 use sp1_recursion_machine::RecursionAir;
 
@@ -93,6 +91,7 @@ pub struct SP1Prover<C: SP1ProverComponents> {
     core_prover: SP1CoreProver<C::CoreComponents>,
     recursion_prover: SP1RecursionProver<C>,
 }
+
 pub struct SP1ProverBuilder<C: SP1ProverComponents> {
     core_prover_builder: MachineProverBuilder<C::CoreComponents>,
     compress_prover_builder: MachineProverBuilder<C::RecursionComponents>,
@@ -102,16 +101,17 @@ pub struct SP1ProverBuilder<C: SP1ProverComponents> {
     maximum_compose_arity: usize,
     normalize_programs: BTreeMap<
         SP1NormalizeInputShape<<C::CoreComponents as MachineProverComponents>::Air>,
-        Arc<RecursionProgram<BabyBear>>,
+        Arc<RecursionProgram<SP1Field>>,
     >,
     vk_verification: bool,
+    compute_recursion_vks_at_initialization: bool,
     vk_map_path: Option<String>,
 }
 
 impl<C: SP1ProverComponents> SP1ProverBuilder<C>
 where
     <C::CoreComponents as MachineProverComponents>::Air:
-        MachineAir<BabyBear> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
+        MachineAir<SP1Field> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new_multi_permits(
@@ -171,6 +171,7 @@ where
             normalize_programs: BTreeMap::new(),
             maximum_compose_arity: max_compose_arity,
             vk_verification: true,
+            compute_recursion_vks_at_initialization: true,
             vk_map_path: None,
         };
 
@@ -288,7 +289,7 @@ where
             SP1NormalizeInputShape<
                 <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
             >,
-            Arc<RecursionProgram<BabyBear>>,
+            Arc<RecursionProgram<SP1Field>>,
         >,
     ) -> &mut Self {
         self.normalize_programs = normalize_programs;
@@ -300,7 +301,7 @@ where
         shape: SP1NormalizeInputShape<
             <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air,
         >,
-        program: Arc<RecursionProgram<BabyBear>>,
+        program: Arc<RecursionProgram<SP1Field>>,
     ) -> &mut Self {
         self.normalize_programs.insert(shape, program);
         self
@@ -314,6 +315,11 @@ where
 
     pub fn with_vk_map_path(mut self, vk_map_path: String) -> Self {
         self.vk_map_path = Some(vk_map_path);
+        self
+    }
+
+    pub fn without_recursion_vks(mut self) -> Self {
+        self.compute_recursion_vks_at_initialization = false;
         self
     }
 
@@ -334,6 +340,7 @@ where
             normalize_programs,
             self.maximum_compose_arity,
             self.vk_verification,
+            self.compute_recursion_vks_at_initialization,
             self.vk_map_path.clone(),
         )
         .await;
@@ -369,7 +376,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 impl<C: SP1ProverComponents<RecursionComponents = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionComponents, WrapComponents = <CpuSP1ProverComponents as SP1ProverComponents>::WrapComponents>>
     SP1ProverBuilder<C>
 where
-    <C::CoreComponents as MachineProverComponents>::Air: fmt::Debug
+    <C::CoreComponents as MachineProverComponents>::Air: std::fmt::Debug
         + Air<SymbolicAirBuilder<<CoreSC as JaggedConfig>::F>>
         + for<'b> Air<
             ConstraintSumcheckFolder<
@@ -389,7 +396,7 @@ where
         <C as SP1ProverComponents>::CoreComponents: MachineProverComponents<
             Prover = ShardProver<
                 CpuShardProverComponents<
-                    Poseidon2BabyBearJaggedCpuProverComponents,
+                    SP1CpuJaggedProverComponents,
                     <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Air
                 >
             >

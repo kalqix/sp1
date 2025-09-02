@@ -10,8 +10,8 @@ use itertools::Itertools;
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{ExecutionRecord, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
-use sp1_stark::{
-    air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
+use sp1_hypercube::{
+    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
     Chip, Machine, MachineShape,
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
@@ -30,8 +30,11 @@ use crate::{
             store_byte::StoreByteChip, store_double::StoreDoubleChip, store_half::StoreHalfChip,
             store_word::StoreWordChip,
         },
-        MemoryBumpChip, MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
+        MemoryBumpChip, MemoryChipType, MemoryLocalChip, PageProtChip, PageProtGlobalChip,
+        PageProtLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW,
+        NUM_PAGE_PROT_ENTRIES_PER_ROW,
     },
+    program::{InstructionDecodeChip, InstructionFetchChip},
     range::RangeChip,
     syscall::{
         instructions::SyscallInstrsChip,
@@ -55,6 +58,7 @@ pub(crate) mod riscv_chips {
             precompiles::{
                 edwards::{EdAddAssignChip, EdDecompressChip},
                 keccak256::{KeccakPermuteChip, KeccakPermuteControlChip},
+                mprotect::MProtectChip,
                 poseidon2::Poseidon2Chip,
                 sha256::{
                     ShaCompressChip, ShaCompressControlChip, ShaExtendChip, ShaExtendControlChip,
@@ -94,6 +98,8 @@ pub const MAX_NUMBER_OF_SHARDS: usize = 1 << MAX_LOG_NUMBER_OF_SHARDS;
 pub enum RiscvAir<F: PrimeField32> {
     /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
+    InstructionDecode(InstructionDecodeChip),
+    InstructionFetch(InstructionFetchChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     // Cpu(CpuChip),
     /// An AIR for the RISC-V Add instruction.
@@ -154,10 +160,18 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryGlobalInit(MemoryGlobalChip),
     /// A table for finalizing the global memory state.
     MemoryGlobalFinal(MemoryGlobalChip),
+    /// A table for initializing the global page prot state.
+    PageProtGlobalInit(PageProtGlobalChip),
+    /// A table for finalizing the global page prot state.
+    PageProtGlobalFinal(PageProtGlobalChip),
     /// A table for the local memory state.
     MemoryLocal(MemoryLocalChip),
     /// A table for bumping memory timestamps.
     MemoryBump(MemoryBumpChip),
+    /// A table for page prot access.
+    PageProt(PageProtChip),
+    /// A table for page prot access.
+    PageProtLocal(PageProtLocalChip),
     /// A table for bumping the state timestamps.
     StateBump(StateBumpChip),
     /// A table for all the syscall invocations.
@@ -222,6 +236,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2Mul(Fp2MulAssignChip<Bn254BaseField>),
     /// A precompile for BN-254 fp2 addition/subtraction.
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
+    /// A precompile for mprotect syscalls.
+    Mprotect(MProtectChip),
     /// A precompile for Poseidon2 permutation.
     Poseidon2(Poseidon2Chip),
 }
@@ -231,7 +247,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 65] {
+    pub fn airs() -> [RiscvAir<F>; 72] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -275,6 +291,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Bls12381Decompress(
                 WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule(),
             ),
+            RiscvAir::Mprotect(MProtectChip::default()),
             RiscvAir::Poseidon2(Poseidon2Chip::new()),
             RiscvAir::SyscallCore(SyscallChip::core()),
             RiscvAir::SyscallPrecompile(SyscallChip::precompile()),
@@ -302,11 +319,17 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Branch(BranchChip::default()),
             RiscvAir::Jal(JalChip::default()),
             RiscvAir::Jalr(JalrChip::default()),
+            RiscvAir::InstructionDecode(InstructionDecodeChip::default()),
+            RiscvAir::InstructionFetch(InstructionFetchChip::default()),
             RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),
             RiscvAir::MemoryBump(MemoryBumpChip::new()),
+            RiscvAir::PageProt(PageProtChip::default()),
+            RiscvAir::PageProtLocal(PageProtLocalChip::default()),
             RiscvAir::StateBump(StateBumpChip::new()),
             RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
             RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+            RiscvAir::PageProtGlobalInit(PageProtGlobalChip::new(MemoryChipType::Initialize)),
+            RiscvAir::PageProtGlobalFinal(PageProtGlobalChip::new(MemoryChipType::Finalize)),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
@@ -340,8 +363,10 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster =
-            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+        let base_precompile_cluster = extend_base(
+            &preprocessed_chips,
+            [SyscallPrecompile, MemoryLocal, PageProtLocal, Global],
+        );
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -369,6 +394,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Bn254Fp2AddSub].as_slice(),
             [Bn254Fp2Mul].as_slice(),
             [Bls12381Decompress].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ]
         .into_iter()
@@ -404,22 +430,30 @@ impl<F: PrimeField32> RiscvAir<F> {
                 Jalr,
                 SyscallInstrs,
                 MemoryBump,
+                PageProt,
+                PageProtLocal,
                 StateBump,
                 MemoryLocal,
                 Global,
+                InstructionDecode,
+                InstructionFetch,
             ],
         );
 
-        let memory_boundary_cluster =
-            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+        let memory_boundary_cluster = extend_base(
+            &preprocessed_chips,
+            [MemoryGlobalInit, MemoryGlobalFinal, Global, PageProtGlobalInit, PageProtGlobalFinal],
+        );
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
+            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
+                .as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
             [Uint256Ops].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ];
 
@@ -440,6 +474,8 @@ impl<F: PrimeField32> RiscvAir<F> {
                 [
                     MemoryGlobalInit,
                     MemoryGlobalFinal,
+                    PageProtGlobalInit,
+                    PageProtGlobalFinal,
                     Sha256Extend,
                     Sha256ExtendControl,
                     Sha256Compress,
@@ -484,6 +520,16 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         // The order of the chips is used to determine the order of trace generation.
         let mut chips = vec![];
+
+        let instruction_decode =
+            Chip::new(RiscvAir::InstructionDecode(InstructionDecodeChip::default()));
+        costs.insert(instruction_decode.name(), instruction_decode.cost());
+        chips.push(instruction_decode);
+
+        let instruction_fetch =
+            Chip::new(RiscvAir::InstructionFetch(InstructionFetchChip::default()));
+        costs.insert(instruction_fetch.name(), instruction_fetch.cost());
+        chips.push(instruction_fetch);
 
         let program = Chip::new(RiscvAir::Program(ProgramChip::default()));
         costs.insert(program.name(), program.cost());
@@ -636,6 +682,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(bls12381_decompress.name(), bls12381_decompress.cost());
         chips.push(bls12381_decompress);
 
+        let mprotect = Chip::new(RiscvAir::Mprotect(MProtectChip::default()));
+        costs.insert(mprotect.name(), mprotect.cost());
+        chips.push(mprotect);
+
         let syscall_core = Chip::new(RiscvAir::SyscallCore(SyscallChip::core()));
         costs.insert(syscall_core.name(), syscall_core.cost());
         chips.push(syscall_core);
@@ -748,6 +798,14 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(memory_bump.name(), memory_bump.cost());
         chips.push(memory_bump);
 
+        let page_prot = Chip::new(RiscvAir::PageProt(PageProtChip::default()));
+        costs.insert(page_prot.name(), page_prot.cost());
+        chips.push(page_prot);
+
+        let page_prot_local = Chip::new(RiscvAir::PageProtLocal(PageProtLocalChip::default()));
+        costs.insert(page_prot_local.name(), page_prot_local.cost());
+        chips.push(page_prot_local);
+
         let state_bump = Chip::new(RiscvAir::StateBump(StateBumpChip::new()));
         costs.insert(state_bump.name(), state_bump.cost());
         chips.push(state_bump);
@@ -762,6 +820,18 @@ impl<F: PrimeField32> RiscvAir<F> {
             Chip::new(RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)));
         costs.insert(memory_global_finalize.name(), memory_global_finalize.cost());
         chips.push(memory_global_finalize);
+
+        let page_prot_global_init = Chip::new(RiscvAir::PageProtGlobalInit(
+            PageProtGlobalChip::new(MemoryChipType::Initialize),
+        ));
+        costs.insert(page_prot_global_init.name(), page_prot_global_init.cost());
+        chips.push(page_prot_global_init);
+
+        let page_prot_global_finalize = Chip::new(RiscvAir::PageProtGlobalFinal(
+            PageProtGlobalChip::new(MemoryChipType::Finalize),
+        ));
+        costs.insert(page_prot_global_finalize.name(), page_prot_global_finalize.cost());
+        chips.push(page_prot_global_finalize);
 
         let memory_local = Chip::new(RiscvAir::MemoryLocal(MemoryLocalChip::new()));
         costs.insert(memory_local.name(), memory_local.cost());
@@ -811,6 +881,27 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .count(),
             ),
             (RiscvAirId::MemoryBump, record.bump_memory_events.len()),
+            (
+                RiscvAirId::PageProt,
+                (record.memory_load_byte_events.len()
+                    + record.memory_store_byte_events.len()
+                    + record.memory_load_word_events.len()
+                    + record.memory_store_word_events.len()
+                    + record.memory_load_double_events.len()
+                    + record.memory_store_double_events.len()
+                    + record.memory_load_half_events.len()
+                    + record.memory_store_half_events.len()
+                    + record.memory_load_x0_events.len())
+                .div_ceil(NUM_PAGE_PROT_ENTRIES_PER_ROW),
+            ),
+            (
+                RiscvAirId::PageProtLocal,
+                record
+                    .get_local_page_prot_events()
+                    .chunks(NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW)
+                    .into_iter()
+                    .count(),
+            ),
             (RiscvAirId::StateBump, record.bump_state_events.len()),
             (RiscvAirId::LoadByte, record.memory_load_byte_events.len()),
             (RiscvAirId::LoadHalf, record.memory_load_half_events.len()),
@@ -828,6 +919,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAirId::Global, record.global_interaction_events.len()),
             (RiscvAirId::SyscallCore, record.syscall_events.len()),
             (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
+            (RiscvAirId::InstructionDecode, record.instruction_fetch_events.len()),
+            (RiscvAirId::InstructionFetch, record.instruction_fetch_events.len()),
         ]
     }
 }
@@ -856,6 +949,8 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
     fn from(value: RiscvAirDiscriminants) -> Self {
         match value {
             RiscvAirDiscriminants::Program => RiscvAirId::Program,
+            RiscvAirDiscriminants::InstructionDecode => RiscvAirId::InstructionDecode,
+            RiscvAirDiscriminants::InstructionFetch => RiscvAirId::InstructionFetch,
             RiscvAirDiscriminants::Add => RiscvAirId::Add,
             RiscvAirDiscriminants::Addw => RiscvAirId::Addw,
             RiscvAirDiscriminants::Addi => RiscvAirId::Addi,
@@ -878,6 +973,8 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::StoreDouble => RiscvAirId::StoreDouble,
             RiscvAirDiscriminants::RangeLookup => RiscvAirId::Range,
             RiscvAirDiscriminants::MemoryBump => RiscvAirId::MemoryBump,
+            RiscvAirDiscriminants::PageProt => RiscvAirId::PageProt,
+            RiscvAirDiscriminants::PageProtLocal => RiscvAirId::PageProtLocal,
             RiscvAirDiscriminants::StateBump => RiscvAirId::StateBump,
             RiscvAirDiscriminants::UType => RiscvAirId::UType,
             RiscvAirDiscriminants::Branch => RiscvAirId::Branch,
@@ -887,6 +984,8 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::ByteLookup => RiscvAirId::Byte,
             RiscvAirDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
             RiscvAirDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
+            RiscvAirDiscriminants::PageProtGlobalInit => RiscvAirId::PageProtGlobalInit,
+            RiscvAirDiscriminants::PageProtGlobalFinal => RiscvAirId::PageProtGlobalFinalize,
             RiscvAirDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
             RiscvAirDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
             RiscvAirDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
@@ -919,6 +1018,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Sha256ExtendControl => RiscvAirId::ShaExtendControl,
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
+            RiscvAirDiscriminants::Mprotect => RiscvAirId::Mprotect,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
         }
     }
@@ -993,8 +1093,10 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster =
-            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+        let base_precompile_cluster = extend_base(
+            &preprocessed_chips,
+            [SyscallPrecompile, MemoryLocal, PageProtLocal, Global],
+        );
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -1022,6 +1124,7 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
             [Bn254Fp2AddSub].as_slice(),
             [Bn254Fp2Mul].as_slice(),
             [Bls12381Decompress].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ]
         .into_iter()
@@ -1057,9 +1160,13 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 Jalr,
                 SyscallInstrs,
                 MemoryBump,
+                PageProt,
+                PageProtLocal,
                 StateBump,
                 MemoryLocal,
                 Global,
+                InstructionDecode,
+                InstructionFetch,
             ],
         )
         .into_iter()
@@ -1067,16 +1174,20 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
         .chain((0..apcs_len).map(|i| RiscvAirWithApcDiscriminants::Apc(i as u64)))
         .collect::<BTreeSet<_>>();
 
-        let memory_boundary_cluster =
-            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+        let memory_boundary_cluster = extend_base(
+            &preprocessed_chips,
+            [MemoryGlobalInit, MemoryGlobalFinal, Global, PageProtGlobalInit, PageProtGlobalFinal],
+        );
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
+            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
+                .as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
             [Uint256Ops].as_slice(),
+            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ];
 
@@ -1113,6 +1224,8 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 [
                     MemoryGlobalInit,
                     MemoryGlobalFinal,
+                    PageProtGlobalInit,
+                    PageProtGlobalFinal,
                     Sha256Extend,
                     Sha256ExtendControl,
                     Sha256Compress,
@@ -1142,9 +1255,13 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 #[cfg(test)]
 pub mod tests {
 
+    use std::sync::Arc;
+
     use slop_air::BaseAir;
-    use slop_baby_bear::BabyBear;
+
     use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_primitives::SP1Field;
+
     use sp1_primitives::io::SP1PublicValues;
 
     use crate::{
@@ -1154,11 +1271,11 @@ pub mod tests {
         utils::setup_logger,
     };
     use sp1_core_executor::add_halt;
-    use sp1_stark::{BabyBearPoseidon2, InteractionKind, MachineVerifierConfigError};
-    //     use slop_baby_bear::BabyBear;
+    use sp1_hypercube::{InteractionKind, MachineVerifierConfigError, SP1CoreJaggedConfig};
+    //     use sp1_primitives::SP1Field;
     //     use sp1_core_executor::{Instruction, Opcode, Program, SP1Context};
-    //     use sp1_stark::{
-    //         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
+    //     use sp1_hypercube::{
+    //         koala_bear_poseidon2::SP1CoreJaggedConfig, CpuProver, MachineProver, SP1CoreOpts,
     //         StarkProvingKey, StarkVerifyingKey,
     //     };
 
@@ -1166,26 +1283,26 @@ pub mod tests {
     // first_row, last_row.
     // #[test]
     // fn test_primitives_and_machine_air_names_match() {
-    //     let chips = RiscvAir::<BabyBear>::chips();
+    //     let chips = RiscvAir::<SP1Field>::chips();
     //     for (a, b) in chips.iter().zip_eq(RiscvAirId::iter()) {
     //         assert_eq!(a.name(), b.to_string());
     //     }
     // }
 
     async fn run_test(
-        program: Program,
+        program: Arc<Program>,
         stdin: SP1Stdin,
-    ) -> Result<SP1PublicValues, MachineVerifierConfigError<BabyBearPoseidon2>> {
+    ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
         crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
     }
 
     async fn run_test_with_opts(
-        program: Program,
+        program: Arc<Program>,
         stdin: SP1Stdin,
         opts: sp1_core_executor::SP1CoreOpts,
     ) -> Result<
-        (SP1PublicValues, sp1_stark::MachineProof<BabyBearPoseidon2>),
-        MachineVerifierConfigError<BabyBearPoseidon2>,
+        (SP1PublicValues, sp1_hypercube::MachineProof<SP1CoreJaggedConfig>),
+        MachineVerifierConfigError<SP1CoreJaggedConfig>,
     > {
         crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
     }
@@ -1194,24 +1311,23 @@ pub mod tests {
     #[test]
     fn core_air_cost_consistency() {
         // Load air costs from file
-        let file = std::fs::File::open("../executor/src/artifacts/rv32im_costs.json").unwrap();
+        let file = std::fs::File::open("../executor/src/artifacts/rv64im_costs.json").unwrap();
         let costs: HashMap<String, u64> = serde_json::from_reader(file).unwrap();
         // Compare with costs computed by machine
-        let machine_costs = RiscvAir::<BabyBear>::costs();
+        let machine_costs = RiscvAir::<SP1Field>::costs();
         assert_eq!(costs, machine_costs);
     }
     #[test]
-    #[ignore]
-    #[allow(clippy::ignore_without_reason)]
+    #[ignore = "should only be used to generate the artifact"]
     fn write_core_air_costs() {
-        let costs = RiscvAir::<BabyBear>::costs();
+        let costs = RiscvAir::<SP1Field>::costs();
         // write to file
         // Create directory if it doesn't exist
         let dir = std::path::Path::new("../executor/src/artifacts");
         if !dir.exists() {
             std::fs::create_dir_all(dir).unwrap();
         }
-        let file = std::fs::File::create(dir.join("rv32im_costs.json")).unwrap();
+        let file = std::fs::File::create(dir.join("rv64im_costs.json")).unwrap();
         serde_json::to_writer_pretty(file, &costs).unwrap();
     }
 
@@ -1222,7 +1338,7 @@ pub mod tests {
         setup_logger();
         let program = simple_program();
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1277,7 +1393,7 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1291,7 +1407,7 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1305,7 +1421,7 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1333,9 +1449,9 @@ pub mod tests {
         // checks for segmentation.
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        let (_, proofs) = run_test_with_opts(program, stdin, opts).await.unwrap();
+        let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
         // Number of segments
-        assert!(proofs.shard_proofs.len() == 3);
+        assert_eq!(proofs.shard_proofs.len(), 2);
     }
 
     #[tokio::test]
@@ -1359,9 +1475,13 @@ pub mod tests {
         let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
         let program = program.with_apcs(apc_range_and_costs);
         let stdin = SP1Stdin::new();
-        crate::utils::run_test_with_machine(program, stdin, RiscvAirWithApcs::machine(apcs))
-            .await
-            .unwrap();
+        crate::utils::run_test_with_machine(
+            Arc::new(program),
+            stdin,
+            RiscvAirWithApcs::machine(apcs),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1390,19 +1510,19 @@ pub mod tests {
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
         let (_, proofs) = crate::utils::run_test_with_machine_opts(
-            program,
+            Arc::new(program),
             stdin,
             RiscvAirWithApcs::machine(apcs),
             opts,
         )
         .await
         .unwrap();
-        assert!(proofs.shard_proofs.len() == 3);
+        assert_eq!(proofs.shard_proofs.len(), 2);
     }
 
     #[test]
     fn test_chips_main_width_interaction_ratio() {
-        let chips = RiscvAir::<BabyBear>::chips();
+        let chips = RiscvAir::<SP1Field>::chips();
         for chip in chips.iter() {
             let main_width = chip.air.width();
             for kind in InteractionKind::all_kinds() {
@@ -1450,7 +1570,7 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1466,7 +1586,7 @@ pub mod tests {
             add_halt(&mut instructions);
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test(program, stdin).await.unwrap();
+            run_test(Arc::new(program), stdin).await.unwrap();
         }
     }
 
@@ -1484,7 +1604,7 @@ pub mod tests {
             add_halt(&mut instructions);
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test(program, stdin).await.unwrap();
+            run_test(Arc::new(program), stdin).await.unwrap();
         }
     }
 
@@ -1501,40 +1621,55 @@ pub mod tests {
             Opcode::REMUW,
             Opcode::REMW,
         ];
-        let operands = [
-            (1, 1),
-            (123, 456 * 789),
-            (123 * 456, 789),
-            (0xffff * (0xffff - 1), 0xffff),
-            (u64::MAX - 5, u64::MAX - 7),
-            (u64::MAX - 5, 7),
-            (1 << 63, u64::MAX),
-            ((1 << 31) as u32 as u64, u32::MAX as i32 as i64 as u64),
-            (1, 0),
-            (0, 0),
-            (0xffffffffu32 as u64, 0xffffffffu32 as u64),
-            (0x80000000u32 as u64, 0x80000000u32 as u64),
-            (0x7fffffffu32 as u64, 0x7fffffffu32 as u64),
-            (0xffff0000, 0xffff0000),
-            (0x0000ffff, 0x0000ffff),
-            (i32::MIN as u64, 1u64),
-            (i32::MAX as u64, -1i32 as u64),
-            (u32::MAX as u64, u32::MAX as u64),
-            (0xffffffff, 2),
-            (0xffffffff, 3),
-        ];
+
+        let mut operands = Vec::<u64>::new();
+        for i in 0..5 {
+            operands.push(i);
+            operands.push(1 << i);
+            operands.push(u64::MAX - (1 << i) + 1);
+            operands.push(u64::MAX - i);
+            operands.push((1 << 16) - i);
+            operands.push((1 << 16) + i);
+            operands.push((1 << 31) - i);
+            operands.push((1 << 31) + i);
+            operands.push((1 << 63) - i);
+            operands.push((1 << 63) + i);
+            operands.push((1 << 32) - i);
+            operands.push((1 << 32) + i);
+            operands.push((i32::MIN as u64) - i);
+            operands.push((i32::MIN as u64) + i);
+        }
+        operands.append(&mut vec![
+            123,
+            456 * 789,
+            123 * 456,
+            789,
+            0xffff * (0xffff - 1),
+            0xffff,
+            0xabcdef,
+            0x12345678abcdef,
+            0xffffffff,
+            0x80000000,
+            0x7fffffff,
+            0xffff0000,
+            0x0000ffff,
+            0xffffffff,
+        ]);
+
         let mut instructions = vec![];
         for div_rem_op in div_rem_ops.iter() {
-            for op in operands.iter() {
-                instructions.push(Instruction::new(Opcode::ADDI, 29, 0, op.0 as u64, false, true));
-                instructions.push(Instruction::new(Opcode::ADDI, 30, 0, op.1 as u64, false, true));
-                instructions.push(Instruction::new(*div_rem_op, 31, 29, 30, false, false));
+            for op1 in operands.iter() {
+                for op2 in operands.iter() {
+                    instructions.push(Instruction::new(Opcode::ADDI, 29, 0, *op1, false, true));
+                    instructions.push(Instruction::new(Opcode::ADDI, 30, 0, *op2, false, true));
+                    instructions.push(Instruction::new(*div_rem_op, 31, 29, 30, false, false));
+                }
             }
         }
         add_halt(&mut instructions);
         let program = Program::new(instructions.to_vec(), 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1542,7 +1677,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1550,7 +1685,7 @@ pub mod tests {
         setup_logger();
         let program = keccak_permute_program();
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     // #[tokio::test]
@@ -1641,7 +1776,7 @@ pub mod tests {
     //     setup_logger();
     //     let program = simple_memory_program();
     //     let stdin = SP1Stdin::new();
-    //     run_test(program, stdin).await.unwrap();
+    //     run_test(Arc::new(program), stdin).await.unwrap();
     // }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1649,28 +1784,27 @@ pub mod tests {
         setup_logger();
         let program = ssz_withdrawals_program();
         let stdin = SP1Stdin::new();
-        run_test(program, stdin).await.unwrap();
+        run_test(Arc::new(program), stdin).await.unwrap();
     }
 
     // #[test]
     // fn test_key_serde() {
     //     let program = ssz_withdrawals_program();
-    //     let config = BabyBearPoseidon2::new();
+    //     let config = SP1CoreJaggedConfig::new();
     //     let machine = RiscvAir::machine(config);
     //     let (pk, vk) = machine.setup(&program);
 
     //     let serialized_pk = bincode::serialize(&pk).unwrap();
-    //     let deserialized_pk: StarkProvingKey<BabyBearPoseidon2> =
+    //     let deserialized_pk: StarkProvingKey<SP1CoreJaggedConfig> =
     //         bincode::deserialize(&serialized_pk).unwrap();
     //     assert_eq!(pk.preprocessed_commit, deserialized_pk.preprocessed_commit);
     //     assert_eq!(pk.pc_start_rel, deserialized_pk.pc_start_rel);
     //     assert_eq!(pk.traces, deserialized_pk.traces);
     //     // assert_eq!(pk.data, deserialized_pk.data);
     //     assert_eq!(pk.chip_ordering, deserialized_pk.chip_ordering);
-    //     assert_eq!(pk.local_only, deserialized_pk.local_only);
 
     //     let serialized_vk = bincode::serialize(&vk).unwrap();
-    //     let deserialized_vk: StarkVerifyingKey<BabyBearPoseidon2> =
+    //     let deserialized_vk: StarkVerifyingKey<SP1CoreJaggedConfig> =
     //         bincode::deserialize(&serialized_vk).unwrap();
     //     assert_eq!(vk.pc_start_rel, deserialized_vk.pc_start_rel);
     //     assert_eq!(vk.chip_information.len(), deserialized_vk.chip_information.len());

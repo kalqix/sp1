@@ -7,7 +7,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32},
 };
 use hashbrown::HashMap;
@@ -31,10 +31,11 @@ use sp1_curves::{
     AffinePoint, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 
 use crate::{
     operations::field::{
@@ -61,6 +62,8 @@ pub struct EdAddAssignCols<T> {
     pub q_addrs_add: [AddrAddOperation<T>; WORDS_CURVE_POINT],
     pub p_access: [MemoryAccessColsU8<T>; WORDS_CURVE_POINT],
     pub q_access: [MemoryAccessColsU8<T>; WORDS_CURVE_POINT],
+    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
+    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
     pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
@@ -152,7 +155,12 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 let mut row = [F::zero(); NUM_ED_ADD_COLS];
                 let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
                 let mut blu = Vec::new();
-                self.event_to_row(event, cols, &mut blu);
+                self.event_to_row(
+                    event,
+                    cols,
+                    input.public_values.is_page_protect_active,
+                    &mut blu,
+                );
                 row
             })
             .collect::<Vec<_>>();
@@ -197,7 +205,12 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
                     let mut row = [F::zero(); NUM_ED_ADD_COLS];
                     let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
+                    self.event_to_row(
+                        event,
+                        cols,
+                        input.public_values.is_page_protect_active,
+                        &mut blu,
+                    );
                 });
                 blu
             })
@@ -213,10 +226,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
@@ -225,6 +234,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         &self,
         event: &EllipticCurveAddEvent,
         cols: &mut EdAddAssignCols<F>,
+        page_prot_enabled: u32,
         blu: &mut impl ByteRecord,
     ) {
         // Decode affine points.
@@ -240,8 +250,8 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         cols.clk_high = F::from_canonical_u32((event.clk >> 24) as u32);
         cols.clk_low = F::from_canonical_u32((event.clk & 0xFFFFFF) as u32);
 
-        cols.p_ptr.populate(blu, event.p_ptr, WORDS_CURVE_POINT as u64 * 8);
-        cols.q_ptr.populate(blu, event.q_ptr, WORDS_CURVE_POINT as u64 * 8);
+        cols.p_ptr.populate(blu, event.p_ptr, 64);
+        cols.q_ptr.populate(blu, event.q_ptr, 64);
 
         Self::populate_field_ops(blu, cols, p_x, p_y, q_x, q_y);
 
@@ -255,6 +265,29 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
             cols.p_addrs_add[i].populate(blu, event.p_ptr, i as u64 * 8);
             cols.p_access[i].populate(record, blu);
+        }
+        if page_prot_enabled == 1 {
+            cols.read_slice_page_prot_access.populate(
+                blu,
+                event.q_ptr,
+                event.q_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
+                event.clk,
+                PROT_READ,
+                &event.page_prot_records.read_page_prot_records[0],
+                &event.page_prot_records.read_page_prot_records.get(1).copied(),
+                page_prot_enabled,
+            );
+
+            cols.write_slice_page_prot_access.populate(
+                blu,
+                event.p_ptr,
+                event.p_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
+                event.clk + 1,
+                PROT_READ | PROT_WRITE,
+                &event.page_prot_records.write_page_prot_records[0],
+                &event.page_prot_records.write_page_prot_records.get(1).copied(),
+                page_prot_enabled,
+            );
         }
     }
 }
@@ -335,66 +368,29 @@ where
 
         let result_words = x_result_words.into_iter().chain(y_result_words).collect_vec();
 
-        let p_ptr = SyscallAddrOperation::<AB::F>::eval(
-            builder,
-            WORDS_CURVE_POINT as u32 * 8,
-            local.p_ptr,
-            local.is_real.into(),
-        );
+        let p_ptr =
+            SyscallAddrOperation::<AB::F>::eval(builder, 64, local.p_ptr, local.is_real.into());
 
-        let q_ptr = SyscallAddrOperation::<AB::F>::eval(
-            builder,
-            WORDS_CURVE_POINT as u32 * 8,
-            local.q_ptr,
-            local.is_real.into(),
-        );
+        let q_ptr =
+            SyscallAddrOperation::<AB::F>::eval(builder, 64, local.q_ptr, local.is_real.into());
 
-        // q_addrs_add[0] = q_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([q_ptr[0].into(), q_ptr[1].into(), q_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.q_addrs_add[0],
-            local.is_real.into(),
-        );
-
-        let eight = AB::F::from_canonical_u32(8u32);
-        // q_addrs_add[i] = q_addrs[i - 1] + 8.
-        for i in 1..WORDS_CURVE_POINT {
+        // q_addrs_add[i] = q_ptr + 8 * i.
+        for i in 0..WORDS_CURVE_POINT {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.q_addrs_add[i - 1].value[0].into(),
-                    local.q_addrs_add[i - 1].value[1].into(),
-                    local.q_addrs_add[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([q_ptr[0].into(), q_ptr[1].into(), q_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.q_addrs_add[i],
                 local.is_real.into(),
             );
         }
 
-        // p_addrs_add[0] = p_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([p_ptr[0].into(), p_ptr[1].into(), p_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.p_addrs_add[0],
-            local.is_real.into(),
-        );
-
-        // p_addrs_add[i] = p_addrs[i - 1] + 8.
-        for i in 1..WORDS_CURVE_POINT {
+        // p_addrs_add[i] = p_ptr + 8 * i.
+        for i in 0..WORDS_CURVE_POINT {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.p_addrs_add[i - 1].value[0].into(),
-                    local.p_addrs_add[i - 1].value[1].into(),
-                    local.p_addrs_add[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([p_ptr[0].into(), p_ptr[1].into(), p_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.p_addrs_add[i],
                 local.is_real.into(),
             );
@@ -426,13 +422,37 @@ where
             local.is_real,
             InteractionScope::Local,
         );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into(),
+            &local.q_ptr.addr.map(Into::into),
+            &local.q_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.read_slice_page_prot_access,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::one(),
+            &local.p_ptr.addr.map(Into::into),
+            &local.p_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
+            &local.write_slice_page_prot_access,
+            local.is_real.into(),
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use sp1_core_executor::Program;
-    use test_artifacts::ED_ADD_ELF;
+    use test_artifacts::{ED25519_ELF, ED_ADD_ELF};
 
     use crate::{io::SP1Stdin, utils};
 
@@ -441,14 +461,14 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(&ED_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test(program, stdin).await.unwrap();
+        utils::run_test(Arc::new(program), stdin).await.unwrap();
     }
 
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_ed25519_program() {
-    //     utils::setup_logger();
-    //     let program = Program::from(&ED25519_ELF).unwrap();
-    //     let stdin = SP1Stdin::new();
-    //     utils::run_test(program, stdin).await.unwrap();
-    // }
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_ed25519_program() {
+        utils::setup_logger();
+        let program = Program::from(&ED25519_ELF).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test(Arc::new(program), stdin).await.unwrap();
+    }
 }

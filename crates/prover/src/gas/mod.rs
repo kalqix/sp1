@@ -11,12 +11,12 @@ use slop_algebra::PrimeField32;
 
 use sp1_core_executor::{estimator::RecordEstimator, RiscvAirId};
 use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardKind};
-use sp1_stark::{shape::Shape, SP1CoreOpts, SplitOpts};
+use sp1_hypercube::{shape::Shape, SP1CoreOpts, SplitOpts};
 
 pub const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
     shard_size: 2097152,
     shard_batch_size: 1,
-    split_opts: sp1_stark::SplitOpts {
+    split_opts: sp1_hypercube::SplitOpts {
         combine_memory_threshold: 131072,
         deferred: 16384,
         keccak: 5461,
@@ -53,7 +53,6 @@ pub fn final_transform(raw_gas: f64) -> Result<u64, GasError> {
 }
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
-#[allow(clippy::manual_repeat_n)]
 pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,
@@ -108,14 +107,12 @@ pub fn estimated_records<'a>(
             ])
         }
 
-        std::iter::repeat(Cow::Owned(memory_air(threshold, threshold)))
-            .take(full_airs as usize)
-            .chain(
-                remainders
-                    .iter()
-                    .any(|x| *x > 0)
-                    .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
-            )
+        std::iter::repeat_n(Cow::Owned(memory_air(threshold, threshold)), full_airs as usize).chain(
+            remainders
+                .iter()
+                .any(|x| *x > 0)
+                .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
+        )
     };
 
     core_records.chain(global_memory_records).chain(precompile_records)
@@ -138,8 +135,8 @@ struct CoreShard<'a> {
 impl Shapeable for CoreShard<'_> {
     fn kind(&self) -> ShardKind {
         let contains_cpu = self.record[RiscvAirId::Cpu] > 0;
-        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0 ||
-            self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
+        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0
+            || self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
         match (contains_cpu, contains_global_memory) {
             (true, true) => ShardKind::PackedCore,
             (true, false) => ShardKind::Core,

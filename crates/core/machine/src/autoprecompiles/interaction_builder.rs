@@ -2,7 +2,7 @@ use slop_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder};
 use slop_algebra::Field;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
-use sp1_stark::{
+use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MessageBuilder},
     PROOF_MAX_NUM_PVS,
 };

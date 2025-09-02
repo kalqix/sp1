@@ -5,11 +5,11 @@ use std::borrow::Cow;
 use crate::prelude::*;
 use itertools::Itertools;
 use slop_algebra::{AbstractExtensionField, AbstractField};
-use slop_baby_bear::BabyBear;
-use sp1_recursion_executor::{RecursionPublicValues, D, PERMUTATION_WIDTH};
-use sp1_stark::{
+use sp1_hypercube::{
     septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
 };
+use sp1_primitives::SP1Field;
+use sp1_recursion_executor::{RecursionPublicValues, D, PERMUTATION_WIDTH};
 
 pub trait CircuitV2Builder<C: Config> {
     fn bits2num_v2_f(
@@ -17,14 +17,6 @@ pub trait CircuitV2Builder<C: Config> {
         bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
     ) -> Felt<C::F>;
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
-    fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
-        -> Felt<C::F>;
-    fn batch_fri_v2(
-        &mut self,
-        alphas: Vec<Ext<C::F, C::EF>>,
-        p_at_zs: Vec<Ext<C::F, C::EF>>,
-        p_at_xs: Vec<Felt<C::F>>,
-    ) -> Ext<C::F, C::EF>;
     fn prefix_sum_checks_v2(
         &mut self,
         point_1: Vec<Felt<C::F>>,
@@ -34,7 +26,6 @@ pub trait CircuitV2Builder<C: Config> {
         &mut self,
         state: [Felt<C::F>; PERMUTATION_WIDTH],
     ) -> [Felt<C::F>; PERMUTATION_WIDTH];
-    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
     fn add_curve_v2(
         &mut self,
@@ -58,7 +49,7 @@ pub trait CircuitV2Builder<C: Config> {
     fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>>;
 }
 
-impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
+impl<C: Config<F = SP1Field>> CircuitV2Builder<C> for Builder<C> {
     fn bits2num_v2_f(
         &mut self,
         bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
@@ -85,30 +76,30 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
             })
             .sum();
 
-        // Range check the bits to be less than the BabyBear modulus.
+        // Range check the bits to be less than the SP1Field modulus.
 
         assert!(num_bits <= 31, "num_bits must be less than or equal to 31");
 
         // If there are less than 31 bits, there is nothing to check.
         if num_bits > 30 {
-            // Since BabyBear modulus is 2^31 - 2^27 + 1, if any of the top `4` bits are zero, the
-            // number is less than 2^27, and we can stop the iteration. Othwriwse, if all the top
-            // `4` bits are '1`, we need to check that all the bottom `27` are '0`
+            // Since SP1Field modulus is 2^31 - 2^24 + 1, if any of the top `7` bits are zero, the
+            // number is less than 2^24, and we can stop the iteration. Othwriwse, if all the top
+            // `7` bits are '1`, we need to check that all the bottom `24` are '0`
 
-            // Get a flag that is zero if any of the top `4` bits are zero, and one otherwise. We
+            // Get a flag that is zero if any of the top `7` bits are zero, and one otherwise. We
             // can do this by simply taking their product (which is bitwise AND).
             let are_all_top_bits_one: Felt<_> = self.eval(
                 output
                     .iter()
                     .rev()
-                    .take(4)
+                    .take(7)
                     .copied()
                     .map(SymbolicFelt::from)
                     .product::<SymbolicFelt<_>>(),
             );
 
-            // Assert that if all the top `4` bits are one, then all the bottom `27` bits are zero.
-            for bit in output.iter().take(27).copied() {
+            // Assert that if all the top `7` bits are one, then all the bottom `24` bits are zero.
+            for bit in output.iter().take(24).copied() {
                 self.assert_felt_eq(bit * are_all_top_bits_one, C::F::zero());
             }
         }
@@ -116,29 +107,6 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         // Check that the original number matches the bit decomposition.
         self.assert_felt_eq(x, num);
 
-        output
-    }
-
-    /// A version of `exp_reverse_bits_len` that uses the ExpReverseBitsLen precompile.
-    fn exp_reverse_bits_v2(
-        &mut self,
-        input: Felt<C::F>,
-        power_bits: Vec<Felt<C::F>>,
-    ) -> Felt<C::F> {
-        let output: Felt<_> = self.uninit();
-        self.push_op(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
-        output
-    }
-
-    /// A version of the `batch_fri` that uses the BatchFRI precompile.
-    fn batch_fri_v2(
-        &mut self,
-        alpha_pows: Vec<Ext<C::F, C::EF>>,
-        p_at_zs: Vec<Ext<C::F, C::EF>>,
-        p_at_xs: Vec<Felt<C::F>>,
-    ) -> Ext<C::F, C::EF> {
-        let output: Ext<_, _> = self.uninit();
-        self.push_op(DslIr::CircuitV2BatchFRI(Box::new((output, alpha_pows, p_at_zs, p_at_xs))));
         output
     }
 
@@ -176,18 +144,7 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         array: [Felt<C::F>; PERMUTATION_WIDTH],
     ) -> [Felt<C::F>; PERMUTATION_WIDTH] {
         let output: [Felt<C::F>; PERMUTATION_WIDTH] = core::array::from_fn(|_| self.uninit());
-        self.push_op(DslIr::CircuitV2Poseidon2PermuteBabyBear(Box::new((output, array))));
-        output
-    }
-
-    /// Runs FRI fold.
-    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
-        let mut uninit_vec = |len| std::iter::from_fn(|| Some(self.uninit())).take(len).collect();
-        let output = CircuitV2FriFoldOutput {
-            alpha_pow_output: uninit_vec(input.alpha_pow_input.len()),
-            ro_output: uninit_vec(input.ro_input.len()),
-        };
-        self.push_op(DslIr::CircuitV2FriFold(Box::new((output.clone(), input))));
+        self.push_op(DslIr::CircuitV2Poseidon2PermuteKoalaBear(Box::new((output, array))));
         output
     }
 

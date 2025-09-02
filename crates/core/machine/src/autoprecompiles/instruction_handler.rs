@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::{
     autoprecompiles::{
-        air_to_symbolic_machine::{air_to_symbolic_machine, sort_memory_interactions},
+        air_to_symbolic_machine::{
+            air_to_symbolic_machine, constrain_is_trusted_to_one, sort_memory_interactions,
+        },
         instruction::Sp1Instruction,
     },
     riscv::RiscvAir,
@@ -11,7 +13,7 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, Register, RiscvAirId};
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstructionType {
@@ -56,7 +58,7 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
             // Not an instruction AIR.
             return;
         }
-        let machine = match air_to_symbolic_machine(riscv_air) {
+        let machine = match air_to_symbolic_machine(riscv_air, &mut None) {
             Ok(machine) => machine,
             Err(err) => {
                 tracing::warn!("Failed to convert {} to symbolic machine: {err}", riscv_air.name());
@@ -65,9 +67,10 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
         };
 
         let machine = sort_memory_interactions(machine);
+        let machine = constrain_is_trusted_to_one(machine);
 
         let instruction_types = if riscv_air.id() == RiscvAirId::LoadX0 {
-            // For loads, LoadX0 handles all loads if rd == x0.
+            // For loads, LoadX0 handles all loads if rd == x0
             vec![InstructionType::LoadX0]
         } else {
             opcodes.into_iter().map(InstructionType::NonLoadX0).collect_vec()

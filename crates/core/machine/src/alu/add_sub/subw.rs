@@ -14,15 +14,16 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{MachineAir, SP1AirBuilder},
-    Word,
-};
+use sp1_hypercube::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    adapter::{register::r_type::RTypeReader, state::CPUState},
-    operations::SubwOperation,
+    adapter::{
+        register::r_type::{RTypeReader, RTypeReaderInput},
+        state::{CPUState, CPUStateInput},
+    },
+    air::{SP1CoreAirBuilder, SP1Operation},
+    operations::{SubwOperation, SubwOperationInput},
     utils::{next_multiple_of_32, zeroed_f_vec},
 };
 
@@ -130,10 +131,6 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
             !shard.subw_events.is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl SubwChip {
@@ -157,7 +154,7 @@ impl<F> BaseAir<F> for SubwChip {
 
 impl<AB> Air<AB> for SubwChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -170,28 +167,33 @@ where
         let funct3 = AB::Expr::from_canonical_u8(Opcode::SUBW.funct3().unwrap());
         let funct7 = AB::Expr::from_canonical_u8(Opcode::SUBW.funct7().unwrap());
         let base_opcode = AB::Expr::from_canonical_u32(Opcode::SUBW.base_opcode().0);
+        let instr_type = AB::Expr::from_canonical_u32(Opcode::SUBW.instruction_type().0 as u32);
 
         // Constrain the sub operation over `op_b` and `op_c`.
-        SubwOperation::<AB::F>::eval(
+        <SubwOperation<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            *local.adapter.b(),
-            *local.adapter.c(),
-            local.subw_operation,
-            local.is_real.into(),
+            SubwOperationInput::new(
+                *local.adapter.b(),
+                *local.adapter.c(),
+                local.subw_operation,
+                local.is_real.into(),
+            ),
         );
 
         // Constrain the state of the CPU.
         // The program counter and timestamp increment by `4` and `8`.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            local.is_real.into(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                local.is_real.into(),
+            ),
         );
 
         let u16_max = AB::F::from_canonical_u32((1 << 16) - 1);
@@ -204,16 +206,18 @@ where
         ]);
 
         // Constrain the program and register reads.
-        RTypeReader::<AB::F>::eval(
+        <RTypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state.clk_high::<AB>(),
-            local.state.clk_low::<AB>(),
-            local.state.pc,
-            opcode,
-            [base_opcode, funct3, funct7],
-            word,
-            local.adapter,
-            local.is_real.into(),
+            RTypeReaderInput::new(
+                local.state.clk_high::<AB>(),
+                local.state.clk_low::<AB>(),
+                local.state.pc,
+                opcode,
+                [instr_type, base_opcode, funct3, funct7],
+                word,
+                local.adapter,
+                local.is_real.into(),
+            ),
         );
     }
 }

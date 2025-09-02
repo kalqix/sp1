@@ -120,18 +120,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 15098,
-            constraints: 9277,
-            bus_interactions: 7159,
+            main_columns: 15579,
+            constraints: 10518,
+            bus_interactions: 7673,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 3155,
-            constraints: 502,
-            bus_interactions: 2019,
+            main_columns: 3163,
+            constraints: 542,
+            bus_interactions: 2014,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
@@ -175,7 +175,7 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
 
     let sp1_program = Sp1Program::from(Arc::new(Program::from(&elf).unwrap()));
     let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
-    let instruction_handler = Sp1InstructionHandler::<slop_baby_bear::BabyBear>::new();
+    let instruction_handler = Sp1InstructionHandler::<sp1_primitives::SP1Field>::new();
 
     // Check total number of basic blocks produced
     let basic_blocks =

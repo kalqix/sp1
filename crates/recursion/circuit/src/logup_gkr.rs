@@ -3,20 +3,20 @@ use sp1_recursion_compiler::prelude::*;
 use std::{collections::BTreeSet, marker::PhantomData, ops::Deref};
 
 use slop_algebra::{extension::BinomialExtensionField, AbstractField};
-use slop_baby_bear::BabyBear;
 use slop_multilinear::{full_geq, Mle, MleEval, Point};
-use sp1_recursion_compiler::ir::Builder;
-use sp1_stark::{
+use sp1_hypercube::{
     air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
     LogupGkrRoundProof,
 };
+use sp1_primitives::SP1Field;
+use sp1_recursion_compiler::ir::Builder;
 
 use crate::{
     challenger::FieldChallengerVariable,
     sumcheck::{evaluate_mle_ext, verify_sumcheck},
     symbolic::IntoSymbolic,
     witness::{WitnessWriter, Witnessable},
-    BabyBearFriConfigVariable, CircuitConfig,
+    CircuitConfig, SP1FieldConfigVariable,
 };
 
 /// Verifier for `LogUp` GKR.
@@ -25,8 +25,8 @@ pub struct RecursiveLogUpGkrVerifier<C, SC, A>(PhantomData<(C, SC, A)>);
 
 impl<C, SC, A> RecursiveLogUpGkrVerifier<C, SC, A>
 where
-    C: CircuitConfig<F = BabyBear, EF = BinomialExtensionField<BabyBear, 4>>,
-    SC: BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    SC: SP1FieldConfigVariable<C>,
     A: MachineAir<C::F>,
 {
     /// Verify the `LogUp` GKR proof.
@@ -39,7 +39,7 @@ where
         shard_chips: &BTreeSet<Chip<C::F, A>>,
         degrees: &[Point<Felt<C::F>>],
         alpha: Ext<C::F, C::EF>,
-        beta: Ext<C::F, C::EF>,
+        beta_seed: Point<Ext<C::F, C::EF>>,
         cumulative_sum: SymbolicExt<C::F, C::EF>,
         max_log_row_count: usize,
         proof: &LogupGkrProof<Ext<C::F, C::EF>>,
@@ -152,7 +152,9 @@ where
         let mut point_extended = IntoSymbolic::<C>::as_symbolic(point);
 
         let alpha = IntoSymbolic::<C>::as_symbolic(&alpha);
-        let beta = IntoSymbolic::<C>::as_symbolic(&beta);
+        let betas = slop_multilinear::partial_lagrange_blocking(&IntoSymbolic::<C>::as_symbolic(
+            &beta_seed,
+        ));
         point_extended.add_dimension(SymbolicExt::zero());
         for ((chip, openings), threshold) in
             shard_chips.iter().zip_eq(chip_openings.values()).zip_eq(degrees)
@@ -181,7 +183,7 @@ where
                     preprocessed_trace_evaluations.as_ref(),
                     main_trace_evaluations,
                     alpha,
-                    &beta,
+                    betas.as_slice(),
                 );
                 let padding_trace_opening =
                     MleEval::from(vec![C::F::zero(); main_trace_evaluations.num_polynomials()]);
@@ -192,7 +194,7 @@ where
                     padding_preprocessed_opening.as_ref(),
                     &padding_trace_opening,
                     alpha,
-                    &beta,
+                    betas.as_slice(),
                 );
 
                 let numerator_eval = real_numerator - padding_numerator * geq_eval;

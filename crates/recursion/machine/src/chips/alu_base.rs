@@ -2,20 +2,20 @@ use crate::builder::SP1RecursionAirBuilder;
 use core::borrow::Borrow;
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::{AbstractField, Field, PrimeField32};
-use slop_baby_bear::BabyBear;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::utils::next_multiple_of_32;
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::air::MachineAir;
+use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, BaseAluInstr, BaseAluIo, BaseAluOpcode, ExecutionRecord, Instruction, RecursionProgram,
 };
-use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip};
 
 pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 1;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BaseAluChip;
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
@@ -84,12 +84,12 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_preprocessed_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_preprocessed_trace only supports SP1Field field"
         );
 
         let instrs = unsafe {
-            std::mem::transmute::<Vec<&BaseAluInstr<F>>, Vec<&BaseAluInstr<BabyBear>>>(
+            std::mem::transmute::<Vec<&BaseAluInstr<F>>, Vec<&BaseAluInstr<SP1Field>>>(
                 program
                     .inner
                     .iter()
@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             )
         };
         let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
@@ -111,10 +111,10 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
                 *access = BaseAluAccessCols {
                     addrs: addrs.to_owned(),
-                    is_add: BabyBear::from_bool(false),
-                    is_sub: BabyBear::from_bool(false),
-                    is_mul: BabyBear::from_bool(false),
-                    is_div: BabyBear::from_bool(false),
+                    is_add: SP1Field::from_bool(false),
+                    is_sub: SP1Field::from_bool(false),
+                    is_mul: SP1Field::from_bool(false),
+                    is_div: SP1Field::from_bool(false),
                     mult: mult.to_owned(),
                 };
                 let target_flag = match opcode {
@@ -123,13 +123,13 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                     BaseAluOpcode::MulF => &mut access.is_mul,
                     BaseAluOpcode::DivF => &mut access.is_div,
                 };
-                *target_flag = BabyBear::from_bool(true);
+                *target_flag = SP1Field::from_bool(true);
             },
         );
 
         // Convert the trace to a row major matrix.
         Some(RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_BASE_ALU_PREPROCESSED_COLS,
         ))
     }
@@ -147,17 +147,17 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_trace only supports SP1Field field"
         );
 
         let events = unsafe {
-            std::mem::transmute::<&Vec<BaseAluIo<F>>, &Vec<BaseAluIo<BabyBear>>>(
+            std::mem::transmute::<&Vec<BaseAluIo<F>>, &Vec<BaseAluIo<SP1Field>>>(
                 &input.base_alu_events,
             )
         };
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
@@ -170,16 +170,12 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_BASE_ALU_COLS,
         )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn local_only(&self) -> bool {
         true
     }
 }
@@ -210,10 +206,11 @@ where
             builder.when(is_mul).assert_eq(out, in1 * in2);
             builder.when(is_div).assert_eq(in2 * out, in1);
 
+            // Read the inputs from memory.
             builder.receive_single(addrs.in1, in1, is_real.clone());
-
             builder.receive_single(addrs.in2, in2, is_real);
 
+            // Write the output to memory.
             builder.send_single(addrs.out, out, mult);
         }
     }
@@ -229,90 +226,24 @@ mod tests {
 
     use super::*;
 
-    fn generate_trace_reference(
-        input: &ExecutionRecord<BabyBear>,
-        _: &mut ExecutionRecord<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        let events = &input.base_alu_events;
-        let padded_nb_rows = BaseAluChip.num_rows(input).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
-
-        let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
-        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_VALUE_COLS).zip_eq(events).for_each(
-            |(row, &vals)| {
-                let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
-                *cols = BaseAluValueCols { vals };
-            },
-        );
-
-        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
+    #[tokio::test]
+    async fn generate_trace() {
+        let shard = test_fixtures::shard().await;
+        let trace = BaseAluChip.generate_trace(shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
     }
 
-    #[test]
-    fn generate_trace() {
-        let shard = test_fixtures::shard();
-        let mut execution_record = test_fixtures::default_execution_record();
-        let trace = BaseAluChip.generate_trace(&shard, &mut execution_record);
-
-        assert_eq!(trace, generate_trace_reference(&shard, &mut execution_record));
-    }
-
-    fn generate_preprocessed_trace_reference(
-        program: &RecursionProgram<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let instrs = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::BaseAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let padded_nb_rows = BaseAluChip.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
-
-        let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
-        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
-            |(row, instr)| {
-                let BaseAluInstr { opcode, mult, addrs } = instr;
-                let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
-                *access = BaseAluAccessCols {
-                    addrs: addrs.to_owned(),
-                    is_add: F::from_bool(false),
-                    is_sub: F::from_bool(false),
-                    is_mul: F::from_bool(false),
-                    is_div: F::from_bool(false),
-                    mult: mult.to_owned(),
-                };
-                let target_flag = match opcode {
-                    BaseAluOpcode::AddF => &mut access.is_add,
-                    BaseAluOpcode::SubF => &mut access.is_sub,
-                    BaseAluOpcode::MulF => &mut access.is_mul,
-                    BaseAluOpcode::DivF => &mut access.is_div,
-                };
-                *target_flag = F::from_bool(true);
-            },
-        );
-
-        RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
-    }
-
-    #[test]
-    #[ignore = "Failing due to merge conflicts. Will be fixed shortly."]
-    fn generate_preprocessed_trace() {
-        let program = test_fixtures::program();
-        let trace = BaseAluChip.generate_preprocessed_trace(&program).unwrap();
-        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
-
-        assert_eq!(trace, generate_preprocessed_trace_reference(&program));
+    #[tokio::test]
+    async fn generate_preprocessed_trace() {
+        let program = &test_fixtures::program_with_input().await.0;
+        let trace = BaseAluChip.generate_preprocessed_trace(program).unwrap();
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
     }
 
     #[tokio::test]
     pub async fn four_ops() {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_felt = move || -> BabyBear { rng.sample(rand::distributions::Standard) };
+        let mut random_felt = move || -> SP1Field { rng.sample(rand::distributions::Standard) };
         let mut addr = 0;
 
         let instructions = (0..1000)
@@ -336,7 +267,7 @@ mod tests {
                     instr::mem_single(MemAccessKind::Read, 1, a[5], quot),
                 ]
             })
-            .collect::<Vec<Instruction<BabyBear>>>();
+            .collect::<Vec<Instruction<SP1Field>>>();
 
         test_recursion_linear_program(instructions).await;
     }

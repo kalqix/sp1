@@ -5,22 +5,20 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use slop_air::Air;
-use slop_algebra::AbstractField;
-use slop_baby_bear::BabyBear;
-// use slop_commit::Mmcs;
-// use slop_matrix::dense::RowMajorMatrix;
 use crate::machine::{
     assert_recursion_public_values_valid, SP1MerkleProofVerifier, SP1MerkleProofWitnessValues,
     SP1MerkleProofWitnessVariable,
 };
-use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_stark::{
+use slop_air::Air;
+use slop_algebra::AbstractField;
+use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     septic_curve::SepticCurve,
     septic_digest::SepticDigest,
     MachineVerifyingKey, ShardProof,
 };
+use sp1_primitives::SP1Field;
+use sp1_recursion_compiler::ir::{Builder, Felt};
 
 use sp1_recursion_executor::{
     RecursionPublicValues, DIGEST_SIZE, PV_DIGEST_NUM_WORDS, RECURSIVE_PROOF_NUM_PV_ELTS,
@@ -33,9 +31,7 @@ use crate::{
     jagged::RecursiveJaggedConfig,
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
-    BabyBearFriConfig,
-    BabyBearFriConfigVariable,
-    CircuitConfig, // {ShardProofVariable, StarkVerifier, VerifyingKeyVariable},
+    CircuitConfig, SP1FieldConfigVariable, SP1FieldFriConfig,
 };
 
 use super::{assert_complete, recursion_public_values_digest};
@@ -51,26 +47,19 @@ pub struct SP1DeferredVerifier<C, SC, A, JC> {
 #[serde(bound(
     deserialize = "SC::Challenger: Deserialize<'de>, ShardProof<SC>: Deserialize<'de>,  [SC::F; DIGEST_SIZE]: Deserialize<'de>, SC::Digest: Deserialize<'de>"
 ))]
-pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig + FieldHasher<BabyBear> + Send + Sync> {
+pub struct SP1DeferredWitnessValues<SC: SP1FieldFriConfig + FieldHasher<SP1Field> + Send + Sync> {
     pub vks_and_proofs: Vec<(MachineVerifyingKey<SC>, ShardProof<SC>)>,
     pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,
     pub start_reconstruct_deferred_digest: [SC::F; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [SC::F; DIGEST_SIZE],
-    pub committed_value_digest: [[SC::F; 4]; PV_DIGEST_NUM_WORDS],
-    pub deferred_proofs_digest: [SC::F; POSEIDON_NUM_WORDS],
     pub end_pc: [SC::F; 3],
-    pub end_shard: SC::F,
-    pub end_execution_shard: SC::F,
-    pub end_timestamp: [SC::F; 4],
-    pub init_addr_word: [SC::F; 3],
-    pub finalize_addr_word: [SC::F; 3],
-    pub is_complete: bool,
+    pub is_page_protect_active: SC::F,
 }
 
 #[allow(clippy::type_complexity)]
 pub struct SP1DeferredWitnessVariable<
-    C: CircuitConfig<F = BabyBear, EF = crate::EF>,
-    SC: FieldHasherVariable<C> + BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SP1Field, EF = crate::EF>,
+    SC: FieldHasherVariable<C> + SP1FieldConfigVariable<C>,
     JC: RecursiveJaggedConfig<
         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
     >,
@@ -79,27 +68,19 @@ pub struct SP1DeferredWitnessVariable<
     pub vk_merkle_data: SP1MerkleProofWitnessVariable<C, SC>,
     pub start_reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [Felt<C::F>; DIGEST_SIZE],
-    pub committed_value_digest: [[Felt<C::F>; 4]; PV_DIGEST_NUM_WORDS],
-    pub deferred_proofs_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
     pub end_pc: [Felt<C::F>; 3],
-    pub end_shard: Felt<C::F>,
-    pub end_execution_shard: Felt<C::F>,
-    pub end_timestamp: [Felt<C::F>; 4],
-    pub init_addr_word: [Felt<C::F>; 3],
-    pub finalize_addr_word: [Felt<C::F>; 3],
-    pub is_complete: Felt<C::F>,
+    pub is_page_protect_active: Felt<C::F>,
 }
 
 impl<C, SC, A, JC> SP1DeferredVerifier<C, SC, A, JC>
 where
-    SC: BabyBearFriConfigVariable<
+    SC: SP1FieldConfigVariable<
             C,
             FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+            DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],
         > + Send
         + Sync,
-    C: CircuitConfig<F = SC::F, EF = SC::EF, Bit = Felt<BabyBear>>,
-    // <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    C: CircuitConfig<F = SC::F, EF = SC::EF, Bit = Felt<SP1Field>>,
     A: MachineAir<SC::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     JC: RecursiveJaggedConfig<
         F = C::F,
@@ -131,15 +112,8 @@ where
             vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
-            committed_value_digest,
-            deferred_proofs_digest,
             end_pc,
-            end_shard,
-            end_execution_shard,
-            end_timestamp,
-            init_addr_word,
-            finalize_addr_word,
-            is_complete,
+            is_page_protect_active,
         } = input;
 
         // First, verify the merkle tree proofs.
@@ -170,7 +144,9 @@ where
             challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
             // Observe the padding.
             let zero: Felt<_> = builder.eval(C::F::zero());
-            challenger.observe(builder, zero);
+            for _ in 0..7 {
+                challenger.observe(builder, zero);
+            }
 
             machine.verify_shard(builder, &vk, &shard_proof, &mut challenger);
 
@@ -207,79 +183,67 @@ where
 
         // Set the public values.
 
-        // Set initial_pc, end_pc, initial_shard, and end_shard to be the hitned values.
+        let zero = builder.eval(C::F::zero());
+        let one = builder.eval(C::F::one());
+
+        // Set initial_pc, end_pc, initial_shard, and end_shard to be the hinted values.
         deferred_public_values.pc_start = end_pc;
         deferred_public_values.next_pc = end_pc;
-        deferred_public_values.start_shard = end_shard;
-        deferred_public_values.next_shard = end_shard;
-        deferred_public_values.start_execution_shard = end_execution_shard;
-        deferred_public_values.next_execution_shard = end_execution_shard;
-        // Set the init and finalize address words to be the hinted values.
-        deferred_public_values.previous_init_addr_word = init_addr_word;
-        deferred_public_values.last_init_addr_word = init_addr_word;
-        deferred_public_values.previous_finalize_addr_word = finalize_addr_word;
-        deferred_public_values.last_finalize_addr_word = finalize_addr_word;
-        deferred_public_values.initial_timestamp = end_timestamp;
-        deferred_public_values.last_timestamp = end_timestamp;
+        // Set the init and finalize addresss to be the hinted values.
+        deferred_public_values.previous_init_addr = core::array::from_fn(|_| zero);
+        deferred_public_values.last_init_addr = core::array::from_fn(|_| zero);
+        deferred_public_values.previous_finalize_addr = core::array::from_fn(|_| zero);
+        deferred_public_values.last_finalize_addr = core::array::from_fn(|_| zero);
+        // Set the init and finalize page index to be the hinted values.
+        deferred_public_values.previous_init_page_idx = core::array::from_fn(|_| zero);
+        deferred_public_values.last_init_page_idx = core::array::from_fn(|_| zero);
+        deferred_public_values.previous_finalize_page_idx = core::array::from_fn(|_| zero);
+        deferred_public_values.last_finalize_page_idx = core::array::from_fn(|_| zero);
+        deferred_public_values.initial_timestamp = [zero, zero, zero, one];
+        deferred_public_values.last_timestamp = [zero, zero, zero, one];
 
         // Set the sp1_vk_digest to be the hitned value.
         deferred_public_values.sp1_vk_digest = sp1_vk_digest;
 
         // Set the committed value digest to be the hitned value.
-        deferred_public_values.committed_value_digest = committed_value_digest;
-        // Set the deferred proof digest to be the hitned value.
-        deferred_public_values.deferred_proofs_digest = deferred_proofs_digest;
+        deferred_public_values.prev_committed_value_digest =
+            core::array::from_fn(|_| [zero, zero, zero, zero]);
+        deferred_public_values.committed_value_digest =
+            core::array::from_fn(|_| [zero, zero, zero, zero]);
+        // Set the deferred proof digest to all zeroes.
+        deferred_public_values.prev_deferred_proofs_digest = core::array::from_fn(|_| zero);
+        deferred_public_values.deferred_proofs_digest = core::array::from_fn(|_| zero);
 
         // Set the exit code to be zero for now.
-        deferred_public_values.prev_exit_code = builder.eval(C::F::zero());
-        deferred_public_values.exit_code = builder.eval(C::F::zero());
+        deferred_public_values.prev_exit_code = zero;
+        deferred_public_values.exit_code = zero;
+        // Set the `commit_syscall` and `commit_deferred_syscall` flags to zero.
+        deferred_public_values.prev_commit_syscall = zero;
+        deferred_public_values.commit_syscall = zero;
+        deferred_public_values.prev_commit_deferred_syscall = zero;
+        deferred_public_values.commit_deferred_syscall = zero;
         // Assign the deferred proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
         // Set the is_complete flag.
-        deferred_public_values.is_complete = is_complete;
+        deferred_public_values.is_complete = zero;
+        deferred_public_values.is_page_protect_active = is_page_protect_active;
         // Set the cumulative sum to zero.
         deferred_public_values.global_cumulative_sum =
             SepticDigest(SepticCurve::convert(SepticDigest::<C::F>::zero().0, |value| {
                 builder.eval(value)
             }));
+        // Set the first shard flag to zero.
+        deferred_public_values.contains_first_shard = zero;
+        // Set the number of included shards to zero.
+        deferred_public_values.num_included_shard = zero;
         // Set the vk root from the witness.
         deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
 
-        assert_complete(builder, deferred_public_values, is_complete);
-        builder.assert_felt_eq(is_complete, C::F::zero());
+        assert_complete(builder, deferred_public_values, deferred_public_values.is_complete);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }
 }
-
-// impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
-//     pub fn dummy<A: MachineAir<BabyBear>>(
-//         machine: &MachineVerifier<BabyBearPoseidon2, A>,
-//         shape: &SP1DeferredShape,
-//     ) -> Self {
-//         let inner_witness =
-//             SP1ComposeWitnessValues::<BabyBearPoseidon2>::dummy(machine, &shape.inner);
-//         let vks_and_proofs = inner_witness.vks_and_proofs;
-
-//         let vk_merkle_data = SP1MerkleProofWitnessValues::dummy(vks_and_proofs.len(),
-// shape.height);
-
-//         Self {
-//             vks_and_proofs,
-//             vk_merkle_data,
-//             is_complete: true,
-//             sp1_vk_digest: [BabyBear::zero(); DIGEST_SIZE],
-//             start_reconstruct_deferred_digest: [BabyBear::zero(); POSEIDON_NUM_WORDS],
-//             committed_value_digest: [Word::default(); PV_DIGEST_NUM_WORDS],
-//             deferred_proofs_digest: [BabyBear::zero(); POSEIDON_NUM_WORDS],
-//             end_pc: BabyBear::zero(),
-//             end_shard: BabyBear::zero(),
-//             end_execution_shard: BabyBear::zero(),
-//             init_addr_word: Word([BabyBear::zero(); 2]),
-//             finalize_addr_word: Word([BabyBear::zero(); 2]),
-//         }
-//     }
-// }

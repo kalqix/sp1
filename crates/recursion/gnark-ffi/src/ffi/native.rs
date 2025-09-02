@@ -221,12 +221,12 @@ pub fn test_groth16_bn254(witness_json: &str, constraints_json: &str) {
     test(ProofSystem::Groth16, witness_json, constraints_json)
 }
 
-pub fn test_babybear_poseidon2() {
+pub fn test_koalabear_poseidon2() {
     unsafe {
-        let err_ptr = bind::TestPoseidonBabyBear2();
+        let err_ptr = bind::TestPoseidonKoalaBear2();
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.
-            panic!("TestPoseidonBabyBear2 failed: {}", ptr_to_string_freed(err_ptr));
+            panic!("TestPoseidonKoalaBear2 failed: {}", ptr_to_string_freed(err_ptr));
         }
     }
 }
@@ -292,17 +292,17 @@ mod tests {
     #![allow(clippy::print_stdout)]
 
     use slop_algebra::AbstractField;
-    use slop_baby_bear::BabyBear;
     use slop_symmetric::Permutation;
-    use sp1_stark::inner_perm;
+    use sp1_hypercube::inner_perm;
+    use sp1_primitives::SP1Field;
 
     #[test]
     #[allow(clippy::uninlined_format_args)]
-    pub fn test_babybear_poseidon2() {
+    pub fn test_koalabear_poseidon2() {
         let perm = inner_perm();
-        let zeros = [BabyBear::zero(); 16];
+        let zeros = [SP1Field::zero(); 16];
         let result = perm.permute(zeros);
-        println!("{:?}", result);
-        super::test_babybear_poseidon2();
+        println!("{result:?}");
+        super::test_koalabear_poseidon2();
     }
 }

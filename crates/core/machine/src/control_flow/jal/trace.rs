@@ -9,7 +9,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ExecutionRecord, Program,
 };
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
 use struct_reflection::StructReflectionHelper;
 
 use crate::utils::{next_multiple_of_32, zeroed_f_vec};
@@ -53,6 +53,8 @@ impl<F: PrimeField32> MachineAir<F> for JalChip {
                     if idx < input.jal_events.len() {
                         let event = &input.jal_events[idx];
                         cols.is_real = F::one();
+                        let low_limb = (event.0.pc.wrapping_add(event.0.b) & 0xFFFF) as u16;
+                        blu.add_bit_range_check(low_limb / 4, 14);
                         cols.add_operation.populate(&mut blu, event.0.pc, event.0.b);
                         if !event.0.op_a_0 {
                             cols.op_a_operation.populate(&mut blu, event.0.pc, 4);
@@ -77,10 +79,6 @@ impl<F: PrimeField32> MachineAir<F> for JalChip {
         } else {
             !shard.jal_events.is_empty()
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
     }
 
     fn column_names(&self) -> Vec<String> {

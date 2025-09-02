@@ -7,11 +7,10 @@ use crate::{
     },
 };
 use slop_algebra::AbstractField;
-use slop_baby_bear::BabyBear;
 use slop_challenger::DuplexChallenger;
 use slop_jagged::JaggedConfig;
-use slop_merkle_tree::Perm;
 use slop_symmetric::Hash;
+use sp1_primitives::{SP1Field, SP1Perm};
 use std::borrow::Borrow;
 
 use super::{
@@ -25,13 +24,13 @@ use crate::{
     jagged::RecursiveJaggedConfigImpl,
     shard::{MachineVerifyingKeyVariable, ShardProofVariable},
     witness::{WitnessWriter, Witnessable},
-    BabyBearFriConfigVariable, CircuitConfig, InnerSC,
+    CircuitConfig, InnerSC, SP1FieldConfigVariable,
 };
+use sp1_hypercube::{MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof, Word};
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, Felt},
 };
-use sp1_stark::{BabyBearPoseidon2, MachineVerifyingKey, ShardProof, Word};
 
 impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Word<T> {
     type WitnessVariable = Word<T::WitnessVariable>;
@@ -45,7 +44,7 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Word<T> {
     }
 }
 
-impl<C> Witnessable<C> for DuplexChallenger<<InnerSC as JaggedConfig>::F, Perm, 16, 8>
+impl<C> Witnessable<C> for DuplexChallenger<<InnerSC as JaggedConfig>::F, SP1Perm, 16, 8>
 where
     C: CircuitConfig<F = <InnerSC as JaggedConfig>::F, EF = <InnerSC as JaggedConfig>::EF>,
 {
@@ -86,14 +85,11 @@ where
 pub type JC<C, SC> =
     RecursiveJaggedConfigImpl<C, SC, RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>>;
 
-impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<BabyBearPoseidon2>
-//where
-// C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
-{
+impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1CoreJaggedConfig> {
     type WitnessVariable = SP1RecursionWitnessVariable<
         InnerConfig,
-        BabyBearPoseidon2,
-        JC<InnerConfig, BabyBearPoseidon2>,
+        SP1CoreJaggedConfig,
+        JC<InnerConfig, SP1CoreJaggedConfig>,
     >;
 
     fn read(&self, builder: &mut Builder<InnerConfig>) -> Self::WitnessVariable {
@@ -101,13 +97,11 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<BabyBearPoseidon2>
         let shard_proofs = self.shard_proofs.read(builder);
         let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
-        let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
         let vk_root = self.vk_root.read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
             is_complete,
-            is_first_shard,
             reconstruct_deferred_digest,
             vk_root,
         }
@@ -118,14 +112,13 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<BabyBearPoseidon2>
         self.shard_proofs.write(witness);
         self.reconstruct_deferred_digest.write(witness);
         self.is_complete.write(witness);
-        self.is_first_shard.write(witness);
         self.vk_root.write(witness);
     }
 }
 
 impl<
         C: CircuitConfig<F = InnerVal, EF = InnerChallenge>,
-        SC: BabyBearFriConfigVariable<C> + Send + Sync,
+        SC: SP1FieldConfigVariable<C> + Send + Sync,
     > Witnessable<C> for SP1ShapedWitnessValues<SC>
 where
     SC::Commitment:
@@ -148,12 +141,12 @@ where
     }
 }
 
-impl<C> Witnessable<C> for SP1DeferredWitnessValues<BabyBearPoseidon2>
+impl<C> Witnessable<C> for SP1DeferredWitnessValues<SP1CoreJaggedConfig>
 where
     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
 {
     type WitnessVariable =
-        SP1DeferredWitnessVariable<C, BabyBearPoseidon2, JC<C, BabyBearPoseidon2>>;
+        SP1DeferredWitnessVariable<C, SP1CoreJaggedConfig, JC<C, SP1CoreJaggedConfig>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vks_and_proofs = self.vks_and_proofs.read(builder);
@@ -161,30 +154,16 @@ where
         let start_reconstruct_deferred_digest =
             self.start_reconstruct_deferred_digest.read(builder);
         let sp1_vk_digest = self.sp1_vk_digest.read(builder);
-        let committed_value_digest = self.committed_value_digest.read(builder);
-        let deferred_proofs_digest = self.deferred_proofs_digest.read(builder);
         let end_pc = self.end_pc.read(builder);
-        let end_shard = self.end_shard.read(builder);
-        let end_execution_shard = self.end_execution_shard.read(builder);
-        let end_timestamp = self.end_timestamp.read(builder);
-        let init_addr_word = self.init_addr_word.read(builder);
-        let finalize_addr_word = self.finalize_addr_word.read(builder);
-        let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
+        let is_page_protect_active = self.is_page_protect_active.read(builder);
 
         SP1DeferredWitnessVariable {
             vks_and_proofs,
             vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
-            committed_value_digest,
-            deferred_proofs_digest,
             end_pc,
-            end_shard,
-            end_execution_shard,
-            end_timestamp,
-            init_addr_word,
-            finalize_addr_word,
-            is_complete,
+            is_page_protect_active,
         }
     }
 
@@ -193,15 +172,8 @@ where
         self.vk_merkle_data.write(witness);
         self.start_reconstruct_deferred_digest.write(witness);
         self.sp1_vk_digest.write(witness);
-        self.committed_value_digest.write(witness);
-        self.deferred_proofs_digest.write(witness);
         self.end_pc.write(witness);
-        self.end_shard.write(witness);
-        self.end_execution_shard.write(witness);
-        self.end_timestamp.write(witness);
-        self.init_addr_word.write(witness);
-        self.finalize_addr_word.write(witness);
-        self.is_complete.write(witness);
+        self.is_page_protect_active.write(witness);
     }
 }
 
@@ -240,12 +212,12 @@ where
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear>, SC: BabyBearFriConfigVariable<C>> Witnessable<C>
+impl<C: CircuitConfig<F = SP1Field>, SC: SP1FieldConfigVariable<C>> Witnessable<C>
     for SP1MerkleProofWitnessValues<SC>
 where
     // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
-    SC: FieldHasher<BabyBear>,
-    <SC as FieldHasher<BabyBear>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
+    SC: FieldHasher<SP1Field>,
+    <SC as FieldHasher<SP1Field>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
 {
     type WitnessVariable = SP1MerkleProofWitnessVariable<C, SC>;
 
@@ -264,12 +236,12 @@ where
     }
 }
 
-impl<C: CircuitConfig<F = BabyBear, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
+impl<C: CircuitConfig<F = SP1Field, EF = InnerChallenge>, SC: SP1FieldConfigVariable<C>>
     Witnessable<C> for SP1CompressWithVKeyWitnessValues<SC>
 where
     // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
-    SC: FieldHasher<BabyBear>,
-    <SC as FieldHasher<BabyBear>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
+    SC: FieldHasher<SP1Field>,
+    <SC as FieldHasher<SP1Field>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
     SC::Commitment:
         Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
     MachineVerifyingKey<SC>: Witnessable<C, WitnessVariable = MachineVerifyingKeyVariable<C, SC>>,
