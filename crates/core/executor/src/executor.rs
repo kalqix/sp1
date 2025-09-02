@@ -65,15 +65,6 @@ pub enum DeferredProofVerification {
     Disabled,
 }
 
-/// The choice available for the prover at this pc
-#[derive(Clone, Copy)]
-pub enum ProverChoice<I> {
-    /// The prover must execute the software version
-    Software(I),
-    /// The prover can choose between the APC and software versions
-    ApcOrSoftware(I, I),
-}
-
 /// The number of events/instructions executed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventCounts<T>
