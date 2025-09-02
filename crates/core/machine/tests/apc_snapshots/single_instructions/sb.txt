@@ -4,7 +4,7 @@ Instructions:
 APC advantage:
   - Main columns: 52 -> 40 (1.30x reduction)
   - Bus interactions: 25 -> 20 (1.25x reduction)
-  - Constraints: 37 -> 21 (1.76x reduction)
+  - Constraints: 38 -> 21 (1.81x reduction)
 
 Symbolic machine using 40 unique main columns:
   state__clk_high_0

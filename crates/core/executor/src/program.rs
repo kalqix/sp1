@@ -201,7 +201,7 @@ impl Program {
     }
 
     #[must_use]
-    /// Fetch the prover choice at the given program counter.
+    /// Fetch the instruction at the given program counter, as well as the apc, if any.
     pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&Apc>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {

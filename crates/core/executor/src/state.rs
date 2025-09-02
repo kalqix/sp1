@@ -93,7 +93,7 @@ impl ExecutionState {
 }
 
 /// Holds data to track changes made to the runtime since a fork point.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct ForkState {
     /// The `global_clk` value at the fork point.
@@ -106,18 +106,6 @@ pub struct ForkState {
     pub memory_diff: Memory<Option<MemoryEntry>>,
     /// All page protection changes since the fork point.
     pub page_prots_diff: HashMap<u64, PageProtRecord>,
-}
-
-impl Default for ForkState {
-    fn default() -> Self {
-        Self {
-            global_clk: 0,
-            clk: 0,
-            pc: 0,
-            memory_diff: Memory::new_preallocated(),
-            page_prots_diff: HashMap::default(),
-        }
-    }
 }
 
 impl ExecutionState {
