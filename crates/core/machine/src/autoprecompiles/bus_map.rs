@@ -6,6 +6,7 @@ use powdr_autoprecompiles::bus_map::BusType;
 pub enum Sp1SpecificBuses {
     Byte,
     UntrustedInstruction,
+    PageProt,
 }
 
 impl Display for Sp1SpecificBuses {
@@ -13,6 +14,7 @@ impl Display for Sp1SpecificBuses {
         match self {
             Sp1SpecificBuses::Byte => write!(f, "BYTE"),
             Sp1SpecificBuses::UntrustedInstruction => write!(f, "UNTRUSTED_INSTRUCTION"),
+            Sp1SpecificBuses::PageProt => write!(f, "PAGE_PROT"),
         }
     }
 }
@@ -27,5 +29,6 @@ pub fn sp1_bus_map() -> BusMap {
         (5, BusType::Other(Sp1SpecificBuses::Byte)),
         (7, BusType::ExecutionBridge),
         (16, BusType::Other(Sp1SpecificBuses::UntrustedInstruction)),
+        (18, BusType::Other(Sp1SpecificBuses::PageProt)),
     ])
 }
