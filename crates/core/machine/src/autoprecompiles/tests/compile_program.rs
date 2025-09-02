@@ -121,7 +121,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     expect![[r#"
         AirStats {
             main_columns: 15579,
-            constraints: 10518,
+            constraints: 10823,
             bus_interactions: 7673,
         }
     "#]]
@@ -153,8 +153,8 @@ fn test_collect_basic_blocks_keccak256_software() {
     test_collect_basic_blocks(
         GUEST_KECCAK256_SOFTWARE,
         expect![[r#"
-        1870
-    "#]],
+            1963
+        "#]],
     );
 }
 
@@ -165,8 +165,8 @@ fn test_collect_basic_blocks_fibonacci() {
     test_collect_basic_blocks(
         GUEST_FIBONACCI,
         expect![[r#"
-        1628
-    "#]],
+            1724
+        "#]],
     );
 }
 

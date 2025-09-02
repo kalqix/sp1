@@ -23,7 +23,7 @@ impl<V: Copy + 'static> IntoIterator for Memory<V> {
     }
 }
 
-impl<T: Copy> Default for Memory<T> {
+impl<T: Copy + Default> Default for Memory<T> {
     fn default() -> Self {
         Self { registers: Registers::default(), page_table: PagedMemory::default() }
     }
@@ -358,7 +358,7 @@ impl<V: Copy> PagedMemory<V> {
 
 impl<V: Copy> Default for PagedMemory<V> {
     fn default() -> Self {
-        Self { page_table: Vec::new(), index: Vec::new() }
+        Self { page_table: Vec::new(), index: vec![NO_PAGE; MAX_PAGE_COUNT] }
     }
 }
 
