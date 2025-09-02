@@ -57,12 +57,12 @@ pub async fn run_test_with_machine_opts<
     (SP1PublicValues, MachineProof<SP1CoreJaggedConfig>),
     MachineVerifierConfigError<SP1CoreJaggedConfig>,
 > {
-    let mut runtime = Executor::new(program, opts);
+    let mut runtime = Executor::new(program, opts.clone());
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let proof = run_test_core(runtime, inputs, machine).await?;
+    let proof = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
     Ok((public_values, proof))
 }
 
