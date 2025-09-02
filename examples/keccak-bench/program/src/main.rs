@@ -6,13 +6,16 @@ pub fn main() {
     let num_hashes = sp1_zkvm::io::read::<usize>();
     let mut state = sp1_zkvm::io::read::<Vec<u8>>();
 
-    for _ in 0..num_hashes {
-        if use_manual_precompile {
+    if use_manual_precompile {
+        for _ in 0..num_hashes {
             manual_precompile::hash(&mut state);
-        } else {
+        }
+    } else {
+        for _ in 0..num_hashes {
             software::hash(&mut state);
         }
     }
+
     sp1_zkvm::io::commit(&state);
 }
 
