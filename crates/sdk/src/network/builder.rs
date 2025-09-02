@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use alloy_primitives::Address;
 use powdr_autoprecompiles::Apc;
-use slop_baby_bear::BabyBear;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_primitives::SP1Field;
 
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
@@ -19,7 +19,7 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
-    apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>,
+    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
 }
 
 impl NetworkProverBuilder {
@@ -74,7 +74,7 @@ impl NetworkProverBuilder {
 
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-    pub fn apcs(mut self, apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub fn apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         self.apcs = apcs;
         self
     }
@@ -106,12 +106,7 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        let tee_signers = match self.tee_signers {
-            Some(tee_signers) => tee_signers,
-            None => {
-                crate::network::tee::get_tee_signers().await.expect("Failed to get TEE signers")
-            }
-        };
+        let tee_signers = self.tee_signers.unwrap_or_default();
 
         NetworkProver::new(&private_key, &rpc_url, self.apcs).await.with_tee_signers(tee_signers)
     }

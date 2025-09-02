@@ -221,6 +221,12 @@ checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
 
 [[package]]
 name = "base64"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
@@ -239,7 +245,7 @@ dependencies = [
  "num",
  "rand 0.8.5",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -319,7 +325,7 @@ dependencies = [
 name = "bls-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -329,14 +335,14 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "bls12381-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -345,7 +351,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -354,7 +360,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -363,7 +369,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -372,7 +378,7 @@ version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -382,14 +388,14 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "bn254-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -398,7 +404,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -407,7 +413,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -416,7 +422,7 @@ version = "1.1.1"
 dependencies = [
  "num-bigint",
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -425,7 +431,7 @@ version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -498,6 +504,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-default"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b396d1f76d455557e1218ec8066ae14bba60b4b36ecd55577ba979f5db7ecaa"
+
+[[package]]
 name = "const-hex"
 version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -558,6 +570,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "critical-section"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
+
+[[package]]
 name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -588,16 +606,15 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
- "anyhow",
  "cfg-if",
  "cpufeatures",
  "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 3.4.0",
+ "sp1-lib 6.0.0",
  "subtle",
  "zeroize",
 ]
@@ -605,7 +622,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -632,7 +649,7 @@ name = "cycle-tracker-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -877,7 +894,7 @@ dependencies = [
 name = "ed-add-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -885,7 +902,7 @@ name = "ed-decompress-test"
 version = "1.1.0"
 dependencies = [
  "hex-literal",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -913,7 +930,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#a9d46282f5660dfb7e3850ef957fe884089daeda"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
@@ -929,7 +946,7 @@ version = "1.1.0"
 dependencies = [
  "ed25519-dalek",
  "hex-literal",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -957,6 +974,18 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "embedded-alloc"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f2de9133f68db0d4627ad69db767726c99ff8585272716708227008d3f1bddd"
+dependencies = [
+ "const-default",
+ "critical-section",
+ "linked_list_allocator",
+ "rlsf",
 ]
 
 [[package]]
@@ -1023,7 +1052,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "fibonacci-program-tests"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1206,7 +1235,7 @@ dependencies = [
 name = "hello-world-program"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1225,7 +1254,7 @@ checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 name = "hint-io-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1398,14 +1427,14 @@ dependencies = [
 name = "keccak-permute-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "keccak256-software-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1413,8 +1442,8 @@ dependencies = [
 name = "keccak256-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0)",
+ "sp1-zkvm",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2)",
 ]
 
 [[package]]
@@ -1434,6 +1463,12 @@ name = "libm"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
+
+[[package]]
+name = "linked_list_allocator"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
 
 [[package]]
 name = "linux-raw-sys"
@@ -1584,23 +1619,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-baby-bear"
-version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
-dependencies = [
- "num-bigint",
- "p3-field",
- "p3-mds",
- "p3-poseidon2",
- "p3-symmetric",
- "rand 0.8.5",
- "serde",
-]
-
-[[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1612,7 +1633,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint",
@@ -1623,9 +1644,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-koala-bear"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
+dependencies = [
+ "num-bigint",
+ "p3-field",
+ "p3-mds",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "rand 0.8.5",
+ "serde",
+]
+
+[[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1639,12 +1674,12 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1658,7 +1693,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "gcd",
  "p3-field",
@@ -1671,7 +1706,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1681,7 +1716,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/erabinov/Plonky3/?branch=clone_config#5eec9983066d67e701361f7cd6acd294ec0d21ee"
+source = "git+https://github.com/Plonky3/Plonky3/?branch=sp1-v6#ce9cdfa52326beb93d77669cee52e23287fdb16d"
 dependencies = [
  "serde",
 ]
@@ -1690,7 +1725,7 @@ dependencies = [
 name = "panic-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1927,7 +1962,7 @@ name = "rand-test"
 version = "1.1.0"
 dependencies = [
  "rand 0.8.5",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2021,6 +2056,18 @@ checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
  "bytes",
  "rustc-hex",
+]
+
+[[package]]
+name = "rlsf"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "222fb240c3286247ecdee6fa5341e7cdad0ffdf8e7e401d9937f2d58482a20bf"
+dependencies = [
+ "cfg-if",
+ "const-default",
+ "libc",
+ "svgbobdoc",
 ]
 
 [[package]]
@@ -2192,21 +2239,21 @@ dependencies = [
  "common-test-utils",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256k1-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256k1-double-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2214,7 +2261,7 @@ name = "secp256k1-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2228,14 +2275,14 @@ dependencies = [
  "p256",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "secp256r1-decompress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2249,7 +2296,7 @@ dependencies = [
  "p256",
  "sp1-curves",
  "sp1-lib 6.0.0",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2334,7 +2381,7 @@ version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2c45cd61fefa9db6f254525d46e392b852e0e61d9a1fd36e5bd183450a556d5"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -2364,14 +2411,14 @@ dependencies = [
 name = "sha-compress-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
 name = "sha-extend-test"
 version = "1.1.0"
 dependencies = [
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2414,7 +2461,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "sha2 0.10.6",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2456,24 +2503,28 @@ dependencies = [
 [[package]]
 name = "slop-algebra"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-field",
  "serde",
 ]
 
 [[package]]
-name = "slop-baby-bear"
+name = "slop-koala-bear"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
- "p3-baby-bear",
+ "lazy_static",
+ "p3-koala-bear",
+ "serde",
+ "slop-algebra",
+ "slop-poseidon2",
 ]
 
 [[package]]
 name = "slop-poseidon2"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-poseidon2",
 ]
@@ -2481,7 +2532,7 @@ dependencies = [
 [[package]]
 name = "slop-symmetric"
 version = "1.2.0"
-source = "git+https://github.com/succinctlabs/slop#d9d9291b46a8ace01bf6b5135a851faf19ea8975"
+source = "git+https://github.com/succinctlabs/slop#7ce048ee0d780dc68adf2ef045ed9ad6d4d7d3d1"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2557,16 +2608,18 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "slop-algebra",
- "slop-baby-bear",
+ "slop-koala-bear",
  "slop-poseidon2",
  "slop-symmetric",
 ]
 
 [[package]]
-name = "sp1-zkvm-64"
+name = "sp1-zkvm"
 version = "6.0.0"
 dependencies = [
  "cfg-if",
+ "critical-section",
+ "embedded-alloc",
  "getrandom 0.2.16",
  "getrandom 0.3.3",
  "lazy_static",
@@ -2574,7 +2627,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "slop-baby-bear",
+ "slop-koala-bear",
  "sp1-lib 6.0.0",
  "sp1-primitives",
 ]
@@ -2599,7 +2652,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2 0.9.8",
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "ssz_rs",
 ]
 
@@ -2660,6 +2713,19 @@ name = "subtle-ng"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
+
+[[package]]
+name = "svgbobdoc"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2c04b93fc15d79b39c63218f15e3fdffaa4c227830686e3b7c5f41244eb3e50"
+dependencies = [
+ "base64 0.13.1",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "unicode-width",
+]
 
 [[package]]
 name = "syn"
@@ -2737,7 +2803,7 @@ version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "sp1-zkvm-64",
+ "sp1-zkvm",
  "tendermint",
  "tendermint-light-client-verifier",
 ]
@@ -2836,11 +2902,10 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?rev=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
+source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.0.0",
 ]
 
 [[package]]
@@ -2906,7 +2971,7 @@ dependencies = [
  "num-bigint",
  "rand 0.8.5",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2933,7 +2998,7 @@ version = "1.1.0"
 dependencies = [
  "crypto-bigint",
  "sp1-derive",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2947,6 +3012,12 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unicode-width"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 
 [[package]]
 name = "unicode-xid"
@@ -2967,7 +3038,7 @@ dependencies = [
  "bytemuck",
  "hex",
  "sha2 0.10.9",
- "sp1-zkvm-64",
+ "sp1-zkvm",
 ]
 
 [[package]]

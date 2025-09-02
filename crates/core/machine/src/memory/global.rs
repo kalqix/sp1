@@ -19,11 +19,11 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::consts::u64_to_u16_limbs;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir},
     InteractionKind, Word,
 };
+use sp1_primitives::consts::u64_to_u16_limbs;
 use std::iter::once;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -78,8 +78,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         };
 
         let previous_addr = match self.kind {
-            MemoryChipType::Initialize => input.public_values.previous_init_addr_word,
-            MemoryChipType::Finalize => input.public_values.previous_finalize_addr_word,
+            MemoryChipType::Initialize => input.public_values.previous_init_addr,
+            MemoryChipType::Finalize => input.public_values.previous_finalize_addr,
         };
 
         memory_events.sort_by_key(|event| event.addr);
@@ -160,18 +160,15 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         };
 
         let previous_addr = match self.kind {
-            MemoryChipType::Initialize => input.public_values.previous_init_addr_word,
-            MemoryChipType::Finalize => input.public_values.previous_finalize_addr_word,
+            MemoryChipType::Initialize => input.public_values.previous_init_addr,
+            MemoryChipType::Finalize => input.public_values.previous_finalize_addr,
         };
 
         memory_events.sort_by_key(|event| event.addr);
         let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = memory_events
             .par_iter()
             .map(|event| {
-                let MemoryInitializeFinalizeEvent { addr, value, shard: _, timestamp } =
-                    event.to_owned();
-
-                // let mut blu = vec![];
+                let MemoryInitializeFinalizeEvent { addr, value, timestamp } = event.to_owned();
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr[0] = F::from_canonical_u16((addr & 0xFFFF) as u16);
@@ -229,14 +226,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
             }
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
-    }
-
-    fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Local
     }
 
     fn column_names(&self) -> Vec<String> {
@@ -317,8 +306,7 @@ where
         // Constrain that the address is a valid `Word`.
         builder.slice_range_check_u16(&local.addr, local.is_real);
 
-        // Assert that value_lower and value_upper are the lower and upper halves of the third limb
-        // of the value.
+        // Assert that value_lower and value_upper are the lower and upper halves of the third limb.
         builder.assert_eq(
             local.value.0[2],
             local.value_lower + local.value_upper * AB::F::from_canonical_u32(1 << 8),
@@ -405,7 +393,10 @@ where
             );
         }
 
-        // Assert that `prev_addr < addr` when `prev_addr != 0 or index != 0`.
+        // Assert that `prev_addr < addr` when `prev_addr != 0` or `index != 0`.
+        // First, check if `prev_addr != 0`, and check if `index != 0`.
+        // SAFETY: Since `prev_addr` are composed of valid u16 limbs, adding them to check if
+        // all three limbs are zero is safe, as overflows are impossible.
         IsZeroOperation::<AB::F>::eval(
             builder,
             IsZeroOperationInput::new(
@@ -423,7 +414,7 @@ where
             ),
         );
 
-        // Comparison will be done unless `prev_addr == 0` and `index == 0`.
+        // Comparison will be done unless both `prev_addr == 0` and `index == 0`.
         // If `is_real = 0`, then `is_comp` will be zero.
         // If `is_real = 1`, then `is_comp` will be zero when `prev_addr == 0` and `index == 0`.
         // If `is_real = 1`, then `is_comp` will be one when `prev_addr != 0` or `index != 0`.
@@ -432,7 +423,8 @@ where
             local.is_real
                 * (AB::Expr::one() - local.is_prev_addr_zero.result * local.is_index_zero.result),
         );
-        // builder.assert_bool(local.is_comp);
+        builder.assert_bool(local.is_comp);
+
         // If `is_comp = 1`, then `prev_addr < addr` should hold.
         <LtOperationUnsigned<AB::F> as SP1Operation<AB>>::eval(
             builder,
@@ -456,6 +448,8 @@ where
         builder.when(local.is_comp).assert_one(local.lt_cols.u16_compare_operation.bit);
 
         // If `prev_addr == 0` and `index == 0`, then `addr == 0`, and the `value` should be zero.
+        // SAFETY: Since `local.addr` is valid u16 limbs, one can constrain that the sum of the
+        // limbs is zero in order to constrain that `addr == 0`, as no overflow is possible.
         // This forces the initialization of address 0 with value 0.
         // Constraints related to register %x0: Register %x0 should always be 0.
         // See 2.6 Load and Store Instruction on P.18 of the RISC-V spec.
@@ -477,12 +471,12 @@ where
 //         riscv::RiscvAir, syscall::precompiles::sha256::extend_tests::sha_extend_program,
 //         utils::setup_logger,
 //     };
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use sp1_core_executor::{Executor, Trace};
-//     use sp1_stark::InteractionKind;
-//     use sp1_stark::{
-//         baby_bear_poseidon2::BabyBearPoseidon2, debug_interactions_with_all_chips, SP1CoreOpts,
-//         StarkMachine,
+//     use sp1_hypercube::InteractionKind;
+//     use sp1_hypercube::{
+//         koala_bear_poseidon2::SP1CoreJaggedConfig, debug_interactions_with_all_chips,
+// SP1CoreOpts,         StarkMachine,
 //     };
 
 //     #[test]
@@ -494,12 +488,12 @@ where
 
 //         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipType::Initialize);
 
-//         let trace: RowMajorMatrix<BabyBear> =
+//         let trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&shard, &mut ExecutionRecord::default());
 //         println!("{:?}", trace.values);
 
 //         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipType::Finalize);
-//         let trace: RowMajorMatrix<BabyBear> =
+//         let trace: RowMajorMatrix<SP1Field> =
 //             chip.generate_trace(&shard, &mut ExecutionRecord::default());
 //         println!("{:?}", trace.values);
 
@@ -515,8 +509,8 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine: StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
-//             RiscvAir::machine(BabyBearPoseidon2::new());
+//         let machine: StarkMachine<SP1CoreJaggedConfig, RiscvAir<SP1Field>> =
+//             RiscvAir::machine(SP1CoreJaggedConfig::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -527,7 +521,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -535,7 +529,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
@@ -551,7 +545,7 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+//         let machine = RiscvAir::machine(SP1CoreJaggedConfig::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -561,7 +555,7 @@ where
 //         );
 
 //         let shards = runtime.records;
-//         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),

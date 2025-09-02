@@ -1,11 +1,15 @@
-use crate::air::{SP1CoreAirBuilder, SP1Operation};
+use crate::{
+    adapter::state::CPUStateInput,
+    air::{SP1CoreAirBuilder, SP1Operation},
+    operations::AddwOperationInput,
+};
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
-use slop_air::{Air, AirBuilder, BaseAir};
+use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -14,7 +18,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::MachineAir, Word};
+use sp1_hypercube::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
@@ -48,9 +52,6 @@ pub struct AddwCols<T> {
 
     /// Boolean to indicate whether the row is not a padding row.
     pub is_real: T,
-
-    /// The base opcode for the ADDW instruction.
-    pub base_op_code: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for AddwChip {
@@ -133,10 +134,6 @@ impl<F: PrimeField32> MachineAir<F> for AddwChip {
             !shard.addw_events.is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl AddwChip {
@@ -149,12 +146,6 @@ impl AddwChip {
     ) {
         cols.is_real = F::one();
         cols.addw_operation.populate(blu, event.b, event.c);
-
-        // Get base opcode variants
-        let (addw_base, addw_imm) = Opcode::ADDW.base_opcode();
-        let addw_imm = addw_imm.expect("ADDW immediate opcode not found");
-        let is_imm_c = cols.adapter.imm_c.is_one();
-        cols.base_op_code = F::from_canonical_u32(if is_imm_c { addw_imm } else { addw_base });
     }
 }
 
@@ -176,23 +167,26 @@ where
         // Assert boolean constraints
         builder.assert_bool(local.is_real);
 
+        // Get the instruction type for ADDW
+        let instr_type = Opcode::ADDW.instruction_type().0 as u32;
+        let instr_type_imm =
+            Opcode::ADDW.instruction_type().1.expect("ADDW immediate instruction type not found")
+                as u32;
+        let calculated_instr_type = AB::Expr::from_canonical_u32(instr_type)
+            - AB::Expr::from_canonical_u32(instr_type.checked_sub(instr_type_imm).unwrap())
+                * local.adapter.imm_c;
+
         // Get base opcode variants for ADDW
         let (addw_base, addw_imm) = Opcode::ADDW.base_opcode();
         let addw_imm = addw_imm.expect("ADDW immediate opcode not found");
 
         // Constrain that base_op_code is either addw_base or addw_imm
         let addw_base_expr = AB::Expr::from_canonical_u32(addw_base);
-        let addw_imm_expr = AB::Expr::from_canonical_u32(addw_imm);
 
         // If imm_c is set, base_op_code must be addw_imm; otherwise it must be addw_base
-        // Get proper base opcode based on imm_c, then check equality
-        let proper_base_op_code =
-            builder.if_else(local.adapter.imm_c.into(), addw_imm_expr, addw_base_expr);
-
-        // Constrain base_op_code to be correct based on imm_c.
-        builder
-            .when(local.is_real.into())
-            .assert_eq(local.base_op_code.into(), proper_base_op_code);
+        let calculated_base_opcode = addw_base_expr
+            - AB::Expr::from_canonical_u32(addw_base.checked_sub(addw_imm).unwrap())
+                * local.adapter.imm_c;
 
         // The opcode is always ADDW (both for immediate and non-immediate variants)
         let opcode = AB::Expr::from_f(Opcode::ADDW.as_field());
@@ -201,30 +195,31 @@ where
         let funct3 = AB::Expr::from_canonical_u8(Opcode::ADDW.funct3().unwrap());
         let funct7 = AB::Expr::from_canonical_u8(Opcode::ADDW.funct7().unwrap());
 
-        // Calculate base_opcode based on immediate flag
-        let base_opcode = local.base_op_code.into();
-
         // Constrain the add operation over `op_b` and `op_c`.
-        AddwOperation::<AB::F>::eval(
+        <AddwOperation<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.adapter.b().map(|x| x.into()),
-            local.adapter.c().map(|x| x.into()),
-            local.addw_operation,
-            local.is_real.into(),
+            AddwOperationInput::new(
+                local.adapter.b().map(|x| x.into()),
+                local.adapter.c().map(|x| x.into()),
+                local.addw_operation,
+                local.is_real.into(),
+            ),
         );
 
         // Constrain the state of the CPU.
         // The program counter and timestamp increment by `4` and `8`.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            local.is_real.into(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                local.is_real.into(),
+            ),
         );
 
         let u16_max = AB::F::from_canonical_u32((1 << 16) - 1);
@@ -242,7 +237,7 @@ where
             local.state.clk_low::<AB>(),
             local.state.pc,
             opcode,
-            [base_opcode, funct3, funct7],
+            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             word,
             local.adapter,
             local.is_real.into(),

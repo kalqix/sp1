@@ -11,7 +11,7 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use sp1_stark::{
+use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
@@ -26,7 +26,7 @@ pub type ApcCost = u64;
 ///
 /// Contains a series of instructions along with the initial memory image. It also contains the
 /// start address and base address of the program.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Program {
     /// The instructions of the program.
     pub instructions: Vec<Instruction>,
@@ -46,7 +46,7 @@ pub struct Program {
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
 /// alternative implementation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Apc {
     /// The id for this APC
     pub id: u64,
@@ -57,7 +57,7 @@ pub struct Apc {
 }
 
 /// Represents a APC range.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct ApcRange {
     start_idx: usize,
     len: usize,
@@ -151,7 +151,7 @@ impl Program {
         }
     }
 
-    /// Disassemble a RV32IM ELF to a program that be executed by the VM.
+    /// Disassemble a RV64IM ELF to a program that be executed by the VM.
     ///
     /// # Errors
     ///
@@ -162,7 +162,7 @@ impl Program {
 
         assert!(elf.pc_base != 0, "elf with pc_base == 0 is not supported");
 
-        // Transpile the RV32IM instructions.
+        // Transpile the RV64IM instructions.
         let instruction_pair = transpile(&elf.instructions);
         let (instructions, instructions_encoded): (Vec<Instruction>, _) =
             instruction_pair.into_iter().unzip();
@@ -179,7 +179,7 @@ impl Program {
         })
     }
 
-    /// Disassemble a RV32IM ELF to a program that be executed by the VM from a file path.
+    /// Disassemble a RV64IM ELF to a program that be executed by the VM from a file path.
     ///
     /// # Errors
     ///

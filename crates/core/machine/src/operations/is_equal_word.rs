@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use slop_air::AirBuilder;
 use slop_algebra::Field;
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
-use sp1_stark::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
@@ -28,9 +28,8 @@ use super::{IsZeroWordOperation, IsZeroWordOperationInput};
 )]
 #[repr(C)]
 pub struct IsEqualWordOperation<T> {
-    /// An operation to check whether the differences in limbs are all 0 (i.e., `a[0] - b[0]`,
-    /// `a[1] - b[1]`). The result of `IsEqualWordOperation` is
-    /// `is_diff_zero.result`.
+    /// An operation to check whether the differences in limbs are all 0.
+    /// The result of `IsEqualWordOperation` is `is_diff_zero.result`.
     pub is_diff_zero: IsZeroWordOperation<T>,
 }
 

@@ -6,11 +6,11 @@ use std::{
 };
 
 use clap::Parser;
-use slop_baby_bear::BabyBear;
+use sp1_primitives::SP1Field;
 use slop_futures;
 use sp1_core_executor::{Executor, Program, RiscvAirId, SP1Context};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
-use sp1_stark::{shape::Shape, SP1CoreOpts};
+use sp1_hypercube::{shape::Shape, SP1CoreOpts};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -54,7 +54,7 @@ fn collect_maximal_shapes(
         for mut record in records {
             if record.contains_cpu() {
                 let _ = record.defer();
-                let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
+                let core_shape: Shape<RiscvAirId> = RiscvAir::<SP1Field>::core_heights(&record)
                     .into_iter()
                     .filter(|&(_, height)| (height != 0))
                     .map(|(air, height)| (air, height.next_power_of_two().ilog2() as usize))
@@ -135,7 +135,7 @@ fn main() {
             .args([
                 "s3",
                 "cp",
-                &format!("s3://sp1-testing-suite/{}/program.bin", s3_path),
+                &format!("s3://sp1-testing-suite/{s3_path}/program.bin"),
                 "program.bin",
             ])
             .status()
@@ -146,12 +146,7 @@ fn main() {
 
         // Download stdin.bin.
         let status = std::process::Command::new("aws")
-            .args([
-                "s3",
-                "cp",
-                &format!("s3://sp1-testing-suite/{}/stdin.bin", s3_path),
-                "stdin.bin",
-            ])
+            .args(["s3", "cp", &format!("s3://sp1-testing-suite/{s3_path}/stdin.bin"), "stdin.bin"])
             .status()
             .expect("Failed to execute aws s3 cp command for stdin.bin");
         if !status.success() {

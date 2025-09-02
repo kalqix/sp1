@@ -2,10 +2,13 @@ use challenger::{
     CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
     MultiField32ChallengerVariable,
 };
-use hash::{FieldHasherVariable, Posedion2BabyBearHasherVariable};
+use hash::{FieldHasherVariable, Poseidon2SP1FieldHasherVariable};
 use itertools::izip;
-use slop_algebra::{AbstractExtensionField, AbstractField};
+use slop_algebra::{AbstractExtensionField, AbstractField, PrimeField32};
 use slop_bn254::Bn254Fr;
+use slop_koala_bear::{
+    KoalaBear_BEGIN_EXT_CONSTS, KoalaBear_END_EXT_CONSTS, KoalaBear_PARTIAL_CONSTS,
+};
 use sp1_core_machine::operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -17,14 +20,11 @@ use std::iter::{repeat, zip};
 use utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes};
 
 use slop_basefold::{
-    BasefoldConfig, BasefoldProof, BasefoldVerifier, Poseidon2BabyBear16BasefoldConfig,
-    Poseidon2Bn254FrBasefoldConfig,
+    BasefoldConfig, BasefoldProof, BasefoldVerifier, Poseidon2Bn254FrBasefoldConfig,
 };
 use slop_commit::TensorCs;
-use slop_merkle_tree::{
-    MerkleTreeConfig, MerkleTreeTcs, Poseidon2BabyBearConfig, Poseidon2Bn254Config,
-};
-use sp1_stark::{BabyBearPoseidon2, Bn254JaggedConfig};
+use slop_merkle_tree::{MerkleTreeConfig, MerkleTreeTcs, Poseidon2Bn254Config};
+use sp1_hypercube::{SP1BasefoldConfig, SP1CoreJaggedConfig, SP1MerkleTreeConfig, SP1OuterConfig};
 pub mod basefold;
 pub mod challenger;
 pub mod dummy;
@@ -39,22 +39,21 @@ pub mod utils;
 pub mod witness;
 pub mod zerocheck;
 pub const D: usize = 4;
-use slop_baby_bear::BabyBear;
 use slop_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use slop_jagged::JaggedConfig;
-use sp1_primitives::RC_16_30_U32;
-type EF = <BabyBearPoseidon2 as JaggedConfig>::EF;
+use sp1_primitives::SP1Field;
+type EF = <SP1CoreJaggedConfig as JaggedConfig>::EF;
 
 pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::DigestVariable;
 
-pub type InnerSC = BabyBearPoseidon2;
+pub type InnerSC = SP1CoreJaggedConfig;
 
 pub trait AsRecursive<C: CircuitConfig> {
     type Recursive;
 }
-pub trait BabyBearFriConfig:
+pub trait SP1FieldFriConfig:
     JaggedConfig<
-    F = BabyBear,
+    F = SP1Field,
     EF = EF,
     Commitment = <MerkleTreeTcs<Self::MerkleTreeConfig> as TensorCs>::Commitment,
     BatchPcsProof = BasefoldProof<Self::BasefoldConfig>,
@@ -63,21 +62,21 @@ pub trait BabyBearFriConfig:
 >
 {
     type BasefoldConfig: BasefoldConfig<
-        F = BabyBear,
+        F = SP1Field,
         EF = EF,
         Tcs = MerkleTreeTcs<Self::MerkleTreeConfig>,
         Commitment = <MerkleTreeTcs<Self::MerkleTreeConfig> as TensorCs>::Commitment,
         Challenger = Self::FriChallenger,
     >;
-    type MerkleTreeConfig: MerkleTreeConfig<Data = BabyBear>;
+    type MerkleTreeConfig: MerkleTreeConfig<Data = SP1Field>;
     type FriChallenger: CanObserve<<Self::BasefoldConfig as BasefoldConfig>::Commitment>
         + CanSample<EF>
-        + GrindingChallenger<Witness = BabyBear>
-        + FieldChallenger<BabyBear>;
+        + GrindingChallenger<Witness = SP1Field>
+        + FieldChallenger<SP1Field>;
 }
 
-pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
-    BabyBearFriConfig + FieldHasherVariable<C> + Posedion2BabyBearHasherVariable<C> + Send + Sync
+pub trait SP1FieldConfigVariable<C: CircuitConfig<F = SP1Field>>:
+    SP1FieldFriConfig + FieldHasherVariable<C> + Poseidon2SP1FieldHasherVariable<C> + Send + Sync
 {
     type FriChallengerVariable: FieldChallengerVariable<C, <C as CircuitConfig>::Bit>
         + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::DigestVariable>
@@ -128,13 +127,6 @@ pub trait CircuitConfig: Config {
         power_bits: &[Self::Bit],
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F>;
-
-    fn batch_fri(
-        builder: &mut Builder<Self>,
-        alpha_pows: Vec<Ext<Self::F, Self::EF>>,
-        p_at_zs: Vec<Ext<Self::F, Self::EF>>,
-        p_at_xs: Vec<Felt<Self::F>>,
-    ) -> Ext<Self::F, Self::EF>;
 
     #[allow(clippy::type_complexity)]
     fn prefix_sum_checks(
@@ -258,15 +250,6 @@ impl CircuitConfig for InnerConfig {
         result
     }
 
-    fn batch_fri(
-        builder: &mut Builder<Self>,
-        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_xs: Vec<Felt<<Self as Config>::F>>,
-    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
-        builder.batch_fri_v2(alpha_pows, p_at_zs, p_at_xs)
-    }
-
     fn prefix_sum_checks(
         builder: &mut Builder<Self>,
         x1: Vec<Felt<Self::F>>,
@@ -350,18 +333,28 @@ impl Config for WrapConfig {
     type EF = <InnerConfig as Config>::EF;
     type N = <InnerConfig as Config>::N;
     fn initialize(builder: &mut Builder<Self>) {
-        for round in 0..RC_16_30_U32.len() {
+        for round in 0..NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS {
             for i in 0..PERMUTATION_WIDTH / D {
                 let add_rc = if (NUM_EXTERNAL_ROUNDS / 2
                     ..NUM_EXTERNAL_ROUNDS / 2 + NUM_INTERNAL_ROUNDS)
                     .contains(&round)
                 {
-                    builder.constant(<Self as Config>::EF::from_base(
-                        <Self as Config>::F::from_wrapped_u32(RC_16_30_U32[round][i * D]),
-                    ))
+                    builder.constant(<Self as Config>::EF::from_base({
+                        let result = KoalaBear_PARTIAL_CONSTS[round - NUM_EXTERNAL_ROUNDS / 2]
+                            .as_canonical_u32();
+
+                        <Self as Config>::F::from_wrapped_u32(result)
+                    }))
                 } else {
                     builder.constant(<Self as Config>::EF::from_base_fn(|idx| {
-                        <Self as Config>::F::from_wrapped_u32(RC_16_30_U32[round][i * D + idx])
+                        let result = if round < NUM_EXTERNAL_ROUNDS / 2 {
+                            KoalaBear_BEGIN_EXT_CONSTS[round][i * D + idx].as_canonical_u32()
+                        } else {
+                            KoalaBear_END_EXT_CONSTS
+                                [round - NUM_INTERNAL_ROUNDS - NUM_EXTERNAL_ROUNDS / 2][i * D + idx]
+                                .as_canonical_u32()
+                        };
+                        <Self as Config>::F::from_wrapped_u32(result)
                     }))
                 };
 
@@ -429,30 +422,6 @@ impl CircuitConfig for WrapConfig {
             power_f = builder.eval(power_f * power_f);
         }
         result
-    }
-
-    fn batch_fri(
-        builder: &mut Builder<Self>,
-        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_xs: Vec<Felt<<Self as Config>::F>>,
-    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
-        // Initialize the `acc` to zero.
-        let mut acc: Ext<_, _> = builder.uninit();
-        builder.push_op(DslIr::ImmE(acc, <Self as Config>::EF::zero()));
-        for (alpha_pow, p_at_z, p_at_x) in izip!(alpha_pows, p_at_zs, p_at_xs) {
-            // Set `temp_1 = p_at_z - p_at_x`
-            let temp_1: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::SubEF(temp_1, p_at_z, p_at_x));
-            // Set `temp_2 = alpha_pow * temp_1 = alpha_pow * (p_at_z - p_at_x)`
-            let temp_2: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::MulE(temp_2, alpha_pow, temp_1));
-            // Set `acc += temp_2`, so that `acc` becomes the sum of `alpha_pow * (p_at_z - p_at_x)`
-            let temp_3: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::AddE(temp_3, acc, temp_2));
-            acc = temp_3;
-        }
-        acc
     }
 
     fn prefix_sum_checks(
@@ -543,7 +512,6 @@ impl CircuitConfig for WrapConfig {
         builder: &mut Builder<Self>,
         input: [Felt<Self::F>; PERMUTATION_WIDTH],
     ) -> [Felt<Self::F>; PERMUTATION_WIDTH] {
-        // builder.poseidon2_permute_v2(input)
         let mut state = Self::blockify(builder, input);
         for i in 0..NUM_EXTERNAL_ROUNDS / 2 {
             state = Self::external_round(builder, state, i);
@@ -733,30 +701,6 @@ impl CircuitConfig for OuterConfig {
         result
     }
 
-    fn batch_fri(
-        builder: &mut Builder<Self>,
-        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
-        p_at_xs: Vec<Felt<<Self as Config>::F>>,
-    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
-        // Initialize the `acc` to zero.
-        let mut acc: Ext<_, _> = builder.uninit();
-        builder.push_op(DslIr::ImmE(acc, <Self as Config>::EF::zero()));
-        for (alpha_pow, p_at_z, p_at_x) in izip!(alpha_pows, p_at_zs, p_at_xs) {
-            // Set `temp_1 = p_at_z - p_at_x`
-            let temp_1: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::SubEF(temp_1, p_at_z, p_at_x));
-            // Set `temp_2 = alpha_pow * temp_1 = alpha_pow * (p_at_z - p_at_x)`
-            let temp_2: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::MulE(temp_2, alpha_pow, temp_1));
-            // Set `acc += temp_2`, so that `acc` becomes the sum of `alpha_pow * (p_at_z - p_at_x)`
-            let temp_3: Ext<_, _> = builder.uninit();
-            builder.push_op(DslIr::AddE(temp_3, acc, temp_2));
-            acc = temp_3;
-        }
-        acc
-    }
-
     fn prefix_sum_checks(
         builder: &mut Builder<Self>,
         point_1: Vec<Felt<Self::F>>,
@@ -855,14 +799,14 @@ impl CircuitConfig for OuterConfig {
     }
 }
 
-impl BabyBearFriConfig for BabyBearPoseidon2 {
-    type BasefoldConfig = Poseidon2BabyBear16BasefoldConfig;
-    type MerkleTreeConfig = Poseidon2BabyBearConfig;
+impl SP1FieldFriConfig for SP1CoreJaggedConfig {
+    type BasefoldConfig = SP1BasefoldConfig;
+    type MerkleTreeConfig = SP1MerkleTreeConfig;
     type FriChallenger = <Self as JaggedConfig>::Challenger;
 }
 
-impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVariable<C>
-    for BabyBearPoseidon2
+impl<C: CircuitConfig<F = SP1Field, Bit = Felt<SP1Field>>> SP1FieldConfigVariable<C>
+    for SP1CoreJaggedConfig
 {
     type FriChallengerVariable = DuplexChallengerVariable<C>;
 
@@ -878,14 +822,14 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVari
     }
 }
 
-impl BabyBearFriConfig for Bn254JaggedConfig {
-    type BasefoldConfig = Poseidon2Bn254FrBasefoldConfig;
-    type MerkleTreeConfig = Poseidon2Bn254Config;
+impl SP1FieldFriConfig for SP1OuterConfig {
+    type BasefoldConfig = Poseidon2Bn254FrBasefoldConfig<SP1Field>;
+    type MerkleTreeConfig = Poseidon2Bn254Config<SP1Field>;
     type FriChallenger = <Self as JaggedConfig>::Challenger;
 }
 
-impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFriConfigVariable<C>
-    for Bn254JaggedConfig
+impl<C: CircuitConfig<F = SP1Field, N = Bn254Fr, Bit = Var<Bn254Fr>>> SP1FieldConfigVariable<C>
+    for SP1OuterConfig
 {
     type FriChallengerVariable = MultiField32ChallengerVariable<C>;
 

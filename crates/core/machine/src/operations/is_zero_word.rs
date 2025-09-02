@@ -6,15 +6,15 @@ use serde::{Deserialize, Serialize};
 use slop_air::AirBuilder;
 use slop_algebra::Field;
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::{SP1Operation, SP1OperationBuilder};
 
 use super::{IsZeroOperation, IsZeroOperationInput};
 
-/// A set of columns needed to compute whether the given word is 0.
+/// A set of columns needed to compute whether the given `Word` is 0.
 #[derive(
     AlignedBorrow,
     Default,
@@ -29,16 +29,16 @@ use super::{IsZeroOperation, IsZeroOperationInput};
 )]
 #[repr(C)]
 pub struct IsZeroWordOperation<T> {
-    /// `IsZeroOperation` to check if each limb in the input word is zero.
+    /// `IsZeroOperation` to check if each limb in the input `Word` is zero.
     pub is_zero_limb: [IsZeroOperation<T>; WORD_SIZE],
 
-    /// is first half of the word zero
+    /// If the first two limbs of the `Word` is zero.
     pub is_zero_first_half: T,
-    /// is second half of the word zero
+
+    /// If the last two limbs of the `Word` is zero.
     pub is_zero_second_half: T,
 
-    /// A boolean flag indicating whether the word is zero. This equals `is_zero_limb[0] * ... *
-    /// is_zero_limb[WORD_SIZE - 1]`.
+    /// A boolean flag indicating whether the input `Word` is zero.
     pub result: T,
 }
 
@@ -77,17 +77,23 @@ impl<F: Field> IsZeroWordOperation<F> {
             )
         }
 
+        // Check that `is_real` is boolean.
         builder.assert_bool(is_real.clone());
+        // Check that `result` is boolean.
         builder.assert_bool(cols.result);
+
+        // The first half is zero if and only if the first two limbs are both zero.
         builder.assert_eq(
             cols.is_zero_first_half,
             cols.is_zero_limb[0].result * cols.is_zero_limb[1].result,
         );
+        // The second half is zero if and only if the last two limbs are both zero.
         builder.assert_eq(
             cols.is_zero_second_half,
             cols.is_zero_limb[2].result * cols.is_zero_limb[3].result,
         );
 
+        // The `Word` is zero if and only if both halves are zero.
         builder
             .when(is_real.clone())
             .assert_eq(cols.result, cols.is_zero_first_half * cols.is_zero_second_half);

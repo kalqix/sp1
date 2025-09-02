@@ -19,7 +19,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{InteractionScope, MachineAir};
+use sp1_hypercube::air::MachineAir;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub(crate) const NUM_MEMORY_BUMP_COLS: usize = size_of::<MemoryBumpCols<u8>>();
@@ -63,17 +63,21 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
         let blu_batches = event_iter
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
-                events.iter().for_each(|(event, _)| {
+                events.iter().for_each(|(event, addr)| {
                     let mut row = [F::zero(); NUM_MEMORY_BUMP_COLS];
                     let cols: &mut MemoryBumpCols<F> = row.as_mut_slice().borrow_mut();
                     let bump_event = MemoryRecordEnum::Read(MemoryReadRecord {
                         value: event.prev_value(),
-                        prev_shard: event.previous_record().shard,
                         prev_timestamp: event.previous_record().timestamp,
-                        shard: 0,
                         timestamp: (event.current_record().timestamp >> 24) << 24,
+                        prev_page_prot_record: None,
                     });
                     cols.access.populate(bump_event, &mut blu);
+                    blu.add_u16_range_checks(&[
+                        (addr & 0xFFFF) as u16,
+                        (addr >> 16) as u16,
+                        (addr >> 32) as u16,
+                    ]);
                 });
                 blu
             })
@@ -107,10 +111,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
                     let (event, addr) = input.bump_memory_events[idx];
                     let bump_event = MemoryRecordEnum::Read(MemoryReadRecord {
                         value: event.prev_value(),
-                        prev_shard: event.previous_record().shard,
                         prev_timestamp: event.previous_record().timestamp,
-                        shard: 0,
                         timestamp: (event.current_record().timestamp >> 24) << 24,
+                        prev_page_prot_record: None,
                     });
                     cols.access.populate(bump_event, &mut byte_lookup_events);
                     cols.clk_high =
@@ -133,10 +136,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
         shard.cpu_event_count != 0
     }
 
-    fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Local
-    }
-
     fn column_names(&self) -> Vec<String> {
         MemoryBumpCols::<F>::struct_reflection().unwrap()
     }
@@ -150,7 +149,14 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MemoryBumpCols<AB::Var> = (*local).borrow();
+
+        // Check that `is_real` is a boolean value.
         builder.assert_bool(local.is_real);
+
+        // Check that the address is a valid u48 address.
+        builder.slice_range_check_u16(&local.addr.map(Into::into), local.is_real);
+
+        // Bump the memory timestamp to a multiple of 2^24, by doing an additional read.
         builder.eval_memory_access_read(
             local.clk_high,
             AB::Expr::zero(),

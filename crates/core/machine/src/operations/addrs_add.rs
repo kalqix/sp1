@@ -1,17 +1,28 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
-use sp1_stark::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use crate::air::WordAirBuilder;
+use crate::air::{SP1Operation, WordAirBuilder};
 
-/// A set of columns needed to compute the add of two u48 addresses.
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize)]
+/// A set of columns needed to compute the addition of two Words as an u48 address.
+#[derive(
+    AlignedBorrow,
+    StructReflection,
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoShape,
+    SP1OperationBuilder,
+)]
 #[repr(C)]
 pub struct AddrAddOperation<T> {
     /// The result of `a + b` in u48 (three u16 limbs).
@@ -33,7 +44,7 @@ impl<F: Field> AddrAddOperation<F> {
     }
 
     /// Evaluate the add operation.
-    /// Assumes that `a`, `b` are valid u64 addresses.
+    /// Assumes that `a`, `b` are valid `Word`s.
     /// Constrains that `is_real` is boolean.
     /// If `is_real` is true, `value` is constrained to a valid u48 address `a + b`.
     pub fn eval<AB: SP1AirBuilder>(
@@ -43,6 +54,7 @@ impl<F: Field> AddrAddOperation<F> {
         cols: AddrAddOperation<AB::Var>,
         is_real: AB::Expr,
     ) {
+        // Constrain that `is_real` is boolean.
         builder.assert_bool(is_real.clone());
 
         let base = AB::F::from_canonical_u32(1 << 16);
@@ -62,5 +74,22 @@ impl<F: Field> AddrAddOperation<F> {
 
         // Range check each limb.
         builder.slice_range_check_u16(&cols.value, is_real);
+    }
+}
+
+#[derive(Debug, Clone, InputParams, InputExpr)]
+pub struct AddrAddOperationInput<AB: SP1AirBuilder> {
+    pub a: Word<AB::Expr>,
+    pub b: Word<AB::Expr>,
+    pub cols: AddrAddOperation<AB::Var>,
+    pub is_real: AB::Expr,
+}
+
+impl<AB: SP1AirBuilder> SP1Operation<AB> for AddrAddOperation<AB::F> {
+    type Input = AddrAddOperationInput<AB>;
+    type Output = ();
+
+    fn lower(builder: &mut AB, input: Self::Input) -> Self::Output {
+        Self::eval(builder, input.a, input.b, input.cols, input.is_real);
     }
 }

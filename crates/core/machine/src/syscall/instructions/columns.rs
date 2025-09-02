@@ -1,11 +1,11 @@
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::PV_DIGEST_NUM_WORDS, Word};
+use sp1_hypercube::{air::PV_DIGEST_NUM_WORDS, Word};
 use std::mem::size_of;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::r_type::RTypeReader, state::CPUState},
-    operations::{BabyBearWordRangeChecker, IsZeroOperation, U16toU8Operation},
+    operations::{IsZeroOperation, SP1FieldWordRangeChecker, U16toU8Operation},
 };
 
 pub const NUM_SYSCALL_INSTR_COLS: usize = size_of::<SyscallInstrColumns<u8>>();
@@ -22,7 +22,7 @@ pub struct SyscallInstrColumns<T> {
     /// The next program counter.
     pub next_pc: [T; 3],
 
-    /// Whether the current instruction is a halt instruction.  This is verified by the
+    /// Whether the current instruction is a halt instruction. This is verified by the
     /// is_halt_check operation.
     pub is_halt: T,
 
@@ -44,6 +44,9 @@ pub struct SyscallInstrColumns<T> {
     /// Whether the current ecall is a COMMIT.
     pub is_commit: IsZeroOperation<T>,
 
+    /// Whether the current ecall is a PAGE_PROTECT.
+    pub is_page_protect: IsZeroOperation<T>,
+
     /// Whether the current ecall is a COMMIT_DEFERRED_PROOFS.
     pub is_commit_deferred_proofs: IsZeroOperation<T>,
 
@@ -54,11 +57,11 @@ pub struct SyscallInstrColumns<T> {
     /// The expected public values digest.
     pub expected_public_values_digest: [T; 4],
 
-    /// The check if `op_b` is a valid BabyBear.
-    pub op_b_range_check: BabyBearWordRangeChecker<T>,
+    /// The check if `op_b` is a valid SP1Field.
+    pub op_b_range_check: SP1FieldWordRangeChecker<T>,
 
-    /// The check if `op_c` is a valid BabyBear.
-    pub op_c_range_check: BabyBearWordRangeChecker<T>,
+    /// The check if `op_c` is a valid SP1Field.
+    pub op_c_range_check: SP1FieldWordRangeChecker<T>,
 
     /// Whether the current instruction is a real instruction.
     pub is_real: T,

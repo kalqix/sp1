@@ -1,12 +1,13 @@
+use deepsize2::DeepSizeOf;
 use serde::{Deserialize, Serialize};
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    MemoryLocalEvent,
+    MemoryLocalEvent, PageProtLocalEvent, PageProtRecord,
 };
 
 /// Uint256 operation types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, DeepSizeOf)]
 pub enum Uint256Operation {
     /// Addition operation.
     #[default]
@@ -15,11 +16,24 @@ pub enum Uint256Operation {
     Mul,
 }
 
+/// Uint256 Ops Page Prot Records.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, DeepSizeOf)]
+pub struct Uint256OpsPageProtRecords {
+    /// The page prot records for reading the a address.
+    pub read_a_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for reading the b address.
+    pub read_b_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for reading the c address.
+    pub read_c_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for writing the d address.
+    pub write_d_page_prot_records: Vec<PageProtRecord>,
+    /// The page prot records for writing the e address.
+    pub write_e_page_prot_records: Vec<PageProtRecord>,
+}
+
 /// Uint256 operations event.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, DeepSizeOf)]
 pub struct Uint256OpsEvent {
-    /// Which shard this event occurred in.
-    pub shard: u32,
     /// The clock cycle that this event occurred in.
     pub clk: u64,
     /// The operation performed.
@@ -62,4 +76,8 @@ pub struct Uint256OpsEvent {
     pub e_memory_records: Vec<MemoryWriteRecord>,
     /// The local memory access events.
     pub local_mem_access: Vec<MemoryLocalEvent>,
+    /// The page prot records.
+    pub page_prot_records: Uint256OpsPageProtRecords,
+    /// The local page prot access events.
+    pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }

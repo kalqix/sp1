@@ -1,5 +1,5 @@
 use crate::{
-    events::{KeccakPermuteEvent, PrecompileEvent},
+    events::{KeccakPermuteEvent, KeccakPermutePageProtRecords, PrecompileEvent},
     syscalls::{SyscallCode, SyscallContext},
     ExecutorConfig,
 };
@@ -26,14 +26,9 @@ pub(crate) fn keccak256_permute_syscall<E: ExecutorConfig>(
     let mut state_read_records = Vec::new();
     let mut state_write_records = Vec::new();
 
-    let (state_records, state) = rt.mr_slice(state_ptr, STATE_NUM_WORDS);
+    let (state_records, state, read_pre_state_page_prot_records) =
+        rt.mr_slice(state_ptr, STATE_NUM_WORDS);
     state_read_records.extend_from_slice(&state_records);
-
-    // for values in state_values.chunks_exact(2) {
-    //     let least_sig = values[0];
-    //     let most_sig = values[1];
-    //     state.push(least_sig as u64 + ((most_sig as u64) << 32));
-    // }
 
     let saved_state = state.clone();
 
@@ -42,28 +37,27 @@ pub(crate) fn keccak256_permute_syscall<E: ExecutorConfig>(
 
     // Increment the clk by 1 before writing because we read from memory at start_clk.
     rt.clk += 1;
-    // let mut values_to_write = Vec::new();
-    // for i in 0..STATE_SIZE {
-    //     let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
-    //     let least_sig = (state[i] & 0xFFFFFFFF) as u32;
-    //     values_to_write.push(least_sig);
-    //     values_to_write.push(most_sig);
-    // }
 
-    let write_records = rt.mw_slice(state_ptr, state.as_slice());
+    let (write_records, write_post_state_page_prot_records) =
+        rt.mw_slice(state_ptr, state.as_slice(), false);
     state_write_records.extend_from_slice(&write_records);
 
     // Push the Keccak permute event.
-    let shard = rt.shard().get();
+    let (local_mem_access, local_page_prot_access) = rt.postprocess();
+
     let event = PrecompileEvent::KeccakPermute(KeccakPermuteEvent {
-        shard,
         clk: start_clk,
         pre_state: saved_state.as_slice().try_into().unwrap(),
         post_state: state.as_slice().try_into().unwrap(),
         state_read_records,
         state_write_records,
         state_addr: state_ptr,
-        local_mem_access: rt.postprocess(),
+        local_mem_access,
+        page_prot_records: KeccakPermutePageProtRecords {
+            read_pre_state_page_prot_records,
+            write_post_state_page_prot_records,
+        },
+        local_page_prot_access,
     });
     let syscall_event =
         rt.rt.syscall_event(start_clk, syscall_code, arg1, arg2, false, rt.next_pc, rt.exit_code);

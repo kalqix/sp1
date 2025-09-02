@@ -40,30 +40,31 @@ strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = "1.0.63"
 sp1-core-executor = { workspace = true }
-sp1-stark = { workspace = true }
+sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 slop-air = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-sol-types = { version = "1.0", default-features = false, optional = true }
+alloy-sol-types = { version = "1.0", default-features = false }
 alloy-primitives = { version = "1.0", default-features = false, optional = true, features = [
   "k256",
   "serde",
 ] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 powdr-autoprecompiles.workspace = true
-slop-baby-bear = { workspace = true }
+slop-koala-bear = { workspace = true }
 
 # TEE Dependencies
 k256 = { version = "0.13.3", features = ["serde"] } # Signing
 eventsource-stream = { version = "0.2.0" }          # SSE Extenstion for reqwest
 
 [dev-dependencies]
+test-artifacts = { workspace = true }
 
 [features]
-default = ["network"]
+default = ["network", "reserved-capacity"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.
@@ -77,7 +78,8 @@ network = [
   "dep:backoff",
 ]
 native-cuda = ["sp1-cuda/native"]
-sepolia = ["network", "dep:alloy-sol-types"]
+tee-2fa = []
+reserved-capacity = ["network"]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 unsound = ["sp1-prover/unsound"]

@@ -9,7 +9,7 @@ use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use sp1_stark::air::SP1AirBuilder;
+use sp1_hypercube::air::SP1AirBuilder;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::SP1Operation;
@@ -38,8 +38,7 @@ pub struct IsZeroOperation<T> {
 
 impl<F: Field> IsZeroOperation<F> {
     pub fn populate(&mut self, a: u64) -> u64 {
-        // TODO UNSOUND due to wrapping.
-        self.populate_from_field_element(F::from_wrapped_u64(a))
+        self.populate_from_field_element(F::from_canonical_u64(a))
     }
 
     pub fn populate_from_field_element(&mut self, a: F) -> u64 {

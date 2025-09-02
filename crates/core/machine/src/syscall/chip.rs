@@ -10,7 +10,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     InteractionKind,
 };
@@ -221,13 +221,11 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                         && !shard.contains_cpu()
                         && shard.global_memory_initialize_events.is_empty()
                         && shard.global_memory_finalize_events.is_empty()
+                        && shard.global_page_prot_initialize_events.is_empty()
+                        && shard.global_page_prot_finalize_events.is_empty()
                 }
             }
         }
-    }
-
-    fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Local
     }
 
     fn column_names(&self) -> Vec<String> {

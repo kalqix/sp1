@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, MulAssign, Sub};
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, ExtensionField, Field};
 use slop_uni_stark::SymbolicAirBuilder;
-use sp1_stark::{
+use sp1_hypercube::{
     air::SP1AirBuilder, ConstraintSumcheckFolder, GenericVerifierConstraintFolder,
     InteractionBuilder,
 };
@@ -12,13 +12,16 @@ use crate::{
     adapter::{
         register::{
             alu_type::ALUTypeReader,
+            i_type::{ITypeReader, ITypeReaderImmutable},
+            j_type::JTypeReader,
             r_type::{RTypeReader, RTypeReaderImmutable},
         },
         state::CPUState,
     },
     operations::{
-        AddOperation, BitwiseOperation, BitwiseU16Operation, IsEqualWordOperation, IsZeroOperation,
-        IsZeroWordOperation, LtOperationSigned, LtOperationUnsigned, SubOperation,
+        AddOperation, AddrAddOperation, AddressOperation, AddwOperation, BitwiseOperation,
+        BitwiseU16Operation, IsEqualWordOperation, IsZeroOperation, IsZeroWordOperation,
+        LtOperationSigned, LtOperationUnsigned, MulOperation, SubOperation, SubwOperation,
         U16CompareOperation, U16MSBOperation, U16toU8OperationSafe, U16toU8OperationUnsafe,
     },
 };
@@ -46,6 +49,14 @@ pub trait SP1CoreOperationBuilder:
     + SP1OperationBuilder<LtOperationUnsigned<F<Self>>>
     + SP1OperationBuilder<LtOperationSigned<F<Self>>>
     + SP1OperationBuilder<CPUState<F<Self>>>
+    + SP1OperationBuilder<MulOperation<F<Self>>>
+    + SP1OperationBuilder<ITypeReader<F<Self>>>
+    + SP1OperationBuilder<AddwOperation<F<Self>>>
+    + SP1OperationBuilder<SubwOperation<F<Self>>>
+    + SP1OperationBuilder<JTypeReader<F<Self>>>
+    + SP1OperationBuilder<ITypeReaderImmutable>
+    + SP1OperationBuilder<AddrAddOperation<F<Self>>>
+    + SP1OperationBuilder<AddressOperation<F<Self>>>
 {
 }
 
@@ -68,6 +79,14 @@ impl<AB> SP1CoreOperationBuilder for AB where
         + SP1OperationBuilder<U16MSBOperation<F<Self>>>
         + SP1OperationBuilder<LtOperationUnsigned<F<Self>>>
         + SP1OperationBuilder<LtOperationSigned<F<Self>>>
+        + SP1OperationBuilder<MulOperation<F<Self>>>
+        + SP1OperationBuilder<ITypeReader<F<Self>>>
+        + SP1OperationBuilder<AddwOperation<F<Self>>>
+        + SP1OperationBuilder<SubwOperation<F<Self>>>
+        + SP1OperationBuilder<JTypeReader<F<Self>>>
+        + SP1OperationBuilder<ITypeReaderImmutable>
+        + SP1OperationBuilder<AddrAddOperation<F<Self>>>
+        + SP1OperationBuilder<AddressOperation<F<Self>>>
 {
 }
 

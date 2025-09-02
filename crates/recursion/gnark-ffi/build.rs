@@ -16,7 +16,7 @@ fn main() {
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);
             let lib_name = "sp1gnark";
-            let dest = dest_path.join(format!("lib{}.a", lib_name));
+            let dest = dest_path.join(format!("lib{lib_name}.a"));
 
             println!("Building Go library at {}", dest.display());
 
@@ -38,13 +38,13 @@ fn main() {
                 panic!("Go build failed");
             }
 
-            // Copy go/babybear.h to OUT_DIR/babybear.h
-            let header_src = PathBuf::from("go/babybear.h");
-            let header_dest = dest_path.join("babybear.h");
+            // Copy go/koalabear.h to OUT_DIR/koalabear.h
+            let header_src = PathBuf::from("go/koalabear.h");
+            let header_dest = dest_path.join("koalabear.h");
             std::fs::copy(header_src, header_dest).unwrap();
 
             // Generate bindings using bindgen
-            let header_path = dest_path.join(format!("lib{}.h", lib_name));
+            let header_path = dest_path.join(format!("lib{lib_name}.h"));
             let bindings = bindgen::Builder::default()
                 .header(header_path.to_str().unwrap())
                 .generate()
@@ -58,7 +58,7 @@ fn main() {
 
             // Link the Go library
             println!("cargo:rustc-link-search=native={}", dest_path.display());
-            println!("cargo:rustc-link-lib=static={}", lib_name);
+            println!("cargo:rustc-link-lib=static={lib_name}");
 
             // Static linking doesn't really work on macos, so we need to link some system libs
             if cfg!(target_os = "macos") {

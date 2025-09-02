@@ -8,6 +8,7 @@ use crate::{
     prover::{BaseProveRequest, SendFutureResult},
     CpuProver, CudaProver, MockProver, Prover,
 };
+use sp1_core_executor::SP1CoreOpts;
 
 #[cfg(feature = "network")]
 use crate::NetworkProver;
@@ -18,9 +19,8 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-use slop_baby_bear::BabyBear;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
-use sp1_primitives::Elf;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
 use std::sync::Arc;
 
@@ -46,14 +46,45 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+        Self::from_env_with_opts(None, apcs).await
+    }
+
+    /// Updates the core options for this prover.
+    ///
+    /// This method allows you to configure the prover after creation.
+    /// It recreates the prover with the new options based on the current environment settings.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_core_executor::SP1CoreOpts;
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let mut client = ProverClient::from_env().await;
+    /// let opts = SP1CoreOpts { page_protect: true, ..Default::default() };
+    /// client = client.with_opts(opts).await;
+    /// ```
+    pub async fn with_opts(self, opts: SP1CoreOpts) -> Self {
+        Self::from_env_with_opts(Some(opts), vec![]).await
+    }
+
+    /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
+    ///
+    /// This method will read from the `SP1_PROVER` environment variable to determine which prover
+    /// to use. If the variable is not set, it will default to the CPU prover.
+    ///
+    /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
+    pub async fn from_env_with_opts(
+        core_opts: Option<SP1CoreOpts>,
+        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new(apcs).await),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, apcs).await),
             "cuda" => Self::Cuda(CudaProverBuilder::default().with_apcs(apcs).build().await),
             "mock" => Self::Mock(MockProver::new(apcs).await),
             #[cfg(feature = "network")]

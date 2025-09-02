@@ -5,7 +5,7 @@ use powdr_autoprecompiles::memory_optimizer::{
 use powdr_constraint_solver::{
     constraint_system::BusInteraction, grouped_expression::GroupedExpression,
 };
-use powdr_number::{BabyBearField, FieldElement};
+use powdr_number::{FieldElement, KoalaBearField};
 use std::{
     fmt::Display,
     hash::Hash,
@@ -14,7 +14,7 @@ use std::{
 
 pub struct Sp1MemoryBusInteraction<V> {
     addr: MemoryAddress<V>,
-    data: Vec<GroupedExpression<BabyBearField, V>>,
+    data: Vec<GroupedExpression<KoalaBearField, V>>,
     op: MemoryOp,
 }
 
@@ -33,11 +33,11 @@ pub enum ArtificialAddressSpace {
 pub struct MemoryAddress<V> {
     address_space: ArtificialAddressSpace,
     /// The memory address, represented as 3 16-Bit limbs in little-endian order.
-    addr: [GroupedExpression<BabyBearField, V>; 3],
+    addr: [GroupedExpression<KoalaBearField, V>; 3],
 }
 
 impl<V: Ord + Clone + Eq + Display + Hash> MemoryAddress<V> {
-    pub fn new(addr: [GroupedExpression<BabyBearField, V>; 3]) -> Self {
+    pub fn new(addr: [GroupedExpression<KoalaBearField, V>; 3]) -> Self {
         let address_space = if addr[1].is_zero() && addr[2].is_zero() {
             ArtificialAddressSpace::Register
         } else {
@@ -48,28 +48,28 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryAddress<V> {
 }
 
 impl<V: Ord + Clone + Eq + Display + Hash> IntoIterator for MemoryAddress<V> {
-    type Item = GroupedExpression<BabyBearField, V>;
+    type Item = GroupedExpression<KoalaBearField, V>;
     type IntoIter = Chain<
-        std::iter::Once<GroupedExpression<BabyBearField, V>>,
-        std::array::IntoIter<GroupedExpression<BabyBearField, V>, 3>,
+        std::iter::Once<GroupedExpression<KoalaBearField, V>>,
+        std::array::IntoIter<GroupedExpression<KoalaBearField, V>, 3>,
     >;
 
     fn into_iter(self) -> Self::IntoIter {
         let address_space = match self.address_space {
-            ArtificialAddressSpace::Register => BabyBearField::zero(),
-            ArtificialAddressSpace::Ram => BabyBearField::one(),
+            ArtificialAddressSpace::Register => KoalaBearField::zero(),
+            ArtificialAddressSpace::Ram => KoalaBearField::one(),
         };
         once(GroupedExpression::from_number(address_space)).chain(self.addr)
     }
 }
 
-impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<BabyBearField, V>
+impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, V>
     for Sp1MemoryBusInteraction<V>
 {
     type Address = MemoryAddress<V>;
 
     fn try_from_bus_interaction(
-        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
+        bus_interaction: &BusInteraction<GroupedExpression<KoalaBearField, V>>,
         memory_bus_id: u64,
     ) -> Result<Option<Self>, MemoryBusInteractionConversionError> {
         // Format is: (clk_high, clk_low, addr (3 limbs), value (4 limbs))
@@ -102,7 +102,7 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<BabyBearField, V
         self.addr.clone()
     }
 
-    fn data(&self) -> &[GroupedExpression<BabyBearField, V>] {
+    fn data(&self) -> &[GroupedExpression<KoalaBearField, V>] {
         &self.data
     }
 

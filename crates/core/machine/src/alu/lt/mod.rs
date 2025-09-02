@@ -5,7 +5,7 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use slop_air::{Air, AirBuilder, BaseAir};
+use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::*;
@@ -14,7 +14,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::MachineAir, Word};
+use sp1_hypercube::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
@@ -49,9 +49,6 @@ pub struct LtCols<T> {
 
     /// If the opcode is SLTU.
     pub is_sltu: T,
-
-    /// The base opcode for the LT instruction.
-    pub base_op_code: T,
 
     /// Instance of `LtOperationSigned` to handle comparison logic in `LtChip`'s ALU operations.
     pub lt_operation: LtOperationSigned<T>,
@@ -146,10 +143,6 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             !shard.lt_events.is_empty()
         }
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl LtChip {
@@ -170,22 +163,6 @@ impl LtChip {
 
         cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
         cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-
-        let (slt_base, slt_imm) = Opcode::SLT.base_opcode();
-        let slt_imm = slt_imm.expect("SLT immediate opcode not found");
-        let (sltu_base, sltu_imm) = Opcode::SLTU.base_opcode();
-        let sltu_imm = sltu_imm.expect("SLTU immediate opcode not found");
-
-        let is_imm_c = cols.adapter.imm_c.is_one();
-
-        let slt_base_opcode = F::from_canonical_u32(if is_imm_c { slt_imm } else { slt_base });
-        let sltu_base_opcode = F::from_canonical_u32(if is_imm_c { sltu_imm } else { sltu_base });
-
-        cols.base_op_code = match event.opcode {
-            Opcode::SLT => slt_base_opcode,
-            Opcode::SLTU => sltu_base_opcode,
-            _ => unreachable!(),
-        };
     }
 }
 
@@ -249,25 +226,39 @@ where
             + local.is_sltu * AB::Expr::from_canonical_u8(Opcode::SLTU.funct3().unwrap());
         let funct7 = local.is_slt * AB::Expr::from_canonical_u8(Opcode::SLT.funct7().unwrap_or(0))
             + local.is_sltu * AB::Expr::from_canonical_u8(Opcode::SLTU.funct7().unwrap_or(0));
-        let base_opcode = local.base_op_code.into();
 
         let (slt_base, slt_imm) = Opcode::SLT.base_opcode();
         let slt_imm = slt_imm.expect("SLT immediate opcode not found");
         let (sltu_base, sltu_imm) = Opcode::SLTU.base_opcode();
         let sltu_imm = sltu_imm.expect("SLTU immediate opcode not found");
 
+        let imm_base_difference = slt_base.checked_sub(slt_imm).unwrap();
+        assert_eq!(imm_base_difference, sltu_base.checked_sub(sltu_imm).unwrap());
+
         let slt_base_expr = AB::Expr::from_canonical_u32(slt_base);
         let sltu_base_expr = AB::Expr::from_canonical_u32(sltu_base);
-        let slt_imm_expr = AB::Expr::from_canonical_u32(slt_imm);
-        let sltu_imm_expr = AB::Expr::from_canonical_u32(sltu_imm);
 
-        let correct_imm_opcode = local.is_slt * slt_imm_expr + local.is_sltu * sltu_imm_expr;
-        let correct_reg_opcode = local.is_slt * slt_base_expr + local.is_sltu * sltu_base_expr;
+        let calculated_base_opcode = local.is_slt * slt_base_expr + local.is_sltu * sltu_base_expr
+            - AB::Expr::from_canonical_u32(imm_base_difference) * local.adapter.imm_c;
 
-        // Constrain base_op_code to be correct based on imm_c and is_* columns.
-        let correct_opcode =
-            builder.if_else(local.adapter.imm_c.into(), correct_imm_opcode, correct_reg_opcode);
-        builder.when(is_real.clone()).assert_eq(local.base_op_code.into(), correct_opcode);
+        let slt_instr_type = Opcode::SLT.instruction_type().0 as u32;
+        let slt_instr_type_imm =
+            Opcode::SLT.instruction_type().1.expect("SLT immediate instruction type not found")
+                as u32;
+        let sltu_instr_type = Opcode::SLTU.instruction_type().0 as u32;
+        let sltu_instr_type_imm =
+            Opcode::SLTU.instruction_type().1.expect("SLTU immediate instruction type not found")
+                as u32;
+
+        let instr_type_difference = slt_instr_type.checked_sub(slt_instr_type_imm).unwrap();
+        assert_eq!(
+            instr_type_difference,
+            sltu_instr_type.checked_sub(sltu_instr_type_imm).unwrap()
+        );
+
+        let calculated_instr_type = local.is_slt * AB::Expr::from_canonical_u32(slt_instr_type)
+            + local.is_sltu * AB::Expr::from_canonical_u32(sltu_instr_type)
+            - AB::Expr::from_canonical_u32(instr_type_difference) * local.adapter.imm_c;
 
         // Constrain the program and register reads.
         let alu_reader_input = ALUTypeReaderInput::<AB, AB::Expr>::new(
@@ -275,7 +266,7 @@ where
             local.state.clk_low::<AB>(),
             local.state.pc,
             opcode,
-            [base_opcode, funct3, funct7],
+            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             Word::extend_var::<AB>(local.lt_operation.result.u16_compare_operation.bit),
             local.adapter,
             is_real,
@@ -296,7 +287,7 @@ where
 //         riscv::RiscvAir,
 //         utils::{run_malicious_test, run_test_machine, setup_test_machine},
 //     };
-//     use slop_baby_bear::BabyBear;
+//     use sp1_primitives::SP1Field;
 //     use slop_algebra::AbstractField;
 //     use slop_matrix::dense::RowMajorMatrix;
 //     use rand::{thread_rng, Rng};
@@ -304,9 +295,9 @@ where
 //         events::{AluEvent, MemoryRecordEnum},
 //         ExecutionRecord, Instruction, Opcode, Program,
 //     };
-//     use sp1_stark::{
+//     use sp1_hypercube::{
 //         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         baby_bear_poseidon2::BabyBearPoseidon2,
+//         koala_bear_poseidon2::SP1CoreJaggedConfig,
 //         chip_name, Chip, CpuProver, MachineProver, StarkMachine, Val,
 //     };
 
@@ -318,14 +309,14 @@ where
 //         shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2, false)];
 //         let chip = LtChip::default();
 //         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-//         let trace: RowMajorMatrix<BabyBear> = generate_trace;
+//         let trace: RowMajorMatrix<SP1Field> = generate_trace;
 //         println!("{:?}", trace.values)
 //     }
 
-//     fn prove_babybear_template(shard: ExecutionRecord) {
+//     fn prove_koalabear_template(shard: ExecutionRecord) {
 //         // Run setup.
 //         let air = LtChip::default();
-//         let config = BabyBearPoseidon2::new();
+//         let config = SP1CoreJaggedConfig::new();
 //         let chip = Chip::new(air);
 //         let (pk, vk) = setup_test_machine(StarkMachine::new(
 //             config.clone(),
@@ -336,13 +327,13 @@ where
 
 //         // Run the test.
 //         let air = LtChip::default();
-//         let chip: Chip<BabyBear, LtChip> = Chip::new(air);
+//         let chip: Chip<SP1Field, LtChip> = Chip::new(air);
 //         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<BabyBearPoseidon2, LtChip>(vec![shard], machine, pk, vk).unwrap();
+//         run_test_machine::<SP1CoreJaggedConfig, LtChip>(vec![shard], machine, pk, vk).unwrap();
 //     }
 
 //     #[test]
-//     fn prove_babybear_slt() {
+//     fn prove_koalabear_slt() {
 //         let mut shard = ExecutionRecord::default();
 
 //         const NEG_3: u32 = 0b11111111111111111111111111111101;
@@ -366,11 +357,11 @@ where
 //             AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_3, false),
 //         ];
 
-//         prove_babybear_template(shard);
+//         prove_koalabear_template(shard);
 //     }
 
 //     #[test]
-//     fn prove_babybear_sltu() {
+//     fn prove_koalabear_sltu() {
 //         let mut shard = ExecutionRecord::default();
 
 //         const LARGE: u32 = 0b11111111111111111111111111111101;
@@ -389,7 +380,7 @@ where
 //             AluEvent::new(0, Opcode::SLTU, 0, LARGE, LARGE, false),
 //         ];
 
-//         prove_babybear_template(shard);
+//         prove_koalabear_template(shard);
 //     }
 
 //     #[test]
@@ -417,13 +408,13 @@ where
 //                 let program = Program::new(instructions, 0, 0);
 //                 let stdin = SP1Stdin::new();
 
-//                 type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+//                 type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
 
 //                 let malicious_trace_pv_generator = move |prover: &P,
 //                                                          record: &mut ExecutionRecord|
 //                       -> Vec<(
 //                     String,
-//                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
+//                     RowMajorMatrix<Val<SP1CoreJaggedConfig>>,
 //                 )> {
 //                     let mut malicious_record = record.clone();
 //                     malicious_record.cpu_events[0].a = op_a as u32;
@@ -434,12 +425,12 @@ where
 //                     }
 //                     let mut traces = prover.generate_traces(&malicious_record);
 
-//                     let lt_chip_name = chip_name!(LtChip, BabyBear);
+//                     let lt_chip_name = chip_name!(LtChip, SP1Field);
 //                     for (chip_name, trace) in traces.iter_mut() {
 //                         if *chip_name == lt_chip_name {
 //                             let first_row = trace.row_mut(0);
-//                             let first_row: &mut LtCols<BabyBear> = first_row.borrow_mut();
-//                             first_row.a = BabyBear::from_bool(op_a);
+//                             let first_row: &mut LtCols<SP1Field> = first_row.borrow_mut();
+//                             first_row.a = SP1Field::from_bool(op_a);
 //                         }
 //                     }
 

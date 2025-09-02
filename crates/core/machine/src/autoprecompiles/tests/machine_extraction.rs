@@ -2,7 +2,7 @@ use std::{fs, io, path::Path};
 
 use itertools::Itertools;
 use pretty_assertions::assert_eq;
-use slop_baby_bear::BabyBear;
+use sp1_primitives::SP1Field;
 
 use crate::{
     autoprecompiles::{bus_map::sp1_bus_map, instruction_handler::Sp1InstructionHandler},
@@ -12,7 +12,7 @@ use crate::{
 #[test]
 fn test_extract_machine() {
     setup_logger();
-    let instruction_handler = Sp1InstructionHandler::<BabyBear>::new();
+    let instruction_handler = Sp1InstructionHandler::<SP1Field>::new();
     let airs = instruction_handler.airs();
     let rendered = airs
         .map(|(instruction_type, air)| {

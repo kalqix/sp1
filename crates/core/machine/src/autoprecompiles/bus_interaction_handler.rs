@@ -11,54 +11,56 @@ use powdr_constraint_solver::{
     grouped_expression::GroupedExpression,
     range_constraint::RangeConstraint,
 };
-use powdr_number::{BabyBearField, FieldElement, LargeInt};
+use powdr_number::{FieldElement, KoalaBearField, LargeInt};
 use sp1_core_executor::ByteOpcode;
 use sp1_curves::{One, Zero};
-use sp1_stark::InteractionKind;
+use sp1_hypercube::InteractionKind;
 use std::{collections::BTreeMap, fmt::Display, hash::Hash};
 
 #[derive(Clone)]
 pub struct Sp1BusInteractionHandler {
-    bus_id_to_interaction_kind: BTreeMap<BabyBearField, InteractionKind>,
-    byte_operation_id_to_opcode: BTreeMap<BabyBearField, ByteOpcode>,
+    bus_id_to_interaction_kind: BTreeMap<KoalaBearField, InteractionKind>,
+    byte_operation_id_to_opcode: BTreeMap<KoalaBearField, ByteOpcode>,
 }
 
 impl Default for Sp1BusInteractionHandler {
     fn default() -> Self {
         let bus_id_to_interaction_kind = InteractionKind::all_kinds()
             .into_iter()
-            .map(|kind| (BabyBearField::from(kind as u64), kind))
+            .map(|kind| (KoalaBearField::from(kind as u64), kind))
             .collect();
 
         let byte_operation_id_to_opcode = ByteOpcode::byte_table()
             .into_iter()
             .chain([ByteOpcode::Range])
             .enumerate()
-            .map(|(i, opcode)| (BabyBearField::from(i as u64), opcode))
+            .map(|(i, opcode)| (KoalaBearField::from(i as u64), opcode))
             .collect();
 
         Sp1BusInteractionHandler { bus_id_to_interaction_kind, byte_operation_id_to_opcode }
     }
 }
 
-impl IsBusStateful<BabyBearField> for Sp1BusInteractionHandler {
-    fn is_stateful(&self, bus_id: BabyBearField) -> bool {
+impl IsBusStateful<KoalaBearField> for Sp1BusInteractionHandler {
+    fn is_stateful(&self, bus_id: KoalaBearField) -> bool {
         match self.bus_id_to_interaction_kind.get(&bus_id) {
             Some(InteractionKind::Memory) => true,
             Some(InteractionKind::Program) => false,
             Some(InteractionKind::Byte) => false,
             Some(InteractionKind::State) => true,
-            // All instruction AIRs only use the four buses above.
+            Some(InteractionKind::InstructionFetch) => false,
+            Some(InteractionKind::PageProt) => false,
+            // All instruction AIRs only use the six buses above.
             _ => unreachable!("Unexpected bus ID: {bus_id}"),
         }
     }
 }
 
-impl BusInteractionHandler<BabyBearField> for Sp1BusInteractionHandler {
+impl BusInteractionHandler<KoalaBearField> for Sp1BusInteractionHandler {
     fn handle_bus_interaction(
         &self,
-        bus_interaction: BusInteraction<RangeConstraint<BabyBearField>>,
-    ) -> BusInteraction<RangeConstraint<BabyBearField>> {
+        bus_interaction: BusInteraction<RangeConstraint<KoalaBearField>>,
+    ) -> BusInteraction<RangeConstraint<KoalaBearField>> {
         let (Some(bus_id), Some(multiplicity)) = (
             bus_interaction.bus_id.try_to_single_value(),
             bus_interaction.multiplicity.try_to_single_value(),
@@ -82,6 +84,8 @@ impl BusInteractionHandler<BabyBearField> for Sp1BusInteractionHandler {
             // make any assumptions about the clk values, so we simply return the original range
             // constraints.
             Some(InteractionKind::State) => bus_interaction.payload,
+            Some(InteractionKind::InstructionFetch) => bus_interaction.payload,
+            Some(InteractionKind::PageProt) => bus_interaction.payload,
             _ => unreachable!("Unexpected bus ID: {bus_id}"),
         };
 
@@ -89,11 +93,11 @@ impl BusInteractionHandler<BabyBearField> for Sp1BusInteractionHandler {
     }
 }
 
-impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
+impl RangeConstraintHandler<KoalaBearField> for Sp1BusInteractionHandler {
     fn pure_range_constraints<V: Ord + Clone + Eq>(
         &self,
-        bus_interaction: &BusInteraction<GroupedExpression<BabyBearField, V>>,
-    ) -> Option<RangeConstraints<BabyBearField, V>> {
+        bus_interaction: &BusInteraction<GroupedExpression<KoalaBearField, V>>,
+    ) -> Option<RangeConstraints<KoalaBearField, V>> {
         let bus_id = bus_interaction.bus_id.try_to_number()?;
         match self.bus_id_to_interaction_kind.get(&bus_id) {
             // Stateful bus interactions are never pure range constraints.
@@ -114,7 +118,7 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                 match byte_opcode {
                     // U8Range: assert(a == 0 && b < 256 && c < 256)
                     ByteOpcode::U8Range => {
-                        let zero = RangeConstraint::from_value(BabyBearField::zero());
+                        let zero = RangeConstraint::from_value(KoalaBearField::zero());
                         let byte = RangeConstraint::from_mask(0xffu64);
                         Some(
                             [(a.clone(), zero), (b.clone(), byte.clone()), (c.clone(), byte)]
@@ -129,7 +133,7 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                         let b = b.try_to_number()?;
                         let num_bits = b.to_degree();
                         let rc = RangeConstraint::from_mask((1u64 << num_bits) - 1);
-                        let zero = RangeConstraint::from_value(BabyBearField::zero());
+                        let zero = RangeConstraint::from_value(KoalaBearField::zero());
                         Some([(a.clone(), rc), (c.clone(), zero)].into_iter().collect())
                     }
                     _ => None,
@@ -144,10 +148,10 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
 
     fn batch_make_range_constraints<V: Ord + Clone + Eq + Display + Hash>(
         &self,
-        mut range_constraints: RangeConstraints<BabyBearField, V>,
-    ) -> Result<Vec<BusInteraction<GroupedExpression<BabyBearField, V>>>, MakeRangeConstraintsError>
+        mut range_constraints: RangeConstraints<KoalaBearField, V>,
+    ) -> Result<Vec<BusInteraction<GroupedExpression<KoalaBearField, V>>>, MakeRangeConstraintsError>
     {
-        let byte_bus_id = BabyBearField::from(InteractionKind::Byte as u64);
+        let byte_bus_id = KoalaBearField::from(InteractionKind::Byte as u64);
         let byte_constraints = filter_byte_constraints(&mut range_constraints);
 
         let byte_constraints = byte_constraints
@@ -158,18 +162,18 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                 // Use the byte bus to check two bytes at once.
                 let byte1 = bytes.next().unwrap();
                 let byte2 =
-                    bytes.next().unwrap_or(GroupedExpression::from_number(BabyBearField::zero()));
+                    bytes.next().unwrap_or(GroupedExpression::from_number(KoalaBearField::zero()));
 
                 BusInteraction {
                     bus_id: GroupedExpression::from_number(byte_bus_id),
-                    multiplicity: GroupedExpression::from_number(BabyBearField::one()),
+                    multiplicity: GroupedExpression::from_number(KoalaBearField::one()),
                     payload: vec![
                         // Opcode
-                        GroupedExpression::from_number(BabyBearField::from(
+                        GroupedExpression::from_number(KoalaBearField::from(
                             ByteOpcode::U8Range as u64,
                         )),
                         // a: Always zero
-                        GroupedExpression::from_number(BabyBearField::zero()),
+                        GroupedExpression::from_number(KoalaBearField::zero()),
                         // b: The first byte being checked
                         byte1.clone(),
                         // c: The second byte being checked
@@ -188,18 +192,18 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
                 })?;
                 Ok(BusInteraction {
                     bus_id: GroupedExpression::from_number(byte_bus_id),
-                    multiplicity: GroupedExpression::from_number(BabyBearField::one()),
+                    multiplicity: GroupedExpression::from_number(KoalaBearField::one()),
                     payload: vec![
                         // Opcode
-                        GroupedExpression::from_number(BabyBearField::from(
+                        GroupedExpression::from_number(KoalaBearField::from(
                             ByteOpcode::Range as u64,
                         )),
                         // a: The expression being range-checked
                         expr,
                         // b: The number of bits being checked
-                        GroupedExpression::from_number(BabyBearField::from(num_bits as u64)),
+                        GroupedExpression::from_number(KoalaBearField::from(num_bits as u64)),
                         // c: Always zero
-                        GroupedExpression::from_number(BabyBearField::zero()),
+                        GroupedExpression::from_number(KoalaBearField::zero()),
                     ],
                 })
             })
@@ -211,23 +215,23 @@ impl RangeConstraintHandler<BabyBearField> for Sp1BusInteractionHandler {
 impl Sp1BusInteractionHandler {
     fn handle_memory(
         &self,
-        payload: &[RangeConstraint<BabyBearField>],
-        multiplicity: BabyBearField,
-    ) -> Vec<RangeConstraint<BabyBearField>> {
+        payload: &[RangeConstraint<KoalaBearField>],
+        multiplicity: KoalaBearField,
+    ) -> Vec<RangeConstraint<KoalaBearField>> {
         // Memory bus fields: (clk_high, clk_low, addr (3 fields), data (4 fields))
         let [clk_high, clk_low, addr1, addr2, addr3, _data1, _data2, _data3, _data4] = payload
         else {
             panic!("Invalid memory bus payload length");
         };
 
-        if multiplicity == BabyBearField::one() {
+        if multiplicity == KoalaBearField::one() {
             // When sending, we are getting the previous values.
-            let is_x0 = addr1.try_to_single_value() == Some(BabyBearField::zero())
-                && addr2.try_to_single_value() == Some(BabyBearField::zero())
-                && addr3.try_to_single_value() == Some(BabyBearField::zero());
+            let is_x0 = addr1.try_to_single_value() == Some(KoalaBearField::zero())
+                && addr2.try_to_single_value() == Some(KoalaBearField::zero())
+                && addr3.try_to_single_value() == Some(KoalaBearField::zero());
             let data = if is_x0 {
                 // By the assumption that x0 is never written to, we know the result.
-                repeat_n(RangeConstraint::from_value(BabyBearField::zero()), 4)
+                repeat_n(RangeConstraint::from_value(KoalaBearField::zero()), 4)
             } else {
                 // By the assumption that all data written to registers or memory are range-checked,
                 // we can return a 16-Bit range constraint for the data limbs.
@@ -246,8 +250,8 @@ impl Sp1BusInteractionHandler {
 
     fn handle_byte(
         &self,
-        payload: &[RangeConstraint<BabyBearField>],
-    ) -> Vec<RangeConstraint<BabyBearField>> {
+        payload: &[RangeConstraint<KoalaBearField>],
+    ) -> Vec<RangeConstraint<KoalaBearField>> {
         // Byte bus fields: (opcode, a, b, c)
         let [opcode, a, b, c] = payload else {
             panic!("Invalid byte bus payload length");
@@ -256,7 +260,7 @@ impl Sp1BusInteractionHandler {
         // We know that b and c must be bytes:
         let b = b.conjunction(&byte_constraint());
         let c = c.conjunction(&byte_constraint());
-        let zero = RangeConstraint::from_value(BabyBearField::zero());
+        let zero = RangeConstraint::from_value(KoalaBearField::zero());
 
         let opcode_value = opcode.try_to_single_value();
         let byte_opcode = opcode_value.map(|opcode| {
@@ -272,7 +276,7 @@ impl Sp1BusInteractionHandler {
                 if let (Some(b_value), Some(c_value)) =
                     (b.try_to_single_value(), c.try_to_single_value())
                 {
-                    let a = BabyBearField::from(b_value.to_degree() & c_value.to_degree());
+                    let a = KoalaBearField::from(b_value.to_degree() & c_value.to_degree());
                     (RangeConstraint::from_value(a), b, c)
                 } else {
                     let a_mask =
@@ -285,7 +289,7 @@ impl Sp1BusInteractionHandler {
                 if let (Some(b_val), Some(c_val)) =
                     (b.try_to_single_value(), c.try_to_single_value())
                 {
-                    let a = BabyBearField::from(b_val.to_degree() | c_val.to_degree());
+                    let a = KoalaBearField::from(b_val.to_degree() | c_val.to_degree());
                     (RangeConstraint::from_value(a), b, c)
                 } else {
                     let a_mask =
@@ -298,7 +302,7 @@ impl Sp1BusInteractionHandler {
                 if let (Some(b_val), Some(c_val)) =
                     (b.try_to_single_value(), c.try_to_single_value())
                 {
-                    let a = BabyBearField::from(b_val.to_degree() ^ c_val.to_degree());
+                    let a = KoalaBearField::from(b_val.to_degree() ^ c_val.to_degree());
                     (RangeConstraint::from_value(a), b, c)
                 } else {
                     let a_mask =
@@ -308,7 +312,7 @@ impl Sp1BusInteractionHandler {
             }
             // U8Range: assert(a == 0 && b < 256 && c < 256)
             Some(ByteOpcode::U8Range) => (
-                RangeConstraint::from_value(BabyBearField::zero()),
+                RangeConstraint::from_value(KoalaBearField::zero()),
                 byte_constraint(),
                 byte_constraint(),
             ),
@@ -319,9 +323,9 @@ impl Sp1BusInteractionHandler {
                 {
                     // We know both values, so we can compute the result directly.
                     let result = if b_val.to_degree() < c_val.to_degree() {
-                        BabyBearField::one()
+                        KoalaBearField::one()
                     } else {
-                        BabyBearField::zero()
+                        KoalaBearField::zero()
                     };
                     (RangeConstraint::from_value(result), b, c)
                 } else {
@@ -332,7 +336,7 @@ impl Sp1BusInteractionHandler {
             Some(ByteOpcode::MSB) => {
                 if let Some(b_val) = b.try_to_single_value() {
                     assert!(b_val.to_degree() < 256);
-                    let result = BabyBearField::from((b_val.to_degree() >> 7) & 1);
+                    let result = KoalaBearField::from((b_val.to_degree() >> 7) & 1);
                     (RangeConstraint::from_value(result), b, zero)
                 } else {
                     (RangeConstraint::from_mask(0x1u64), b, zero)
@@ -341,8 +345,8 @@ impl Sp1BusInteractionHandler {
             // Range: assert(a <= 2**b && c == 0)
             Some(ByteOpcode::Range) => {
                 let b = b.conjunction(&RangeConstraint::from_range(
-                    BabyBearField::zero(),
-                    BabyBearField::from(16),
+                    KoalaBearField::zero(),
+                    KoalaBearField::from(16),
                 ));
                 let max_bit = if let Some(b_val) = b.try_to_single_value() {
                     assert!(b_val.to_degree() <= 16);
@@ -364,11 +368,11 @@ impl Sp1BusInteractionHandler {
     }
 }
 
-fn byte_constraint() -> RangeConstraint<BabyBearField> {
+fn byte_constraint() -> RangeConstraint<KoalaBearField> {
     RangeConstraint::from_mask(0xffu64)
 }
 
-fn bit16_constraint() -> RangeConstraint<BabyBearField> {
+fn bit16_constraint() -> RangeConstraint<KoalaBearField> {
     RangeConstraint::from_mask(0xffffu64)
 }
 
@@ -379,13 +383,13 @@ mod tests {
 
     fn run(
         interaction_kind: InteractionKind,
-        payload: Vec<RangeConstraint<BabyBearField>>,
-        multiplicity: BabyBearField,
-    ) -> Vec<RangeConstraint<BabyBearField>> {
+        payload: Vec<RangeConstraint<KoalaBearField>>,
+        multiplicity: KoalaBearField,
+    ) -> Vec<RangeConstraint<KoalaBearField>> {
         let handler = Sp1BusInteractionHandler::default();
 
         let bus_interaction = BusInteraction {
-            bus_id: RangeConstraint::from_value(BabyBearField::from(interaction_kind as u64)),
+            bus_id: RangeConstraint::from_value(KoalaBearField::from(interaction_kind as u64)),
             multiplicity: RangeConstraint::from_value(multiplicity),
             payload,
         };
@@ -393,15 +397,15 @@ mod tests {
         result.payload
     }
 
-    pub fn value(value: u64) -> RangeConstraint<BabyBearField> {
-        RangeConstraint::from_value(BabyBearField::from(value))
+    pub fn value(value: u64) -> RangeConstraint<KoalaBearField> {
+        RangeConstraint::from_value(KoalaBearField::from(value))
     }
 
-    pub fn mask(mask: u64) -> RangeConstraint<BabyBearField> {
+    pub fn mask(mask: u64) -> RangeConstraint<KoalaBearField> {
         RangeConstraint::from_mask(mask)
     }
 
-    pub fn default() -> RangeConstraint<BabyBearField> {
+    pub fn default() -> RangeConstraint<KoalaBearField> {
         RangeConstraint::default()
     }
 
@@ -421,7 +425,7 @@ mod tests {
                 .cloned()
                 .chain(data)
                 .collect(),
-            BabyBearField::one(),
+            KoalaBearField::one(),
         );
 
         assert_eq!(result.len(), 9);
@@ -454,7 +458,7 @@ mod tests {
                 .cloned()
                 .chain(data)
                 .collect(),
-            BabyBearField::from(-1),
+            KoalaBearField::from(-1),
         );
 
         // For receives, original constraints should be returned unchanged
@@ -477,7 +481,7 @@ mod tests {
         let b = value(0b10101010);
         let c = value(0b11001100);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(0));
@@ -493,7 +497,7 @@ mod tests {
         let b = default();
         let c = mask(0xf);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(0));
@@ -509,7 +513,7 @@ mod tests {
         let b = value(0b10101010);
         let c = value(0b11001100);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(1));
@@ -525,7 +529,7 @@ mod tests {
         let b = mask(0xf0);
         let c = mask(0x01);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(1));
@@ -541,7 +545,7 @@ mod tests {
         let b = value(0b10101010);
         let c = value(0b11001100);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(2));
@@ -557,7 +561,7 @@ mod tests {
         let b = mask(0x0f);
         let c = mask(0xa0);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(2));
@@ -573,7 +577,7 @@ mod tests {
         let b = default();
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(3));
@@ -589,7 +593,7 @@ mod tests {
         let b = value(100);
         let c = value(200);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(4));
@@ -602,7 +606,7 @@ mod tests {
         let b = value(200);
         let c = value(100);
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result[1], value(0));
     }
@@ -614,7 +618,7 @@ mod tests {
         let b = default();
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(4));
@@ -630,7 +634,7 @@ mod tests {
         let b = value(0b10101010);
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(5));
@@ -643,7 +647,7 @@ mod tests {
         let b = value(0b01010101);
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result[1], value(0));
     }
@@ -655,7 +659,7 @@ mod tests {
         let b = default();
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(5));
@@ -671,7 +675,7 @@ mod tests {
         let b = value(8);
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], value(6));
@@ -684,7 +688,7 @@ mod tests {
         let b = value(16);
         let c = default();
 
-        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], BabyBearField::one());
+        let result = run(InteractionKind::Byte, vec![opcode, a, b, c], KoalaBearField::one());
 
         assert_eq!(result[1], mask(0xffff));
         assert_eq!(result[2], value(16));

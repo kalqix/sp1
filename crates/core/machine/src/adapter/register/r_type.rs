@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField32};
 use sp1_core_executor::{
     events::{ByteRecord, MemoryAccessPosition},
@@ -6,13 +7,13 @@ use sp1_core_executor::{
 };
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
-    memory::MemoryAccessInShardCols,
+    memory::RegisterAccessCols,
     program::instruction::InstructionCols,
 };
 
@@ -32,12 +33,13 @@ use crate::{
 #[repr(C)]
 pub struct RTypeReader<T> {
     pub op_a: T,
-    pub op_a_memory: MemoryAccessInShardCols<T>,
+    pub op_a_memory: RegisterAccessCols<T>,
     pub op_a_0: T,
     pub op_b: T,
-    pub op_b_memory: MemoryAccessInShardCols<T>,
+    pub op_b_memory: RegisterAccessCols<T>,
     pub op_c: T,
-    pub op_c_memory: MemoryAccessInShardCols<T>,
+    pub op_c_memory: RegisterAccessCols<T>,
+    pub is_trusted: T,
 }
 
 impl<F: PrimeField32> RTypeReader<F> {
@@ -49,6 +51,7 @@ impl<F: PrimeField32> RTypeReader<F> {
         self.op_b_memory.populate(record.b, blu_events);
         self.op_c = F::from_canonical_u64(record.op_c);
         self.op_c_memory.populate(record.c, blu_events);
+        self.is_trusted = F::from_bool(!record.is_untrusted);
     }
 }
 
@@ -73,15 +76,26 @@ impl<F: Field> RTypeReader<F> {
         clk_high: AB::Expr,
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
-        opcode: impl Into<AB::Expr>,
-        instr_field_consts: [AB::Expr; 3],
+        opcode: impl Into<AB::Expr> + Clone,
+        instr_field_consts: [AB::Expr; 4],
         op_a_write_value: Word<impl Into<AB::Expr> + Clone>,
         cols: RTypeReader<AB::Var>,
         is_real: AB::Expr,
     ) {
         builder.assert_bool(is_real.clone());
+        let is_untrusted = is_real.clone() - cols.is_trusted;
+        builder.assert_bool(is_untrusted.clone());
+        builder.assert_bool(cols.is_trusted);
+
+        // A real row must be executing either a trusted program or untrusted program.
+        builder.assert_eq(is_untrusted.clone() + cols.is_trusted, is_real.clone());
+
+        // If the row is running an untrusted program, the page protection checks must be on.
+        let public_values = builder.extract_public_values();
+        builder.when(is_untrusted.clone()).assert_one(public_values.is_page_protect_active);
+
         let instruction = InstructionCols {
-            opcode: opcode.into(),
+            opcode: opcode.clone().into(),
             op_a: cols.op_a.into(),
             op_b: Word::extend_expr::<AB>(cols.op_b.into()),
             op_c: Word::extend_expr::<AB>(cols.op_c.into()),
@@ -89,10 +103,18 @@ impl<F: Field> RTypeReader<F> {
             imm_b: AB::Expr::zero(),
             imm_c: AB::Expr::zero(),
         };
-        builder.send_program(pc, instruction, instr_field_consts, is_real.clone());
+
+        builder.send_program(pc, instruction.clone(), cols.is_trusted);
+        builder.send_instruction_fetch(
+            pc,
+            instruction,
+            instr_field_consts,
+            [clk_high.clone(), clk_low.clone()],
+            is_untrusted.clone(),
+        );
         // Assert that `op_a` is zero if `op_a_0` is true.
         builder.when(cols.op_a_0).assert_word_eq(op_a_write_value.clone(), Word::zero::<AB>());
-        builder.eval_memory_access_in_shard_write(
+        builder.eval_register_access_write(
             clk_high.clone(),
             clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::A as u32),
             [cols.op_a.into(), AB::Expr::zero(), AB::Expr::zero()],
@@ -100,14 +122,14 @@ impl<F: Field> RTypeReader<F> {
             op_a_write_value,
             is_real.clone(),
         );
-        builder.eval_memory_access_in_shard_read(
+        builder.eval_register_access_read(
             clk_high.clone(),
             clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::B as u32),
             [cols.op_b.into(), AB::Expr::zero(), AB::Expr::zero()],
             cols.op_b_memory,
             is_real.clone(),
         );
-        builder.eval_memory_access_in_shard_read(
+        builder.eval_register_access_read(
             clk_high.clone(),
             clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::C as u32),
             [cols.op_c.into(), AB::Expr::zero(), AB::Expr::zero()],
@@ -122,8 +144,8 @@ impl<F: Field> RTypeReader<F> {
         clk_high: AB::Expr,
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
-        opcode: impl Into<AB::Expr>,
-        instr_field_consts: [AB::Expr; 3],
+        opcode: impl Into<AB::Expr> + Clone,
+        instr_field_consts: [AB::Expr; 4],
         cols: RTypeReader<AB::Var>,
         is_real: AB::Expr,
     ) {
@@ -142,19 +164,19 @@ impl<F: Field> RTypeReader<F> {
 }
 
 #[derive(Clone, InputParams, InputExpr)]
-pub struct RTypeReaderInput<AB: SP1AirBuilder> {
+pub struct RTypeReaderInput<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> {
     pub clk_high: AB::Expr,
     pub clk_low: AB::Expr,
     pub pc: [AB::Var; 3],
     pub opcode: AB::Expr,
-    pub op_a_write_value: Word<AB::Var>,
-    pub instr_field_consts: [AB::Expr; 3],
+    pub instr_field_consts: [AB::Expr; 4],
+    pub op_a_write_value: Word<T>,
     pub cols: RTypeReader<AB::Var>,
     pub is_real: AB::Expr,
 }
 
 impl<AB: SP1AirBuilder> SP1Operation<AB> for RTypeReader<AB::F> {
-    type Input = RTypeReaderInput<AB>;
+    type Input = RTypeReaderInput<AB, AB::Expr>;
     type Output = ();
 
     fn lower(builder: &mut AB, input: Self::Input) -> Self::Output {
@@ -182,7 +204,7 @@ pub struct RTypeReaderImmutableInput<AB: SP1AirBuilder> {
     pub clk_low: AB::Expr,
     pub pc: [AB::Var; 3],
     pub opcode: AB::Expr,
-    pub instr_field_consts: [AB::Expr; 3],
+    pub instr_field_consts: [AB::Expr; 4],
     pub cols: RTypeReader<AB::Var>,
     pub is_real: AB::Expr,
 }
@@ -206,13 +228,13 @@ impl<AB: SP1AirBuilder> SP1Operation<AB> for RTypeReaderImmutable {
 }
 
 // impl<T: Into<<ConstraintCompiler as AirBuilder>::Expr> + Clone>
-//     Into<Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>, ExprExtRef<sp1_stark::ir::EF>>>
-//     for RTypeReaderInput<ConstraintCompiler>
+//     Into<Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>,
+// ExprExtRef<sp1_hypercube::ir::EF>>>     for RTypeReaderInput<ConstraintCompiler>
 // {
 //     fn into(
 //         self,
-//     ) -> Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>, ExprExtRef<sp1_stark::ir::EF>> {
-//         Shape::Struct(
+//     ) -> Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>, ExprExtRef<sp1_hypercube::ir::EF>>
+// {         Shape::Struct(
 //             "RTypeReaderInput".to_string(),
 //             vec![
 //                 ("clk_high".to_string(), Box::new(self.clk_high.into())),
@@ -233,8 +255,8 @@ impl<AB: SP1AirBuilder> SP1Operation<AB> for RTypeReaderImmutable {
 //     //     self,
 //     // ) -> Vec<(
 //     //     String,
-//     //     Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>, ExprExtRef<sp1_stark::ir::EF>>,
-//     // )> {
+//     //     Shape<ExprRef<<ConstraintCompiler as AirBuilder>::F>,
+// ExprExtRef<sp1_hypercube::ir::EF>>,     // )> {
 //     //     vec![
 //     //         // for demonstration only; not all fields are filled in
 //     //         ("clk_high".to_string(), self.clk_high.into()),

@@ -5,10 +5,10 @@ use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::{next_multiple_of_32, pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::air::MachineAir;
 use sp1_recursion_executor::{
     Block, ExecutionRecord, Instruction, MemAccessKind, MemInstr, RecursionProgram,
 };
-use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::builder::SP1RecursionAirBuilder;
@@ -17,7 +17,7 @@ use super::MemoryAccessCols;
 
 pub const NUM_CONST_MEM_ENTRIES_PER_ROW: usize = 1;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MemoryConstChip<F> {
     _marker: PhantomData<F>,
 }
@@ -149,10 +149,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryConstChip<F> {
     fn included(&self, _record: &Self::Record) -> bool {
         true
     }
-
-    fn local_only(&self) -> bool {
-        true
-    }
 }
 
 impl<AB> Air<AB> for MemoryConstChip<AB::F>
@@ -172,11 +168,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sp1_recursion_executor::instruction as instr;
+    use slop_matrix::Matrix;
+    use sp1_hypercube::air::MachineAir;
+    use sp1_recursion_executor::{instruction as instr, ExecutionRecord, MemAccessKind};
 
-    use crate::test::test_recursion_linear_program;
+    use super::MemoryConstChip;
 
-    use super::*;
+    use crate::{chips::test_fixtures, test::test_recursion_linear_program};
+
+    #[tokio::test]
+    async fn generate_trace() {
+        let shard = test_fixtures::shard().await;
+        let chip = MemoryConstChip::default();
+        let trace = chip.generate_trace(shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
+    }
+
+    #[tokio::test]
+    async fn generate_preprocessed_trace() {
+        let program = &test_fixtures::program_with_input().await.0;
+        let chip = MemoryConstChip::default();
+        let trace = chip.generate_preprocessed_trace(program).unwrap();
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
+    }
 
     #[tokio::test]
     pub async fn prove_basic_mem() {

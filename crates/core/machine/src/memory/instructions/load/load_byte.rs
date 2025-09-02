@@ -1,7 +1,7 @@
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::BaseAirBuilder, Word};
+use sp1_hypercube::{air::BaseAirBuilder, Word};
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
@@ -9,10 +9,13 @@ use std::{
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    adapter::{register::i_type::ITypeReader, state::CPUState},
-    air::SP1CoreAirBuilder,
+    adapter::{
+        register::i_type::{ITypeReader, ITypeReaderInput},
+        state::{CPUState, CPUStateInput},
+    },
+    air::{SP1CoreAirBuilder, SP1Operation},
     memory::MemoryAccessCols,
-    operations::AddressOperation,
+    operations::{AddressOperation, AddressOperationInput},
     utils::{next_multiple_of_32, zeroed_f_vec},
 };
 use hashbrown::HashMap;
@@ -21,11 +24,11 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_algebra::{AbstractField, Field, PrimeField32};
 use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, MemInstrEvent},
+    events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_primitives::consts::u64_to_u16_limbs;
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
+use sp1_primitives::consts::{u64_to_u16_limbs, PROT_READ};
 
 #[derive(Default)]
 pub struct LoadByteChip;
@@ -68,6 +71,9 @@ pub struct LoadByteColumns<T> {
 
     /// Whether this is a load byte unsigned instruction.
     pub is_lbu: T,
+
+    /// Whether the page protection is active.
+    pub is_page_protect_active: T,
 }
 
 impl<F> BaseAir<F> for LoadByteChip {
@@ -115,6 +121,8 @@ impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
                     if idx < input.memory_load_byte_events.len() {
                         let event = &input.memory_load_byte_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
+                        cols.is_page_protect_active =
+                            F::from_canonical_u32(input.public_values.is_page_protect_active);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
                     }
@@ -135,10 +143,6 @@ impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
         } else {
             !shard.memory_load_byte_events.is_empty()
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
     }
 
     fn column_names(&self) -> Vec<String> {
@@ -215,30 +219,49 @@ where
             + local.is_lbu * AB::Expr::from_canonical_u8(Opcode::LBU.funct7().unwrap_or(0));
         let base_opcode = local.is_lb * AB::Expr::from_canonical_u32(Opcode::LB.base_opcode().0)
             + local.is_lbu * AB::Expr::from_canonical_u32(Opcode::LBU.base_opcode().0);
+        let instr_type = local.is_lb
+            * AB::Expr::from_canonical_u32(Opcode::LB.instruction_type().0 as u32)
+            + local.is_lbu * AB::Expr::from_canonical_u32(Opcode::LBU.instruction_type().0 as u32);
         let is_real = local.is_lb + local.is_lbu;
         builder.assert_bool(local.is_lb);
         builder.assert_bool(local.is_lbu);
         builder.assert_bool(is_real.clone());
 
         // Step 1. Compute the address, and check offsets and address bounds.
-        let aligned_addr = AddressOperation::<AB::F>::eval(
+        let aligned_addr = <AddressOperation<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.adapter.b().map(Into::into),
-            local.adapter.c().map(Into::into),
-            local.offset_bit[0].into(),
-            local.offset_bit[1].into(),
-            local.offset_bit[2].into(),
-            is_real.clone(),
-            local.address_operation,
+            AddressOperationInput::new(
+                local.adapter.b().map(Into::into),
+                local.adapter.c().map(Into::into),
+                local.offset_bit[0].into(),
+                local.offset_bit[1].into(),
+                local.offset_bit[2].into(),
+                is_real.clone(),
+                local.address_operation,
+            ),
         );
 
-        // Step 2. Read the memory address.
+        // Step 2. Read the memory address and check page prot access.
         builder.eval_memory_access_read(
             clk_high.clone(),
-            clk_low.clone(),
-            &aligned_addr.map(Into::into),
+            clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
+            &aligned_addr.clone().map(Into::into),
             local.memory_access,
             is_real.clone(),
+        );
+
+        // Check page protect active is set correctly based on public value and is_real
+        let public_values = builder.extract_public_values();
+        let expected_page_protect_active =
+            public_values.is_page_protect_active.into() * is_real.clone();
+        builder.assert_eq(local.is_page_protect_active, expected_page_protect_active);
+
+        builder.send_page_prot(
+            clk_high.clone(),
+            clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
+            &aligned_addr.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            local.is_page_protect_active.into(),
         );
 
         // This chip requires `op_a != x0`.
@@ -284,16 +307,18 @@ where
         );
 
         // Constrain the state of the CPU.
-        CPUState::<AB::F>::eval(
+        <CPUState<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            local.state,
-            [
-                local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
-                local.state.pc[1].into(),
-                local.state.pc[2].into(),
-            ],
-            AB::Expr::from_canonical_u32(CLK_INC),
-            is_real.clone(),
+            CPUStateInput::new(
+                local.state,
+                [
+                    local.state.pc[0] + AB::F::from_canonical_u32(PC_INC),
+                    local.state.pc[1].into(),
+                    local.state.pc[2].into(),
+                ],
+                AB::Expr::from_canonical_u32(CLK_INC),
+                is_real.clone(),
+            ),
         );
 
         // Compute the four limbs of the word to be written to `op_a`.
@@ -304,16 +329,18 @@ where
         let limb3 = AB::Expr::from_canonical_u32((1 << 16) - 1) * local.msb;
 
         // Constrain the program and register reads.
-        ITypeReader::<AB::F>::eval(
+        <ITypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
-            clk_high,
-            clk_low,
-            local.state.pc,
-            opcode,
-            [base_opcode, funct3, funct7],
-            Word([limb0, limb1, limb2, limb3]),
-            local.adapter,
-            is_real.clone(),
+            ITypeReaderInput::new(
+                clk_high,
+                clk_low,
+                local.state.pc,
+                opcode,
+                [instr_type, base_opcode, funct3, funct7],
+                Word([limb0, limb1, limb2, limb3]),
+                local.adapter,
+                is_real.clone(),
+            ),
         );
     }
 }

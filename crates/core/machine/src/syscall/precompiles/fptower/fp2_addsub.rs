@@ -1,7 +1,7 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
 };
 use generic_array::GenericArray;
@@ -20,10 +20,13 @@ use sp1_curves::{
     weierstrass::{FieldType, FpOpField},
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::polynomial::Polynomial;
-use sp1_stark::{
+use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
+};
+use sp1_primitives::{
+    consts::{PROT_READ, PROT_WRITE},
+    polynomial::Polynomial,
 };
 use std::{
     borrow::{Borrow, BorrowMut},
@@ -55,6 +58,8 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub y_addrs: GenericArray<AddrAddOperation<T>, P::WordsCurvePoint>,
     pub x_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
     pub y_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
+    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
+    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
     pub(crate) c0_range: FieldLtCols<T, P>,
@@ -172,6 +177,30 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 cols.x_access[i].populate(record, &mut new_byte_lookup_events);
                 cols.x_addrs[i].populate(&mut new_byte_lookup_events, event.x_ptr, i as u64 * 8);
             }
+            if input.public_values.is_page_protect_active == 1 {
+                cols.read_slice_page_prot_access.populate(
+                    &mut new_byte_lookup_events,
+                    event.y_ptr,
+                    event.y_ptr + 8 * (cols.y_addrs.len() - 1) as u64,
+                    event.clk,
+                    PROT_READ,
+                    &event.page_prot_records.read_page_prot_records[0],
+                    &event.page_prot_records.read_page_prot_records.get(1).copied(),
+                    input.public_values.is_page_protect_active,
+                );
+
+                cols.write_slice_page_prot_access.populate(
+                    &mut new_byte_lookup_events,
+                    event.x_ptr,
+                    event.x_ptr + 8 * (cols.x_addrs.len() - 1) as u64,
+                    event.clk + 1,
+                    PROT_READ | PROT_WRITE,
+                    &event.page_prot_records.write_page_prot_records[0],
+                    &event.page_prot_records.write_page_prot_records.get(1).copied(),
+                    input.public_values.is_page_protect_active,
+                );
+            }
+
             rows.push(row);
         }
 
@@ -227,10 +256,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 }
             }
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
     }
 }
 
@@ -323,52 +348,23 @@ where
             local.is_real.into(),
         );
 
-        // x_addrs[0] = x_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([x_ptr[0].into(), x_ptr[1].into(), x_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.x_addrs[0],
-            local.is_real.into(),
-        );
-
-        let eight = AB::F::from_canonical_u32(8u32);
-        // x_addrs[i] = x_addrs[i - 1] + 8.
-        for i in 1..local.x_addrs.len() {
+        // x_addrs[i] = x_ptr + 8 * i
+        for i in 0..local.x_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.x_addrs[i - 1].value[0].into(),
-                    local.x_addrs[i - 1].value[1].into(),
-                    local.x_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([x_ptr[0].into(), x_ptr[1].into(), x_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.x_addrs[i],
                 local.is_real.into(),
             );
         }
 
-        // y_addrs[0] = y_ptr.
-        AddrAddOperation::<AB::F>::eval(
-            builder,
-            Word([y_ptr[0].into(), y_ptr[1].into(), y_ptr[2].into(), AB::Expr::zero()]),
-            Word([AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
-            local.y_addrs[0],
-            local.is_real.into(),
-        );
-
-        // y_addrs[i] = y_addrs[i - 1] + 8.
-        for i in 1..local.y_addrs.len() {
+        // y_addrs[i] = y_ptr + 8 * i
+        for i in 0..local.y_addrs.len() {
             AddrAddOperation::<AB::F>::eval(
                 builder,
-                Word([
-                    local.y_addrs[i - 1].value[0].into(),
-                    local.y_addrs[i - 1].value[1].into(),
-                    local.y_addrs[i - 1].value[2].into(),
-                    AB::Expr::zero(),
-                ]),
-                Word([eight.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
+                Word([y_ptr[0].into(), y_ptr[1].into(), y_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
                 local.y_addrs[i],
                 local.is_real.into(),
             );
@@ -414,6 +410,28 @@ where
             y_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into(),
+            &local.y_ptr.addr.map(Into::into),
+            &local.y_addrs[local.y_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ),
+            &local.read_slice_page_prot_access,
+            local.is_real.into(),
+        );
+
+        AddressSlicePageProtOperation::<AB::F>::eval(
+            builder,
+            local.clk_high.into(),
+            local.clk_low.into() + AB::Expr::one(),
+            &local.x_ptr.addr.map(Into::into),
+            &local.x_addrs[local.x_addrs.len() - 1].value.map(Into::into),
+            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
+            &local.write_slice_page_prot_access,
+            local.is_real.into(),
         );
     }
 }

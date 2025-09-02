@@ -1,17 +1,16 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
-use sp1_stark::{air::SP1AirBuilder, Word};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use crate::air::{SP1Operation, WordAirBuilder};
-
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-/// A set of columns needed to compute the add of two words.
+/// A set of columns needed to compute the add of two `Words`.
 #[derive(
     AlignedBorrow,
     StructReflection,
@@ -40,7 +39,7 @@ impl<F: Field> AddOperation<F> {
     }
 
     /// Evaluate the add operation.
-    /// Assumes that `a`, `b` are valid `Word`s of two u16 limbs.
+    /// Assumes that `a`, `b` are valid `Word`s of u16 limbs.
     /// Constrains that `is_real` is boolean.
     /// If `is_real` is true, the `value` is constrained to a valid `Word` representing `a + b`.
     pub fn eval<AB: SP1AirBuilder>(

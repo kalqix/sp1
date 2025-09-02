@@ -5,7 +5,6 @@
 use std::pin::Pin;
 
 use powdr_autoprecompiles::Apc;
-use slop_baby_bear::BabyBear;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_prover::{
     components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
@@ -15,8 +14,9 @@ use sp1_prover::{
 use crate::{
     cpu::{CPUProverError, CPUProvingKey, CpuProver},
     prover::{BaseProveRequest, ProveRequest},
-    Prover, SP1Proof, SP1ProofWithPublicValues, SP1VerificationError,
+    Prover, SP1Proof, SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
 };
+use sp1_primitives::SP1Field;
 use std::{
     future::{Future, IntoFuture},
     sync::Arc,
@@ -31,7 +31,7 @@ pub struct MockProver {
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-    pub async fn new(apcs: Vec<Arc<Apc<BabyBear, Sp1Instruction>>>) -> Self {
+    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         Self { inner: CpuProver::new(apcs).await }
     }
 }
@@ -62,6 +62,7 @@ impl Prover for MockProver {
         &self,
         proof: &SP1ProofWithPublicValues,
         _vkey: &SP1VerifyingKey,
+        _status_code: Option<StatusCode>,
     ) -> Result<(), SP1VerificationError> {
         match &proof.proof {
             SP1Proof::Plonk(PlonkBn254Proof { public_inputs: _, .. }) => {

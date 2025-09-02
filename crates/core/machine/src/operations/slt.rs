@@ -1,7 +1,7 @@
 use itertools::izip;
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
@@ -29,9 +29,9 @@ use super::{U16CompareOperation, U16CompareOperationInput, U16MSBOperation, U16M
 pub struct LtOperationUnsigned<T> {
     /// Instance of the U16CompareOperation.
     pub u16_compare_operation: U16CompareOperation<T>,
-    /// Boolean flag to indicate which byte pair differs if the operands are not equal.
+    /// Boolean flag to indicate which limb pair differs if the operands are not equal.
     pub u16_flags: [T; WORD_SIZE],
-    /// An inverse of differing byte if b_comp != c_comp.
+    /// An inverse of differing limb if b_comp != c_comp.
     pub not_eq_inv: T,
     /// The comparison limbs to be looked up.
     pub comparison_limbs: [T; 2],
@@ -80,7 +80,7 @@ impl<F: Field> LtOperationSigned<F> {
     }
 
     /// Evaluate the signed LT operation.
-    /// Assumes that `b`, `c` are valid `Word`s of two u16 limbs.
+    /// Assumes that `b`, `c` are valid `Word`s of u16 limbs.
     /// Constrains that `is_signed` is boolean.
     /// Constrains that `is_real` is boolean.
     /// If `is_real` is true, constrains that the result is the signed LT of `b` and `c`.
@@ -187,7 +187,7 @@ impl<F: Field> LtOperationUnsigned<F> {
     }
 
     /// Evaluate that LT operation.
-    /// Assumes that `b`, `c` are either valid `Word`s of two u16 limbs.
+    /// Assumes that `b`, `c` are either valid `Word`s of u16 limbs.
     /// Constrains that `is_real` is boolean.
     /// If `is_real` is true, constrains that the result is the LT of `b` and `c`.
     pub fn eval_lt_unsigned<AB>(
@@ -202,7 +202,7 @@ impl<F: Field> LtOperationUnsigned<F> {
         builder.assert_bool(is_real.clone());
 
         // Verify that the limb equality flags are set correctly, i.e. all are boolean and only
-        // at most a single byte flag is set.
+        // at most a single flag is set to one.
         let sum_flags =
             cols.u16_flags[0] + cols.u16_flags[1] + cols.u16_flags[2] + cols.u16_flags[3];
         builder.assert_bool(cols.u16_flags[0]);

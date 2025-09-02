@@ -150,70 +150,56 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let name_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::name(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::name(x)
                 }
             });
 
             let column_names_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::column_names(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::column_names(x)
                 }
             });
 
             let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::preprocessed_width(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::preprocessed_width(x)
                 }
             });
 
             let generate_preprocessed_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
                 }
             });
 
             let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_trace(x, input, output)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace(x, input, output)
                 }
             });
 
             let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_dependencies(x, input, output)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_dependencies(x, input, output)
                 }
             });
 
             let included_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included(x, shard)
-                }
-            });
-
-            let commit_scope_arms = variants.iter().map(|(variant_name, field)| {
-                let field_ty = &field.ty;
-                quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::commit_scope(x)
-                }
-            });
-
-            let local_only_arms = variants.iter().map(|(variant_name, field)| {
-                let field_ty = &field.ty;
-                quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::local_only(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::included(x, shard)
                 }
             });
 
             let num_rows_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::num_rows(x, input)
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::num_rows(x, input)
                 }
             });
 
@@ -221,12 +207,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 let field_ty = &field.ty;
                 quote! {
                     #name::#variant_name(x) =>
-                        <#field_ty as sp1_stark::air::MachineAir<F>>::customize_program(x, program)
+                        <#field_ty as sp1_hypercube::air::MachineAir<F>>::customize_program(x, program)
                 }
             });
 
             let machine_air = quote! {
-                impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
+                impl #impl_generics sp1_hypercube::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
 
                     type Program = #program_path;
@@ -281,18 +267,6 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn included(&self, shard: &Self::Record) -> bool {
                         match self {
                             #(#included_arms,)*
-                        }
-                    }
-
-                    fn commit_scope(&self) -> InteractionScope {
-                        match self {
-                            #(#commit_scope_arms,)*
-                        }
-                    }
-
-                    fn local_only(&self) -> bool {
-                        match self {
-                            #(#local_only_arms,)*
                         }
                     }
 

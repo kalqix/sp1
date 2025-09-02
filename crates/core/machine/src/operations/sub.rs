@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
+use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
-use sp1_stark::{air::SP1AirBuilder, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
@@ -39,7 +39,7 @@ impl<F: Field> SubOperation<F> {
     }
 
     /// Evaluate the sub operation.
-    /// Assumes that `a`, `b` are valid `Word`s of two u16 limbs.
+    /// Assumes that `a`, `b` are valid `Word`s of u16 limbs.
     /// Constrains that `is_real` is boolean.
     /// If `is_real` is true, the `value` is constrained to a valid `Word` representing `a - b`.
     pub fn eval<AB: SP1AirBuilder>(

@@ -1,7 +1,6 @@
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::{extension::BinomiallyExtendable, AbstractField, Field, PrimeField32};
-use slop_baby_bear::BabyBear;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::{
@@ -9,18 +8,19 @@ use sp1_core_machine::{
     utils::next_multiple_of_32,
 };
 use sp1_derive::AlignedBorrow;
+use sp1_hypercube::air::MachineAir;
+use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, Block, ExecutionRecord, Instruction, Poseidon2LinearLayerInstr,
     Poseidon2LinearLayerIo, RecursionProgram, D, PERMUTATION_WIDTH,
 };
-use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip};
 
 use crate::builder::SP1RecursionAirBuilder;
 
 pub const NUM_LINEAR_ENTRIES_PER_ROW: usize = 1;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Poseidon2LinearLayerChip;
 
 pub const NUM_LINEAR_COLS: usize = core::mem::size_of::<Poseidon2LinearLayerCols<u8>>();
@@ -87,14 +87,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_preprocessed_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_preprocessed_trace only supports SP1Field field"
         );
 
         let instrs = unsafe {
             std::mem::transmute::<
                 Vec<&Poseidon2LinearLayerInstr<F>>,
-                Vec<&Poseidon2LinearLayerInstr<BabyBear>>,
+                Vec<&Poseidon2LinearLayerInstr<SP1Field>>,
             >(
                 program
                     .inner
@@ -107,7 +107,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
             )
         };
         let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_LINEAR_PREPROCESSED_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_LINEAR_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_LINEAR_ACCESS_COLS;
@@ -118,21 +118,21 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
                 access.addrs = addrs.to_owned();
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..PERMUTATION_WIDTH / D {
-                    assert!(mults[i] == BabyBear::one());
+                    assert!(mults[i] == SP1Field::one());
                 }
                 if *external {
-                    access.external = BabyBear::one();
-                    access.internal = BabyBear::zero();
+                    access.external = SP1Field::one();
+                    access.internal = SP1Field::zero();
                 } else {
-                    access.external = BabyBear::zero();
-                    access.internal = BabyBear::one();
+                    access.external = SP1Field::zero();
+                    access.internal = SP1Field::one();
                 }
             },
         );
 
         // Convert the trace to a row major matrix.
         Some(RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_LINEAR_PREPROCESSED_COLS,
         ))
     }
@@ -151,18 +151,18 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
-            std::any::TypeId::of::<BabyBear>(),
-            "generate_trace only supports BabyBear field"
+            std::any::TypeId::of::<SP1Field>(),
+            "generate_trace only supports SP1Field field"
         );
 
         let events = unsafe {
             std::mem::transmute::<
                 &Vec<Poseidon2LinearLayerIo<Block<F>>>,
-                &Vec<Poseidon2LinearLayerIo<Block<BabyBear>>>,
+                &Vec<Poseidon2LinearLayerIo<Block<SP1Field>>>,
             >(&input.poseidon2_linear_layer_events)
         };
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_LINEAR_COLS];
+        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_LINEAR_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_LINEAR_VALUE_COLS;
@@ -175,16 +175,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<BabyBear>, Vec<F>>(values) },
+            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
             NUM_LINEAR_COLS,
         )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn local_only(&self) -> bool {
         true
     }
 }
@@ -206,9 +202,13 @@ where
             Poseidon2LinearLayerAccessCols { addrs, external, internal },
         ) in zip(local.values, prep_local.accesses)
         {
+            // Check that the `external`, `internal` flags are boolean, and at most one is on.
             let is_real = external + internal;
+            builder.assert_bool(external);
+            builder.assert_bool(internal);
+            builder.assert_bool(is_real.clone());
 
-            // Read the inputs from memory.
+            // Read the inputs from memory. The inputs are packed in extension elements.
             #[allow(clippy::needless_range_loop)]
             for i in 0..PERMUTATION_WIDTH / D {
                 builder.receive_block(addrs.input[i], input[i], is_real.clone());
@@ -218,16 +218,20 @@ where
                 core::array::from_fn(|_| AB::Expr::zero());
             let mut state_internal: [_; PERMUTATION_WIDTH] =
                 core::array::from_fn(|_| AB::Expr::zero());
+
+            // Unpack the extension elements into field elements.
             for i in 0..PERMUTATION_WIDTH / D {
                 for j in 0..D {
                     state_external[i * D + j] = input[i].0[j].into();
                     state_internal[i * D + j] = input[i].0[j].into();
                 }
             }
+
+            // Apply the external/internal linear layer.
             external_linear_layer_mut(&mut state_external);
             internal_linear_layer_mut(&mut state_internal);
 
-            // Write the output to memory, in the external linear layer case.
+            // Write the output to memory for each case.
             for i in 0..PERMUTATION_WIDTH / D {
                 builder.send_block(
                     Address(addrs.output[i].0.into()),
@@ -251,5 +255,30 @@ where
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use slop_matrix::Matrix;
+    use sp1_hypercube::air::MachineAir;
+    use sp1_recursion_executor::ExecutionRecord;
+
+    use super::Poseidon2LinearLayerChip;
+
+    use crate::chips::test_fixtures;
+
+    #[tokio::test]
+    async fn generate_trace() {
+        let shard = test_fixtures::shard().await;
+        let trace = Poseidon2LinearLayerChip.generate_trace(shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
+    }
+
+    #[tokio::test]
+    async fn generate_preprocessed_trace() {
+        let program = &test_fixtures::program_with_input().await.0;
+        let trace = Poseidon2LinearLayerChip.generate_preprocessed_trace(program).unwrap();
+        assert!(trace.height() > test_fixtures::MIN_ROWS);
     }
 }

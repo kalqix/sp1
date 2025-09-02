@@ -1,13 +1,11 @@
-use slop_jagged::{
-    JaggedConfig, Poseidon2BabyBearJaggedCpuProverComponents,
-    Poseidon2Bn254JaggedCpuProverComponents,
-};
+use slop_jagged::{JaggedConfig, Poseidon2Bn254JaggedCpuProverComponents};
 use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
-use sp1_recursion_circuit::machine::InnerVal;
-use sp1_stark::{
+use sp1_hypercube::{
     prover::{CpuMachineProverComponents, MachineProverComponents},
-    Machine, MachineVerifier,
+    Machine, MachineVerifier, SP1CpuJaggedProverComponents,
 };
+use sp1_primitives::SP1Field;
+use sp1_recursion_circuit::machine::InnerVal;
 
 use crate::{
     core::CoreProverComponents,
@@ -55,21 +53,19 @@ pub trait SP1ProverComponents: Send + Sync + 'static {
     }
 }
 
-// ShardProver<CpuProverComponents<JaggedBasefoldProverComponents<Poseidon2BabyBear16BasefoldCpuProverComponents, HadamardJaggedSumcheckProver<CpuJaggedMleGenerator>, JaggedEvalSumcheckProver<BabyBear>>, RiscvAir<BabyBear>>>
-
 pub struct CpuSP1ProverComponents;
 
 impl SP1ProverComponents for CpuSP1ProverComponents {
     type CoreComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         RiscvAir<<CoreSC as JaggedConfig>::F>,
     >;
     type RecursionComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         CompressAir<<InnerSC as JaggedConfig>::F>,
     >;
     type WrapComponents = CpuMachineProverComponents<
-        Poseidon2Bn254JaggedCpuProverComponents,
+        Poseidon2Bn254JaggedCpuProverComponents<SP1Field>,
         WrapAir<<OuterSC as JaggedConfig>::F>,
     >;
 }
@@ -78,15 +74,15 @@ pub struct CpuSP1ApcProverComponents;
 
 impl SP1ProverComponents for CpuSP1ApcProverComponents {
     type CoreComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         RiscvAirWithApcs<<CoreSC as JaggedConfig>::F>,
     >;
     type RecursionComponents = CpuMachineProverComponents<
-        Poseidon2BabyBearJaggedCpuProverComponents,
+        SP1CpuJaggedProverComponents,
         CompressAir<<InnerSC as JaggedConfig>::F>,
     >;
     type WrapComponents = CpuMachineProverComponents<
-        Poseidon2Bn254JaggedCpuProverComponents,
+        Poseidon2Bn254JaggedCpuProverComponents<SP1Field>,
         WrapAir<<OuterSC as JaggedConfig>::F>,
     >;
 }

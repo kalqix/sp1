@@ -9,7 +9,7 @@ use sp1_core_executor::{
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
-use sp1_stark::air::MachineAir;
+use sp1_hypercube::air::MachineAir;
 
 use crate::utils::{next_multiple_of_32, zeroed_f_vec};
 
@@ -112,10 +112,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         } else {
             !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
         }
-    }
-
-    fn local_only(&self) -> bool {
-        true
     }
 }
 

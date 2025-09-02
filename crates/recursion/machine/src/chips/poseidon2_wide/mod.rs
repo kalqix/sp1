@@ -2,9 +2,7 @@
 
 use std::{borrow::Borrow, ops::Deref};
 
-use sp1_core_machine::operations::poseidon2::permutation::{
-    Poseidon2Cols, Poseidon2Degree3Cols, Poseidon2Degree9Cols,
-};
+use sp1_core_machine::operations::poseidon2::permutation::{Poseidon2Cols, Poseidon2Degree3Cols};
 
 pub mod air;
 pub mod columns;
@@ -23,9 +21,6 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         if DEGREE == 3 {
             let convert: &Poseidon2Degree3Cols<T> = (*row).borrow();
             Box::new(*convert)
-        } else if DEGREE == 9 || DEGREE == 17 {
-            let convert: &Poseidon2Degree9Cols<T> = (*row).borrow();
-            Box::new(*convert)
         } else {
             panic!("Unsupported degree");
         }
@@ -38,10 +33,11 @@ pub(crate) mod tests {
     use std::iter::once;
 
     use slop_algebra::{AbstractField, PrimeField32};
-    use slop_baby_bear::BabyBear;
+
     use slop_symmetric::Permutation;
     use sp1_core_machine::{operations::poseidon2::WIDTH, utils::setup_logger};
-    use sp1_primitives::poseidon2_init;
+    use sp1_hypercube::inner_perm;
+    use sp1_primitives::SP1Field;
     use sp1_recursion_executor::{instruction as instr, MemAccessKind};
     use zkhash::ark_ff::UniformRand;
 
@@ -51,14 +47,14 @@ pub(crate) mod tests {
     async fn test_poseidon2() {
         setup_logger();
         let input = [1; WIDTH];
-        let output = poseidon2_init()
-            .permute(input.map(BabyBear::from_canonical_u32))
-            .map(|x| BabyBear::as_canonical_u32(&x));
+        let output = inner_perm()
+            .permute(input.map(SP1Field::from_canonical_u32))
+            .map(|x| SP1Field::as_canonical_u32(&x));
 
         let rng = &mut rand::thread_rng();
-        let input_1: [BabyBear; WIDTH] = std::array::from_fn(|_| BabyBear::rand(rng));
-        let output_1 = poseidon2_init().permute(input_1).map(|x| BabyBear::as_canonical_u32(&x));
-        let input_1 = input_1.map(|x| BabyBear::as_canonical_u32(&x));
+        let input_1: [SP1Field; WIDTH] = std::array::from_fn(|_| SP1Field::rand(rng));
+        let output_1 = inner_perm().permute(input_1).map(|x| SP1Field::as_canonical_u32(&x));
+        let input_1 = input_1.map(|x| SP1Field::as_canonical_u32(&x));
 
         let instructions =
             (0..WIDTH)

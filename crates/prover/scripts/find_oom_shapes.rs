@@ -3,9 +3,9 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use clap::Parser;
-use sp1_core_executor::{rv32im_costs, RiscvAirId};
+use sp1_core_executor::{rv64im_costs, RiscvAirId};
 use sp1_core_machine::utils::setup_logger;
-use sp1_stark::shape::Shape;
+use sp1_hypercube::shape::Shape;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -26,7 +26,7 @@ fn main() {
     let args = Args::parse();
 
     // Load the costs.
-    let costs = rv32im_costs();
+    let costs = rv64im_costs();
 
     if let Some(maximal_shapes_json) = args.maximal_shapes_json {
         // Load the maximal shapes, indexed by log shard size.
@@ -40,7 +40,7 @@ fn main() {
             for shape in shapes.iter() {
                 let lde_size = shape.estimate_lde_size(&costs);
                 if lde_size > args.lde_threshold_bytes {
-                    println!("maximal shape: {:?}, lde_size: {}", shape, lde_size);
+                    println!("maximal shape: {shape:?}, lde_size: {lde_size}");
                 }
             }
         }
@@ -57,7 +57,7 @@ fn main() {
         for shape in small_shapes.iter() {
             let lde_size = shape.estimate_lde_size(&costs);
             if lde_size > args.lde_threshold_bytes {
-                println!("small shape: {:?}, lde_size: {}", shape, lde_size);
+                println!("small shape: {shape:?}, lde_size: {lde_size}");
             }
         }
     }

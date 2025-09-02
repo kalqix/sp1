@@ -23,7 +23,7 @@ members = [
   "crates/derive",
   "crates/helper",
   "crates/prover",
-  "crates/stark",
+  "crates/hypercube",
   "crates/test-artifacts",
   "crates/zkvm/*",
   "crates/sdk",
@@ -31,13 +31,12 @@ members = [
   "crates/cuda",
   "crates/cli",
   "crates/core/compiler",
-  "crates/perf"
+  "crates/perf",
   # "crates/verifier",
 ]
 exclude = [
   "examples/target",
   "crates/eval",
-  "crates/recursion/circuit-old",
   "crates/recursion/gnark-cli",
   # "crates/verifier",
 ]
@@ -74,14 +73,13 @@ sp1-recursion-executor = { path = "crates/recursion/executor", version = "6.0.0"
 sp1-recursion-machine = { path = "crates/recursion/machine", version = "6.0.0", default-features = false }
 sp1-sdk = { path = "crates/sdk", version = "6.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "6.0.0" }
-sp1-stark = { path = "crates/stark", version = "6.0.0" }
+sp1-hypercube = { path = "crates/hypercube", version = "6.0.0" }
 sp1-lib = { path = "crates/zkvm/lib", version = "6.0.0", default-features = false }
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "6.0.0", default-features = false }
-sp1-zkvm-64 = { path = "crates/zkvm/entrypoint64", version = "6.0.0", default-features = false }
 
 # slop
 slop-algebra = { git = "https://github.com/succinctlabs/slop" }
-slop-alloc = { git = "https://github.com/succinctlabs/slop"  }
+slop-alloc = { git = "https://github.com/succinctlabs/slop" }
 slop-basefold = { git = "https://github.com/succinctlabs/slop" }
 slop-basefold-prover = { git = "https://github.com/succinctlabs/slop" }
 slop-commit = { git = "https://github.com/succinctlabs/slop" }
@@ -93,7 +91,7 @@ slop-multilinear = { git = "https://github.com/succinctlabs/slop" }
 slop-challenger = { git = "https://github.com/succinctlabs/slop" }
 slop-air = { git = "https://github.com/succinctlabs/slop" }
 slop-matrix = { git = "https://github.com/succinctlabs/slop" }
-slop-baby-bear = { git = "https://github.com/succinctlabs/slop" }
+slop-koala-bear = { git = "https://github.com/succinctlabs/slop" }
 slop-bn254 = { git = "https://github.com/succinctlabs/slop" }
 slop-symmetric = { git = "https://github.com/succinctlabs/slop" }
 slop-merkle-tree = { git = "https://github.com/succinctlabs/slop" }
@@ -111,7 +109,6 @@ slop-keccak-air = { git = "https://github.com/succinctlabs/slop" }
 # slop-basefold-prover = { path = "../slop/crates/basefold-prover" }
 # slop-commit = { path = "../slop/crates/commit" }
 # slop-jagged = { path = "../slop/crates/jagged" }
-# slop-fri = { path = "../slop/crates/fri" }
 # slop-sumcheck = { path = "../slop/crates/sumcheck" }
 # slop-stacked = { path = "../slop/crates/stacked" }
 # slop-tensor = { path = "../slop/crates/tensor" }
@@ -119,7 +116,7 @@ slop-keccak-air = { git = "https://github.com/succinctlabs/slop" }
 # slop-challenger = { path = "../slop/crates/challenger" }
 # slop-air = { path = "../slop/crates/air" }
 # slop-matrix = { path = "../slop/crates/matrix" }
-# slop-baby-bear = { path = "../slop/crates/baby-bear" }
+# slop-koala-bear = { path = "../slop/crates/koala-bear" }
 # slop-symmetric = { path = "../slop/crates/symmetric" }
 # slop-merkle-tree = { path = "../slop/crates/merkle-tree" }
 # slop-futures = { path = "../slop/crates/futures" }
@@ -147,6 +144,7 @@ test-artifacts = { path = "crates/test-artifacts" }
 
 
 # misc
+rand = "0.8.5"
 hashbrown = "0.14.5"
 itertools = "0.13.0"
 serde = "1.0.204"
@@ -159,6 +157,7 @@ derive-where = "1.2.7"
 strum_macros = "0.27.1"
 strum = "0.27.1"
 blake3 = { version = "1.6.1", default-features = false }
+deepsize2 = { version = "0.1.0", features = ["hashbrown"] }
 
 [workspace.metadata.typos]
 default.extend-ignore-re = [

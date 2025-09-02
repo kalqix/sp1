@@ -5,20 +5,21 @@ use std::{
     mem::MaybeUninit,
 };
 
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 
 use slop_air::Air;
-use slop_baby_bear::BabyBear;
 
 use slop_algebra::AbstractField;
 use slop_jagged::JaggedConfig;
 
 use serde::{Deserialize, Serialize};
+use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_recursion_compiler::ir::{Builder, Felt, IrIter};
 
+use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 
-use sp1_stark::{
+use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     MachineConfig, MachineVerifyingKey, ShardProof, DIGEST_SIZE,
 };
@@ -33,7 +34,7 @@ use crate::{
     },
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
-    BabyBearFriConfigVariable, CircuitConfig, EF,
+    CircuitConfig, SP1FieldConfigVariable, EF,
 };
 
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
@@ -53,8 +54,8 @@ pub enum PublicValuesOutputDigest {
 /// Witness layout for the compress stage verifier.
 #[allow(clippy::type_complexity)]
 pub struct SP1ShapedWitnessVariable<
-    C: CircuitConfig<F = BabyBear, EF = EF>,
-    SC: BabyBearFriConfigVariable<C> + Send + Sync,
+    C: CircuitConfig<F = SP1Field, EF = EF>,
+    SC: SP1FieldConfigVariable<C> + Send + Sync,
     JC: RecursiveJaggedConfig<
         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
     >,
@@ -75,12 +76,11 @@ pub struct SP1ShapedWitnessValues<SC: MachineConfig> {
 
 impl<C, SC, A, JC> SP1CompressVerifier<C, SC, A, JC>
 where
-    SC: BabyBearFriConfigVariable<C> + Send + Sync,
-    C: CircuitConfig<F = BabyBear, EF = <SC as JaggedConfig>::EF>,
-    // <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    SC: SP1FieldConfigVariable<C> + Send + Sync,
+    C: CircuitConfig<F = SP1Field, EF = <SC as JaggedConfig>::EF>,
     A: MachineAir<InnerVal> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     JC: RecursiveJaggedConfig<
-        F = BabyBear,
+        F = SP1Field,
         EF = C::EF,
         Circuit = C,
         Commitment = SC::DigestVariable,
@@ -112,7 +112,6 @@ where
         let SP1ShapedWitnessVariable { vks_and_proofs, is_complete } = input;
 
         // Initialize the values for the aggregated public output.
-
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| unsafe { MaybeUninit::zeroed().assume_init() })
             .collect();
@@ -127,11 +126,10 @@ where
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut pc: [Felt<_>; 3] =
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut current_exit_code: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut current_timestamp: [Felt<_>; 4] = array::from_fn(|_| builder.uninit());
+        let mut is_page_protect_active: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
-        let mut execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut committed_value_digest: [[Felt<_>; 4]; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() }));
         let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
@@ -139,10 +137,18 @@ where
         let mut reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut global_cumulative_sums = Vec::new();
-        let mut init_addr_word: [Felt<_>; 3] =
+        let mut init_addr: [Felt<_>; 3] =
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut finalize_addr_word: [Felt<_>; 3] =
+        let mut finalize_addr: [Felt<_>; 3] =
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
+        let mut init_page_idx: [Felt<_>; 3] =
+            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
+        let mut finalize_page_idx: [Felt<_>; 3] =
+            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
+        let mut commit_syscall: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut commit_deferred_syscall: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut contains_first_shard: Felt<_> = builder.eval(C::F::zero());
+        let mut num_included_shard: Felt<_> = builder.eval(C::F::zero());
 
         // Verify the shard proofs.
         // Verification of proofs can be done in parallel but the aggregation/consistency checks
@@ -160,7 +166,9 @@ where
                 challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
                 // Observe the padding.
                 let zero: Felt<_> = builder.eval(C::F::zero());
-                challenger.observe(builder, zero);
+                for _ in 0..7 {
+                    challenger.observe(builder, zero);
+                }
                 // Verify the shard proof.
                 machine.verify_shard(builder, vk, shard_proof, &mut challenger);
             },
@@ -178,300 +186,256 @@ where
                 builder.assert_felt_eq(*expected, *actual);
             }
 
-            // Set the exit code, it is already constrained to be zero in the previous proof.
+            // Verify that there are less than `(1 << MAX_LOG_NUMBER_OF_SHARDS)` included shards.
+            C::range_check_felt(
+                builder,
+                current_public_values.num_included_shard,
+                MAX_LOG_NUMBER_OF_SHARDS,
+            );
+
+            // Verify that `contains_first_shard` is boolean.
+            builder.assert_felt_eq(
+                current_public_values.contains_first_shard
+                    * (current_public_values.contains_first_shard - C::F::one()),
+                C::F::zero(),
+            );
+
+            // Accumulate the number of included shards.
+            num_included_shard =
+                builder.eval(num_included_shard + current_public_values.num_included_shard);
+
+            // Accumulate the `contains_first_shard` flag.
+            contains_first_shard =
+                builder.eval(contains_first_shard + current_public_values.contains_first_shard);
+
+            // Add the global cumulative sums to the vector.
+            global_cumulative_sums.push(current_public_values.global_cumulative_sum);
+
             if i == 0 {
                 // Initialize global and accumulated values.
 
-                // Initialize the start of deferred digests.
-                for (digest, current_digest, global_digest) in izip!(
-                    reconstruct_deferred_digest.iter_mut(),
-                    current_public_values.start_reconstruct_deferred_digest.iter(),
-                    compress_public_values.start_reconstruct_deferred_digest.iter_mut()
-                ) {
-                    *digest = *current_digest;
-                    *global_digest = *current_digest;
-                }
+                // Assign the committed values and deferred proof digests.
+                compress_public_values.prev_committed_value_digest =
+                    current_public_values.prev_committed_value_digest;
+                committed_value_digest = current_public_values.prev_committed_value_digest;
 
-                // Initialize the sp1_vk digest
-                for (digest, first_digest) in
-                    sp1_vk_digest.iter_mut().zip(current_public_values.sp1_vk_digest)
-                {
-                    *digest = first_digest;
-                }
+                compress_public_values.prev_deferred_proofs_digest =
+                    current_public_values.prev_deferred_proofs_digest;
+                deferred_proofs_digest = current_public_values.prev_deferred_proofs_digest;
 
                 // Initiallize start pc.
                 compress_public_values.pc_start = current_public_values.pc_start;
                 pc = current_public_values.pc_start;
 
-                // Initialize start shard.
-                compress_public_values.start_shard = current_public_values.start_shard;
-                shard = current_public_values.start_shard;
-
-                // Initialize start execution shard.
-                compress_public_values.start_execution_shard =
-                    current_public_values.start_execution_shard;
-                execution_shard = current_public_values.start_execution_shard;
-
                 // Initialize timestamp.
-                for (limb, (first_limb, current_limb)) in current_timestamp.iter_mut().zip(
-                    compress_public_values
-                        .initial_timestamp
-                        .iter_mut()
-                        .zip(current_public_values.initial_timestamp.iter()),
-                ) {
-                    *limb = *current_limb;
-                    *first_limb = *current_limb;
-                }
+                compress_public_values.initial_timestamp = current_public_values.initial_timestamp;
+                current_timestamp = current_public_values.initial_timestamp;
 
+                // Initialize the MemoryInitialize address.
+                compress_public_values.previous_init_addr =
+                    current_public_values.previous_init_addr;
+                init_addr = current_public_values.previous_init_addr;
+
+                // Initialize the MemoryFinalize address.
+                compress_public_values.previous_finalize_addr =
+                    current_public_values.previous_finalize_addr;
+                finalize_addr = current_public_values.previous_finalize_addr;
+
+                // Initialize the PageProtInit address.
+                compress_public_values.previous_init_page_idx =
+                    current_public_values.previous_init_page_idx;
+                init_page_idx = current_public_values.previous_init_page_idx;
+
+                // Initialize the PageProtFinalize address.
+                compress_public_values.previous_finalize_page_idx =
+                    current_public_values.previous_finalize_page_idx;
+                finalize_page_idx = current_public_values.previous_finalize_page_idx;
+
+                // Initialize the start of deferred digests.
+                compress_public_values.start_reconstruct_deferred_digest =
+                    current_public_values.start_reconstruct_deferred_digest;
+                reconstruct_deferred_digest =
+                    current_public_values.start_reconstruct_deferred_digest;
+
+                // Initialize exit code.
                 compress_public_values.prev_exit_code = current_public_values.prev_exit_code;
                 current_exit_code = current_public_values.prev_exit_code;
 
-                // Initialize the MemoryInitialize address word.
-                for (limb, (first_limb, current_limb)) in init_addr_word.iter_mut().zip(
-                    compress_public_values
-                        .previous_init_addr_word
-                        .iter_mut()
-                        .zip(current_public_values.previous_init_addr_word.iter()),
-                ) {
-                    *limb = *current_limb;
-                    *first_limb = *current_limb;
-                }
+                // Initialize `commit_syscall`.
+                compress_public_values.prev_commit_syscall =
+                    current_public_values.prev_commit_syscall;
+                commit_syscall = current_public_values.prev_commit_syscall;
 
-                // Initialize the MemoryFinalize address word.
-                for (limb, (first_limb, current_limb)) in finalize_addr_word.iter_mut().zip(
-                    compress_public_values
-                        .previous_finalize_addr_word
-                        .iter_mut()
-                        .zip(current_public_values.previous_finalize_addr_word.iter()),
-                ) {
-                    *limb = *current_limb;
-                    *first_limb = *current_limb;
-                }
+                // Initialize `commit_deferred_syscall`.
+                compress_public_values.prev_commit_deferred_syscall =
+                    current_public_values.prev_commit_deferred_syscall;
+                commit_deferred_syscall = current_public_values.prev_commit_deferred_syscall;
 
-                // Assign the committed values and deferred proof digests.
-                for (word, current_word) in committed_value_digest
-                    .iter_mut()
-                    .zip_eq(current_public_values.committed_value_digest.iter())
-                {
-                    for (byte, current_byte) in word.iter_mut().zip_eq(current_word.iter()) {
-                        *byte = *current_byte;
-                    }
-                }
+                // Initialize the sp1_vk digest
+                compress_public_values.sp1_vk_digest = current_public_values.sp1_vk_digest;
+                sp1_vk_digest = current_public_values.sp1_vk_digest;
 
-                for (digest, current_digest) in deferred_proofs_digest
-                    .iter_mut()
-                    .zip_eq(current_public_values.deferred_proofs_digest.iter())
-                {
-                    *digest = *current_digest;
-                }
+                compress_public_values.is_page_protect_active =
+                    current_public_values.is_page_protect_active;
+                is_page_protect_active = current_public_values.is_page_protect_active;
             }
 
-            // Assert that the current values match the accumulated values.
+            // Assert that the current values match the accumulated values and update them.
 
-            // Assert that the start deferred digest is equal to the current deferred digest.
+            // Assert that the `prev_committed_value_digest` is equal to current one, then update.
+            for (word, current_word) in committed_value_digest
+                .iter()
+                .zip_eq(current_public_values.prev_committed_value_digest.iter())
+            {
+                for (limb, current_limb) in word.iter().zip_eq(current_word.iter()) {
+                    builder.assert_felt_eq(*limb, *current_limb);
+                }
+            }
+            committed_value_digest = current_public_values.committed_value_digest;
+
+            // Assert that the `prev_deferred_proofs_digest` is equal to current one, then update.
+            for (limb, current_limb) in deferred_proofs_digest
+                .iter()
+                .zip_eq(current_public_values.prev_deferred_proofs_digest.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            deferred_proofs_digest = current_public_values.deferred_proofs_digest;
+
+            // Assert that the start pc is equal to the current pc, then update.
+            for (limb, current_limb) in pc.iter().zip(current_public_values.pc_start.iter()) {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            pc = current_public_values.next_pc;
+
+            // Verify that the timestamp is equal to the current one, then update.
+            for (limb, current_limb) in
+                current_timestamp.iter().zip(current_public_values.initial_timestamp.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            current_timestamp = current_public_values.last_timestamp;
+
+            // Verify that the init address is equal to the current one, then update.
+            for (limb, current_limb) in
+                init_addr.iter().zip(current_public_values.previous_init_addr.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            init_addr = current_public_values.last_init_addr;
+
+            // Verify that the finalize address is equal to the current one, then update.
+            for (limb, current_limb) in
+                finalize_addr.iter().zip(current_public_values.previous_finalize_addr.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            finalize_addr = current_public_values.last_finalize_addr;
+
+            // Verify that the init page index is equal to the current one, then update.
+            for (limb, current_limb) in
+                init_page_idx.iter().zip(current_public_values.previous_init_page_idx.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            init_page_idx = current_public_values.last_init_page_idx;
+
+            // Verify that the finalize page index is equal to the current one, then update.
+            for (limb, current_limb) in finalize_page_idx
+                .iter()
+                .zip(current_public_values.previous_finalize_page_idx.iter())
+            {
+                builder.assert_felt_eq(*limb, *current_limb);
+            }
+            finalize_page_idx = current_public_values.last_finalize_page_idx;
+
+            // Assert that the start deferred digest is equal to the current one, then update.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter()
                 .zip_eq(current_public_values.start_reconstruct_deferred_digest.iter())
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
+            reconstruct_deferred_digest = current_public_values.end_reconstruct_deferred_digest;
 
-            // // Consistency checks for all accumulated values.
+            // Assert that the `prev_exit_code` is equal to the current one, then update.
+            builder.assert_felt_eq(current_exit_code, current_public_values.prev_exit_code);
+            current_exit_code = current_public_values.exit_code;
+
+            // Assert that the `prev_commit_syscall` is equal to the current one, then update.
+            builder.assert_felt_eq(commit_syscall, current_public_values.prev_commit_syscall);
+            commit_syscall = current_public_values.commit_syscall;
+
+            // Assert that `prev_commit_deferred_syscall` is equal to the current one, then update.
+            builder.assert_felt_eq(
+                commit_deferred_syscall,
+                current_public_values.prev_commit_deferred_syscall,
+            );
+            commit_deferred_syscall = current_public_values.commit_deferred_syscall;
 
             // Assert that the sp1_vk digest is always the same.
             for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
                 builder.assert_felt_eq(*digest, current);
             }
 
-            // Assert that the start pc is equal to the current pc.
-            for (limb, current_limb) in pc.iter().zip(current_public_values.pc_start.iter()) {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-
-            // Verify that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
-
-            // Assert that the prev_exit_code is equal to the current prev_exit_code.
-            builder.assert_felt_eq(current_exit_code, current_public_values.prev_exit_code);
-
-            // Execution shard constraints.
-            {
-                builder
-                    .assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
-            }
-
-            // Timestamp constraints.
-            {
-                for (limb, current_limb) in
-                    current_timestamp.iter().zip(current_public_values.initial_timestamp.iter())
-                {
-                    builder.assert_felt_eq(*limb, *current_limb);
-                }
-            }
-
-            // Assert that the MemoryInitialize address limbs are the same.
-            for (limb, current_limb) in
-                init_addr_word.iter().zip(current_public_values.previous_init_addr_word.iter())
-            {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-
-            // Assert that the MemoryFinalize address limbs are the same.
-            for (limb, current_limb) in finalize_addr_word
-                .iter()
-                .zip(current_public_values.previous_finalize_addr_word.iter())
-            {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-
-            // Digest constraints.
-            {
-                // If `committed_value_digest` is not zero, then
-                // `public_values.committed_value_digest should be the current.
-
-                // Set a flags to indicate whether `committed_value_digest` is non-zero. The flags
-                // are given by the elements of the array, and they will be used as filters to
-                // constrain the equality.
-                let mut is_non_zero_flags = vec![];
-                for word in committed_value_digest {
-                    for byte in word {
-                        is_non_zero_flags.push(byte);
-                    }
-                }
-
-                // Using the flags, we can constrain the equality.
-                for is_non_zero in is_non_zero_flags {
-                    for (word_current, word_public) in committed_value_digest
-                        .into_iter()
-                        .zip(current_public_values.committed_value_digest)
-                    {
-                        for (byte_current, byte_public) in word_current.into_iter().zip(word_public)
-                        {
-                            builder.assert_felt_eq(
-                                is_non_zero * (byte_current - byte_public),
-                                C::F::zero(),
-                            );
-                        }
-                    }
-                }
-
-                // Update the committed value digest.
-                for (word, current_word) in committed_value_digest
-                    .iter_mut()
-                    .zip_eq(current_public_values.committed_value_digest.iter())
-                {
-                    for (byte, current_byte) in word.iter_mut().zip_eq(current_word.iter()) {
-                        *byte = *current_byte;
-                    }
-                }
-
-                //  If `deferred_proofs_digest` is not zero, then the current value should be
-                // `public_values.deferred_proofs_digest`. We will use a similar approach as above.
-                let mut is_non_zero_flags = vec![];
-                for element in deferred_proofs_digest {
-                    is_non_zero_flags.push(element);
-                }
-
-                for is_non_zero in is_non_zero_flags {
-                    for (digest_current, digest_public) in deferred_proofs_digest
-                        .into_iter()
-                        .zip(current_public_values.deferred_proofs_digest)
-                    {
-                        builder.assert_felt_eq(
-                            is_non_zero * (digest_current - digest_public),
-                            C::F::zero(),
-                        );
-                    }
-                }
-
-                // Update the deferred proofs digest.
-                for (digest, current_digest) in deferred_proofs_digest
-                    .iter_mut()
-                    .zip_eq(current_public_values.deferred_proofs_digest.iter())
-                {
-                    *digest = *current_digest;
-                }
-            }
-
-            // Update the accumulated values.
-            // Update the execution shard.
-            execution_shard = current_public_values.next_execution_shard;
-
-            // Update the reconstruct deferred proof digest.
-            for (digest, current_digest) in reconstruct_deferred_digest
-                .iter_mut()
-                .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
-            {
-                *digest = *current_digest;
-            }
-
-            // Update pc to be the next pc.
-            pc = current_public_values.next_pc;
-
-            // Update the shard to be the next shard.
-            shard = current_public_values.next_shard;
-
-            // Update the timestamp.
-            for (limb, current_limb) in
-                current_timestamp.iter_mut().zip(current_public_values.last_timestamp.iter())
-            {
-                *limb = *current_limb;
-            }
-
-            // Update the current exit code.
-            current_exit_code = current_public_values.exit_code;
-
-            // Update the MemoryInitialize address limbs.
-            for (limb, next_limb) in
-                init_addr_word.iter_mut().zip(current_public_values.last_init_addr_word.iter())
-            {
-                *limb = *next_limb;
-            }
-
-            // Update the MemoryFinalize address limbs.
-            for (limb, next_limb) in finalize_addr_word
-                .iter_mut()
-                .zip(current_public_values.last_finalize_addr_word.iter())
-            {
-                *limb = *next_limb;
-            }
-
-            // Add the global cumulative sums to the vector.
-            global_cumulative_sums.push(current_public_values.global_cumulative_sum);
+            // Assert that the `is_page_protect_active` is equal to the current one, then update.
+            builder.assert_felt_eq(
+                is_page_protect_active,
+                current_public_values.is_page_protect_active,
+            );
         }
+
+        // Range check the accumulated number of included shards.
+        C::range_check_felt(builder, num_included_shard, MAX_LOG_NUMBER_OF_SHARDS);
+
+        // Check that the `contains_first_shard` flag is boolean.
+        builder.assert_felt_eq(
+            contains_first_shard * (contains_first_shard - C::F::one()),
+            C::F::zero(),
+        );
 
         // Sum all the global cumulative sum of the proofs.
         let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
         // Update the global values from the last accumulated values.
-        // Set sp1_vk digest to the one from the proof values.
-        compress_public_values.sp1_vk_digest = sp1_vk_digest;
-        // Set next_pc to be the last pc (which is the same as accumulated pc)
+        // Set the `committed_value_digest`.
+        compress_public_values.committed_value_digest = committed_value_digest;
+        // Set the `deferred_proofs_digest`.
+        compress_public_values.deferred_proofs_digest = deferred_proofs_digest;
+        // Set next_pc to be the last pc.
         compress_public_values.next_pc = pc;
-        // Set next shard to be the last shard
-        compress_public_values.next_shard = shard;
-        // Set next execution shard to be the last execution shard
-        compress_public_values.next_execution_shard = execution_shard;
         // Set the timestamp to be the last timestamp.
         compress_public_values.last_timestamp = current_timestamp;
-        // Set the MemoryInitialize address word to be the last MemoryInitialize address word.
-        compress_public_values.last_init_addr_word = init_addr_word;
-        // Set the MemoryFinalize address word to be the last MemoryFinalize address word.
-        compress_public_values.last_finalize_addr_word = finalize_addr_word;
+        // Set the MemoryInitialize address to be the last MemoryInitialize address.
+        compress_public_values.last_init_addr = init_addr;
+        // Set the MemoryFinalize address to be the last MemoryFinalize address.
+        compress_public_values.last_finalize_addr = finalize_addr;
+        // Set the PageProtInit address to be the last PageProtInit address.
+        compress_public_values.last_init_page_idx = init_page_idx;
+        // Set the PageProtFinalize address to be the last PageProtFinalize address.
+        compress_public_values.last_finalize_page_idx = finalize_page_idx;
         // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
         compress_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-        // Assign the deferred proof digests.
-        compress_public_values.deferred_proofs_digest = deferred_proofs_digest;
-        // Assign the committed value digests.
-        compress_public_values.committed_value_digest = committed_value_digest;
+        // Set sp1_vk digest to the one from the proof values.
+        compress_public_values.sp1_vk_digest = sp1_vk_digest;
+        // Reflect the vk root.
+        compress_public_values.vk_root = vk_root;
         // Assign the cumulative sum.
         compress_public_values.global_cumulative_sum = global_cumulative_sum;
+        // Assign the `contains_first_shard` flag.
+        compress_public_values.contains_first_shard = contains_first_shard;
+        // Assign the `num_included_shard` value.
+        compress_public_values.num_included_shard = num_included_shard;
         // Assign the `is_complete` flag.
         compress_public_values.is_complete = is_complete;
         // Set the exit code.
         compress_public_values.exit_code = current_exit_code;
-        // Reflect the vk root.
-        compress_public_values.vk_root = vk_root;
+        // Set the `commit_syscall` flag.
+        compress_public_values.commit_syscall = commit_syscall;
+        // Set the `commit_deferred_syscall` flag.
+        compress_public_values.commit_deferred_syscall = commit_deferred_syscall;
+        // Set the `is_page_protect_active` flag.
+        compress_public_values.is_page_protect_active = is_page_protect_active;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {
@@ -488,28 +452,3 @@ where
         SC::commit_recursion_public_values(builder, *compress_public_values);
     }
 }
-
-// impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
-//     pub fn shape(&self) -> SP1CompressShape {
-//         let proof_shapes = self.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect();
-//         SP1CompressShape { proof_shapes }
-//     }
-// }
-
-// impl SP1CompressWitnessValues<BabyBearPoseidon2> {
-//     pub fn dummy<A: MachineAir<BabyBear>>(
-//         machine: &StarkMachine<BabyBearPoseidon2, A>,
-//         shape: &SP1CompressShape,
-//     ) -> Self {
-//         let vks_and_proofs = shape
-//             .proof_shapes
-//             .iter()
-//             .map(|proof_shape| {
-//                 let (vk, proof) = dummy_vk_and_shard_proof(machine, proof_shape);
-//                 (vk, proof)
-//             })
-//             .collect();
-
-//         Self { vks_and_proofs, is_complete: false }
-//     }
-// }
