@@ -133,7 +133,7 @@ async fn main() {
             println!("Done proving!");
 
             // Verify proof.
-            client.verify(&proof, pk.verifying_key()).expect("verification failed");
+            client.verify(&proof, pk.verifying_key(), None).expect("verification failed");
         }
     }
 }
