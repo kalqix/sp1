@@ -123,13 +123,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        // Turn the cumulative event into apc rows
-
-        let airs = self.machine.chips();
-
         // Generate traces for each included air in parallel
-        // Create iterators over the rows of the traces
-        let chips_and_traces = airs
+        let chips_and_traces = self.machine.chips()
             .into_par_iter()
             .filter(|air| air.included(&events.record))
             .map(|air| {
@@ -177,21 +172,23 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         let occurrence_per_event = *air_id_occurrences.get(air_id).unwrap();
                         let start = (event_index * occurrence_per_event + offset) * dummy_width;
                         let end = start + dummy_width;
-                        &dummy_table.values[start..end] // return slice so we don't allocate memory
+                        &dummy_table.values[start..end]
+                        // return slice so we don't allocate memory
                     })
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
-        // Final trace values
+        // Allocate final trace values
         let trace_width = self.width();
         let mut trace_values = zeroed_f_vec(events.count * trace_width);
 
+        // Fill in the trace values in parallel for each row (apc event)
         trace_values
             .par_chunks_mut(trace_width)
             .zip_eq(dummy_values_by_event.par_iter())
             .for_each(|(trace_row, dummy_values_by_instruction)| {
-                for(dummy_slice, sub) in dummy_values_by_instruction.iter().zip_eq(self.apc().subs.iter()) {
+                for (dummy_slice, sub) in dummy_values_by_instruction.iter().zip_eq(self.apc().subs.iter()) {
                     for (value, poly_id) in (*dummy_slice).iter().zip_eq(sub.iter()) {
                         if let Some(index) = apc_poly_id_to_index.get(poly_id) {
                             tracing::trace!("Setting row[{index}] to {value:?}");
@@ -208,7 +205,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 tracing::trace!("Final row: {trace_row:?}");
             });
 
-        // Pad the trace
+        // Pad the trace using a similar logic to `pad_rows_fixed`
         let padded_len =
             next_multiple_of_32(events.count, input.fixed_log2_rows::<F, _>(self)) * trace_width;
         trace_values.resize(padded_len, F::zero());
