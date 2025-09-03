@@ -124,7 +124,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
         // Generate traces for each included air in parallel
-        let chips_and_traces = self.machine.chips()
+        let chips_and_traces = self
+            .machine
+            .chips()
             .into_par_iter()
             .filter(|air| air.included(&events.record))
             .map(|air| {
@@ -179,23 +181,50 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             })
             .collect::<Vec<_>>();
 
+        // A vector of HashMap<dummy_trace_index, apc_trace_index> by instruction, empty HashMap if
+        // none maps to apc
+        let dummy_trace_index_to_apc_index_by_instruction: Vec<HashMap<usize, usize>> = self
+            .apc()
+            .subs
+            .iter()
+            .enumerate()
+            .map(|(instruction_index, sub)| {
+                // build a map only of the (dummy_index -> apc_index) pairs
+                let mut map = HashMap::new();
+                for (dummy_index, poly_id) in sub.iter().enumerate() {
+                    if let Some(apc_index) = apc_poly_id_to_index.get(poly_id) {
+                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
+                        map.insert(dummy_index, *apc_index);
+                    } else {
+                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}");
+                    }
+                }
+                tracing::trace!("Map for instruction {instruction_index}: {map:?}");
+                map
+            })
+            .collect();
+
+        assert_eq!(
+            self.apc().block.statements.len(),
+            dummy_trace_index_to_apc_index_by_instruction.len()
+        );
+
         // Allocate final trace values
         let trace_width = self.width();
         let mut trace_values = zeroed_f_vec(events.count * trace_width);
 
         // Fill in the trace values in parallel for each row (apc event)
-        trace_values
-            .par_chunks_mut(trace_width)
-            .zip_eq(dummy_values_by_event.par_iter())
-            .for_each(|(trace_row, dummy_values_by_instruction)| {
-                for (dummy_slice, sub) in dummy_values_by_instruction.iter().zip_eq(self.apc().subs.iter()) {
-                    for (value, poly_id) in (*dummy_slice).iter().zip_eq(sub.iter()) {
-                        if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                            tracing::trace!("Setting row[{index}] to {value:?}");
-                            trace_row[*index] = *value;
-                        } else {
-                            tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
-                        }
+        trace_values.par_chunks_mut(trace_width).zip_eq(dummy_values_by_event.par_iter()).for_each(
+            |(trace_row, dummy_values_by_instruction)| {
+                for (instruction_index, dummy_slice) in
+                    dummy_values_by_instruction.iter().enumerate()
+                {
+                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
+                    // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
+                    // the values that are assigned to the APC instead of all values in the dummy
+                    // trace
+                    for (dummy_index, apc_index) in map.iter() {
+                        trace_row[*apc_index] = dummy_slice[*dummy_index];
                     }
                 }
 
@@ -203,7 +232,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 trace_row[is_valid_index] = F::one();
 
                 tracing::trace!("Final row: {trace_row:?}");
-            });
+            },
+        );
 
         // Pad the trace using a similar logic to `pad_rows_fixed`
         let padded_len =
