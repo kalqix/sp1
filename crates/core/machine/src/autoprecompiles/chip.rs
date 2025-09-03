@@ -1,5 +1,7 @@
-use core::panic;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
@@ -8,12 +10,15 @@ use powdr_autoprecompiles::{
     Apc,
 };
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_maybe_rayon::prelude::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+    ParallelSliceMut,
+};
 use sp1_core_executor::{
-    events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program,
+    events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
 };
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder, SP1AirBuilder},
@@ -27,7 +32,7 @@ use crate::{
         program::Sp1Program,
     },
     riscv::RiscvAir,
-    utils::{next_multiple_of_32, pad_rows_fixed},
+    utils::{next_multiple_of_32, zeroed_f_vec},
 };
 
 #[derive(Debug)]
@@ -116,12 +121,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        // Turn the cumulative event into apc rows
-
-        let airs = self.machine.chips();
-
         // Generate traces for each included air in parallel
-        let chips_and_traces = airs
+        let chips_and_traces = self
+            .machine
+            .chips()
             .into_par_iter()
             .filter(|air| air.included(&events.record))
             .map(|air| {
@@ -130,65 +133,119 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             })
             .collect::<BTreeMap<_, _>>();
 
-        // Create iterators over the rows of the traces
-        let mut iterators = chips_and_traces
+        // Get the AIR IDs for the original instructions
+        let original_instruction_air_ids = self
+            .apc()
+            .block
+            .statements
             .iter()
-            .map(|(id, trace)| (id, trace.rows()))
-            .collect::<BTreeMap<_, _>>();
+            .map(|instr| {
+                try_instruction_type_to_air_id(InstructionType::from(instr.0))
+                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
+            })
+            .collect::<Vec<_>>();
 
-        // Consume the original rows sequentially, creating `row_count` apc rows
-        let mut rows = (0..events.count).map(|_| {
-                // Create a row for the APC
-            let mut row = vec![F::zero(); self.width()];
+        // Map from AIR ID to number of occurrences
+        let air_id_occurrences = original_instruction_air_ids.iter().counts();
 
-            // Go through the original instructions of the APC and map the relevant rows to the APC row
-            let original_instructions = self.apc().block.statements.iter().map(|instr| instr.0);
+        // Vec of dummy trace row offset by original instruction index
+        let instruction_index_to_table_offset = original_instruction_air_ids
+            .iter()
+            .scan(HashMap::default(), |counts: &mut HashMap<RiscvAirId, usize>, air_id| {
+                let count = counts.entry(*air_id).or_default();
+                let current_count = *count;
+                *count += 1;
+                Some(current_count)
+            })
+            .collect::<Vec<_>>();
 
-            for (original_instruction, sub) in original_instructions.zip_eq(&self.apc().subs) {
-                // Get the air ID for the instruction
-                let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
-                    .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                tracing::trace!("Processing air_id: {air_id:?}");
-                // Get the next row for this air ID
-                let original_row = iterators
-                    .get_mut(&air_id)
-                    .and_then(|iter| iter.next())
-                    .unwrap_or_else(|| {
-                        panic!("No row found for air ID: {air_id:?}");
-                    });
-                tracing::trace!("Original row: {original_row:?}");
-                // Map the row to the APC row
-                for (value, poly_id) in original_row.zip_eq(sub) {
-                    // get index in apc from poly_id
-                    if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                        tracing::trace!("Setting row[{index}] to {value:?}");
-                        row[*index] = value;
+        // Create slices of dummy values
+        let dummy_values_by_event = (0..events.count)
+            .into_par_iter()
+            .map(|event_index| {
+                original_instruction_air_ids
+                    .iter()
+                    .zip_eq(instruction_index_to_table_offset.iter())
+                    .map(|(air_id, offset)| {
+                        let dummy_table = chips_and_traces.get(air_id).unwrap();
+                        let dummy_width = dummy_table.width();
+                        let occurrence_per_event = *air_id_occurrences.get(air_id).unwrap();
+                        let start = (event_index * occurrence_per_event + offset) * dummy_width;
+                        let end = start + dummy_width;
+                        &dummy_table.values[start..end]
+                        // return slice so we don't allocate memory
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // A vector of HashMap<dummy_trace_index, apc_trace_index> by instruction, empty HashMap if
+        // none maps to apc
+        let dummy_trace_index_to_apc_index_by_instruction: Vec<HashMap<usize, usize>> = self
+            .apc()
+            .subs
+            .iter()
+            .enumerate()
+            .map(|(instruction_index, sub)| {
+                // build a map only of the (dummy_index -> apc_index) pairs
+                let mut map = HashMap::new();
+                for (dummy_index, poly_id) in sub.iter().enumerate() {
+                    if let Some(apc_index) = apc_poly_id_to_index.get(poly_id) {
+                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
+                        map.insert(dummy_index, *apc_index);
                     } else {
-                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}");
                     }
                 }
-            }
+                tracing::trace!("Map for instruction {instruction_index}: {map:?}");
+                map
+            })
+            .collect();
 
-            // Manually set is_valid column to 1
-            row[is_valid_index] = F::one();
-
-            tracing::trace!("Final row: {row:?}");
-
-            row
-        })
-        .collect::<Vec<_>>();
-
-        pad_rows_fixed(
-            &mut rows,
-            || vec![F::zero(); self.width()],
-            input.fixed_log2_rows::<F, _>(self),
+        assert_eq!(
+            self.apc().block.statements.len(),
+            dummy_trace_index_to_apc_index_by_instruction.len()
         );
 
-        // Assert number of rows is correct
-        assert_eq!(rows.len(), <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap());
+        // Allocate final trace values
+        let trace_width = self.width();
+        let mut trace_values = zeroed_f_vec(events.count * trace_width);
+
+        // Fill in the trace values in parallel for each row (apc event)
+        trace_values.par_chunks_mut(trace_width).zip_eq(dummy_values_by_event.par_iter()).for_each(
+            |(trace_row, dummy_values_by_instruction)| {
+                for (instruction_index, dummy_slice) in
+                    dummy_values_by_instruction.iter().enumerate()
+                {
+                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
+                    // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
+                    // the values that are assigned to the APC instead of all values in the dummy
+                    // trace
+                    for (dummy_index, apc_index) in map.iter() {
+                        trace_row[*apc_index] = dummy_slice[*dummy_index];
+                    }
+                }
+
+                // Manually set is_valid column to 1
+                trace_row[is_valid_index] = F::one();
+
+                tracing::trace!("Final row: {trace_row:?}");
+            },
+        );
+
+        // Pad the trace using a similar logic to `pad_rows_fixed`
+        let padded_len =
+            next_multiple_of_32(events.count, input.fixed_log2_rows::<F, _>(self)) * trace_width;
+        trace_values.resize(padded_len, F::zero());
+
+        // Assert number of elements is correct
+        assert_eq!(
+            trace_values.len(),
+            <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap() * trace_width
+        );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), self.width())
+        RowMajorMatrix::new(trace_values, self.width())
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -219,11 +276,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        let airs = self.machine.chips();
-
         // Generate traces for each included air in parallel
-        let traces = airs
-            .par_iter()
+        let chips_and_traces = self
+            .machine
+            .chips()
+            .into_par_iter()
             .filter(|air| air.included(&events.record))
             .map(|air| {
                 let trace = air.generate_trace(&events.record, &mut Default::default());
@@ -231,90 +288,159 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             })
             .collect::<BTreeMap<_, _>>();
 
-        // Create iterators over the rows of the traces
-        let mut iterators =
-            traces.iter().map(|(id, trace)| (*id, trace.rows())).collect::<BTreeMap<_, _>>();
+        // Get the AIR IDs for the original instructions
+        let original_instruction_air_ids = self
+            .apc()
+            .block
+            .statements
+            .iter()
+            .map(|instr| {
+                try_instruction_type_to_air_id(InstructionType::from(instr.0))
+                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
+            })
+            .collect::<Vec<_>>();
 
-        for _ in 0..events.count {
-            // Create a row for the APC
-            let mut row = vec![F::zero(); self.width()];
+        // Map from AIR ID to number of occurrences
+        let air_id_occurrences = original_instruction_air_ids.iter().counts();
 
-            // Go through the original instructions of the APC and map the relevant rows to the APC
-            // row
-            let original_instructions = self.apc().block.statements.iter().map(|instr| instr.0);
+        // Vec of dummy trace row offset by original instruction index
+        let instruction_index_to_table_offset = original_instruction_air_ids
+            .iter()
+            .scan(HashMap::default(), |counts: &mut HashMap<RiscvAirId, usize>, air_id| {
+                let count = counts.entry(*air_id).or_default();
+                let current_count = *count;
+                *count += 1;
+                Some(current_count)
+            })
+            .collect::<Vec<_>>();
 
-            for (original_instruction, sub) in original_instructions.zip_eq(&self.apc().subs) {
-                // Get the air ID for the instruction
-                let air_id = try_instruction_type_to_air_id(InstructionType::from(original_instruction))
-                    .expect("Invalid instruction as an original instruction in an APC: {original_instruction:?}");
-                tracing::trace!("Processing air_id: {air_id:?}");
-                // Get the next row for this air ID
-                let original_row =
-                    iterators.get_mut(&air_id).and_then(|iter| iter.next()).unwrap_or_else(|| {
-                        panic!("No row found for air ID: {air_id:?}");
-                    });
-                tracing::trace!("Original row: {original_row:?}");
-                // Map the row to the APC row
-                for (value, poly_id) in original_row.zip_eq(sub) {
-                    // get index in apc from poly_id
-                    if let Some(index) = apc_poly_id_to_index.get(poly_id) {
-                        tracing::trace!("Setting row[{index}] to {value:?}");
-                        row[*index] = value;
+        // Create slices of dummy values
+        let dummy_values_by_event = (0..events.count)
+            .into_par_iter()
+            .map(|event_index| {
+                original_instruction_air_ids
+                    .iter()
+                    .zip_eq(instruction_index_to_table_offset.iter())
+                    .map(|(air_id, offset)| {
+                        let dummy_table = chips_and_traces.get(air_id).unwrap();
+                        let dummy_width = dummy_table.width();
+                        let occurrence_per_event = *air_id_occurrences.get(air_id).unwrap();
+                        let start = (event_index * occurrence_per_event + offset) * dummy_width;
+                        let end = start + dummy_width;
+                        &dummy_table.values[start..end]
+                        // return slice so we don't allocate memory
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // A vector of HashMap<dummy_trace_index, apc_trace_index> by instruction, empty HashMap if
+        // none maps to apc
+        let dummy_trace_index_to_apc_index_by_instruction: Vec<HashMap<usize, usize>> = self
+            .apc()
+            .subs
+            .iter()
+            .enumerate()
+            .map(|(instruction_index, sub)| {
+                // build a map only of the (dummy_index -> apc_index) pairs
+                let mut map = HashMap::new();
+                for (dummy_index, poly_id) in sub.iter().enumerate() {
+                    if let Some(apc_index) = apc_poly_id_to_index.get(poly_id) {
+                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
+                        map.insert(dummy_index, *apc_index);
                     } else {
-                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization)");
+                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}");
+                    }
+                }
+                tracing::trace!("Map for instruction {instruction_index}: {map:?}");
+                map
+            })
+            .collect();
+
+        assert_eq!(
+            self.apc().block.statements.len(),
+            dummy_trace_index_to_apc_index_by_instruction.len()
+        );
+
+        // Allocate final trace values
+        let trace_width = self.width();
+        let mut trace_values = zeroed_f_vec(events.count * trace_width);
+
+        // Fill in the trace values in parallel for each row (apc event)
+        let byte_lookup_effects = trace_values
+            .par_chunks_mut(trace_width)
+            .zip_eq(dummy_values_by_event.par_iter())
+            .map(|(trace_row, dummy_values_by_instruction)| {
+                for (instruction_index, dummy_slice) in
+                    dummy_values_by_instruction.iter().enumerate()
+                {
+                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
+                    // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
+                    // the values that are assigned to the APC instead of all values in the dummy
+                    // trace
+                    for (dummy_index, apc_index) in map.iter() {
+                        trace_row[*apc_index] = dummy_slice[*dummy_index];
                     }
                 }
 
                 // Manually set is_valid column to 1
-                row[is_valid_index] = F::one();
-            }
+                trace_row[is_valid_index] = F::one();
 
-            // Replay side effects as events
-            // Only need to do this for byte lookup bus, as other buses are implicitly balanced via
-            // main trace values rather than via events
+                tracing::trace!("Final row: {trace_row:?}");
 
-            let evaluator = RowEvaluator::new(&row, Some(&apc_poly_id_to_index));
+                // Replay side effects as events
+                // Only need to do this for byte lookup bus, as other buses are implicitly balanced
+                // via main trace values rather than via events
+                let evaluator = RowEvaluator::new(trace_row, Some(&apc_poly_id_to_index));
 
-            for bus_interaction in self
-                .apc()
-                .machine
-                .bus_interactions
-                .iter()
-                .filter(|bus_interaction| bus_interaction.id == InteractionKind::Byte as u64)
-            {
-                let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
-                let mut args = bus_interaction
-                    .args
-                    .iter()
-                    .map(|arg| evaluator.eval_expr(arg).as_canonical_u32());
-                let opcode = args.next().unwrap() as usize;
-                let a = args.next().unwrap() as u16;
-                let b = args.next().unwrap() as u8;
-                let c = args.next().unwrap() as u8;
-                assert!(args.next().is_none());
-
-                // byte lookup
-                *output
-                    .byte_lookups
-                    .entry(ByteLookupEvent {
-                        opcode: match opcode {
-                            o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
-                            o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
-                            o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
-                            o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
-                            o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
-                            o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
-                            o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
-                            _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
-                        },
-                        a,
-                        b,
-                        c,
+                // Store effects in a map of ByteLookupEvent to count to apply after parallel
+                // execution
+                let mut byte_lookup_effect = HashMap::new();
+                for bus_interaction in
+                    self.apc().machine.bus_interactions.iter().filter(|bus_interaction| {
+                        bus_interaction.id == InteractionKind::Byte as u64
                     })
-                    .or_insert(0) += mult as isize;
-            }
+                {
+                    let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
+                    let mut args = bus_interaction
+                        .args
+                        .iter()
+                        .map(|arg| evaluator.eval_expr(arg).as_canonical_u32());
+                    let opcode = args.next().unwrap() as usize;
+                    let a = args.next().unwrap() as u16;
+                    let b = args.next().unwrap() as u8;
+                    let c = args.next().unwrap() as u8;
+                    assert!(args.next().is_none());
 
-            tracing::trace!("Final row: {row:?}");
+                    // byte lookup
+                    *byte_lookup_effect
+                        .entry(ByteLookupEvent {
+                            opcode: match opcode {
+                                o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
+                                o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
+                                o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
+                                o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
+                                o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
+                                o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
+                                o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
+                                _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
+                            },
+                            a,
+                            b,
+                            c,
+                        })
+                        .or_insert(0) += mult as isize;
+                }
+
+                byte_lookup_effect
+            })
+            .collect::<Vec<_>>();
+
+        // Apply effects after parallel execution
+        for byte_lookup_effect in byte_lookup_effects {
+            for (event, count) in byte_lookup_effect.iter() {
+                *output.byte_lookups.entry(*event).or_insert(0) += *count as isize;
+            }
         }
     }
 
