@@ -2303,14 +2303,6 @@ impl<'a> Executor<'a> {
                     self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
                 }
 
-                // update the counts
-                if !E::UNCONSTRAINED {
-                    self.local_counts = apc_candidate.snapshot.local_counts;
-                    // add 1 to this apc
-                    *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() +=
-                        1;
-                }
-
                 // update the report
                 if self.print_report {
                     // revert to the report before the block
@@ -2320,6 +2312,16 @@ impl<'a> Executor<'a> {
                 }
 
                 tracing::trace!("APC candidate completed");
+            }
+
+            // update the counts
+            // WARNING: Note that this happens even if the APC was cancelled. The reason is that
+            // we don't know whether memory or state bump events have occurred unless we're in
+            // trace mode.
+            if !E::UNCONSTRAINED {
+                self.local_counts = apc_candidate.snapshot.local_counts;
+                // add 1 to this apc
+                *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
             }
         }
 
