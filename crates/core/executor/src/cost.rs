@@ -22,11 +22,11 @@ pub fn estimate_trace_elements(
     let (mut cells, mut max_height) = num_events_per_air.apc.iter().fold(
         (0u64, 0u64),
         |(cells, max_height), (apc_id, num_events)| {
-            #[allow(clippy::cast_precision_loss)]
-            let num_events = (*num_events as f64 * APC_PENALTY).ceil() as u64;
             let width = costs_per_air.apc[apc_id];
-            let new_cells = cells + (num_events * width);
-            let new_max_height = max_height.max(num_events);
+            #[allow(clippy::cast_precision_loss)]
+            let penalized_trace_cells = ((num_events * width) as f64 * APC_PENALTY).ceil() as u64;
+            let new_cells = cells + penalized_trace_cells;
+            let new_max_height = max_height.max(*num_events);
             (new_cells, new_max_height)
         },
     );
