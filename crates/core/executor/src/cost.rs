@@ -5,7 +5,7 @@ const RANGE_NUM_ROWS: u64 = 1 << 17;
 
 // When counting events, we currently assume that all APCs succeed. This might not be the case,
 // because we can't currently handle state or memory bump events.
-// Assuming 1% of APC calls fail, and the APC has an effectiveness of 10x, that means that we can
+// Assuming 1% of APC calls fail, and the APC has an effectiveness of 11x, that means that we can
 // expect the actual number of trace cells to be 10% higher than they would be if no APC calls were
 // cancelled.
 const APC_PENALTY: f64 = 1.10;
