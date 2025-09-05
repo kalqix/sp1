@@ -2319,7 +2319,10 @@ impl<'a> Executor<'a> {
             // we don't know whether memory or state bump events have occurred unless we're in
             // trace mode.
             if !E::UNCONSTRAINED {
+                let local_mem = self.local_counts.local_mem;
                 self.local_counts = apc_candidate.snapshot.local_counts;
+                self.local_counts.local_mem = local_mem;
+
                 // add 1 to this apc
                 *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
             }
