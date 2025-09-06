@@ -3,6 +3,13 @@ use crate::{EventCosts, EventCounts, RiscvAirId};
 const BYTE_NUM_ROWS: u64 = 1 << 16;
 const RANGE_NUM_ROWS: u64 = 1 << 17;
 
+// When counting events, we currently assume that all APCs succeed. This might not be the case,
+// because we can't currently handle state or memory bump events.
+// Assuming 1% of APC calls fail, and the APC has an effectiveness of 11x, that means that we can
+// expect the actual number of trace cells to be 10% higher than they would be if no APC calls were
+// cancelled.
+const APC_PENALTY: f64 = 1.10;
+
 /// Estimates the LDE area.
 #[must_use]
 pub fn estimate_trace_elements(
@@ -16,7 +23,10 @@ pub fn estimate_trace_elements(
         (0u64, 0u64),
         |(cells, max_height), (apc_id, num_events)| {
             let width = costs_per_air.apc[apc_id];
-            let new_cells = cells + (num_events * width);
+            #[allow(clippy::cast_precision_loss)]
+            let penalized_trace_cells =
+                ((num_events.next_multiple_of(32) * width) as f64 * APC_PENALTY).ceil() as u64;
+            let new_cells = cells + penalized_trace_cells;
             let new_max_height = max_height.max(*num_events);
             (new_cells, new_max_height)
         },
