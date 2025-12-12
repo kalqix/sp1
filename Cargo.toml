@@ -13,6 +13,7 @@ members = [
   "crates/cli",
   "crates/core/executor",
   "crates/core/machine",
+  "crates/core/autoprecompiles_common",
   "crates/recursion/circuit",
   "crates/recursion/compiler",
   "crates/recursion/derive",
@@ -58,6 +59,7 @@ sp1-build = { path = "crates/build", version = "6.0.0" }
 sp1-cli = { path = "crates/cli", version = "6.0.0", default-features = false }
 sp1-core-machine = { path = "crates/core/machine", version = "6.0.0" }
 sp1-core-executor = { path = "crates/core/executor", version = "6.0.0" }
+sp1-autoprecompiles-common = { path = "crates/core/autoprecompiles_common", version = "6.0.0" }
 sp1-curves = { path = "crates/curves", version = "6.0.0" }
 sp1-derive = { path = "crates/derive", version = "6.0.0" }
 sp1-eval = { path = "crates/eval", version = "6.0.0" }
@@ -126,18 +128,18 @@ slop-keccak-air = { git = "https://github.com/succinctlabs/slop" }
 # slop-keccak-air = { path = "../slop/crates/keccak-air" }
 
 # powdr
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
+# powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
+# powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
+# powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
+# powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
+# powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "14c0f1b", default-features = false }
 
 # For local development.
-# powdr-autoprecompiles = { path = "../powdr/autoprecompiles/" }
-# powdr-number = { path = "../powdr/number/" }
-# powdr-expression = { path = "../powdr/expression/" }
-# powdr-constraint-solver = { path = "../powdr/constraint-solver/" }
-# powdr-riscv-elf = { path = "../powdr/riscv-elf/" }
+powdr-autoprecompiles = { path = "../powdr/autoprecompiles/" }
+powdr-number = { path = "../powdr/number/" }
+powdr-expression = { path = "../powdr/expression/" }
+powdr-constraint-solver = { path = "../powdr/constraint-solver/" }
+powdr-riscv-elf = { path = "../powdr/riscv-elf/" }
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts" }

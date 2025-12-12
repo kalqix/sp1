@@ -10,6 +10,8 @@ use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_primitives::SP1Field;
+use powdr_autoprecompiles::adapter::AdapterApc;
+use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 
 /// A builder for the [`CudaProver`].
 ///

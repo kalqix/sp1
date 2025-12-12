@@ -1,14 +1,14 @@
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses,
-    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
-    memory_bus_interaction::Sp1MemoryBusInteraction, program::Sp1Program,
+    instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler, program::Sp1Program,
 };
 use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
-use sp1_core_executor::ExecutionState as ExecutorExecutionState;
+use sp1_autoprecompiles_common::{MemoryAddress, Sp1MemoryBusInteraction};
+use sp1_core_executor::ExecutionState;
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
@@ -22,11 +22,12 @@ impl Adapter for Sp1ApcAdapter {
     type BusInteractionHandler = Sp1BusInteractionHandler;
     type Program = Sp1Program;
     type Instruction = Sp1Instruction;
+    type MemoryAddress<E> = MemoryAddress<E>;
     type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;
-    type AirId = sp1_core_executor::RiscvAirId;
-    type ExecutionState = Sp1ExecutionState;
+    type AirId = usize;
+    type ExecutionState = ExecutionState;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
         Self::Field::from_canonical_u32(e.to_integer().try_into_u32().unwrap())

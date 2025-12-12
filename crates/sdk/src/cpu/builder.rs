@@ -4,7 +4,12 @@
 
 use std::sync::Arc;
 
+<<<<<<< HEAD
 use sp1_core_machine::autoprecompiles::Sp1Apc;
+=======
+use powdr_autoprecompiles::{adapter::AdapterApc, Apc};
+use sp1_core_machine::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
+>>>>>>> 81140b665 (support fallible apc)
 use sp1_primitives::SP1Field;
 
 use super::CpuProver;
@@ -16,7 +21,11 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
+<<<<<<< HEAD
     apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
+=======
+    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
+>>>>>>> 81140b665 (support fallible apc)
 }
 
 impl Default for CpuProverBuilder {
@@ -34,7 +43,11 @@ impl CpuProverBuilder {
 
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
+<<<<<<< HEAD
     pub fn with_apcs(mut self, apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
+=======
+    pub fn with_apcs(mut self, apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
+>>>>>>> 81140b665 (support fallible apc)
         self.apcs = apcs;
         self
     }

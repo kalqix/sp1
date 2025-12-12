@@ -8,9 +8,11 @@ use crate::{
     RiscvAirId,
 };
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::{ExecutionState, OptimisticConstraints};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use sp1_autoprecompiles_common::MemoryAddress;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     septic_curve::{SepticCurve, SepticCurveComplete},
@@ -41,7 +43,7 @@ pub struct Program {
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
     /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, Apc>,
+    pub apcs_by_start_idx: HashMap<usize, (Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>,
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
@@ -119,21 +121,29 @@ impl Program {
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(
         self,
-        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost)>,
+        apc_ranges_and_costs: impl IntoIterator<
+            Item = (R, ApcCost, OptimisticConstraints<MemoryAddress<u32>, u64>),
+        >,
     ) -> Self {
-        let apc_ranges: Vec<Apc> = apc_ranges_and_costs
+        let apc_ranges: Vec<_> = apc_ranges_and_costs
             .into_iter()
-            .map(|(r, c)| (r.into(), c))
+            .map(|(r, c, conditions)| (r.into(), c, conditions))
             .enumerate()
-            .map(|(id, (range, cost))| Apc { id: id as u64, range, cost })
+            .map(|(id, (range, cost, conditions))| (Apc { id: id as u64, range, cost }, conditions))
             .collect();
-        apc_ranges.into_iter().fold(self, Program::add_apc)
+        apc_ranges
+            .into_iter()
+            .fold(self, |program, (apc, conditions)| program.add_apc(apc, conditions))
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, apc: Apc) -> Self {
-        self.apcs_by_start_idx.insert(apc.range.start_idx, apc);
+    pub fn add_apc(
+        mut self,
+        apc: Apc,
+        conditions: OptimisticConstraints<MemoryAddress<u32>, u64>,
+    ) -> Self {
+        self.apcs_by_start_idx.insert(apc.range.start_idx, (apc, conditions));
         self
     }
 
@@ -202,7 +212,11 @@ impl Program {
 
     #[must_use]
     /// Fetch the instruction at the given program counter, as well as the apc, if any.
-    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&Apc>)> {
+    pub fn fetch(
+        &self,
+        pc: u64,
+    ) -> Option<(&Instruction, Option<&(Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>)>
+    {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))

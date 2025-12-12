@@ -4,6 +4,7 @@ pub mod bus_interaction_handler;
 pub mod bus_map;
 pub mod candidate;
 pub mod chip;
+pub mod execution;
 pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
@@ -169,7 +170,7 @@ impl CompiledProgram {
 }
 
 /// Create APCs from the given program and ranges.
-pub fn create_apcs(
+pub fn create_apcs<'a>(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
 ) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64)>) {

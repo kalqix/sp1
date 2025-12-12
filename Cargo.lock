@@ -3521,11 +3521,16 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
 dependencies = [
  "deepsize2",
  "derivative",
  "derive_more 0.99.20",
+=======
+dependencies = [
+ "deepsize2",
+>>>>>>> 81140b665 (support fallible apc)
  "itertools 0.13.0",
  "log",
  "metrics",
@@ -3545,7 +3550,10 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 dependencies = [
  "auto_enums",
  "bitvec",
@@ -3562,7 +3570,10 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
@@ -3575,12 +3586,18 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -3603,7 +3620,10 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 dependencies = [
  "gimli",
  "goblin 0.8.2",
@@ -3620,7 +3640,10 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -3628,7 +3651,10 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
+<<<<<<< HEAD
 source = "git+https://github.com/powdr-labs/powdr.git?rev=14c0f1b#14c0f1b12e8fae8ae89dc50140c95093d7f68702"
+=======
+>>>>>>> 81140b665 (support fallible apc)
 
 [[package]]
 name = "powerfmt"
@@ -5125,6 +5151,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-autoprecompiles-common"
+version = "6.0.0"
+dependencies = [
+ "deepsize2",
+ "num",
+ "powdr-autoprecompiles",
+ "powdr-constraint-solver",
+ "powdr-expression",
+ "powdr-number",
+ "serde",
+]
+
+[[package]]
 name = "sp1-build"
 version = "6.0.0"
 dependencies = [
@@ -5188,6 +5227,7 @@ dependencies = [
  "indicatif",
  "itertools 0.13.0",
  "num",
+ "powdr-autoprecompiles",
  "range-set-blaze",
  "rrs-lib",
  "rustc-demangle",
@@ -5200,6 +5240,7 @@ dependencies = [
  "slop-maybe-rayon",
  "slop-merkle-tree",
  "slop-symmetric",
+ "sp1-autoprecompiles-common",
  "sp1-curves",
  "sp1-hypercube",
  "sp1-primitives",
@@ -5258,6 +5299,7 @@ dependencies = [
  "slop-poseidon2",
  "slop-uni-stark",
  "snowbridge-amcl",
+ "sp1-autoprecompiles-common",
  "sp1-build",
  "sp1-core-executor",
  "sp1-curves",

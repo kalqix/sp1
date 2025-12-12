@@ -93,15 +93,15 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
     pub fn get_instruction_air_and_stats(
         &self,
         instruction: &Sp1Instruction,
-    ) -> Option<&(SymbolicMachine<F>, AirStats)> {
+    ) -> Option<(usize, &(SymbolicMachine<F>, AirStats))> {
         let instruction_type = InstructionType::from(instruction.0);
 
         let idx = self.instruction_to_air_idx.get(&instruction_type)?;
-        Some(&self.airs[*idx])
+        Some((*idx, &self.airs[*idx]))
     }
 
     pub fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<&AirStats> {
-        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats)
+        self.get_instruction_air_and_stats(instruction).map(|(_, (_, stats))| stats)
     }
 
     #[cfg(test)]
@@ -220,27 +220,25 @@ fn is_load_opcode(opcode: Opcode) -> bool {
 
 impl<F: PrimeField32> InstructionHandler for Sp1InstructionHandler<F> {
     type Field = F;
+
     type Instruction = Sp1Instruction;
-    type AirId = RiscvAirId;
+
+    type AirId = usize;
 
     fn get_instruction_air_and_id(
         &self,
-        instruction: &Self::Instruction,
-    ) -> (Self::AirId, &SymbolicMachine<Self::Field>) {
-        let instruction_type = InstructionType::from(instruction.0);
-        let air_id = try_instruction_type_to_air_id(instruction_type)
-            .expect("Missing AIR ID for instruction");
-        let machine = self
-            .get_instruction_air_and_stats(instruction)
-            .map(|(machine, _)| machine)
-            .expect("Missing AIR for instruction");
-        (air_id, machine)
+        instruction: &Sp1Instruction,
+    ) -> (usize, &SymbolicMachine<F>) {
+        self.get_instruction_air_and_stats(instruction)
+            .map(|(id, (machine, _))| (id, machine))
+            .unwrap()
     }
 
-    fn get_instruction_air_stats(&self, instruction: &Self::Instruction) -> AirStats {
+    fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> AirStats {
         self.get_instruction_air_and_stats(instruction)
-            .map(|(_, stats)| *stats)
-            .expect("Missing AIR stats for instruction")
+            .map(|(_, (_, stats))| stats)
+            .copied()
+            .unwrap()
     }
 
     fn is_allowed(&self, instruction: &Self::Instruction) -> bool {

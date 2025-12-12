@@ -18,8 +18,12 @@ use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
+use powdr_autoprecompiles::execution::{
+    OptimisticConstraint, OptimisticConstraintEvaluator, OptimisticConstraints,
+};
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
+use sp1_autoprecompiles_common::MemoryAddress;
 use sp1_hypercube::air::PublicValues;
 use sp1_primitives::consts::{
     DEFAULT_PAGE_PROT, MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE,
@@ -114,6 +118,24 @@ impl From<bool> for DeferredProofVerification {
             DeferredProofVerification::Enabled
         } else {
             DeferredProofVerification::Disabled
+        }
+    }
+}
+
+impl<'a> powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
+    // TODO: should support u64 here, trait is too strict
+    type Address = MemoryAddress<u32>;
+
+    type Value = u64;
+
+    fn pc(&self) -> Self::Value {
+        self.pc
+    }
+
+    fn read(&self, addr: &Self::Address) -> Self::Value {
+        match addr.address_space {
+            sp1_autoprecompiles_common::ArtificialAddressSpace::Register => todo!(),
+            sp1_autoprecompiles_common::ArtificialAddressSpace::Ram => todo!(),
         }
     }
 }
@@ -250,6 +272,10 @@ struct ApcCandidate {
     apc: Apc,
     /// The state of the execution when this candidate was introduced
     snapshot: ExecutionSnapshot,
+    /// The conditions
+    /// TODO: take by reference. This probably requires splitting `fetch` into many methods to
+    /// avoid borrowing the full program just to get the conditions.
+    conditions: OptimisticConstraintEvaluator<ExecutionState>,
 }
 
 struct ExecutionSnapshot {
@@ -585,7 +611,8 @@ impl<'a> Executor<'a> {
             .sorted()
             .collect();
 
-        let apc_costs = program.apcs_by_start_idx.values().map(|apc| (apc.id, apc.cost)).collect();
+        let apc_costs =
+            program.apcs_by_start_idx.values().map(|(apc, _)| (apc.id, apc.cost)).collect();
 
         Self {
             record: Box::new(record),
@@ -1841,10 +1868,16 @@ impl<'a> Executor<'a> {
 
     /// Fetch the instruction at the current program counter.
     #[inline]
-    fn fetch<E: ExecutorConfig>(&mut self) -> Result<(Instruction, Option<Apc>), ExecutionError> {
+    fn fetch<E: ExecutorConfig>(
+        &mut self,
+    ) -> Result<
+        (Instruction, Option<(Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>),
+        ExecutionError,
+    > {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-            Ok((*instruction.0, instruction.1.copied()))
+            // TODO: avoid cloning the conditions
+            Ok((*instruction.0, instruction.1.cloned()))
         } else if self.opts.page_protect {
             let aligned_pc = align(self.state.pc);
 
@@ -1926,6 +1959,8 @@ impl<'a> Executor<'a> {
                 self.local_counts.load_x0_counts += 1;
             }
         }
+
+        self.apc_candidate.take_if(|candidate| candidate.conditions.try_next(&self.state).is_err());
 
         if instruction.is_alu_instruction() {
             (a, b, c) = self.execute_alu::<E>(instruction);
@@ -2698,7 +2733,7 @@ impl<'a> Executor<'a> {
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
 
-        if let Some(apc) = apc_range {
+        if let Some((apc, conditions)) = apc_range {
             // We are at the start of an APC range, so we add it as a candidate
             assert!(self.apc_candidate.is_none(), "Attempting to add an apc candidate while one is already present. Check that apc ranges do not overlap.");
             let snapshot = ExecutionSnapshot {
@@ -2708,7 +2743,12 @@ impl<'a> Executor<'a> {
             };
             let pc_step = 4;
             let end_pc = apc.range.end().unwrap() as u64 * pc_step + self.program.pc_base;
-            let apc_candidate = ApcCandidate { end_pc, apc, snapshot };
+            let apc_candidate = ApcCandidate {
+                end_pc,
+                apc,
+                snapshot,
+                conditions: OptimisticConstraintEvaluator::new(conditions),
+            };
             tracing::trace!("APC candidate created");
             self.apc_candidate = Some(apc_candidate);
         }
@@ -3527,6 +3567,53 @@ mod tests {
 
     #[test]
     fn test_add_apc() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
+        // This is found somewhere else in the codebase
+        // Without this change, `Trace` mode fails.
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Test with different APC ranges
+        for apc_range_and_cost in
+            [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+        {
+            let should_execute_apcs = !apc_range_and_cost.is_empty();
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apc_range_and_cost)
+            } else {
+                program_without_apcs.clone()
+            };
+
+            let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+            runtime.run::<Trace>().unwrap();
+            assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+            assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+            // Check that the APCs were executed iff there were any
+            assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
+        }
+    }
+
+    #[test]
+    fn test_failed_add_apc() {
         // main:
         //     addi x29, x0, 5
         //     addi x30, x0, 37

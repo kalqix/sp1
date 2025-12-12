@@ -6,7 +6,9 @@ use std::{
 use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::Program as _,
+    execution::OptimisticConstraints,
     expression::{AlgebraicExpression, AlgebraicReference},
+    Apc, Substitution,
 };
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
@@ -16,6 +18,7 @@ use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
     ParallelSliceMut,
 };
+use sp1_autoprecompiles_common::MemoryAddress;
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
 };
@@ -185,20 +188,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .subs
             .iter()
             .enumerate()
-            .map(|(instruction_index, sub)| {
+            .map(|(instruction_index, substitutions)| {
                 // build a map only of the (dummy_index -> apc_index) pairs
                 let mut map = HashMap::new();
-                for substitution in sub {
-                    let poly_id = substitution.apc_poly_id;
-                    let dummy_index = substitution.original_poly_index;
-                    if let Some(apc_index) = apc_poly_id_to_index.get(&poly_id) {
-                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
-                        map.insert(dummy_index, *apc_index);
-                    } else {
-                        tracing::trace!(
-                            "Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}"
-                        );
-                    }
+                for sub in substitutions {
+                    let Substitution { original_poly_index, apc_poly_id } = sub;
+                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
+                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
+                    map.insert(*original_poly_index, *apc_index);
                 }
                 tracing::trace!("Map for instruction {instruction_index}: {map:?}");
                 map
@@ -344,20 +341,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .subs
             .iter()
             .enumerate()
-            .map(|(instruction_index, sub)| {
+            .map(|(instruction_index, substitutions)| {
                 // build a map only of the (dummy_index -> apc_index) pairs
                 let mut map = HashMap::new();
-                for substitution in sub {
-                    let poly_id = substitution.apc_poly_id;
-                    let dummy_index = substitution.original_poly_index;
-                    if let Some(apc_index) = apc_poly_id_to_index.get(&poly_id) {
-                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
-                        map.insert(dummy_index, *apc_index);
-                    } else {
-                        tracing::trace!(
-                            "Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}"
-                        );
-                    }
+                for sub in substitutions {
+                    let Substitution { original_poly_index, apc_poly_id } = sub;
+                    let apc_index = apc_poly_id_to_index.get(&apc_poly_id).unwrap();
+                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
+                    map.insert(*original_poly_index, *apc_index);
                 }
                 tracing::trace!("Map for instruction {instruction_index}: {map:?}");
                 map
@@ -463,7 +454,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         );
         let apc =
             sp1_core_executor::Apc { id: self.id, range, cost: self.cached_apc.width() as u64 };
-        program.add_apc(apc)
+        // TODO: actually extract conditions from the apc!
+        program.add_apc(apc, self.apc().optimistic_constraints.clone())
     }
 }
 
