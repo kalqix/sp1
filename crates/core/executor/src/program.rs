@@ -8,11 +8,10 @@ use crate::{
     RiscvAirId,
 };
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::{ExecutionState, OptimisticConstraints};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use sp1_autoprecompiles_common::MemoryAddress;
+use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     septic_curve::{SepticCurve, SepticCurveComplete},
@@ -43,7 +42,7 @@ pub struct Program {
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
     /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, (Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>,
+    pub apcs_by_start_idx: HashMap<usize, (Apc, Sp1OptimisticConstraints)>,
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
@@ -121,9 +120,7 @@ impl Program {
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(
         self,
-        apc_ranges_and_costs: impl IntoIterator<
-            Item = (R, ApcCost, OptimisticConstraints<MemoryAddress<u32>, u64>),
-        >,
+        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, Sp1OptimisticConstraints)>,
     ) -> Self {
         let apc_ranges: Vec<_> = apc_ranges_and_costs
             .into_iter()
@@ -138,11 +135,7 @@ impl Program {
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(
-        mut self,
-        apc: Apc,
-        conditions: OptimisticConstraints<MemoryAddress<u32>, u64>,
-    ) -> Self {
+    pub fn add_apc(mut self, apc: Apc, conditions: Sp1OptimisticConstraints) -> Self {
         self.apcs_by_start_idx.insert(apc.range.start_idx, (apc, conditions));
         self
     }
@@ -215,8 +208,7 @@ impl Program {
     pub fn fetch(
         &self,
         pc: u64,
-    ) -> Option<(&Instruction, Option<&(Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>)>
-    {
+    ) -> Option<(&Instruction, Option<&(Apc, Sp1OptimisticConstraints)>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))

@@ -6,7 +6,6 @@ use std::{
 use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::Program as _,
-    execution::OptimisticConstraints,
     expression::{AlgebraicExpression, AlgebraicReference},
     Apc, Substitution,
 };
@@ -346,7 +345,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 let mut map = HashMap::new();
                 for sub in substitutions {
                     let Substitution { original_poly_index, apc_poly_id } = sub;
-                    let apc_index = apc_poly_id_to_index.get(&apc_poly_id).unwrap();
+                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
                     tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
                     map.insert(*original_poly_index, *apc_index);
                 }

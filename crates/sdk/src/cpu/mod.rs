@@ -8,28 +8,13 @@ pub mod prove;
 use std::sync::Arc;
 
 use anyhow::Result;
-<<<<<<< HEAD
-=======
-use powdr_autoprecompiles::{adapter::AdapterApc, Apc};
->>>>>>> f731dbedd (fmt)
 use prove::CpuProveBuilder;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
-<<<<<<< HEAD
 use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin, riscv::RiscvAirWithApcs};
-=======
-use sp1_core_machine::{
-    autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction},
-    io::SP1Stdin,
-    riscv::RiscvAirWithApcs,
-};
-<<<<<<< HEAD
 use powdr_autoprecompiles::adapter::AdapterApc;
 use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
->>>>>>> 81140b665 (support fallible apc)
-=======
->>>>>>> f731dbedd (fmt)
 use sp1_hypercube::prover::MachineProvingKey;
-use sp1_primitives::{Elf, SP1Field};
+use sp1_primitives::Elf;
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     error::SP1ProverError,
@@ -121,11 +106,7 @@ impl Prover for CpuProver {
 
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
-<<<<<<< HEAD
     pub async fn new(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
-=======
-    pub async fn new(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
->>>>>>> 81140b665 (support fallible apc)
         Self::new_with_opts(None, apcs).await
     }
 
@@ -133,11 +114,7 @@ impl CpuProver {
     #[must_use]
     pub async fn new_with_opts(
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
-<<<<<<< HEAD
         apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
-=======
-        apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
->>>>>>> 81140b665 (support fallible apc)
     ) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
@@ -163,11 +140,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "unsound")]
     #[must_use]
-<<<<<<< HEAD
     pub async fn new_unsound(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
-=======
-    pub async fn new_unsound(apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
->>>>>>> 81140b665 (support fallible apc)
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
                 .without_vk_verification()

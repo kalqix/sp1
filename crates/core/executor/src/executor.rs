@@ -18,12 +18,10 @@ use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
-use powdr_autoprecompiles::execution::{
-    OptimisticConstraint, OptimisticConstraintEvaluator, OptimisticConstraints,
-};
+use powdr_autoprecompiles::execution::OptimisticConstraintEvaluator;
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
-use sp1_autoprecompiles_common::MemoryAddress;
+use sp1_autoprecompiles_common::{ArtificialAddressSpace, MemoryAddress, Sp1OptimisticConstraints};
 use sp1_hypercube::air::PublicValues;
 use sp1_primitives::consts::{
     DEFAULT_PAGE_PROT, MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE,
@@ -122,9 +120,9 @@ impl From<bool> for DeferredProofVerification {
     }
 }
 
-impl<'a> powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
+impl powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
     // TODO: should support u64 here, trait is too strict
-    type Address = MemoryAddress<u32>;
+    type Address = MemoryAddress<u64>;
 
     type Value = u64;
 
@@ -134,8 +132,10 @@ impl<'a> powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
 
     fn read(&self, addr: &Self::Address) -> Self::Value {
         match addr.address_space {
-            sp1_autoprecompiles_common::ArtificialAddressSpace::Register => todo!(),
-            sp1_autoprecompiles_common::ArtificialAddressSpace::Ram => todo!(),
+            ArtificialAddressSpace::Register => {
+                self.memory.registers.get(addr.addr).map(|e| e.value).unwrap_or_default()
+            }
+            ArtificialAddressSpace::Ram => todo!(),
         }
     }
 }
@@ -273,8 +273,7 @@ struct ApcCandidate {
     /// The state of the execution when this candidate was introduced
     snapshot: ExecutionSnapshot,
     /// The conditions
-    /// TODO: take by reference. This probably requires splitting `fetch` into many methods to
-    /// avoid borrowing the full program just to get the conditions.
+    /// TODO: take by reference. This probably requires splitting `fetch` into many methods to avoid borrowing the full program just to get the conditions.
     conditions: OptimisticConstraintEvaluator<ExecutionState>,
 }
 
@@ -1870,10 +1869,7 @@ impl<'a> Executor<'a> {
     #[inline]
     fn fetch<E: ExecutorConfig>(
         &mut self,
-    ) -> Result<
-        (Instruction, Option<(Apc, OptimisticConstraints<MemoryAddress<u32>, u64>)>),
-        ExecutionError,
-    > {
+    ) -> Result<(Instruction, Option<(Apc, Sp1OptimisticConstraints)>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
             // TODO: avoid cloning the conditions
@@ -3461,6 +3457,10 @@ mod tests {
 
     use std::sync::Arc;
 
+    use powdr_autoprecompiles::execution::{
+        OptimisticConstraint, OptimisticConstraints, OptimisticExpression, OptimisticLiteral,
+    };
+    use sp1_autoprecompiles_common::MemoryAddress;
     use sp1_zkvm::syscalls::SHA_COMPRESS;
 
     use crate::programs::tests::{
@@ -3594,6 +3594,12 @@ mod tests {
         // Test with different APC ranges
         for apc_range_and_cost in
             [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+                .into_iter()
+                .map(|v| {
+                    v.into_iter()
+                        .map(|(x, y)| (x, y, OptimisticConstraints::default()))
+                        .collect::<Vec<_>>()
+                })
         {
             let should_execute_apcs = !apc_range_and_cost.is_empty();
             // Here we set APC costs to a dummy [1, 1] if there are APCs
@@ -3622,10 +3628,6 @@ mod tests {
         //     addi x28, x0, 37
         //     add x26, x28, x27
 
-        // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
-        // This is found somewhere else in the codebase
-        // Without this change, `Trace` mode fails.
-
         let mut original_instructions = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
@@ -3638,9 +3640,32 @@ mod tests {
 
         let program_without_apcs = Program::new(original_instructions, 0, 0);
 
+        // A failling constraint that `x3 == 123`
+        let failing_optimistic_constraints = || {
+            OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                left: OptimisticExpression::Literal(OptimisticLiteral {
+                    instr_idx: 0,
+                    val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Memory(
+                        MemoryAddress {
+                            address_space:
+                                sp1_autoprecompiles_common::ArtificialAddressSpace::Register,
+                            addr: 3,
+                        },
+                    ),
+                }),
+                right: OptimisticExpression::Value(123),
+            }])
+        };
+
         // Test with different APC ranges
         for apc_range_and_cost in
             [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+                .into_iter()
+                .map(|v| {
+                    v.into_iter()
+                        .map(|(x, y)| (x, y, failing_optimistic_constraints()))
+                        .collect::<Vec<_>>()
+                })
         {
             let should_execute_apcs = !apc_range_and_cost.is_empty();
             // Here we set APC costs to a dummy [1, 1] if there are APCs
@@ -3655,7 +3680,7 @@ mod tests {
             assert_eq!(runtime.register::<Trace>(Register::X31), 42);
             assert_eq!(runtime.register::<Trace>(Register::X26), 42);
             // Check that the APCs were executed iff there were any
-            assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
+            assert!(runtime.record.apc_events.is_empty());
         }
     }
 

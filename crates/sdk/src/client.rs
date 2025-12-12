@@ -4,12 +4,9 @@
 
 use std::sync::Arc;
 
-<<<<<<< HEAD
 use sp1_core_machine::autoprecompiles::Sp1Apc;
-=======
 use powdr_autoprecompiles::{adapter::AdapterApc, Apc};
 use sp1_core_machine::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
->>>>>>> 81140b665 (support fallible apc)
 use sp1_primitives::SP1Field;
 
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};

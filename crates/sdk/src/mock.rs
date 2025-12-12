@@ -9,13 +9,14 @@ use sp1_prover::{
     components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
     SP1VerifyingKey,
 };
+use powdr_autoprecompiles::adapter::AdapterApc;
+use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 
 use crate::{
     cpu::{CPUProverError, CPUProvingKey, CpuProver},
     prover::{BaseProveRequest, ProveRequest},
     Prover, SP1Proof, SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
 };
-use sp1_primitives::SP1Field;
 use std::{
     future::{Future, IntoFuture},
     sync::Arc,

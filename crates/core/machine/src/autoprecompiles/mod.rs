@@ -22,6 +22,7 @@ use powdr_autoprecompiles::{
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
+use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_build::BuildArgs;
 use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
@@ -170,10 +171,10 @@ impl CompiledProgram {
 }
 
 /// Create APCs from the given program and ranges.
-pub fn create_apcs<'a>(
+pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, Sp1OptimisticConstraints)>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges
@@ -205,8 +206,9 @@ pub fn create_apcs<'a>(
             .expect("Failed to build APC");
 
             let apc_cost = apc.machine.main_columns().count() as u64;
+            let optimistic_constraints = apc.optimistic_constraints.clone();
 
-            (Arc::new(apc), (range, apc_cost))
+            (Arc::new(apc), (range, apc_cost, optimistic_constraints))
         })
         .unzip()
 }

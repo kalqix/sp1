@@ -1030,7 +1030,13 @@ pub enum RiscvAirWithApcs<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAirWithApcs<F> {
+<<<<<<< HEAD
     pub fn machine(apcs: Vec<Arc<Sp1Apc<F>>>) -> Machine<F, Self> {
+=======
+    pub fn machine(
+        apcs: Vec<Arc<Apc<F, Sp1Instruction, sp1_autoprecompiles_common::MemoryAddress<u64>, u64>>>,
+    ) -> Machine<F, Self> {
+>>>>>>> 49ab9e448 (clean)
         let apcs_len = apcs.len();
 
         use RiscvAirDiscriminants::*;

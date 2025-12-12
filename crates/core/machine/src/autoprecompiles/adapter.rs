@@ -1,4 +1,4 @@
-use std::{fmt::Display, marker::PhantomData};
+use std::fmt::Display;
 
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses,
@@ -7,7 +7,7 @@ use crate::autoprecompiles::{
 use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
-use sp1_autoprecompiles_common::{MemoryAddress, Sp1MemoryBusInteraction};
+use sp1_autoprecompiles_common::Sp1MemoryBusInteraction;
 use sp1_core_executor::ExecutionState;
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
@@ -22,7 +22,7 @@ impl Adapter for Sp1ApcAdapter {
     type BusInteractionHandler = Sp1BusInteractionHandler;
     type Program = Sp1Program;
     type Instruction = Sp1Instruction;
-    type MemoryAddress<E> = MemoryAddress<E>;
+    type ConcreteAddress = u64;
     type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;

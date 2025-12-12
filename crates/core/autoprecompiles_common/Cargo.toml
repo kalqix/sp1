@@ -1,0 +1,21 @@
+[package]
+name = "sp1-autoprecompiles-common"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+powdr-autoprecompiles.workspace = true
+powdr-number = { workspace = true }
+powdr-expression = { workspace = true }
+powdr-constraint-solver = { workspace = true }
+num = { version = "0.4.3", features = ["rand"] }
+serde = { workspace = true, features = ["derive"] }
+deepsize2 = { workspace = true }
+
+
