@@ -17,7 +17,6 @@ use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
     ParallelSliceMut,
 };
-use sp1_autoprecompiles_common::MemoryAddress;
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
 };
@@ -453,7 +452,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         );
         let apc =
             sp1_core_executor::Apc { id: self.id, range, cost: self.cached_apc.width() as u64 };
-        // TODO: actually extract conditions from the apc!
         program.add_apc(apc, self.apc().optimistic_constraints.clone())
     }
 }

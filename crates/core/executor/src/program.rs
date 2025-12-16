@@ -42,7 +42,7 @@ pub struct Program {
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
     /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, (Apc, Sp1OptimisticConstraints)>,
+    pub apcs_by_start_idx: HashMap<usize, Vec<(Apc, Sp1OptimisticConstraints)>>,
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
@@ -136,7 +136,7 @@ impl Program {
     /// Add an APC range to the program.
     #[must_use]
     pub fn add_apc(mut self, apc: Apc, conditions: Sp1OptimisticConstraints) -> Self {
-        self.apcs_by_start_idx.insert(apc.range.start_idx, (apc, conditions));
+        self.apcs_by_start_idx.entry(apc.range.start_idx).or_default().push((apc, conditions));
         self
     }
 
@@ -208,10 +208,13 @@ impl Program {
     pub fn fetch(
         &self,
         pc: u64,
-    ) -> Option<(&Instruction, Option<&(Apc, Sp1OptimisticConstraints)>)> {
+    ) -> Option<(&Instruction, Option<&[(Apc, Sp1OptimisticConstraints)]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))
+            Some((
+                &self.instructions[idx],
+                self.apcs_by_start_idx.get(&idx).map(std::vec::Vec::as_slice),
+            ))
         } else {
             None
         }

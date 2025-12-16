@@ -22,7 +22,6 @@ impl Adapter for Sp1ApcAdapter {
     type BusInteractionHandler = Sp1BusInteractionHandler;
     type Program = Sp1Program;
     type Instruction = Sp1Instruction;
-    type ConcreteAddress = u64;
     type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;
