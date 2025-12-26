@@ -5,10 +5,11 @@ use std::{fs::File, io::BufWriter};
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use crate::{
+    autoprecompiles::{ExecutionRecordSnapshot, ExecutionSnapshot, Sp1ApcCandidates, Sp1Snapshot},
     estimator::RecordEstimator,
     events::{
-        ApcEvents, ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
-        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord, PrecompileEvents,
+        ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
+        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
         NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
     Apc, StatusCode, NUM_REGISTERS,
@@ -17,8 +18,8 @@ use crate::{
 use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
-use itertools::Itertools;
-use powdr_autoprecompiles::execution::OptimisticConstraintEvaluator;
+use itertools::{izip, Itertools};
+use powdr_autoprecompiles::execution::{ApcCandidate, Output};
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
 use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
@@ -256,216 +257,7 @@ pub struct Executor<'a> {
     decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
 
     /// The apc candidate at this point in the execution, if any
-    apc_candidates: ApcCandidates,
-}
-
-struct ApcCandidates {
-    candidates: Vec<ApcCandidate>,
-}
-impl ApcCandidates {
-    /// Given the current state of execution, retain the candidates whose constraints are still
-    /// verified
-    fn check_conditions(&mut self, state: &ExecutionState) {
-        println!("Check conditions as pc {}", state.pc);
-
-        self.candidates.retain_mut(|candidate| match &mut candidate.status {
-            // Check the conditions for unconfirmed candidates
-            CandidateStatus::Unconfirmed(optimistic_constraint_evaluator) => {
-                println!("Check candidate {}", candidate.apc.id);
-                candidate.remaining_instr_count -= 1;
-                optimistic_constraint_evaluator.try_next(state).is_ok()
-            }
-            // Keep confirmed candidates
-            CandidateStatus::Confirmed(_) => true,
-        });
-    }
-
-    fn insert(&mut self, apc_candidate: ApcCandidate) {
-        println!("Add {:?}", apc_candidate);
-        self.candidates.push(apc_candidate);
-    }
-
-    fn take_all(&mut self) -> impl Iterator<Item = ApcCandidate> + use<'_> {
-        self.candidates.drain(..)
-    }
-
-    /// Move finished candidates from Unconfirmed to Confirmed and remove low-priority Confirmed
-    /// candidates
-    fn finalize<'a>(
-        &mut self,
-        snapshot_callback: impl Fn() -> ExecutionSnapshot,
-        state: &ExecutionState,
-    ) -> Vec<ApcCandidate> {
-        let mut snapshot = None;
-
-        // Identify candidates which finished at this pc and remove the ones which do not satisfy
-        // the last constraints Same as check_conditions but only on the ones that finished
-        // TODO: clean this up
-        self.candidates.retain_mut(|candidate| {
-            match &mut candidate.status {
-                // Check the conditions for unconfirmed candidates
-                CandidateStatus::Unconfirmed(optimistic_constraint_evaluator) => {
-                    // keep all candidates that are still running
-                    if candidate.remaining_instr_count > 0 {
-                        return true;
-                    }
-                    // Now we know we're after the last instruction of a candidate. We need to check
-                    // the conditions one last time.
-                    let is_confirmed = optimistic_constraint_evaluator.try_next(state).is_ok();
-                    // If they fail, remove the candidate
-                    if !is_confirmed {
-                        return false;
-                    }
-                    // Now that it's confirmed, update its status
-                    let snapshot = snapshot.get_or_insert_with(|| {
-                        let res = snapshot_callback();
-                        Arc::new(res)
-                    });
-                    // TODO: could use `Cow` or something here...
-                    candidate.status = CandidateStatus::Confirmed(snapshot.clone());
-                    true
-                }
-                // Keep confirmed candidates
-                CandidateStatus::Confirmed(_) => true,
-            }
-        });
-
-        // Go through all confirmed candidates and whenever they conflict on the range of records
-        // they apply to, keep only the high priority ones For example, if we end up with
-        // AB, A and B confirmed and all pointing to the same cycles (?), remove A and B
-
-        // Return candidates which do not clash with any currently unconfirmed stuff
-        // For example, if A is confirmed but AB is still running (with overlap), then keep A in.
-        // Otherwise take A out.
-
-        // For now we assume there is a single candidate, so we extract it as the conditions above
-        // are satisfied.
-
-        self.candidates.drain(..).collect()
-    }
-}
-
-#[derive(Debug)]
-struct ApcCandidate {
-    /// The number of remaining instructions to run
-    /// TODO: correlates with the counter inside the evaluator, could be unified
-    remaining_instr_count: u64,
-    /// The apc candidate being run
-    apc: Apc,
-    /// The state of the execution when this candidate was introduced
-    snapshot: Arc<ExecutionSnapshot>,
-    /// The status of this candidate
-    status: CandidateStatus,
-}
-
-#[derive(Debug)]
-enum CandidateStatus {
-    /// We don't know yet if this apc candidate is valid. The conditions must be verified
-    Unconfirmed(OptimisticConstraintEvaluator<ExecutionState>),
-    /// We know the candidate is valid until the given Snapshot
-    Confirmed(Arc<ExecutionSnapshot>),
-}
-
-struct ExecutionSnapshot {
-    record: ExecutionRecordSnapshot,
-    local_counts: LocalCounts,
-    report: ExecutionReport,
-}
-
-impl std::fmt::Debug for ExecutionSnapshot {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[Execution Snapshot]")
-    }
-}
-
-struct ExecutionRecordSnapshot {
-    pub cpu_event_count: u32,
-    pub add_events_len: usize,
-    pub addw_events_len: usize,
-    pub addi_events_len: usize,
-    pub mul_events_len: usize,
-    pub sub_events_len: usize,
-    pub subw_events_len: usize,
-    pub bitwise_events_len: usize,
-    pub shift_left_events_len: usize,
-    pub shift_right_events_len: usize,
-    pub divrem_events_len: usize,
-    pub lt_events_len: usize,
-    pub memory_load_byte_events_len: usize,
-    pub memory_load_half_events_len: usize,
-    pub memory_load_word_events_len: usize,
-    pub memory_load_x0_events_len: usize,
-    pub memory_load_double_events_len: usize,
-    pub memory_store_byte_events_len: usize,
-    pub memory_store_half_events_len: usize,
-    pub memory_store_word_events_len: usize,
-    pub memory_store_double_events_len: usize,
-    pub utype_events_len: usize,
-    pub branch_events_len: usize,
-    pub jal_events_len: usize,
-    pub jalr_events_len: usize,
-    pub instruction_fetch_events_len: usize,
-    pub instruction_decode_events_len: usize,
-    pub global_page_prot_initialize_events_len: usize,
-    pub global_page_prot_finalize_events_len: usize,
-    pub cpu_local_page_prot_access_len: usize,
-    pub byte_lookups: HashMap<ByteLookupEvent, isize>,
-    pub precompile_events_len: usize,
-    pub global_memory_initialize_events_len: usize,
-    pub global_memory_finalize_events_len: usize,
-    pub cpu_local_memory_access_len: usize,
-    pub syscall_events_len: usize,
-    pub apc_events_len: usize,
-    pub global_interaction_event_count: u32,
-    pub bump_memory_events_len: usize,
-    pub bump_state_events_len: usize,
-}
-
-impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
-    fn from(record: &ExecutionRecord) -> Self {
-        ExecutionRecordSnapshot {
-            cpu_event_count: record.cpu_event_count,
-            add_events_len: record.add_events.len(),
-            addw_events_len: record.addw_events.len(),
-            addi_events_len: record.addi_events.len(),
-            mul_events_len: record.mul_events.len(),
-            sub_events_len: record.sub_events.len(),
-            subw_events_len: record.subw_events.len(),
-            bitwise_events_len: record.bitwise_events.len(),
-            shift_left_events_len: record.shift_left_events.len(),
-            shift_right_events_len: record.shift_right_events.len(),
-            divrem_events_len: record.divrem_events.len(),
-            lt_events_len: record.lt_events.len(),
-            memory_load_byte_events_len: record.memory_load_byte_events.len(),
-            memory_load_half_events_len: record.memory_load_half_events.len(),
-            memory_load_word_events_len: record.memory_load_word_events.len(),
-            memory_load_x0_events_len: record.memory_load_x0_events.len(),
-            memory_load_double_events_len: record.memory_load_double_events.len(),
-            memory_store_byte_events_len: record.memory_store_byte_events.len(),
-            memory_store_half_events_len: record.memory_store_half_events.len(),
-            memory_store_word_events_len: record.memory_store_word_events.len(),
-            memory_store_double_events_len: record.memory_store_double_events.len(),
-            utype_events_len: record.utype_events.len(),
-            branch_events_len: record.branch_events.len(),
-            jal_events_len: record.jal_events.len(),
-            jalr_events_len: record.jalr_events.len(),
-            byte_lookups: record.byte_lookups.clone(),
-            precompile_events_len: record.precompile_events.len(),
-            global_memory_initialize_events_len: record.global_memory_initialize_events.len(),
-            global_memory_finalize_events_len: record.global_memory_finalize_events.len(),
-            cpu_local_memory_access_len: record.cpu_local_memory_access.len(),
-            syscall_events_len: record.syscall_events.len(),
-            apc_events_len: record.apc_events.len(),
-            global_interaction_event_count: record.global_interaction_event_count,
-            bump_memory_events_len: record.bump_memory_events.len(),
-            bump_state_events_len: record.bump_state_events.len(),
-            instruction_fetch_events_len: record.instruction_fetch_events.len(),
-            instruction_decode_events_len: record.instruction_decode_events.len(),
-            global_page_prot_initialize_events_len: record.global_page_prot_initialize_events.len(),
-            global_page_prot_finalize_events_len: record.global_page_prot_finalize_events.len(),
-            cpu_local_page_prot_access_len: record.cpu_local_page_prot_access.len(),
-        }
-    }
+    apc_candidates: Sp1ApcCandidates,
 }
 
 /// The configuration of the executor.
@@ -753,7 +545,7 @@ impl<'a> Executor<'a> {
             decoded_instruction_cache: HashMap::new(),
             decoded_instruction_events: HashMap::new(),
             opts,
-            apc_candidates: ApcCandidates { candidates: Default::default() },
+            apc_candidates: Sp1ApcCandidates::default(),
         }
     }
 
@@ -2042,10 +1834,23 @@ impl<'a> Executor<'a> {
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
 
+        self.apc_candidates.check_conditions(&self.state, || {
+            Sp1Snapshot(Arc::new(ExecutionSnapshot {
+                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                local_counts: self.local_counts.clone(),
+                report: self.report.clone(),
+                pc: self.state.pc,
+            }))
+        });
+
+        let outputs = self.apc_candidates.extract_candidates();
+
+        self.add_apc_events::<E>(outputs);
+
         if !E::UNCONSTRAINED {
             if self.print_report {
                 // Note: APC counts are updated upon success or failure of apcs, reverting opcode
-                // counts in the former case
+                // counts in the former case.
                 self.report.opcode_counts[instruction.opcode] += 1;
             }
             self.local_counts.event_counts.core[instruction.opcode] += 1;
@@ -2054,8 +1859,6 @@ impl<'a> Executor<'a> {
                 self.local_counts.load_x0_counts += 1;
             }
         }
-
-        self.apc_candidates.check_conditions(&self.state);
 
         if instruction.is_alu_instruction() {
             (a, b, c) = self.execute_alu::<E>(instruction);
@@ -2119,8 +1922,6 @@ impl<'a> Executor<'a> {
             );
         }
 
-        self.finalize_apc::<E>();
-
         // Update the program counter.
         self.state.pc = next_pc;
 
@@ -2130,406 +1931,404 @@ impl<'a> Executor<'a> {
         Ok(())
     }
 
-    fn finalize_apc<E: ExecutorConfig>(&mut self) {
-        let confirmed = {
-            let mut snapshot = None;
+    // TODO: Currently unused, but we need to check that no bump events happened before creating apc
+    // events fn check_no_bump<E: ExecutorConfig>(&mut self, apc_candidate: &ApcCandidate) ->
+    // bool {     let created_bump_state_event = self.record.bump_state_events.len()
+    //         > snapshot.record.bump_state_events_len;
+    //     let created_bump_memory_event = self.record.bump_memory_events.len()
+    //         > snapshot.record.bump_memory_events_len;
 
-            // Identify candidates which finished at this pc and remove the ones which do not
-            // satisfy the last constraints Same as check_conditions but only on the
-            // ones that finished TODO: clean this up
-            self.apc_candidates.candidates.retain_mut(|candidate| {
-                match &mut candidate.status {
-                    // Check the conditions for unconfirmed candidates
-                    CandidateStatus::Unconfirmed(optimistic_constraint_evaluator) => {
-                        // keep all candidates that are still running
-                        if candidate.remaining_instr_count > 0 {
-                            return true;
-                        }
-                        // Now we know we're after the last instruction of a candidate. We need to
-                        // check the conditions one last time.
-                        let is_confirmed =
-                            optimistic_constraint_evaluator.try_next(&self.state).is_ok();
-                        // If they fail, remove the candidate
-                        if !is_confirmed {
-                            return false;
-                        }
-                        // TODO: check that no bump happened......
-                        // if self.check_no_bump::<E>(candidate) {
-                        //     return false;
-                        // }
-                        // Now that it's confirmed, update its status
-                        let snapshot = snapshot.get_or_insert_with(|| {
-                            let res = ExecutionSnapshot {
-                                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                                local_counts: self.local_counts.clone(),
-                                report: self.report.clone(),
-                            };
-                            Arc::new(res)
-                        });
-                        // TODO: could use `Cow` or something here...
-                        candidate.status = CandidateStatus::Confirmed(snapshot.clone());
-                        true
-                    }
-                    // Keep confirmed candidates
-                    CandidateStatus::Confirmed(_) => true,
-                }
-            });
+    //     if created_bump_state_event {
+    //         self.report.apc_counts.entry(apc_candidate.apc.id).or_default().state_bump_error +=
+    // 1;         tracing::error!(
+    //             "global clock {}: APC {} cancelled: state bump error detected",
+    //             self.state.global_clk,
+    //             apc_candidate.apc.id
+    //         );
+    //     }
+    //     if created_bump_memory_event {
+    //         self.report.apc_counts.entry(apc_candidate.apc.id).or_default().memory_bump_error +=
+    // 1;         tracing::error!(
+    //             "global clock {}: APC {} cancelled: memory bump error detected",
+    //             self.state.global_clk,
+    //             apc_candidate.apc.id
+    //         );
+    //     }
 
-            println!("Candidates after finalization: {:#?}", self.apc_candidates.candidates);
+    //     // update the counts
+    //     // WARNING: Note that this happens even if the APC was cancelled. The reason is that
+    //     // we don't know whether memory or state bump events have occurred unless we're in
+    //     // trace mode.
+    //     if !E::UNCONSTRAINED {
+    //         let local_mem = self.local_counts.local_mem;
+    //         self.local_counts = snapshot.local_counts.clone();
+    //         self.local_counts.local_mem = local_mem;
 
-            let ranges = self
-                .apc_candidates
-                .candidates
-                .iter()
-                .filter_map(|c| match &c.status {
-                    CandidateStatus::Unconfirmed(optimistic_constraint_evaluator) => None,
-                    CandidateStatus::Confirmed(execution_snapshot) => {
-                        Some((c.snapshot.as_ref(), execution_snapshot))
-                    }
-                })
-                .map(|(from, to)| (from.record.cpu_event_count, to.record.cpu_event_count))
-                .collect_vec();
+    //         // add 1 to this apc
+    //         *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
+    //     }
 
-            println!("ranges: {ranges:?}");
+    //     !(created_bump_state_event || created_bump_memory_event)
+    // }
 
-            // Go through all confirmed candidates and whenever they conflict on the range of
-            // records they apply to, keep only the high priority ones For example, if
-            // we end up with AB, A and B confirmed and all pointing to the same cycles
-            // (?), remove A and B
-
-            // Return candidates which do not clash with any currently unconfirmed stuff
-            // For example, if A is confirmed but AB is still running (with overlap), then keep A
-            // in. Otherwise take A out.
-
-            // For now we assume there is a single candidate, so we extract it as the conditions
-            // above are satisfied.
-
-            self.apc_candidates
-                .candidates
-                .extract_if(.., |c| matches!(c.status, CandidateStatus::Confirmed(_)))
-                .collect_vec()
-        };
-
-        for candidate in confirmed {
-            self.add_apc_event::<E>(candidate);
-        }
-    }
-
-    // TODO: Currently unused, but we need to check that no bump events happened before creating apc events
-    fn check_no_bump<E: ExecutorConfig>(&mut self, apc_candidate: &ApcCandidate) -> bool {
-        let created_bump_state_event = self.record.bump_state_events.len()
-            > apc_candidate.snapshot.record.bump_state_events_len;
-        let created_bump_memory_event = self.record.bump_memory_events.len()
-            > apc_candidate.snapshot.record.bump_memory_events_len;
-
-        if created_bump_state_event {
-            self.report.apc_counts.entry(apc_candidate.apc.id).or_default().state_bump_error += 1;
-            tracing::error!(
-                "global clock {}: APC {} cancelled: state bump error detected",
-                self.state.global_clk,
-                apc_candidate.apc.id
-            );
-        }
-        if created_bump_memory_event {
-            self.report.apc_counts.entry(apc_candidate.apc.id).or_default().memory_bump_error += 1;
-            tracing::error!(
-                "global clock {}: APC {} cancelled: memory bump error detected",
-                self.state.global_clk,
-                apc_candidate.apc.id
-            );
+    /// Modify the records to turn software records into apc records for a series of candidates
+    /// The candidates are assumed to be non overlapping and sorted in increasing chronological
+    /// order
+    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<Output<Apc, Sp1Snapshot>>) {
+        if outputs.is_empty() {
+            return;
         }
 
-        // update the counts
-        // WARNING: Note that this happens even if the APC was cancelled. The reason is that
-        // we don't know whether memory or state bump events have occurred unless we're in
-        // trace mode.
-        if !E::UNCONSTRAINED {
-            let local_mem = self.local_counts.local_mem;
-            self.local_counts = apc_candidate.snapshot.local_counts.clone();
-            self.local_counts.local_mem = local_mem;
+        // println!("Add apc events for {outputs:#?}");
 
-            // add 1 to this apc
-            *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
-        }
+        // Go through the candidates in reverse order and split them off from the end of the record
 
-        !(created_bump_state_event || created_bump_memory_event)
-    }
-
-    fn add_apc_event<E: ExecutorConfig>(&mut self, apc_candidate: ApcCandidate) {
-        if E::MODE == ExecutorMode::Trace {
-            // Construct the apc_record from the current record and the snapshot.
-            let apc_record = ExecutionRecord {
-                program: self.record.program.clone(),
-                cpu_event_count: self
-                    .record
-                    .cpu_event_count
-                    .saturating_sub(apc_candidate.snapshot.record.cpu_event_count),
-                add_events: self
-                    .record
-                    .add_events
-                    .drain(apc_candidate.snapshot.record.add_events_len..)
-                    .collect(),
-                addw_events: self
-                    .record
-                    .addw_events
-                    .drain(apc_candidate.snapshot.record.addw_events_len..)
-                    .collect(),
-                addi_events: self
-                    .record
-                    .addi_events
-                    .drain(apc_candidate.snapshot.record.addi_events_len..)
-                    .collect(),
-                mul_events: self
-                    .record
-                    .mul_events
-                    .drain(apc_candidate.snapshot.record.mul_events_len..)
-                    .collect(),
-                sub_events: self
-                    .record
-                    .sub_events
-                    .drain(apc_candidate.snapshot.record.sub_events_len..)
-                    .collect(),
-                subw_events: self
-                    .record
-                    .subw_events
-                    .drain(apc_candidate.snapshot.record.subw_events_len..)
-                    .collect(),
-                bitwise_events: self
-                    .record
-                    .bitwise_events
-                    .drain(apc_candidate.snapshot.record.bitwise_events_len..)
-                    .collect(),
-                shift_left_events: self
-                    .record
-                    .shift_left_events
-                    .drain(apc_candidate.snapshot.record.shift_left_events_len..)
-                    .collect(),
-                shift_right_events: self
-                    .record
-                    .shift_right_events
-                    .drain(apc_candidate.snapshot.record.shift_right_events_len..)
-                    .collect(),
-                divrem_events: self
-                    .record
-                    .divrem_events
-                    .drain(apc_candidate.snapshot.record.divrem_events_len..)
-                    .collect(),
-                lt_events: self
-                    .record
-                    .lt_events
-                    .drain(apc_candidate.snapshot.record.lt_events_len..)
-                    .collect(),
-                memory_load_byte_events: self
-                    .record
-                    .memory_load_byte_events
-                    .drain(apc_candidate.snapshot.record.memory_load_byte_events_len..)
-                    .collect(),
-                memory_load_half_events: self
-                    .record
-                    .memory_load_half_events
-                    .drain(apc_candidate.snapshot.record.memory_load_half_events_len..)
-                    .collect(),
-                memory_load_word_events: self
-                    .record
-                    .memory_load_word_events
-                    .drain(apc_candidate.snapshot.record.memory_load_word_events_len..)
-                    .collect(),
-                memory_load_x0_events: self
-                    .record
-                    .memory_load_x0_events
-                    .drain(apc_candidate.snapshot.record.memory_load_x0_events_len..)
-                    .collect(),
-                memory_load_double_events: self
-                    .record
-                    .memory_load_double_events
-                    .drain(apc_candidate.snapshot.record.memory_load_double_events_len..)
-                    .collect(),
-                memory_store_byte_events: self
-                    .record
-                    .memory_store_byte_events
-                    .drain(apc_candidate.snapshot.record.memory_store_byte_events_len..)
-                    .collect(),
-                memory_store_half_events: self
-                    .record
-                    .memory_store_half_events
-                    .drain(apc_candidate.snapshot.record.memory_store_half_events_len..)
-                    .collect(),
-                memory_store_word_events: self
-                    .record
-                    .memory_store_word_events
-                    .drain(apc_candidate.snapshot.record.memory_store_word_events_len..)
-                    .collect(),
-                memory_store_double_events: self
-                    .record
-                    .memory_store_double_events
-                    .drain(apc_candidate.snapshot.record.memory_store_double_events_len..)
-                    .collect(),
-                utype_events: self
-                    .record
-                    .utype_events
-                    .drain(apc_candidate.snapshot.record.utype_events_len..)
-                    .collect(),
-                branch_events: self
-                    .record
-                    .branch_events
-                    .drain(apc_candidate.snapshot.record.branch_events_len..)
-                    .collect(),
-                jal_events: self
-                    .record
-                    .jal_events
-                    .drain(apc_candidate.snapshot.record.jal_events_len..)
-                    .collect(),
-                jalr_events: self
-                    .record
-                    .jalr_events
-                    .drain(apc_candidate.snapshot.record.jalr_events_len..)
-                    .collect(),
-                // revert byte lookups to before the block in the main record and return the
-                // diff in the apc record
-                byte_lookups: self
-                    .record
-                    .byte_lookups
-                    .iter_mut()
-                    .map(|(e, count)| {
-                        let old = apc_candidate
-                            .snapshot
-                            .record
-                            .byte_lookups
-                            .get(e)
-                            .copied()
-                            .unwrap_or_default();
-                        let diff = *count - old;
-                        *count = old;
-                        (*e, diff)
-                    })
-                    .filter(|(_, diff)| *diff != 0)
-                    .collect(),
-                precompile_events: PrecompileEvents::default(),
-                global_memory_initialize_events: self
-                    .record
-                    .global_memory_initialize_events
-                    .drain(apc_candidate.snapshot.record.global_memory_initialize_events_len..)
-                    .collect(),
-                global_memory_finalize_events: self
-                    .record
-                    .global_memory_finalize_events
-                    .drain(apc_candidate.snapshot.record.global_memory_finalize_events_len..)
-                    .collect(),
-                cpu_local_memory_access: self
-                    .record
-                    .cpu_local_memory_access
-                    .drain(apc_candidate.snapshot.record.cpu_local_memory_access_len..)
-                    .collect(),
-                syscall_events: self
-                    .record
-                    .syscall_events
-                    .drain(apc_candidate.snapshot.record.syscall_events_len..)
-                    .collect(),
-                apc_events: ApcEvents::default(),
-                global_interaction_events: Vec::default(),
-                global_cumulative_sum: self.record.global_cumulative_sum.clone(),
-                global_interaction_event_count: self.record.global_interaction_event_count,
-                bump_memory_events: vec![],
-                bump_state_events: vec![],
-                public_values: self.record.public_values,
-                next_nonce: self.record.next_nonce,
-                shape: self.record.shape.clone(), // we might be fine with `Default` here
-                estimated_trace_area: self.record.estimated_trace_area,
-                initial_timestamp: self.record.initial_timestamp,
-                last_timestamp: self.record.last_timestamp,
-                pc_start: self.record.pc_start,
-                next_pc: self.state.pc,
-                exit_code: self.record.exit_code,
-                global_page_prot_initialize_events: self
-                    .record
-                    .global_page_prot_initialize_events
-                    .drain(apc_candidate.snapshot.record.global_page_prot_initialize_events_len..)
-                    .collect(),
-                global_page_prot_finalize_events: self
-                    .record
-                    .global_page_prot_finalize_events
-                    .drain(apc_candidate.snapshot.record.global_page_prot_finalize_events_len..)
-                    .collect(),
-                cpu_local_page_prot_access: self
-                    .record
-                    .cpu_local_page_prot_access
-                    .drain(apc_candidate.snapshot.record.cpu_local_page_prot_access_len..)
-                    .collect(),
-                instruction_fetch_events: self
-                    .record
-                    .instruction_fetch_events
-                    .drain(apc_candidate.snapshot.record.instruction_fetch_events_len..)
-                    .collect(),
-                instruction_decode_events: {
-                    self.record
-                        .instruction_decode_events
-                        .drain(apc_candidate.snapshot.record.instruction_decode_events_len..)
-                        .collect()
+        fn extract<T>(v: &mut Vec<T>, outputs: Vec<(usize, usize)>) -> Vec<Vec<T>> {
+            let (apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.iter().rev().fold(
+                (vec![], vec![]),
+                |(mut extracted, mut to_add_to_software), (from, to)| {
+                    to_add_to_software.extend(v.drain(to..));
+                    extracted.push(v.split_off(*from));
+                    (extracted, to_add_to_software)
                 },
-            };
-            assert_eq!(
-                self.record.precompile_events.len(),
-                apc_candidate.snapshot.record.precompile_events_len,
-                "New precompile events generated within apc block"
             );
-            assert_eq!(
-                self.record.apc_events.len(),
-                apc_candidate.snapshot.record.apc_events_len,
-                "New apc events generated within apc block"
+            v.extend(software_records);
+            apc_records
+        }
+
+        // TODO: check off by one error
+        fn extract_diff(v: &mut u32, outputs: Vec<(u32, u32)>) -> Vec<u32> {
+            let mut apc_records = Vec::with_capacity(outputs.len());
+            let mut total_removed = 0;
+            for (from, to) in outputs {
+                let len = to - from;
+                apc_records.push(len);
+                total_removed += len;
+            }
+            debug_assert!(total_removed <= *v);
+            *v -= total_removed;
+            apc_records
+        }
+
+        fn extract_empty<T: Default>(outputs: Vec<(usize, usize)>) -> Vec<T> {
+            assert!(outputs.iter().all(|(from, to)| from == to));
+            outputs.iter().map(|_| T::default()).collect()
+        }
+
+        fn extract_byte_lookups(
+            v: &mut HashMap<ByteLookupEvent, isize>,
+            outputs: &[(Arc<ExecutionSnapshot>, Arc<ExecutionSnapshot>)],
+        ) -> Vec<HashMap<ByteLookupEvent, isize>> {
+            let mut extracted = Vec::with_capacity(outputs.len());
+            for (from, to) in outputs {
+                let mut diff = HashMap::new();
+                for (event, to_count) in &to.record.byte_lookups {
+                    let from_count =
+                        from.record.byte_lookups.get(event).copied().unwrap_or_default();
+                    let delta = *to_count - from_count;
+                    if delta != 0 {
+                        diff.insert(*event, delta);
+                    }
+                }
+                for (event, from_count) in &from.record.byte_lookups {
+                    if !to.record.byte_lookups.contains_key(event) {
+                        let delta = -*from_count;
+                        if delta != 0 {
+                            diff.insert(*event, delta);
+                        }
+                    }
+                }
+                extracted.push(diff);
+            }
+
+            for diff in &extracted {
+                for (event, delta) in diff {
+                    let entry = v.entry(*event).or_insert(0);
+                    *entry -= *delta;
+                }
+            }
+            v.retain(|_, count| *count != 0);
+
+            extracted
+        }
+
+        // Given an existing report and a list of outputs, modify the report so that it represents
+        // tha same execution except for the output ranges being turned into apcs
+        fn update_report(report: &mut ExecutionReport, outputs: Vec<Output<Apc, Sp1Snapshot>>) {
+            for output in outputs {
+                // println!("Report: {report:#?}");
+                let mut delta = output.to.0.report.clone();
+                delta -= output.from.0.report.clone();
+                // println!("Delta: {delta:#?}");
+                *report -= delta;
+                report.apc_counts.entry(output.apc.id).or_default().success += 1;
+            }
+        }
+
+        fn extract_records(
+            v: &mut ExecutionRecord,
+            outputs: Vec<(Arc<ExecutionSnapshot>, Arc<ExecutionSnapshot>)>,
+            apc_ids: Vec<u64>,
+        ) -> Vec<(u64, ExecutionRecord)> {
+            macro_rules! extract_vec {
+                ($field:ident, $len_field:ident) => {
+                    extract(
+                        &mut v.$field,
+                        outputs
+                            .iter()
+                            .map(|(from, to)| (from.record.$len_field, to.record.$len_field))
+                            .collect(),
+                    )
+                };
+                (empty $len_field:ident) => {
+                    extract_empty(
+                        outputs
+                            .iter()
+                            .map(|(from, to)| (from.record.$len_field, to.record.$len_field))
+                            .collect(),
+                    )
+                };
+            }
+
+            let add = extract_vec!(add_events, add_events_len);
+            let sub = extract_vec!(sub_events, sub_events_len);
+            let addw = extract_vec!(addw_events, addw_events_len);
+            let addi = extract_vec!(addi_events, addi_events_len);
+            let mul = extract_vec!(mul_events, mul_events_len);
+            let subw = extract_vec!(subw_events, subw_events_len);
+            let bitwise = extract_vec!(bitwise_events, bitwise_events_len);
+            let shift_left = extract_vec!(shift_left_events, shift_left_events_len);
+            let shift_right = extract_vec!(shift_right_events, shift_right_events_len);
+            let divrem = extract_vec!(divrem_events, divrem_events_len);
+            let lt = extract_vec!(lt_events, lt_events_len);
+            let memory_load_byte =
+                extract_vec!(memory_load_byte_events, memory_load_byte_events_len);
+            let memory_load_half =
+                extract_vec!(memory_load_half_events, memory_load_half_events_len);
+            let memory_load_word =
+                extract_vec!(memory_load_word_events, memory_load_word_events_len);
+            let memory_load_x0 = extract_vec!(memory_load_x0_events, memory_load_x0_events_len);
+            let memory_load_double =
+                extract_vec!(memory_load_double_events, memory_load_double_events_len);
+            let memory_store_byte =
+                extract_vec!(memory_store_byte_events, memory_store_byte_events_len);
+            let memory_store_half =
+                extract_vec!(memory_store_half_events, memory_store_half_events_len);
+            let memory_store_word =
+                extract_vec!(memory_store_word_events, memory_store_word_events_len);
+            let memory_store_double =
+                extract_vec!(memory_store_double_events, memory_store_double_events_len);
+            let utype = extract_vec!(utype_events, utype_events_len);
+            let branch = extract_vec!(branch_events, branch_events_len);
+            let jal = extract_vec!(jal_events, jal_events_len);
+            let jalr = extract_vec!(jalr_events, jalr_events_len);
+            let instruction_fetch = extract_vec!(empty instruction_fetch_events_len);
+            let instruction_decode = extract_vec!(empty instruction_decode_events_len);
+            let global_page_prot_initialize = extract_vec!(
+                global_page_prot_initialize_events,
+                global_page_prot_initialize_events_len
             );
-            assert_eq!(
-                self.record.global_interaction_event_count,
-                apc_candidate.snapshot.record.global_interaction_event_count,
-                "New global interaction events generated within apc block"
+            let global_page_prot_finalize = extract_vec!(
+                global_page_prot_finalize_events,
+                global_page_prot_finalize_events_len
             );
-            assert_eq!(
-                self.record.bump_state_events.len(),
-                apc_candidate.snapshot.record.bump_state_events_len,
-                "New bump state events generated within apc block"
+            let cpu_local_page_prot_access = extract_vec!(empty cpu_local_page_prot_access_len);
+            let global_memory_initialize =
+                extract_vec!(global_memory_initialize_events, global_memory_initialize_events_len);
+            let global_memory_finalize =
+                extract_vec!(global_memory_finalize_events, global_memory_finalize_events_len);
+            let cpu_local_memory_access =
+                extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
+            let syscall = extract_vec!(syscall_events, syscall_events_len);
+            let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
+            let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
+            let precompile_events = extract_vec!(empty precompile_events_len);
+            let apc_events = extract_vec!(empty apc_events_len);
+            println!("extract cpu event count");
+            let cpu_event_count = extract_diff(
+                &mut v.cpu_event_count,
+                outputs
+                    .iter()
+                    .map(|(from, to)| (from.record.cpu_event_count, to.record.cpu_event_count))
+                    .collect(),
             );
-            assert_eq!(
-                self.record.bump_memory_events.len(),
-                apc_candidate.snapshot.record.bump_memory_events_len,
-                "New bump memory events generated within apc block"
-            );
-            assert_eq!(
-                self.record.global_page_prot_finalize_events.len(),
-                apc_candidate.snapshot.record.global_page_prot_finalize_events_len,
-                "New global page protection finalize events generated within apc block"
-            );
-            assert_eq!(
-                self.record.cpu_local_page_prot_access.len(),
-                apc_candidate.snapshot.record.cpu_local_page_prot_access_len,
-                "New CPU local page protection access events generated within apc block"
-            );
-            assert_eq!(
-                self.record.instruction_fetch_events.len(),
-                apc_candidate.snapshot.record.instruction_fetch_events_len,
-                "New instruction fetch events generated within apc block"
-            );
-            assert_eq!(
-                self.record.instruction_decode_events.len(),
-                apc_candidate.snapshot.record.instruction_decode_events_len,
-                "New instruction decode events generated within apc block"
+            let byte_lookups = extract_byte_lookups(&mut v.byte_lookups, &outputs);
+            let next_pc = outputs.iter().map(|(_, to)| to.pc).collect::<Vec<_>>();
+            izip!(
+                apc_ids,
+                add,
+                sub,
+                addw,
+                addi,
+                mul,
+                subw,
+                bitwise,
+                shift_left,
+                shift_right,
+                divrem,
+                lt,
+                memory_load_byte,
+                memory_load_half,
+                memory_load_word,
+                memory_load_x0,
+                memory_load_double,
+                memory_store_byte,
+                memory_store_half,
+                memory_store_word,
+                memory_store_double,
+                utype,
+                branch,
+                jal,
+                jalr,
+                instruction_fetch,
+                instruction_decode,
+                global_page_prot_initialize,
+                global_page_prot_finalize,
+                cpu_local_page_prot_access,
+                global_memory_initialize,
+                global_memory_finalize,
+                cpu_local_memory_access,
+                syscall,
+                bump_memory,
+                bump_state,
+                precompile_events,
+                apc_events,
+                cpu_event_count,
+                byte_lookups,
+                next_pc,
+            )
+            .map(
+                |(
+                    apc_id,
+                    add_events,
+                    sub_events,
+                    addw_events,
+                    addi_events,
+                    mul_events,
+                    subw_events,
+                    bitwise_events,
+                    shift_left_events,
+                    shift_right_events,
+                    divrem_events,
+                    lt_events,
+                    memory_load_byte_events,
+                    memory_load_half_events,
+                    memory_load_word_events,
+                    memory_load_x0_events,
+                    memory_load_double_events,
+                    memory_store_byte_events,
+                    memory_store_half_events,
+                    memory_store_word_events,
+                    memory_store_double_events,
+                    utype_events,
+                    branch_events,
+                    jal_events,
+                    jalr_events,
+                    instruction_fetch_events,
+                    instruction_decode_events,
+                    global_page_prot_initialize_events,
+                    global_page_prot_finalize_events,
+                    cpu_local_page_prot_access,
+                    global_memory_initialize_events,
+                    global_memory_finalize_events,
+                    cpu_local_memory_access,
+                    syscall_events,
+                    bump_memory_events,
+                    bump_state_events,
+                    precompile_events,
+                    apc_events,
+                    cpu_event_count,
+                    byte_lookups,
+                    next_pc,
+                )| {
+                    (
+                        apc_id,
+                        ExecutionRecord {
+                            add_events,
+                            sub_events,
+                            addw_events,
+                            addi_events,
+                            mul_events,
+                            subw_events,
+                            bitwise_events,
+                            shift_left_events,
+                            shift_right_events,
+                            divrem_events,
+                            lt_events,
+                            memory_load_byte_events,
+                            memory_load_half_events,
+                            memory_load_word_events,
+                            memory_load_x0_events,
+                            memory_load_double_events,
+                            memory_store_byte_events,
+                            memory_store_half_events,
+                            memory_store_word_events,
+                            memory_store_double_events,
+                            utype_events,
+                            branch_events,
+                            jal_events,
+                            jalr_events,
+                            instruction_fetch_events,
+                            instruction_decode_events,
+                            global_page_prot_initialize_events,
+                            global_page_prot_finalize_events,
+                            cpu_local_page_prot_access,
+                            global_memory_initialize_events,
+                            global_memory_finalize_events,
+                            cpu_local_memory_access,
+                            syscall_events,
+                            bump_memory_events,
+                            bump_state_events,
+                            program: v.program.clone(),
+                            cpu_event_count,
+                            byte_lookups,
+                            precompile_events,
+                            apc_events,
+                            global_interaction_events: Default::default(), // Same as before
+                            global_cumulative_sum: v.global_cumulative_sum.clone(), // Same as before,
+                            global_interaction_event_count: v.global_interaction_event_count,
+                            public_values: v.public_values,
+                            next_nonce: v.next_nonce,
+                            shape: v.shape.clone(),
+                            estimated_trace_area: v.estimated_trace_area,
+                            initial_timestamp: v.initial_timestamp,
+                            last_timestamp: v.last_timestamp,
+                            pc_start: v.pc_start,
+                            next_pc,
+                            exit_code: v.exit_code,
+                        },
+                    )
+                },
+            )
+            .collect()
+        }
+
+        if E::MODE == ExecutorMode::Trace {
+            // Remaining fields to wire into `extract_records`:
+            // - global_interaction_event_count
+            let apc_records = extract_records(
+                &mut self.record,
+                outputs.iter().map(|o| (o.from.clone().0, o.to.clone().0)).collect(),
+                outputs.iter().map(|o| o.apc.id).collect(),
             );
 
             // Add the apc event to the record.
             // TODO: we could merge directly into the cummulative record inside
             // `self.record.apc_events` instead of going through this intermediate
             // `apc_record`
-            self.record.apc_events.add_event(apc_candidate.apc.id, apc_record);
 
             // Update the CPU event count, since we are running apc, only one cpu_event
-            // happened
-            self.record.cpu_event_count = apc_candidate.snapshot.record.cpu_event_count + 1;
+            // happened per apc record
+            self.record.cpu_event_count += apc_records.len() as u32;
+
+            for (apc_id, record) in apc_records {
+                self.record.apc_events.add_event(apc_id, record);
+            }
         }
 
         // update the report
         if self.print_report {
-            // revert to the report before the block
-            self.report = apc_candidate.snapshot.report.clone();
-            // update the apc counts with a success for this apc
-            self.report.apc_counts.entry(apc_candidate.apc.id).or_default().success += 1;
+            update_report(&mut self.report, outputs);
         }
 
         tracing::trace!("APC candidate completed");
@@ -2899,22 +2698,15 @@ impl<'a> Executor<'a> {
             println!("Found {} apcs at pc {}", apcs_and_conditions.len(), self.state.pc);
 
             // We are at the start of an APC range, so we add it as a candidate
-            let snapshot = Arc::new(ExecutionSnapshot {
+            let snapshot = Sp1Snapshot(Arc::new(ExecutionSnapshot {
                 record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                 local_counts: self.local_counts.clone(),
                 report: self.report.clone(),
-            });
+                pc: self.state.pc,
+            }));
 
             for (apc, conditions) in apcs_and_conditions {
-                let apc_candidate = ApcCandidate {
-                    // TODO: this is only true for blocks that are a contiguous range
-                    remaining_instr_count: apc.range.len() as u64,
-                    apc,
-                    snapshot: snapshot.clone(),
-                    status: CandidateStatus::Unconfirmed(OptimisticConstraintEvaluator::new(
-                        conditions,
-                    )),
-                };
+                let apc_candidate = ApcCandidate::new(apc, conditions, snapshot.clone());
                 tracing::trace!("APC candidate created");
                 self.apc_candidates.insert(apc_candidate);
             }
@@ -2977,26 +2769,34 @@ impl<'a> Executor<'a> {
 
             if !maximal_size_reached {
                 self.state.shard_finished = true;
+                // Check the state a last time, as some candidates may have just finished
+                // TODO: should we with this? It's a niche condition
+                self.apc_candidates.check_conditions(&self.state, || {
+                    Sp1Snapshot(Arc::new(ExecutionSnapshot {
+                        record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                        local_counts: self.local_counts.clone(),
+                        report: self.report.clone(),
+                        pc: self.state.pc,
+                    }))
+                });
                 // If an apc candidate was being run, report a segmentation error.
-                for candidate in self.apc_candidates.take_all() {
-                    match candidate.status {
-                        CandidateStatus::Unconfirmed(optimistic_constraint_evaluator) => {
-                            self.report
-                                .apc_counts
-                                .entry(candidate.apc.id)
-                                .or_default()
-                                .segmentation_error += 1;
-                            tracing::error!(
-                                "global clock {}: APC {} cancelled: segmentation error detected",
-                                self.state.global_clk,
-                                candidate.apc.id
-                            );
-                        }
-                        CandidateStatus::Confirmed(execution_snapshot) => {
-                            // TODO: apply the confirmed candidates here?
-                        }
-                    }
+                for candidate in self.apc_candidates.abort_in_progress() {
+                    self.report
+                        .apc_counts
+                        .entry(candidate.apc.id)
+                        .or_default()
+                        .segmentation_error += 1;
+                    tracing::error!(
+                        "global clock {}: APC {} cancelled: segmentation error detected",
+                        self.state.global_clk,
+                        candidate.apc.id
+                    );
                 }
+                // Extract the candidates that did just finish and apply them. This makes the
+                // assumption that their cost will be lower than the software version, so we do not
+                // go over the segment threshold in cost.
+                let candidates = self.apc_candidates.extract_candidates();
+                self.add_apc_events::<E>(candidates);
                 self.state.initial_timestamp = self.state.clk;
                 self.record.last_timestamp = self.state.clk;
                 self.bump_record::<E>();
@@ -3639,7 +3439,6 @@ mod tests {
         OptimisticConstraint, OptimisticConstraints, OptimisticExpression, OptimisticLiteral,
     };
 
-    use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
     use sp1_zkvm::syscalls::SHA_COMPRESS;
 
     use crate::programs::tests::{
@@ -3794,6 +3593,7 @@ mod tests {
             assert_eq!(runtime.register::<Trace>(Register::X26), 42);
             // Check that the APCs were executed iff there were any
             assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
+            println!("APC: {}", runtime.record.count_events());
         }
     }
 
@@ -3858,7 +3658,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_apc() {
+    fn test_multiple_apc_conflict() {
         // main:
         //     addi x29, x0, 5
         //     addi x30, x0, 37
@@ -3897,6 +3697,114 @@ mod tests {
             assert_eq!(runtime.record.apc_events.get_events(0).unwrap().count, 1);
             assert!(runtime.record.apc_events.get_events(1).is_none());
         }
+    }
+
+    #[test]
+    fn test_multiple_apc_fallback() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Pass A, B and AB
+        // Have AB fail at the last step (wrong pc) and make sure A and B are returned
+        let apc_range_and_cost = vec![
+            (
+                &(0, 4),
+                1,
+                OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                    left: OptimisticExpression::Literal(OptimisticLiteral {
+                        instr_idx: 4,
+                        val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Pc,
+                    }),
+                    right: OptimisticExpression::Number(42),
+                }]),
+            ),
+            (&(0, 2), 1, OptimisticConstraints::empty()),
+            (&(2, 4), 1, OptimisticConstraints::empty()),
+        ];
+
+        let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
+
+        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+        runtime.run::<Trace>().unwrap();
+        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+        // Check that AB was not executed but A and B were
+        assert_eq!(runtime.record.apc_events.len(), 2);
+        assert!(runtime.record.apc_events.get_events(0).is_none());
+        assert_eq!(runtime.record.apc_events.get_events(1).unwrap().count, 1);
+        assert_eq!(runtime.record.apc_events.get_events(2).unwrap().count, 1);
+    }
+
+    #[test]
+    fn test_multiple_apc_fallback_branch_pc_constraint() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     beq x29, x30, +8
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::BEQ, 29, 30, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Pass A, B and AB
+        // Have AB succeed and cancel A and B, with a pc constraint at the end of A.
+        let apc_range_and_cost = vec![
+            (
+                &(0, 7),
+                1,
+                OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                    left: OptimisticExpression::Literal(OptimisticLiteral {
+                        instr_idx: 3,
+                        val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Pc,
+                    }),
+                    right: OptimisticExpression::Number(12),
+                }]),
+            ),
+            (&(0, 3), 1, OptimisticConstraints::empty()),
+            (&(3, 7), 1, OptimisticConstraints::empty()),
+        ];
+
+        let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
+
+        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+        runtime.run::<Trace>().unwrap();
+        assert_eq!(runtime.register::<Trace>(Register::X31), 42);
+        assert_eq!(runtime.register::<Trace>(Register::X26), 42);
+        // Check that AB executed and A/B were cancelled.
+        assert_eq!(runtime.record.apc_events.len(), 1);
+        assert_eq!(runtime.record.apc_events.get_events(0).unwrap().count, 1);
+        assert!(runtime.record.apc_events.get_events(1).is_none());
+        assert!(runtime.record.apc_events.get_events(2).is_none());
     }
 
     #[test]

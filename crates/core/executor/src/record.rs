@@ -146,6 +146,11 @@ pub struct ExecutionRecord {
 }
 
 impl ExecutionRecord {
+    pub fn count_events(&self) -> usize {
+        self.add_events.len()
+            + self.apc_events.events.values().map(|e| e.record.count_events()).sum::<usize>()
+    }
+
     /// Create a new [`ExecutionRecord`].
     #[must_use]
     pub fn new(program: Arc<Program>) -> Self {

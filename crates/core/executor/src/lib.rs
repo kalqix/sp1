@@ -21,6 +21,7 @@
 #![warn(missing_docs)]
 
 mod air;
+mod autoprecompiles;
 mod context;
 mod cost;
 mod disassembler;

@@ -6,19 +6,10 @@ use std::sync::Arc;
 
 use super::CudaProver;
 use crate::cpu::CpuProver;
-<<<<<<< HEAD
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_primitives::SP1Field;
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
-=======
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
-use sp1_cuda::CudaProver as CudaProverImpl;
->>>>>>> 49ab9e448 (clean)
 
 /// A builder for the [`CudaProver`].
 ///
@@ -28,11 +19,7 @@ pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-<<<<<<< HEAD
     apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
-=======
-    apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>,
->>>>>>> 81140b665 (support fallible apc)
 }
 
 impl CudaProverBuilder {
@@ -89,11 +76,7 @@ impl CudaProverBuilder {
 
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-<<<<<<< HEAD
     pub fn with_apcs(mut self, apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
-=======
-    pub fn with_apcs(mut self, apcs: Vec<Arc<AdapterApc<Sp1ApcAdapter>>>) -> Self {
->>>>>>> 81140b665 (support fallible apc)
         self.apcs = apcs;
         self
     }

@@ -4,18 +4,12 @@
 
 use std::pin::Pin;
 
-<<<<<<< HEAD
 use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin};
-=======
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::{autoprecompiles::adapter::Sp1ApcAdapter, io::SP1Stdin};
->>>>>>> 8de46f8a6 (wip)
+use sp1_primitives::SP1Field;
 use sp1_prover::{
     components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
     SP1VerifyingKey,
 };
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 
 use crate::{
     cpu::{CPUProverError, CPUProvingKey, CpuProver},

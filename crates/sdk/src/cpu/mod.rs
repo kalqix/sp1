@@ -11,10 +11,8 @@ use anyhow::Result;
 use prove::CpuProveBuilder;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
 use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin, riscv::RiscvAirWithApcs};
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 use sp1_hypercube::prover::MachineProvingKey;
-use sp1_primitives::Elf;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     components::{CpuSP1ApcProverComponents, SP1ProverComponents},
     error::SP1ProverError,

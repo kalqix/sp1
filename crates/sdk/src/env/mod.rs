@@ -9,8 +9,6 @@ use crate::{
     CpuProver, CudaProver, MockProver, Prover,
 };
 use sp1_core_executor::SP1CoreOpts;
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 
 #[cfg(feature = "network")]
 use crate::NetworkProver;

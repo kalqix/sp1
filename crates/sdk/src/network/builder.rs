@@ -7,8 +7,6 @@ use std::sync::Arc;
 use alloy_primitives::Address;
 use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_primitives::SP1Field;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
-use powdr_autoprecompiles::adapter::AdapterApc;
 
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 

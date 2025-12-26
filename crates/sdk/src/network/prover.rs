@@ -25,8 +25,6 @@ use crate::{
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1VerifyingKey, StatusCode,
 };
-use powdr_autoprecompiles::adapter::AdapterApc;
-use sp1_core_machine::autoprecompiles::adapter::Sp1ApcAdapter;
 
 #[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::GetProofRequestParamsResponse;

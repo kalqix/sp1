@@ -4,7 +4,6 @@ pub mod bus_interaction_handler;
 pub mod bus_map;
 pub mod candidate;
 pub mod chip;
-pub mod execution;
 pub mod instruction;
 pub mod instruction_handler;
 pub mod interaction_builder;
@@ -54,7 +53,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
-pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
+pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u64, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)

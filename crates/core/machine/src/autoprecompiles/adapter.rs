@@ -13,8 +13,6 @@ use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
 
-pub struct Sp1ExecutionState(pub ExecutorExecutionState);
-
 impl Adapter for Sp1ApcAdapter {
     type Field = SP1Field;
     type PowdrField = powdr_number::KoalaBearField;
@@ -39,19 +37,5 @@ impl Adapter for Sp1ApcAdapter {
     fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
         // Skip blocks with more than 1000 instructions
         block.statements.len() > 1000
-    }
-}
-
-impl powdr_autoprecompiles::execution::ExecutionState for Sp1ExecutionState {
-    type RegisterAddress = u8;
-    type Value = u64;
-
-    fn pc(&self) -> Self::Value {
-        self.0.pc
-    }
-
-    fn reg(&self, address: &Self::RegisterAddress) -> Self::Value {
-        let addr = *address as u64;
-        self.0.memory.registers.get(addr).map(|entry| entry.value).unwrap_or(0)
     }
 }

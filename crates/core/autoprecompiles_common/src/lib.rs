@@ -12,7 +12,6 @@ use std::{
     fmt::Display,
     hash::Hash,
     iter::{once, Chain},
-    sync::Arc,
 };
 
 pub struct Sp1MemoryBusInteraction<V> {
@@ -134,4 +133,4 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
     }
 }
 
-pub type Sp1OptimisticConstraints = Arc<OptimisticConstraints<u64, u64>>;
+pub type Sp1OptimisticConstraints = OptimisticConstraints<u64, u64>;

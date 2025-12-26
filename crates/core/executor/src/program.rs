@@ -51,10 +51,23 @@ pub struct Program {
 pub struct Apc {
     /// The id for this APC
     pub id: u64,
-    /// The range for this APC
-    pub range: ApcRange,
+    /// The index of the pc at which this APC starts
+    pub start_pc_idx: usize,
+    /// The number of cycles required to go through this APC
+    pub cycle_count: usize,
     /// The cost for this APC
     pub cost: ApcCost,
+}
+
+impl powdr_autoprecompiles::execution::Apc for Apc {
+    fn cycle_count(&self) -> usize {
+        self.cycle_count
+    }
+
+    fn priority(&self) -> usize {
+        // TODO: encode priority coming from saved cells
+        1
+    }
 }
 
 /// Represents a APC range.
@@ -126,7 +139,17 @@ impl Program {
             .into_iter()
             .map(|(r, c, conditions)| (r.into(), c, conditions))
             .enumerate()
-            .map(|(id, (range, cost, conditions))| (Apc { id: id as u64, range, cost }, conditions))
+            .map(|(id, (range, cost, conditions))| {
+                (
+                    Apc {
+                        id: id as u64,
+                        start_pc_idx: range.start().unwrap(),
+                        cycle_count: range.len(),
+                        cost,
+                    },
+                    conditions,
+                )
+            })
             .collect();
         apc_ranges
             .into_iter()
@@ -136,7 +159,7 @@ impl Program {
     /// Add an APC range to the program.
     #[must_use]
     pub fn add_apc(mut self, apc: Apc, conditions: Sp1OptimisticConstraints) -> Self {
-        self.apcs_by_start_idx.entry(apc.range.start_idx).or_default().push((apc, conditions));
+        self.apcs_by_start_idx.entry(apc.start_pc_idx).or_default().push((apc, conditions));
         self
     }
 

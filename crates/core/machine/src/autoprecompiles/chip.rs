@@ -7,7 +7,7 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::Program as _,
     expression::{AlgebraicExpression, AlgebraicReference},
-    Apc, Substitution,
+    Substitution,
 };
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
@@ -450,8 +450,12 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 as usize,
             self.apc().block.statements.len(),
         );
-        let apc =
-            sp1_core_executor::Apc { id: self.id, range, cost: self.cached_apc.width() as u64 };
+        let apc = sp1_core_executor::Apc {
+            id: self.id,
+            start_pc_idx: range.start().unwrap(),
+            cycle_count: range.len(),
+            cost: self.cached_apc.width() as u64,
+        };
         program.add_apc(apc, self.apc().optimistic_constraints.clone())
     }
 }
