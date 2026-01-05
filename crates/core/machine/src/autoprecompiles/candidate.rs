@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 use powdr_autoprecompiles::{
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// A candidate for the SP1 autoprecompiles.
 /// Currently does not use pgo data and instead is ranked by the start index of the block.
 pub struct Sp1Candidate<A: Adapter> {
-    apc: AdapterApc<A>,
+    apc: Arc<AdapterApc<A>>,
     execution_frequency: usize,
     stats: EvaluationResult,
 }
@@ -44,7 +44,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
     fn create(
-        apc: AdapterApc<Sp1ApcAdapter>,
+        apc: Arc<AdapterApc<Sp1ApcAdapter>>,
         pgo_program_pc_count: &HashMap<u64, u32>,
         vm_config: AdapterVmConfig<Sp1ApcAdapter>,
         _max_degree: usize,

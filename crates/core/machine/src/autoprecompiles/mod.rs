@@ -15,6 +15,7 @@ mod tests;
 use powdr_autoprecompiles::{
     adapter::{AdapterApc, AdapterApcWithStats, PgoAdapter},
     blocks::{collect_basic_blocks, BasicBlock, Program as _},
+    empirical_constraints::EmpiricalConstraints,
     execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
@@ -23,7 +24,10 @@ use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
 use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     autoprecompiles::{
@@ -48,6 +52,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
+pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
@@ -151,8 +156,13 @@ impl CompiledProgram {
         };
 
         // Generate APC
-        let apcs_and_stats =
-            pgo_adapter.filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config);
+        let apcs_and_stats = pgo_adapter.filter_blocks_and_create_apcs_with_pgo(
+            blocks,
+            &config,
+            vm_config,
+            BTreeMap::new(),
+            EmpiricalConstraints::default(),
+        );
 
         Self { apcs_and_stats }
     }
@@ -183,11 +193,13 @@ pub fn create_apcs(
             let block = BasicBlock { start_pc, statements: instructions };
 
             // Build the APC from the block
+            let empirical_constraints = EmpiricalConstraints::default();
             let apc = powdr_autoprecompiles::build::<Sp1ApcAdapter>(
                 block,
                 sp1_vm_config(&Sp1InstructionHandler::<SP1Field>::new()),
                 DEFAULT_DEGREE_BOUND,
                 None,
+                &empirical_constraints,
             )
             .expect("Failed to build APC");
 

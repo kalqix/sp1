@@ -8,9 +8,12 @@ use crate::autoprecompiles::{
 use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
+use sp1_core_executor::ExecutionState as ExecutorExecutionState;
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
+
+pub struct Sp1ExecutionState(pub ExecutorExecutionState);
 
 impl Adapter for Sp1ApcAdapter {
     type Field = SP1Field;
@@ -22,6 +25,8 @@ impl Adapter for Sp1ApcAdapter {
     type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;
+    type AirId = sp1_core_executor::RiscvAirId;
+    type ExecutionState = Sp1ExecutionState;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
         Self::Field::from_canonical_u32(e.to_integer().try_into_u32().unwrap())
@@ -34,5 +39,19 @@ impl Adapter for Sp1ApcAdapter {
     fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
         // Skip blocks with more than 1000 instructions
         block.statements.len() > 1000
+    }
+}
+
+impl powdr_autoprecompiles::execution::ExecutionState for Sp1ExecutionState {
+    type RegisterAddress = u8;
+    type Value = u64;
+
+    fn pc(&self) -> Self::Value {
+        self.0.pc
+    }
+
+    fn reg(&self, address: &Self::RegisterAddress) -> Self::Value {
+        let addr = *address as u64;
+        self.0.memory.registers.get(addr).map(|entry| entry.value).unwrap_or(0)
     }
 }

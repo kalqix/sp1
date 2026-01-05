@@ -4,8 +4,7 @@
 
 use std::sync::Arc;
 
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_primitives::SP1Field;
 
 use super::CpuProver;
@@ -17,7 +16,7 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
 }
 
 impl Default for CpuProverBuilder {
@@ -35,7 +34,7 @@ impl CpuProverBuilder {
 
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub fn with_apcs(mut self, apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         self.apcs = apcs;
         self
     }

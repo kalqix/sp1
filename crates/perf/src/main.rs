@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use clap::{command, Parser};
+use clap::Parser;
 use sp1_core_executor::Program;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver;

@@ -1,4 +1,3 @@
-use powdr_autoprecompiles::Apc;
 pub use riscv_chips::{ShiftLeft as ShiftLeftChip, *};
 use strum::IntoEnumIterator;
 
@@ -18,7 +17,7 @@ use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{
     adapter::bump::StateBumpChip,
-    autoprecompiles::{chip::ApcChip, instruction::Sp1Instruction},
+    autoprecompiles::{chip::ApcChip, Sp1Apc},
     control_flow::{BranchChip, JalChip, JalrChip},
     global::GlobalChip,
     memory::{
@@ -1031,7 +1030,7 @@ pub enum RiscvAirWithApcs<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAirWithApcs<F> {
-    pub fn machine(apcs: Vec<Arc<Apc<F, Sp1Instruction>>>) -> Machine<F, Self> {
+    pub fn machine(apcs: Vec<Arc<Sp1Apc<F>>>) -> Machine<F, Self> {
         let apcs_len = apcs.len();
 
         use RiscvAirDiscriminants::*;

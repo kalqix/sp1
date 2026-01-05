@@ -218,20 +218,36 @@ fn is_load_opcode(opcode: Opcode) -> bool {
     )
 }
 
-impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHandler<F> {
-    fn get_instruction_air(&self, instruction: &Sp1Instruction) -> Option<&SymbolicMachine<F>> {
-        self.get_instruction_air_and_stats(instruction).map(|(machine, _)| machine)
+impl<F: PrimeField32> InstructionHandler for Sp1InstructionHandler<F> {
+    type Field = F;
+    type Instruction = Sp1Instruction;
+    type AirId = RiscvAirId;
+
+    fn get_instruction_air_and_id(
+        &self,
+        instruction: &Self::Instruction,
+    ) -> (Self::AirId, &SymbolicMachine<Self::Field>) {
+        let instruction_type = InstructionType::from(instruction.0);
+        let air_id = try_instruction_type_to_air_id(instruction_type)
+            .expect("Missing AIR ID for instruction");
+        let machine = self
+            .get_instruction_air_and_stats(instruction)
+            .map(|(machine, _)| machine)
+            .expect("Missing AIR for instruction");
+        (air_id, machine)
     }
 
-    fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<AirStats> {
-        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats).copied()
+    fn get_instruction_air_stats(&self, instruction: &Self::Instruction) -> AirStats {
+        self.get_instruction_air_and_stats(instruction)
+            .map(|(_, stats)| *stats)
+            .expect("Missing AIR stats for instruction")
     }
 
-    fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
+    fn is_allowed(&self, instruction: &Self::Instruction) -> bool {
         !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
     }
 
-    fn is_branching(&self, instruction: &Sp1Instruction) -> bool {
+    fn is_branching(&self, instruction: &Self::Instruction) -> bool {
         // We define the branch opcodes manually
         matches!(
             instruction.0.opcode,
