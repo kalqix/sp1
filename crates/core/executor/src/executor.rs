@@ -19,7 +19,7 @@ use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
 use itertools::{izip, Itertools};
-use powdr_autoprecompiles::execution::Output;
+use powdr_autoprecompiles::execution::ApcCall;
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
 use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
@@ -1961,7 +1961,7 @@ impl<'a> Executor<'a> {
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
-    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<Output<Apc, Sp1Snapshot>>) {
+    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<ApcCall<Apc, Sp1Snapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         fn extract<T>(
@@ -2041,7 +2041,7 @@ impl<'a> Executor<'a> {
 
         // Given an existing report and a list of outputs, modify the report so that it represents
         // tha same execution except for the output ranges being turned into apcs
-        fn update_report(report: &mut ExecutionReport, outputs: Vec<Output<Apc, Sp1Snapshot>>) {
+        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<Apc, Sp1Snapshot>>) {
             for output in outputs {
                 // println!("Report: {report:#?}");
                 let mut delta = output.to.0.report.clone();
@@ -2054,7 +2054,7 @@ impl<'a> Executor<'a> {
 
         fn extract_records(
             v: &mut ExecutionRecord,
-            outputs: &[Output<Apc, Sp1Snapshot>],
+            outputs: &[ApcCall<Apc, Sp1Snapshot>],
         ) -> Vec<(u64, ExecutionRecord)> {
             macro_rules! extract_vec {
                 ($field:ident, $len_field:ident) => {
@@ -2696,7 +2696,7 @@ impl<'a> Executor<'a> {
             }))
         });
 
-        let outputs = self.apc_candidates.extract_candidates();
+        let outputs = self.apc_candidates.extract_calls();
 
         self.add_apc_events::<E>(outputs);
 
@@ -2800,7 +2800,7 @@ impl<'a> Executor<'a> {
                 // Extract the candidates that did just finish and apply them. This makes the
                 // assumption that their cost will be lower than the software version, so we do not
                 // go over the segment threshold in cost.
-                let candidates = self.apc_candidates.extract_candidates();
+                let candidates = self.apc_candidates.extract_calls();
                 self.add_apc_events::<E>(candidates);
                 self.state.initial_timestamp = self.state.clk;
                 self.record.last_timestamp = self.state.clk;
