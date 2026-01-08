@@ -19,7 +19,7 @@ use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
 use itertools::{izip, Itertools};
-use powdr_autoprecompiles::execution::{ApcCandidate, Output};
+use powdr_autoprecompiles::execution::Output;
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
 use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
@@ -1834,19 +1834,6 @@ impl<'a> Executor<'a> {
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
 
-        self.apc_candidates.check_conditions(&self.state, || {
-            Sp1Snapshot(Arc::new(ExecutionSnapshot {
-                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                local_counts: self.local_counts.clone(),
-                report: self.report.clone(),
-                pc: self.state.pc,
-            }))
-        });
-
-        let outputs = self.apc_candidates.extract_candidates();
-
-        self.add_apc_events::<E>(outputs);
-
         if !E::UNCONSTRAINED {
             if self.print_report {
                 // Note: APC counts are updated upon success or failure of apcs, reverting opcode
@@ -1975,20 +1962,17 @@ impl<'a> Executor<'a> {
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
     fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<Output<Apc, Sp1Snapshot>>) {
-        if outputs.is_empty() {
-            return;
-        }
-
-        // println!("Add apc events for {outputs:#?}");
-
         // Go through the candidates in reverse order and split them off from the end of the record
 
-        fn extract<T>(v: &mut Vec<T>, outputs: Vec<(usize, usize)>) -> Vec<Vec<T>> {
-            let (apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.iter().rev().fold(
+        fn extract<T>(
+            v: &mut Vec<T>,
+            outputs: impl DoubleEndedIterator<Item = (usize, usize)>,
+        ) -> Vec<Vec<T>> {
+            let (apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.rev().fold(
                 (vec![], vec![]),
                 |(mut extracted, mut to_add_to_software), (from, to)| {
                     to_add_to_software.extend(v.drain(to..));
-                    extracted.push(v.split_off(*from));
+                    extracted.push(v.split_off(from));
                     (extracted, to_add_to_software)
                 },
             );
@@ -1997,29 +1981,32 @@ impl<'a> Executor<'a> {
         }
 
         // TODO: check off by one error
-        fn extract_diff(v: &mut u32, outputs: Vec<(u32, u32)>) -> Vec<u32> {
-            let mut apc_records = Vec::with_capacity(outputs.len());
-            let mut total_removed = 0;
-            for (from, to) in outputs {
-                let len = to - from;
-                apc_records.push(len);
-                total_removed += len;
-            }
+        fn extract_diff(v: &mut u32, outputs: impl Iterator<Item = (u32, u32)>) -> Vec<u32> {
+            let (apc_records, total_removed) =
+                outputs.fold((Vec::new(), 0), |(mut records, removed), (from, to)| {
+                    let len = to - from;
+                    records.push(len);
+                    (records, removed + len)
+                });
             debug_assert!(total_removed <= *v);
             *v -= total_removed;
             apc_records
         }
 
-        fn extract_empty<T: Default>(outputs: Vec<(usize, usize)>) -> Vec<T> {
-            assert!(outputs.iter().all(|(from, to)| from == to));
-            outputs.iter().map(|_| T::default()).collect()
+        fn extract_empty<T: Default>(
+            outputs: impl Iterator<Item = (usize, usize)>,
+        ) -> impl Iterator<Item = T> {
+            outputs.map(|(from, to)| {
+                assert_eq!(from, to);
+                T::default()
+            })
         }
 
-        fn extract_byte_lookups(
+        fn extract_byte_lookups<'a>(
             v: &mut HashMap<ByteLookupEvent, isize>,
-            outputs: &[(Arc<ExecutionSnapshot>, Arc<ExecutionSnapshot>)],
+            outputs: impl Iterator<Item = (&'a Arc<ExecutionSnapshot>, &'a Arc<ExecutionSnapshot>)>,
         ) -> Vec<HashMap<ByteLookupEvent, isize>> {
-            let mut extracted = Vec::with_capacity(outputs.len());
+            let mut extracted = vec![];
             for (from, to) in outputs {
                 let mut diff = HashMap::new();
                 for (event, to_count) in &to.record.byte_lookups {
@@ -2067,26 +2054,21 @@ impl<'a> Executor<'a> {
 
         fn extract_records(
             v: &mut ExecutionRecord,
-            outputs: Vec<(Arc<ExecutionSnapshot>, Arc<ExecutionSnapshot>)>,
-            apc_ids: Vec<u64>,
+            outputs: &[Output<Apc, Sp1Snapshot>],
         ) -> Vec<(u64, ExecutionRecord)> {
             macro_rules! extract_vec {
                 ($field:ident, $len_field:ident) => {
                     extract(
                         &mut v.$field,
-                        outputs
-                            .iter()
-                            .map(|(from, to)| (from.record.$len_field, to.record.$len_field))
-                            .collect(),
+                        outputs.iter().map(|output| {
+                            (output.from.0.record.$len_field, output.to.0.record.$len_field)
+                        }),
                     )
                 };
                 (empty $len_field:ident) => {
-                    extract_empty(
-                        outputs
-                            .iter()
-                            .map(|(from, to)| (from.record.$len_field, to.record.$len_field))
-                            .collect(),
-                    )
+                    extract_empty(outputs.iter().map(|output| {
+                        (output.from.0.record.$len_field, output.to.0.record.$len_field)
+                    }))
                 };
             }
 
@@ -2142,18 +2124,29 @@ impl<'a> Executor<'a> {
             let syscall = extract_vec!(syscall_events, syscall_events_len);
             let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
             let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
+            let global_interaction_event_count = extract_diff(
+                &mut v.global_interaction_event_count,
+                outputs.iter().map(|output| {
+                    (
+                        output.from.0.record.global_interaction_event_count,
+                        output.to.0.record.global_interaction_event_count,
+                    )
+                }),
+            );
             let precompile_events = extract_vec!(empty precompile_events_len);
             let apc_events = extract_vec!(empty apc_events_len);
-            println!("extract cpu event count");
             let cpu_event_count = extract_diff(
                 &mut v.cpu_event_count,
-                outputs
-                    .iter()
-                    .map(|(from, to)| (from.record.cpu_event_count, to.record.cpu_event_count))
-                    .collect(),
+                outputs.iter().map(|output| {
+                    (output.from.0.record.cpu_event_count, output.to.0.record.cpu_event_count)
+                }),
             );
-            let byte_lookups = extract_byte_lookups(&mut v.byte_lookups, &outputs);
-            let next_pc = outputs.iter().map(|(_, to)| to.pc).collect::<Vec<_>>();
+            let byte_lookups = extract_byte_lookups(
+                &mut v.byte_lookups,
+                outputs.iter().map(|output| (&output.from.0, &output.to.0)),
+            );
+            let next_pc = outputs.iter().map(|output| output.to.0.pc);
+            let apc_ids = outputs.iter().map(|output| output.apc.id);
             izip!(
                 apc_ids,
                 add,
@@ -2189,6 +2182,7 @@ impl<'a> Executor<'a> {
                 global_memory_finalize,
                 cpu_local_memory_access,
                 syscall,
+                global_interaction_event_count,
                 bump_memory,
                 bump_state,
                 precompile_events,
@@ -2233,6 +2227,7 @@ impl<'a> Executor<'a> {
                     global_memory_finalize_events,
                     cpu_local_memory_access,
                     syscall_events,
+                    global_interaction_event_count,
                     bump_memory_events,
                     bump_state_events,
                     precompile_events,
@@ -2284,9 +2279,9 @@ impl<'a> Executor<'a> {
                             byte_lookups,
                             precompile_events,
                             apc_events,
-                            global_interaction_events: Default::default(), // Same as before
+                            global_interaction_events: Vec::default(), // Same as before
                             global_cumulative_sum: v.global_cumulative_sum.clone(), // Same as before,
-                            global_interaction_event_count: v.global_interaction_event_count,
+                            global_interaction_event_count,
                             public_values: v.public_values,
                             next_nonce: v.next_nonce,
                             shape: v.shape.clone(),
@@ -2303,14 +2298,12 @@ impl<'a> Executor<'a> {
             .collect()
         }
 
+        if outputs.is_empty() {
+            return;
+        }
+
         if E::MODE == ExecutorMode::Trace {
-            // Remaining fields to wire into `extract_records`:
-            // - global_interaction_event_count
-            let apc_records = extract_records(
-                &mut self.record,
-                outputs.iter().map(|o| (o.from.clone().0, o.to.clone().0)).collect(),
-                outputs.iter().map(|o| o.apc.id).collect(),
-            );
+            let apc_records = extract_records(&mut self.record, &outputs);
 
             // Add the apc event to the record.
             // TODO: we could merge directly into the cummulative record inside
@@ -2694,11 +2687,22 @@ impl<'a> Executor<'a> {
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
 
-        if let Some(apcs_and_conditions) = apc_range {
-            println!("Found {} apcs at pc {}", apcs_and_conditions.len(), self.state.pc);
+        self.apc_candidates.check_conditions(&self.state, || {
+            Sp1Snapshot(Arc::new(ExecutionSnapshot {
+                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                local_counts: self.local_counts.clone(),
+                report: self.report.clone(),
+                pc: self.state.pc,
+            }))
+        });
 
+        let outputs = self.apc_candidates.extract_candidates();
+
+        self.add_apc_events::<E>(outputs);
+
+        if let Some(apcs_and_conditions) = apc_range {
             // We are at the start of an APC range, so we add it as a candidate
-            let snapshot = Sp1Snapshot(Arc::new(ExecutionSnapshot {
+            let _snapshot = Sp1Snapshot(Arc::new(ExecutionSnapshot {
                 record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                 local_counts: self.local_counts.clone(),
                 report: self.report.clone(),
@@ -2706,9 +2710,14 @@ impl<'a> Executor<'a> {
             }));
 
             for (apc, conditions) in apcs_and_conditions {
-                let apc_candidate = ApcCandidate::new(apc, conditions, snapshot.clone());
-                tracing::trace!("APC candidate created");
-                self.apc_candidates.insert(apc_candidate);
+                let _ = self.apc_candidates.try_insert(&self.state, apc, conditions, || {
+                    Sp1Snapshot(Arc::new(ExecutionSnapshot {
+                        record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                        local_counts: self.local_counts.clone(),
+                        report: self.report.clone(),
+                        pc: self.state.pc,
+                    }))
+                });
             }
         }
 
@@ -2780,16 +2789,12 @@ impl<'a> Executor<'a> {
                     }))
                 });
                 // If an apc candidate was being run, report a segmentation error.
-                for candidate in self.apc_candidates.abort_in_progress() {
-                    self.report
-                        .apc_counts
-                        .entry(candidate.apc.id)
-                        .or_default()
-                        .segmentation_error += 1;
+                for apc in self.apc_candidates.abort_in_progress() {
+                    self.report.apc_counts.entry(apc.id).or_default().segmentation_error += 1;
                     tracing::error!(
                         "global clock {}: APC {} cancelled: segmentation error detected",
                         self.state.global_clk,
-                        candidate.apc.id
+                        apc.id
                     );
                 }
                 // Extract the candidates that did just finish and apply them. This makes the
@@ -3593,8 +3598,37 @@ mod tests {
             assert_eq!(runtime.register::<Trace>(Register::X26), 42);
             // Check that the APCs were executed iff there were any
             assert_eq!(!runtime.record.apc_events.is_empty(), should_execute_apcs);
-            println!("APC: {}", runtime.record.count_events());
         }
+    }
+
+    #[test]
+    fn test_apc_loop() {
+        // main:
+        //     addi x29, x0, 2
+        //     addi x30, x0, 0
+        // loop:
+        //     addi x30, x30, 1
+        //     addi x29, x29, -1
+        //     bne x29, x0, -8
+        //     addi x31, x30, 0
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 2, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 0, false, true),
+            Instruction::new(Opcode::ADDI, 30, 30, 1, false, true),
+            Instruction::new(Opcode::ADDI, 29, 29, u64::MAX, false, true),
+            Instruction::new(Opcode::BNE, 29, 0, 0u64.wrapping_sub(8), false, true),
+            Instruction::new(Opcode::ADDI, 31, 30, 0, false, true),
+        ];
+        add_halt(&mut instructions);
+
+        let program_without_apcs = Program::new(instructions, 0, 0);
+        let apc_range_and_cost = vec![(&(2, 4), 1, OptimisticConstraints::empty())];
+        let program = Arc::new(program_without_apcs.with_apcs(apc_range_and_cost));
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run::<Trace>().unwrap();
+        assert_eq!(runtime.register::<Trace>(Register::X30), 2);
+        assert_eq!(runtime.register::<Trace>(Register::X31), 2);
+        assert_eq!(runtime.record.apc_events.len(), 2);
     }
 
     #[test]
