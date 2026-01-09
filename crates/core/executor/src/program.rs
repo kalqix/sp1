@@ -5,9 +5,10 @@ use std::{fs::File, io::Read, str::FromStr};
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    RiscvAirId,
+    ExecutionState, RiscvAirId,
 };
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::OptimisticConstraints;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -42,12 +43,12 @@ pub struct Program {
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
     /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, Vec<(Apc, Sp1OptimisticConstraints)>>,
+    pub apcs_by_start_idx: HashMap<usize, Vec<Apc>>,
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
 /// alternative implementation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
+#[derive(Debug, Clone, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Apc {
     /// The id for this APC
     pub id: u64,
@@ -57,9 +58,11 @@ pub struct Apc {
     pub cycle_count: usize,
     /// The cost for this APC
     pub cost: ApcCost,
+    /// The execution constraints for this APC
+    pub execution_constraints: Sp1OptimisticConstraints,
 }
 
-impl powdr_autoprecompiles::execution::Apc for Apc {
+impl powdr_autoprecompiles::execution::Apc<ExecutionState> for Apc {
     fn cycle_count(&self) -> usize {
         self.cycle_count
     }
@@ -67,6 +70,10 @@ impl powdr_autoprecompiles::execution::Apc for Apc {
     fn priority(&self) -> usize {
         // TODO: encode priority coming from saved cells
         1
+    }
+
+    fn optimistic_constraints(&self) -> &OptimisticConstraints<u64, u64> {
+        &self.execution_constraints
     }
 }
 
@@ -135,31 +142,24 @@ impl Program {
         self,
         apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, Sp1OptimisticConstraints)>,
     ) -> Self {
-        let apc_ranges: Vec<_> = apc_ranges_and_costs
+        apc_ranges_and_costs
             .into_iter()
             .map(|(r, c, conditions)| (r.into(), c, conditions))
             .enumerate()
-            .map(|(id, (range, cost, conditions))| {
-                (
-                    Apc {
-                        id: id as u64,
-                        start_pc_idx: range.start().unwrap(),
-                        cycle_count: range.len(),
-                        cost,
-                    },
-                    conditions,
-                )
+            .map(|(id, (range, cost, conditions))| Apc {
+                id: id as u64,
+                start_pc_idx: range.start().unwrap(),
+                cycle_count: range.len(),
+                cost,
+                execution_constraints: conditions,
             })
-            .collect();
-        apc_ranges
-            .into_iter()
-            .fold(self, |program, (apc, conditions)| program.add_apc(apc, conditions))
+            .fold(self, Program::add_apc)
     }
 
     /// Add an APC range to the program.
     #[must_use]
-    pub fn add_apc(mut self, apc: Apc, conditions: Sp1OptimisticConstraints) -> Self {
-        self.apcs_by_start_idx.entry(apc.start_pc_idx).or_default().push((apc, conditions));
+    pub fn add_apc(mut self, apc: Apc) -> Self {
+        self.apcs_by_start_idx.entry(apc.start_pc_idx).or_default().push(apc);
         self
     }
 
@@ -228,10 +228,7 @@ impl Program {
 
     #[must_use]
     /// Fetch the instruction at the given program counter, as well as the apc, if any.
-    pub fn fetch(
-        &self,
-        pc: u64,
-    ) -> Option<(&Instruction, Option<&[(Apc, Sp1OptimisticConstraints)]>)> {
+    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[Apc]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((

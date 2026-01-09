@@ -12,18 +12,23 @@ pub mod program;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+use powdr_autoprecompiles::adapter::AdapterApc;
 use powdr_autoprecompiles::{
-    adapter::{AdapterApc, AdapterApcWithStats, PgoAdapter},
-    blocks::{collect_basic_blocks, BasicBlock, Program as _},
+    adapter::{AdapterApcWithStats, PgoAdapter},
+    blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
     execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_build::BuildArgs;
-use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
+#[cfg(test)]
+use sp1_core_executor::ApcRange;
+use sp1_core_executor::{Executor, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -170,6 +175,7 @@ impl CompiledProgram {
 }
 
 /// Create APCs from the given program and ranges.
+#[cfg(test)]
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
@@ -179,6 +185,8 @@ pub fn create_apcs(
     apc_ranges
         .into_iter()
         .map(|range| {
+            use powdr_autoprecompiles::blocks::{BasicBlock, Program};
+
             let instructions = program.instructions
                 [range.start().unwrap()..range.end().unwrap() + 1]
                 .iter()

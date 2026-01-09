@@ -455,8 +455,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             start_pc_idx: range.start().unwrap(),
             cycle_count: range.len(),
             cost: self.cached_apc.width() as u64,
+            execution_constraints: self.apc().optimistic_constraints.clone(),
         };
-        program.add_apc(apc, self.apc().optimistic_constraints.clone())
+        program.add_apc(apc)
     }
 }
 

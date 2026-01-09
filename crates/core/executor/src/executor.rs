@@ -22,7 +22,6 @@ use itertools::{izip, Itertools};
 use powdr_autoprecompiles::execution::ApcCall;
 use rrs_lib::process_instruction;
 use serde::{Deserialize, Serialize};
-use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_hypercube::air::PublicValues;
 use sp1_primitives::consts::{
     DEFAULT_PAGE_PROT, MAXIMUM_MEMORY_SIZE, PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE,
@@ -501,7 +500,7 @@ impl<'a> Executor<'a> {
             .apcs_by_start_idx
             .values()
             .flat_map(|apc| apc.iter())
-            .map(|(apc, _)| (apc.id, apc.cost))
+            .map(|apc| (apc.id, apc.cost))
             .collect();
 
         Self {
@@ -1760,11 +1759,11 @@ impl<'a> Executor<'a> {
     #[inline]
     fn fetch<E: ExecutorConfig>(
         &mut self,
-    ) -> Result<(Instruction, Option<Vec<(Apc, Sp1OptimisticConstraints)>>), ExecutionError> {
+    ) -> Result<(Instruction, Option<Vec<Apc>>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
-        if let Some(instruction) = program_instruction {
+        if let Some((instruction, apcs)) = program_instruction {
             // TODO: avoid cloning the conditions
-            Ok((*instruction.0, instruction.1.map(<[_]>::to_vec)))
+            Ok((*instruction, apcs.map(<[_]>::to_vec)))
         } else if self.opts.page_protect {
             let aligned_pc = align(self.state.pc);
 
@@ -2700,7 +2699,7 @@ impl<'a> Executor<'a> {
 
         self.add_apc_events::<E>(outputs);
 
-        if let Some(apcs_and_conditions) = apc_range {
+        if let Some(apcs) = apc_range {
             // We are at the start of an APC range, so we add it as a candidate
             let _snapshot = Sp1Snapshot(Arc::new(ExecutionSnapshot {
                 record: ExecutionRecordSnapshot::from(self.record.as_ref()),
@@ -2709,8 +2708,8 @@ impl<'a> Executor<'a> {
                 pc: self.state.pc,
             }));
 
-            for (apc, conditions) in apcs_and_conditions {
-                let _ = self.apc_candidates.try_insert(&self.state, apc, conditions, || {
+            for apc in apcs {
+                let _ = self.apc_candidates.try_insert(&self.state, apc, || {
                     Sp1Snapshot(Arc::new(ExecutionSnapshot {
                         record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                         local_counts: self.local_counts.clone(),
