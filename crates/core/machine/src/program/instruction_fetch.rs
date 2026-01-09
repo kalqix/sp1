@@ -364,7 +364,8 @@ mod tests {
                 pc_base: 0,
                 memory_image: HashMap::new(),
                 preprocessed_shape: None,
-                apcs_by_start_idx: HashMap::new(),
+                apc_indices_by_start_idx: HashMap::new(),
+                apc_by_index: vec![],
             }),
             ..Default::default()
         };

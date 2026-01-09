@@ -42,16 +42,16 @@ pub struct Program {
     pub memory_image: HashMap<u64, u64>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
-    /// The ranges of instructions that have APC chips.
-    pub apcs_by_start_idx: HashMap<usize, Vec<Apc>>,
+    /// The ranges of instructions that have APC chips. The values are indices in `apc_by_index`
+    pub apc_indices_by_start_idx: HashMap<usize, Vec<usize>>,
+    /// The details of each APC
+    pub apc_by_index: Vec<Apc>,
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
 /// alternative implementation.
 #[derive(Debug, Clone, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Apc {
-    /// The id for this APC
-    pub id: u64,
     /// The index of the pc at which this APC starts
     pub start_pc_idx: usize,
     /// The number of cycles required to go through this APC
@@ -133,7 +133,6 @@ impl From<&(usize, usize)> for ApcRange {
 
 impl Program {
     /// Set the APC ranges for this program.
-    /// Assumes the ranges are non-overlapping and sorted.
     /// This will also compute the modified instructions based on the original instructions and the
     /// APC ranges.
     /// Panics if the APC ranges are already set or if the modified instructions are already set.
@@ -145,9 +144,7 @@ impl Program {
         apc_ranges_and_costs
             .into_iter()
             .map(|(r, c, conditions)| (r.into(), c, conditions))
-            .enumerate()
-            .map(|(id, (range, cost, conditions))| Apc {
-                id: id as u64,
+            .map(|(range, cost, conditions)| Apc {
                 start_pc_idx: range.start().unwrap(),
                 cycle_count: range.len(),
                 cost,
@@ -159,7 +156,10 @@ impl Program {
     /// Add an APC range to the program.
     #[must_use]
     pub fn add_apc(mut self, apc: Apc) -> Self {
-        self.apcs_by_start_idx.entry(apc.start_pc_idx).or_default().push(apc);
+        // TODO: put in the same data structure
+        let index = self.apc_by_index.len();
+        self.apc_indices_by_start_idx.entry(apc.start_pc_idx).or_default().push(index);
+        self.apc_by_index.push(apc);
         self
     }
 
@@ -173,7 +173,8 @@ impl Program {
             pc_base,
             memory_image: HashMap::new(),
             preprocessed_shape: None,
-            apcs_by_start_idx: HashMap::new(),
+            apc_indices_by_start_idx: HashMap::new(),
+            apc_by_index: Vec::new(),
         }
     }
 
@@ -201,7 +202,8 @@ impl Program {
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
             preprocessed_shape: None,
-            apcs_by_start_idx: HashMap::new(),
+            apc_by_index: vec![],
+            apc_indices_by_start_idx: Default::default(),
         })
     }
 
@@ -228,12 +230,12 @@ impl Program {
 
     #[must_use]
     /// Fetch the instruction at the given program counter, as well as the apc, if any.
-    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[Apc]>)> {
+    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((
                 &self.instructions[idx],
-                self.apcs_by_start_idx.get(&idx).map(std::vec::Vec::as_slice),
+                self.apc_indices_by_start_idx.get(&idx).map(std::vec::Vec::as_slice),
             ))
         } else {
             None

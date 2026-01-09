@@ -451,7 +451,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().block.statements.len(),
         );
         let apc = sp1_core_executor::Apc {
-            id: self.id,
             start_pc_idx: range.start().unwrap(),
             cycle_count: range.len(),
             cost: self.cached_apc.width() as u64,

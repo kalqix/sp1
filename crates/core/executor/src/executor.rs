@@ -12,7 +12,7 @@ use crate::{
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
         NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
-    Apc, StatusCode, NUM_REGISTERS,
+    StatusCode, NUM_REGISTERS,
 };
 
 use clap::ValueEnum;
@@ -83,7 +83,7 @@ where
     /// The number of core instructions executed.
     pub core: EnumMap<T, u64>,
     /// The number of APCs executed, indexed by contiguous APC id.
-    pub apc: BTreeMap<u64, u64>,
+    pub apc: BTreeMap<usize, u64>,
 }
 
 // Deriving `Default` requires `T: Default`, which isn't true for `Opcode` and `RiscvAirId`.
@@ -107,7 +107,7 @@ pub struct EventCosts {
     /// different for syscall instructions.
     pub core: EnumMap<RiscvAirId, u64>,
     /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
-    pub apc: BTreeMap<u64, u64>,
+    pub apc: BTreeMap<usize, u64>,
 }
 
 impl From<bool> for DeferredProofVerification {
@@ -496,12 +496,13 @@ impl<'a> Executor<'a> {
             .sorted()
             .collect();
 
-        let apc_costs = program
-            .apcs_by_start_idx
-            .values()
-            .flat_map(|apc| apc.iter())
-            .map(|apc| (apc.id, apc.cost))
-            .collect();
+        let apc_costs =
+            program.apc_by_index.iter().enumerate().map(|(id, apc)| (id, apc.cost)).collect();
+
+        // Create the candidate tracker for this executor based on the available apcs
+        // This currently requires cloning due to the fact the apcs are in the program, which we
+        // keep around as well
+        let apc_candidates = Sp1ApcCandidates::new(program.apc_by_index.clone());
 
         Self {
             record: Box::new(record),
@@ -544,7 +545,7 @@ impl<'a> Executor<'a> {
             decoded_instruction_cache: HashMap::new(),
             decoded_instruction_events: HashMap::new(),
             opts,
-            apc_candidates: Sp1ApcCandidates::default(),
+            apc_candidates,
         }
     }
 
@@ -1755,11 +1756,12 @@ impl<'a> Executor<'a> {
         (a, b, c)
     }
 
-    /// Fetch the instruction at the current program counter.
+    /// Fetch the instruction at the current program counter, as well as the ids of the apcs that
+    /// start here.
     #[inline]
     fn fetch<E: ExecutorConfig>(
         &mut self,
-    ) -> Result<(Instruction, Option<Vec<Apc>>), ExecutionError> {
+    ) -> Result<(Instruction, Option<Vec<usize>>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some((instruction, apcs)) = program_instruction {
             // TODO: avoid cloning the conditions
@@ -1960,7 +1962,7 @@ impl<'a> Executor<'a> {
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
-    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<ApcCall<Apc, Sp1Snapshot>>) {
+    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<ApcCall<Sp1Snapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         fn extract<T>(
@@ -2040,20 +2042,20 @@ impl<'a> Executor<'a> {
 
         // Given an existing report and a list of outputs, modify the report so that it represents
         // tha same execution except for the output ranges being turned into apcs
-        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<Apc, Sp1Snapshot>>) {
+        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<Sp1Snapshot>>) {
             for output in outputs {
                 // println!("Report: {report:#?}");
                 let mut delta = output.to.0.report.clone();
                 delta -= output.from.0.report.clone();
                 // println!("Delta: {delta:#?}");
                 *report -= delta;
-                report.apc_counts.entry(output.apc.id).or_default().success += 1;
+                report.apc_counts.entry(output.apc_id as u64).or_default().success += 1;
             }
         }
 
         fn extract_records(
             v: &mut ExecutionRecord,
-            outputs: &[ApcCall<Apc, Sp1Snapshot>],
+            outputs: &[ApcCall<Sp1Snapshot>],
         ) -> Vec<(u64, ExecutionRecord)> {
             macro_rules! extract_vec {
                 ($field:ident, $len_field:ident) => {
@@ -2145,7 +2147,7 @@ impl<'a> Executor<'a> {
                 outputs.iter().map(|output| (&output.from.0, &output.to.0)),
             );
             let next_pc = outputs.iter().map(|output| output.to.0.pc);
-            let apc_ids = outputs.iter().map(|output| output.apc.id);
+            let apc_ids = outputs.iter().map(|output| output.apc_id as u64);
             izip!(
                 apc_ids,
                 add,
@@ -2788,12 +2790,13 @@ impl<'a> Executor<'a> {
                     }))
                 });
                 // If an apc candidate was being run, report a segmentation error.
-                for apc in self.apc_candidates.abort_in_progress() {
-                    self.report.apc_counts.entry(apc.id).or_default().segmentation_error += 1;
+                for apc_id in self.apc_candidates.abort_in_progress() {
+                    self.report.apc_counts.entry(apc_id as u64).or_default().segmentation_error +=
+                        1;
                     tracing::error!(
                         "global clock {}: APC {} cancelled: segmentation error detected",
                         self.state.global_clk,
-                        apc.id
+                        apc_id
                     );
                 }
                 // Extract the candidates that did just finish and apply them. This makes the
@@ -3284,7 +3287,7 @@ impl<'a> Executor<'a> {
         let instruction_fetch: u64 = local_counts.local_instruction_fetch as u64;
         let instruction_decode: u64 = local_counts.shard_distinct_instructions.len() as u64;
         let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts.core;
-        let apc_events: &BTreeMap<u64, u64> = &local_counts.event_counts.apc;
+        let apc_events: &BTreeMap<usize, u64> = &local_counts.event_counts.apc;
 
         // Add apc events
         event_counts.apc.clone_from(apc_events);
