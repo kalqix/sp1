@@ -386,8 +386,10 @@ impl ExecutorConfig for Unconstrained {
 
 /// The different modes the executor can run in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+#[derive(Default)]
 pub enum ExecutorMode {
     /// Run the execution with no tracing or checkpointing.
+    #[default]
     Simple,
     /// Run the execution with checkpoints for memory.
     Checkpoint,
@@ -3403,11 +3405,6 @@ impl<'a> Executor<'a> {
     }
 }
 
-impl Default for ExecutorMode {
-    fn default() -> Self {
-        Self::Simple
-    }
-}
 
 /// Aligns an address to the nearest double word below or equal to it.
 #[must_use]

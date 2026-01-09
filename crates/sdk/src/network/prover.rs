@@ -440,7 +440,7 @@ impl NetworkProver {
             let remaining_timeout = timeout.map(|t| {
                 let elapsed = start_time.elapsed();
                 if elapsed < t {
-                    t - elapsed
+                    t.checked_sub(elapsed).unwrap()
                 } else {
                     Duration::from_secs(0)
                 }
