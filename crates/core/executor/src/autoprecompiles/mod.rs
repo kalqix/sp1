@@ -7,14 +7,11 @@ use crate::{
     events::ByteLookupEvent, Apc, ExecutionRecord, ExecutionReport, ExecutionState, LocalCounts,
 };
 
-pub type Sp1ApcCandidates = ApcCandidates<ExecutionState, Apc, Sp1Snapshot>;
+pub type Sp1ApcCandidates = ApcCandidates<ExecutionState, Apc, ExecutionSnapshot>;
 
-#[derive(Clone, Debug)]
-pub struct Sp1Snapshot(pub Arc<ExecutionSnapshot>);
-
-impl Snapshot for Sp1Snapshot {
+impl Snapshot for ExecutionSnapshot {
     fn instret(&self) -> usize {
-        self.0.record.cpu_event_count as usize
+        self.record.cpu_event_count as usize
     }
 }
 

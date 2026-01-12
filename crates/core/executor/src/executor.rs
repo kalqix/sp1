@@ -5,7 +5,7 @@ use std::{fs::File, io::BufWriter};
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use crate::{
-    autoprecompiles::{ExecutionRecordSnapshot, ExecutionSnapshot, Sp1ApcCandidates, Sp1Snapshot},
+    autoprecompiles::{ExecutionRecordSnapshot, ExecutionSnapshot, Sp1ApcCandidates},
     estimator::RecordEstimator,
     events::{
         ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
@@ -1962,7 +1962,7 @@ impl<'a> Executor<'a> {
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
-    fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<Sp1Snapshot>>) {
+    fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<ExecutionSnapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         fn extract<T>(
@@ -2005,7 +2005,7 @@ impl<'a> Executor<'a> {
 
         fn extract_byte_lookups<'a>(
             v: &mut HashMap<ByteLookupEvent, isize>,
-            outputs: impl Iterator<Item = (&'a Arc<ExecutionSnapshot>, &'a Arc<ExecutionSnapshot>)>,
+            outputs: impl Iterator<Item = (&'a ExecutionSnapshot, &'a ExecutionSnapshot)>,
         ) -> Vec<HashMap<ByteLookupEvent, isize>> {
             let mut extracted = vec![];
             for (from, to) in outputs {
@@ -2042,10 +2042,10 @@ impl<'a> Executor<'a> {
 
         // Given an existing report and a list of outputs, modify the report so that it represents
         // the same execution except for the output ranges being turned into apcs
-        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<Sp1Snapshot>>) {
+        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<ExecutionSnapshot>>) {
             for output in outputs {
-                let mut delta = output.to.0.report.clone();
-                delta -= output.from.0.report.clone();
+                let mut delta = output.to.report.clone();
+                delta -= output.from.report.clone();
                 *report -= delta;
                 report.apc_counts.entry(output.apc_id as u64).or_default().success += 1;
             }
@@ -2053,21 +2053,23 @@ impl<'a> Executor<'a> {
 
         fn extract_records(
             v: &mut ExecutionRecord,
-            outputs: &[ApcCall<Sp1Snapshot>],
+            outputs: &[ApcCall<ExecutionSnapshot>],
         ) -> Vec<(u64, ExecutionRecord)> {
             macro_rules! extract_vec {
                 ($field:ident, $len_field:ident) => {
                     extract(
                         &mut v.$field,
                         outputs.iter().map(|output| {
-                            (output.from.0.record.$len_field, output.to.0.record.$len_field)
+                            (output.from.record.$len_field, output.to.record.$len_field)
                         }),
                     )
                 };
                 (empty $len_field:ident) => {
-                    extract_empty(outputs.iter().map(|output| {
-                        (output.from.0.record.$len_field, output.to.0.record.$len_field)
-                    }))
+                    extract_empty(
+                        outputs.iter().map(|output| {
+                            (output.from.record.$len_field, output.to.record.$len_field)
+                        }),
+                    )
                 };
             }
 
@@ -2127,8 +2129,8 @@ impl<'a> Executor<'a> {
                 &mut v.global_interaction_event_count,
                 outputs.iter().map(|output| {
                     (
-                        output.from.0.record.global_interaction_event_count,
-                        output.to.0.record.global_interaction_event_count,
+                        output.from.record.global_interaction_event_count,
+                        output.to.record.global_interaction_event_count,
                     )
                 }),
             );
@@ -2137,14 +2139,14 @@ impl<'a> Executor<'a> {
             let cpu_event_count = extract_diff(
                 &mut v.cpu_event_count,
                 outputs.iter().map(|output| {
-                    (output.from.0.record.cpu_event_count, output.to.0.record.cpu_event_count)
+                    (output.from.record.cpu_event_count, output.to.record.cpu_event_count)
                 }),
             );
             let byte_lookups = extract_byte_lookups(
                 &mut v.byte_lookups,
-                outputs.iter().map(|output| (&output.from.0, &output.to.0)),
+                outputs.iter().map(|output| (&output.from, &output.to)),
             );
-            let next_pc = outputs.iter().map(|output| output.to.0.pc);
+            let next_pc = outputs.iter().map(|output| output.to.pc);
             let apc_ids = outputs.iter().map(|output| output.apc_id as u64);
             izip!(
                 apc_ids,
@@ -2686,13 +2688,11 @@ impl<'a> Executor<'a> {
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
 
-        self.apc_candidates.check_conditions(&self.state, || {
-            Sp1Snapshot(Arc::new(ExecutionSnapshot {
-                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                local_counts: self.local_counts.clone(),
-                report: self.report.clone(),
-                pc: self.state.pc,
-            }))
+        self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
+            record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+            local_counts: self.local_counts.clone(),
+            report: self.report.clone(),
+            pc: self.state.pc,
         });
 
         let outputs = self.apc_candidates.extract_calls();
@@ -2702,13 +2702,11 @@ impl<'a> Executor<'a> {
         if let Some(apc_indices) = apc_indices {
             // We are at the start of an APC range, so we add it as a candidate
             for apc in apc_indices {
-                let _ = self.apc_candidates.try_insert(&self.state, apc, || {
-                    Sp1Snapshot(Arc::new(ExecutionSnapshot {
-                        record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                        local_counts: self.local_counts.clone(),
-                        report: self.report.clone(),
-                        pc: self.state.pc,
-                    }))
+                let _ = self.apc_candidates.try_insert(&self.state, apc, || ExecutionSnapshot {
+                    record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                    local_counts: self.local_counts.clone(),
+                    report: self.report.clone(),
+                    pc: self.state.pc,
                 });
             }
         }
@@ -2772,13 +2770,11 @@ impl<'a> Executor<'a> {
                 self.state.shard_finished = true;
                 // Check the state a last time, as some candidates may have just finished
                 // TODO: should we with this? It's a niche condition
-                self.apc_candidates.check_conditions(&self.state, || {
-                    Sp1Snapshot(Arc::new(ExecutionSnapshot {
-                        record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                        local_counts: self.local_counts.clone(),
-                        report: self.report.clone(),
-                        pc: self.state.pc,
-                    }))
+                self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
+                    record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                    local_counts: self.local_counts.clone(),
+                    report: self.report.clone(),
+                    pc: self.state.pc,
                 });
                 // If an apc candidate was being run, report a segmentation error.
                 for apc_id in self.apc_candidates.abort_in_progress() {
