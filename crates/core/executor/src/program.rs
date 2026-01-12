@@ -12,7 +12,6 @@ use powdr_autoprecompiles::execution::OptimisticConstraints;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     septic_curve::{SepticCurve, SepticCurveComplete},
@@ -59,7 +58,7 @@ pub struct Apc {
     /// The cost for this APC
     pub cost: ApcCost,
     /// The execution constraints for this APC
-    pub execution_constraints: Sp1OptimisticConstraints,
+    pub execution_constraints: OptimisticConstraints<u64, u64>,
 }
 
 impl powdr_autoprecompiles::execution::Apc<ExecutionState> for Apc {
@@ -139,7 +138,7 @@ impl Program {
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(
         self,
-        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, Sp1OptimisticConstraints)>,
+        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, OptimisticConstraints<u64, u64>)>,
     ) -> Self {
         apc_ranges_and_costs
             .into_iter()
@@ -203,7 +202,7 @@ impl Program {
             memory_image: elf.memory_image,
             preprocessed_shape: None,
             apc_by_index: vec![],
-            apc_indices_by_start_idx: Default::default(),
+            apc_indices_by_start_idx: HashMap::default(),
         })
     }
 

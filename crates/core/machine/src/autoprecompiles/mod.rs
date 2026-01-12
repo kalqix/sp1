@@ -13,7 +13,7 @@ pub mod program;
 mod tests;
 
 #[cfg(test)]
-use powdr_autoprecompiles::adapter::AdapterApc;
+use powdr_autoprecompiles::{adapter::AdapterApc, execution::OptimisticConstraints};
 use powdr_autoprecompiles::{
     adapter::{AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
@@ -23,8 +23,6 @@ use powdr_autoprecompiles::{
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
-#[cfg(test)]
-use sp1_autoprecompiles_common::Sp1OptimisticConstraints;
 use sp1_build::BuildArgs;
 #[cfg(test)]
 use sp1_core_executor::ApcRange;
@@ -179,7 +177,7 @@ impl CompiledProgram {
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, Sp1OptimisticConstraints)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u64, u64>)>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges

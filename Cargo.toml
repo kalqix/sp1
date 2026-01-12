@@ -13,7 +13,6 @@ members = [
   "crates/cli",
   "crates/core/executor",
   "crates/core/machine",
-  "crates/core/autoprecompiles_common",
   "crates/recursion/circuit",
   "crates/recursion/compiler",
   "crates/recursion/derive",
@@ -59,7 +58,6 @@ sp1-build = { path = "crates/build", version = "6.0.0" }
 sp1-cli = { path = "crates/cli", version = "6.0.0", default-features = false }
 sp1-core-machine = { path = "crates/core/machine", version = "6.0.0" }
 sp1-core-executor = { path = "crates/core/executor", version = "6.0.0" }
-sp1-autoprecompiles-common = { path = "crates/core/autoprecompiles_common", version = "6.0.0" }
 sp1-curves = { path = "crates/curves", version = "6.0.0" }
 sp1-derive = { path = "crates/derive", version = "6.0.0" }
 sp1-eval = { path = "crates/eval", version = "6.0.0" }

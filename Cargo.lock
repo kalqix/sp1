@@ -5125,19 +5125,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-autoprecompiles-common"
-version = "6.0.0"
-dependencies = [
- "deepsize2",
- "num",
- "powdr-autoprecompiles",
- "powdr-constraint-solver",
- "powdr-expression",
- "powdr-number",
- "serde",
-]
-
-[[package]]
 name = "sp1-build"
 version = "6.0.0"
 dependencies = [
@@ -5214,7 +5201,6 @@ dependencies = [
  "slop-maybe-rayon",
  "slop-merkle-tree",
  "slop-symmetric",
- "sp1-autoprecompiles-common",
  "sp1-curves",
  "sp1-hypercube",
  "sp1-primitives",
@@ -5273,7 +5259,6 @@ dependencies = [
  "slop-poseidon2",
  "slop-uni-stark",
  "snowbridge-amcl",
- "sp1-autoprecompiles-common",
  "sp1-build",
  "sp1-core-executor",
  "sp1-curves",

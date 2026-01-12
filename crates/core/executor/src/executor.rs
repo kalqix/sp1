@@ -1962,7 +1962,7 @@ impl<'a> Executor<'a> {
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
-    fn add_apc_events<E: ExecutorConfig>(&mut self, outputs: Vec<ApcCall<Sp1Snapshot>>) {
+    fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<Sp1Snapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         fn extract<T>(
@@ -2041,13 +2041,11 @@ impl<'a> Executor<'a> {
         }
 
         // Given an existing report and a list of outputs, modify the report so that it represents
-        // tha same execution except for the output ranges being turned into apcs
+        // the same execution except for the output ranges being turned into apcs
         fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<Sp1Snapshot>>) {
             for output in outputs {
-                // println!("Report: {report:#?}");
                 let mut delta = output.to.0.report.clone();
                 delta -= output.from.0.report.clone();
-                // println!("Delta: {delta:#?}");
                 *report -= delta;
                 report.apc_counts.entry(output.apc_id as u64).or_default().success += 1;
             }
@@ -2299,12 +2297,12 @@ impl<'a> Executor<'a> {
             .collect()
         }
 
-        if outputs.is_empty() {
+        if calls.is_empty() {
             return;
         }
 
         if E::MODE == ExecutorMode::Trace {
-            let apc_records = extract_records(&mut self.record, &outputs);
+            let apc_records = extract_records(&mut self.record, &calls);
 
             // Add the apc event to the record.
             // TODO: we could merge directly into the cummulative record inside
@@ -2322,7 +2320,7 @@ impl<'a> Executor<'a> {
 
         // update the report
         if self.print_report {
-            update_report(&mut self.report, outputs);
+            update_report(&mut self.report, calls);
         }
 
         tracing::trace!("APC candidate completed");
@@ -2683,7 +2681,7 @@ impl<'a> Executor<'a> {
         tracing::trace!(pc = self.state.pc, "executing instruction");
 
         // Fetch the instruction at the current program counter.
-        let (instruction, apc_range) = self.fetch::<E>()?;
+        let (instruction, apc_indices) = self.fetch::<E>()?;
 
         // Log the current state of the runtime.
         self.log::<E>(&instruction);
@@ -2701,16 +2699,9 @@ impl<'a> Executor<'a> {
 
         self.add_apc_events::<E>(outputs);
 
-        if let Some(apcs) = apc_range {
+        if let Some(apc_indices) = apc_indices {
             // We are at the start of an APC range, so we add it as a candidate
-            let _snapshot = Sp1Snapshot(Arc::new(ExecutionSnapshot {
-                record: ExecutionRecordSnapshot::from(self.record.as_ref()),
-                local_counts: self.local_counts.clone(),
-                report: self.report.clone(),
-                pc: self.state.pc,
-            }));
-
-            for apc in apcs {
+            for apc in apc_indices {
                 let _ = self.apc_candidates.try_insert(&self.state, apc, || {
                     Sp1Snapshot(Arc::new(ExecutionSnapshot {
                         record: ExecutionRecordSnapshot::from(self.record.as_ref()),
@@ -2802,8 +2793,8 @@ impl<'a> Executor<'a> {
                 // Extract the candidates that did just finish and apply them. This makes the
                 // assumption that their cost will be lower than the software version, so we do not
                 // go over the segment threshold in cost.
-                let candidates = self.apc_candidates.extract_calls();
-                self.add_apc_events::<E>(candidates);
+                let calls = self.apc_candidates.extract_calls();
+                self.add_apc_events::<E>(calls);
                 self.state.initial_timestamp = self.state.clk;
                 self.record.last_timestamp = self.state.clk;
                 self.bump_record::<E>();
