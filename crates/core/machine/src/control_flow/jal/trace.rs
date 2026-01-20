@@ -8,12 +8,8 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ExecutionRecord, Program,
 };
-<<<<<<< HEAD
-use sp1_hypercube::air::MachineAir;
-use struct_reflection::StructReflectionHelper;
-=======
 use sp1_hypercube::{air::MachineAir, Word};
->>>>>>> origin/multilinear_v6
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::next_multiple_of_32;
 
@@ -41,12 +37,8 @@ impl<F: PrimeField32> MachineAir<F> for JalChip {
             .jal_events
             .chunks(chunk_size)
             .par_bridge()
-<<<<<<< HEAD
-            .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
-=======
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_JAL_COLS];
                     let cols: &mut JalColumns<F> = row.as_mut_slice().borrow_mut();
@@ -95,7 +87,6 @@ impl<F: PrimeField32> MachineAir<F> for JalChip {
         values.chunks_mut(chunk_size * NUM_JAL_COLS).enumerate().par_bridge().for_each(
             |(i, rows)| {
                 let mut blu = Vec::new();
->>>>>>> origin/multilinear_v6
                 rows.chunks_mut(NUM_JAL_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     if idx < input.jal_events.len() {

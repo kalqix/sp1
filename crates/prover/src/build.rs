@@ -4,14 +4,8 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_bn254::Bn254Fr;
-<<<<<<< HEAD
-use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-use sp1_hypercube::{MachineVerifyingKey, ShardProof};
-use sp1_primitives::SP1Field;
-=======
 use sp1_hypercube::{koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardProof};
 use sp1_primitives::{io::sha256_hash, SP1Field, SP1OuterGlobalContext};
->>>>>>> origin/multilinear_v6
 use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1ShapedWitnessValues, SP1WrapVerifier},
@@ -330,45 +324,9 @@ pub fn build_constraints_and_witness(
     (constraints, witness)
 }
 
-<<<<<<< HEAD
-/// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
-/// the proof.
-pub async fn dummy_proof() -> (MachineVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
-    let elf = include_bytes!("../elf/riscv64im-succinct-zkvm-elf");
-
-    tracing::info!("initializing prover");
-    let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
-    let local_prover = LocalProver::new(prover, LocalProverOpts::default());
-    let prover = std::sync::Arc::new(local_prover);
-
-    tracing::info!("setup elf");
-    let (pk, program, vk) = prover.prover().core().setup(elf).await;
-    let pk = unsafe { pk.into_inner() };
-
-    tracing::info!("prove core");
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&500u32);
-    let core_proof =
-        prover.clone().prove_core(pk, program, stdin, Default::default()).await.unwrap();
-
-    tracing::info!("compress");
-    let compressed_proof = prover.clone().compress(&vk, core_proof, vec![]).await.unwrap();
-
-    tracing::info!("shrink");
-    let shrink_proof = prover.shrink(compressed_proof).await.unwrap();
-
-    tracing::info!("wrap");
-    let wrapped_proof = prover.wrap(shrink_proof).await.unwrap();
-
-    (wrapped_proof.vk, wrapped_proof.proof)
-}
-
-fn build_outer_circuit(template_input: &SP1ShapedWitnessValues<OuterSC>) -> Vec<Constraint> {
-=======
 fn build_outer_circuit(
     template_input: &SP1ShapedWitnessValues<SP1OuterGlobalContext, SP1PcsProofOuter>,
 ) -> Vec<Constraint> {
->>>>>>> origin/multilinear_v6
     let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
     let wrap_verifier = wrap_verifier.shard_verifier();
     let recursive_wrap_verifier =

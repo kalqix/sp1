@@ -8,12 +8,8 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, JumpEvent},
     ExecutionRecord, Program,
 };
-<<<<<<< HEAD
-use sp1_hypercube::air::MachineAir;
-use struct_reflection::StructReflectionHelper;
-=======
 use sp1_hypercube::{air::MachineAir, Word};
->>>>>>> origin/multilinear_v6
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::next_multiple_of_32;
 

@@ -224,47 +224,27 @@ pub fn generate_records<F: PrimeField32>(
     }
 }
 
-<<<<<<< HEAD
-#[allow(clippy::too_many_arguments)]
-pub async fn prove_core<F, PC, A>(
-    verifier: ShardVerifier<PC::Config, A>,
-    prover: Arc<PC::Prover>,
-    pk: Arc<MachineProvingKey<PC>>,
-=======
-pub async fn prove_core<GC, SC, PC>(
+pub async fn prove_core<GC, SC, PC, A>(
     verifier: ShardVerifier<GC, SC>,
     prover: Arc<PC>,
     pk: Arc<ProvingKey<GC, SC, PC>>,
->>>>>>> origin/multilinear_v6
     program: Arc<Program>,
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
-<<<<<<< HEAD
-    machine: Machine<F, A>,
-) -> Result<(MachineProof<PC::Config>, u64), SP1CoreProverError>
-where
-    A: MachineAir<F, Record = ExecutionRecord>,
-    PC: MachineProverComponents<F = F, Air = A>,
-    F: PrimeField32,
-{
-    let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
-
-    let (_, cycles) = prove_core_stream::<_, PC, _>(
-        verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
-=======
+    machine: Machine<GC::F, A>,
 ) -> Result<(MachineProof<GC, PcsProof<GC, SC>>, u64), SP1CoreProverError>
 where
     GC: IopCtx,
     SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
     PC: AirProver<GC, SC>,
     GC::F: PrimeField32,
+    A: MachineAir<GC::F, Record = ExecutionRecord>,
 {
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (_, cycles) = prove_core_stream::<GC, SC, PC>(
-        verifier, prover, pk, program, stdin, opts, context, proof_tx,
->>>>>>> origin/multilinear_v6
+    let (_, cycles) = prove_core_stream::<GC, SC, PC, A>(
+        verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
     )
     .await
     .unwrap();
@@ -290,40 +270,24 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-<<<<<<< HEAD
-pub(crate) async fn prove_core_stream<F, PC, A>(
-    // TODO: clean this up
-    verifier: ShardVerifier<PC::Config, A>,
-    prover: Arc<PC::Prover>,
-    pk: Arc<MachineProvingKey<PC>>,
-=======
-pub(crate) async fn prove_core_stream<GC, SC, PC>(
+pub(crate) async fn prove_core_stream<GC, SC, PC, A>(
     // TODO: clean this up
     verifier: ShardVerifier<GC, SC>,
     prover: Arc<PC>,
     pk: Arc<ProvingKey<GC, SC, PC>>,
->>>>>>> origin/multilinear_v6
     program: Arc<Program>,
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
-<<<<<<< HEAD
-    proof_tx: UnboundedSender<ShardProof<PC::Config>>,
-    machine: Machine<F, A>,
-) -> Result<(Vec<u8>, u64), SP1CoreProverError>
-where
-    A: MachineAir<F, Record = ExecutionRecord>,
-    PC: MachineProverComponents<F = F, Air = A>,
-    F: PrimeField32,
-=======
     proof_tx: UnboundedSender<ShardProof<GC, PcsProof<GC, SC>>>,
+    machine: Machine<GC::F, A>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     GC: IopCtx,
     SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
     PC: AirProver<GC, SC>,
     GC::F: PrimeField32,
->>>>>>> origin/multilinear_v6
+    A: MachineAir<GC::F, Record = ExecutionRecord>,
 {
     // TODO: get this from input
     let num_record_workers = 4;
@@ -331,13 +295,9 @@ where
     let (records_tx, mut records_rx) =
         mpsc::unbounded_channel::<(ExecutionRecord, Option<MemoryPermit>)>();
 
-<<<<<<< HEAD
-    let machine_executor =
-        MachineExecutor::<F, A>::new(u32::MAX as u64, num_record_workers, opts.clone(), machine);
-=======
     let record_memory = sysinfo::System::new_all().total_memory() / 7;
 
-    let machine_executor = MachineExecutor::<GC::F>::new(
+    let machine_executor = MachineExecutor::<GC::F, A>::new(
         record_memory.try_into().unwrap_or_else(|_| {
             tracing::warn!(
                 "truncating available memory {record_memory} into {}. this is a bug.",
@@ -347,8 +307,8 @@ where
         }),
         num_record_workers,
         opts.clone(),
+        machine,
     );
->>>>>>> origin/multilinear_v6
 
     let prover_permits = ProverSemaphore::new(5);
     let prover =

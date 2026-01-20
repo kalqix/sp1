@@ -233,7 +233,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         RiscvAirId::from(RiscvAirDiscriminants::from(self))
     }
 
-    pub fn airs() -> [RiscvAir<F>; 72] {
+    pub fn airs() -> [RiscvAir<F>; 66] {
         // The order of the chips is used to determine the order of trace generation.
         [
             RiscvAir::Program(ProgramChip::default()),
@@ -1025,10 +1025,8 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster = extend_base(
-            &preprocessed_chips,
-            [SyscallPrecompile, MemoryLocal, PageProtLocal, Global],
-        );
+        let base_precompile_cluster =
+            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -1092,13 +1090,9 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 Jalr,
                 SyscallInstrs,
                 MemoryBump,
-                PageProt,
-                PageProtLocal,
                 StateBump,
                 MemoryLocal,
                 Global,
-                InstructionDecode,
-                InstructionFetch,
             ],
         )
         .into_iter()
@@ -1106,15 +1100,12 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
         .chain((0..apcs_len).map(|i| RiscvAirWithApcDiscriminants::Apc(i as u64)))
         .collect::<BTreeSet<_>>();
 
-        let memory_boundary_cluster = extend_base(
-            &preprocessed_chips,
-            [MemoryGlobalInit, MemoryGlobalFinal, Global, PageProtGlobalInit, PageProtGlobalFinal],
-        );
+        let memory_boundary_cluster =
+            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
-                .as_slice(),
+            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
@@ -1156,8 +1147,6 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                 [
                     MemoryGlobalInit,
                     MemoryGlobalFinal,
-                    PageProtGlobalInit,
-                    PageProtGlobalFinal,
                     Sha256Extend,
                     Sha256ExtendControl,
                     Sha256Compress,
@@ -1200,18 +1189,6 @@ pub mod tests {
     use sp1_hypercube::{air::MachineAir, InteractionBuilder, MachineRecord};
     use sp1_primitives::SP1Field;
 
-<<<<<<< HEAD
-    use sp1_primitives::io::SP1PublicValues;
-
-    use crate::{
-        autoprecompiles::create_apcs,
-        programs::tests::*,
-        riscv::{RiscvAir, RiscvAirWithApcs},
-        utils::setup_logger,
-    };
-    use sp1_core_executor::add_halt;
-    use sp1_hypercube::{InteractionKind, MachineVerifierConfigError, SP1CoreJaggedConfig};
-=======
     use crate::{
         programs::tests::*,
         riscv::RiscvAir,
@@ -1220,7 +1197,6 @@ pub mod tests {
     use sp1_core_executor::add_halt;
     use sp1_hypercube::InteractionKind;
     use strum::IntoEnumIterator;
->>>>>>> origin/multilinear_v6
     //     use sp1_primitives::SP1Field;
     //     use sp1_core_executor::{Instruction, Opcode, Program, SP1Context};
     //     use sp1_hypercube::{
@@ -1336,9 +1312,6 @@ pub mod tests {
         serde_json::to_writer_pretty(file, &costs).unwrap();
     }
 
-<<<<<<< HEAD
-    use crate::io::SP1Stdin;
-=======
     #[test]
     fn test_maximum_padding() {
         let machine = RiscvAir::<SP1Field>::machine();
@@ -1374,7 +1347,6 @@ pub mod tests {
     }
 
     use crate::{io::SP1Stdin, utils::run_test};
->>>>>>> origin/multilinear_v6
 
     #[tokio::test]
     async fn test_simple_prove() {

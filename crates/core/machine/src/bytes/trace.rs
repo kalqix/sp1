@@ -5,12 +5,10 @@ use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program
 use sp1_hypercube::air::{MachineAir, PV_DIGEST_NUM_WORDS};
 use struct_reflection::StructReflectionHelper;
 
+use crate::bytes::columns::BytePreprocessedCols;
+
 use super::{
-<<<<<<< HEAD
-    columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
-=======
     columns::{NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
->>>>>>> origin/multilinear_v6
     ByteChip,
 };
 
@@ -86,13 +84,9 @@ impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
             }
             let row = (((lookup.b as u16) << 8) + lookup.c as u16) as usize;
             let index = lookup.opcode as usize;
-<<<<<<< HEAD
 
-            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.multiplicities[index] += F::from_canonical_usize((*mult).try_into().unwrap());
-=======
-            values[row * NUM_BYTE_MULT_COLS + index] = F::from_canonical_usize(*mult);
->>>>>>> origin/multilinear_v6
+            values[row * NUM_BYTE_MULT_COLS + index] =
+                F::from_canonical_usize((*mult).try_into().unwrap());
         }
     }
 

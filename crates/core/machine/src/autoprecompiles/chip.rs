@@ -93,8 +93,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        format!("ApcChip_{}", self.id)
+    fn name(&self) -> &'static str {
+        unimplemented!()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -457,6 +457,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let apc =
             sp1_core_executor::Apc { id: self.id, range, cost: self.cached_apc.width() as u64 };
         program.add_apc(apc)
+    }
+
+    fn generate_trace_into(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
+        todo!()
     }
 }
 

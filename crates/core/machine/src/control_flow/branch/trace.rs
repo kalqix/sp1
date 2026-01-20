@@ -37,12 +37,8 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
             .branch_events
             .chunks(chunk_size)
             .par_bridge()
-<<<<<<< HEAD
-            .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
-=======
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_BRANCH_COLS];
                     let cols: &mut BranchColumns<F> = row.as_mut_slice().borrow_mut();
@@ -86,7 +82,6 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
         values.chunks_mut(chunk_size * NUM_BRANCH_COLS).enumerate().par_bridge().for_each(
             |(i, rows)| {
                 let mut blu = Vec::new();
->>>>>>> origin/multilinear_v6
                 rows.chunks_mut(NUM_BRANCH_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut BranchColumns<F> = row.borrow_mut();
@@ -121,11 +116,7 @@ impl BranchChip {
         &self,
         event: &BranchEvent,
         cols: &mut BranchColumns<F>,
-<<<<<<< HEAD
-        blu: &mut HashMap<ByteLookupEvent, isize>,
-=======
         blu: &mut impl ByteRecord,
->>>>>>> origin/multilinear_v6
     ) {
         cols.is_beq = F::from_bool(matches!(event.opcode, Opcode::BEQ));
         cols.is_bne = F::from_bool(matches!(event.opcode, Opcode::BNE));

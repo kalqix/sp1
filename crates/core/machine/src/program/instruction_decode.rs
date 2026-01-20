@@ -654,19 +654,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let shard = ExecutionRecord {
-<<<<<<< HEAD
-            program: Arc::new(Program {
-                instructions,
-                instructions_encoded: None,
-                pc_start_abs: 0,
-                pc_base: 0,
-                memory_image: HashMap::new(),
-                preprocessed_shape: None,
-                apcs_by_start_idx: HashMap::new(),
-            }),
-=======
             program: Arc::new(Program::new(instructions, 0, 0)),
->>>>>>> origin/multilinear_v6
             ..Default::default()
         };
         let chip = InstructionDecodeChip::new();

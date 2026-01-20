@@ -171,28 +171,6 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-<<<<<<< HEAD
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let mut rows = Vec::new();
-
-        let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
-        for event in input.instruction_fetch_events.iter() {
-            let (event, memory_access) = event;
-
-            let mut row = [F::zero(); NUM_INSTRUCTION_FETCH_COLS];
-            let cols: &mut InstructionFetchCols<F> = row.as_mut_slice().borrow_mut();
-
-            let (mem_access, encoded) = memory_access.untrusted_instruction.unwrap();
-            assert_eq!(encoded, event.encoded_instruction);
-            assert!(mem_access.current_record().timestamp == event.clk);
-
-            cols.memory_access.populate(mem_access, &mut blu);
-
-            self.event_to_row(event, memory_access, cols);
-
-            rows.push(row);
-=======
         buffer: &mut [MaybeUninit<F>],
     ) {
         let padded_nb_rows =
@@ -205,7 +183,6 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
->>>>>>> origin/multilinear_v6
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
@@ -222,7 +199,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
                     let cols: &mut InstructionFetchCols<F> = row.borrow_mut();
                     let (event, memory_access) = &input.instruction_fetch_events[idx];
 
-                    let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                    let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                     let (mem_access, encoded) = memory_access.untrusted_instruction.unwrap();
                     assert_eq!(encoded, event.encoded_instruction);
                     assert!(mem_access.current_record().timestamp == event.clk);
@@ -380,19 +357,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let shard = ExecutionRecord {
-<<<<<<< HEAD
-            program: Arc::new(Program {
-                instructions,
-                instructions_encoded: None,
-                pc_start_abs: 0,
-                pc_base: 0,
-                memory_image: HashMap::new(),
-                preprocessed_shape: None,
-                apcs_by_start_idx: HashMap::new(),
-            }),
-=======
             program: Arc::new(Program::new(instructions, 0, 0)),
->>>>>>> origin/multilinear_v6
             ..Default::default()
         };
         let chip = InstructionFetchChip::new();

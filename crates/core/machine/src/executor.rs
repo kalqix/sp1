@@ -14,11 +14,7 @@ use sp1_core_executor::{
     GasEstimatingVM, Program, SP1Context, SP1CoreOpts, SplicingVM, SplitOpts, TracingVM,
 };
 use sp1_hypercube::{
-<<<<<<< HEAD
-    air::{MachineAir, PublicValues},
-=======
-    air::PROOF_NONCE_NUM_WORDS,
->>>>>>> origin/multilinear_v6
+    air::{MachineAir, PROOF_NONCE_NUM_WORDS},
     prover::{MemoryPermit, MemoryPermitting},
     Machine, MachineRecord,
 };
@@ -31,13 +27,9 @@ use tokio::sync::{
 };
 use tracing::{Instrument, Level};
 
-<<<<<<< HEAD
-use crate::{io::SP1Stdin, utils::concurrency::AsyncTurn};
-=======
 use sp1_core_executor::{CycleResult, MinimalExecutor, SplicedMinimalTrace, TraceChunkRaw};
 
 use crate::{io::SP1Stdin, riscv::RiscvAir};
->>>>>>> origin/multilinear_v6
 
 pub struct MachineExecutor<F: PrimeField32, A> {
     num_record_workers: usize,
@@ -47,21 +39,13 @@ pub struct MachineExecutor<F: PrimeField32, A> {
     _marker: std::marker::PhantomData<F>,
 }
 
-<<<<<<< HEAD
 impl<F: PrimeField32, A: MachineAir<F, Record = ExecutionRecord>> MachineExecutor<F, A> {
     pub fn new(
-        record_buffer_size: u64,
+        record_buffer_size: usize,
         num_record_workers: usize,
         opts: SP1CoreOpts,
         machine: Machine<F, A>,
     ) -> Self {
-        let memory = MemoryPermitting::new(record_buffer_size);
-=======
-impl<F: PrimeField32> MachineExecutor<F> {
-    pub fn new(record_buffer_size: usize, num_record_workers: usize, opts: SP1CoreOpts) -> Self {
-        let machine = RiscvAir::<F>::machine();
->>>>>>> origin/multilinear_v6
-
         Self {
             num_record_workers,
             opts,
@@ -513,12 +497,12 @@ fn defer(
 
 /// Generate the dependencies and send the records to the prover channel.
 #[tracing::instrument(name = "start_prove", skip_all)]
-async fn start_prove<F: PrimeField32>(
-    machine: Machine<F, RiscvAir<F>>,
-    record_tx: mpsc::UnboundedSender<(ExecutionRecord, Option<MemoryPermit>)>,
+async fn start_prove<F: PrimeField32, A: MachineAir<F>>(
+    machine: Machine<F, A>,
+    record_tx: mpsc::UnboundedSender<(A::Record, Option<MemoryPermit>)>,
     permit: Option<MemoryPermit>,
-    mut record: ExecutionRecord,
-    mut deferred_records: Vec<ExecutionRecord>,
+    mut record: A::Record,
+    mut deferred_records: Vec<A::Record>,
 ) {
     tracing::debug!("num deferred records: {:#?}", deferred_records.len());
 

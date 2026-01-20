@@ -252,26 +252,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         // protected and will never intersect with the address space for untrusted
         // instructions.
 
-<<<<<<< HEAD
-        let mut rows = input
-            .program
-            .instructions
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(i, _)| {
-                let pc = input.program.pc_base + i as u64 * 4;
-                let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
-                let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.multiplicity =
-                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                row
-            })
-            .collect::<Vec<_>>();
-=======
         let padded_nb_rows = <ProgramChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let nb_instructions = input.program.instructions.len();
->>>>>>> origin/multilinear_v6
 
         unsafe {
             let padding_start = nb_instructions * NUM_PROGRAM_MULT_COLS;
@@ -358,19 +340,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let shard = ExecutionRecord {
-<<<<<<< HEAD
-            program: Arc::new(Program {
-                instructions,
-                instructions_encoded: None,
-                pc_start_abs: 0,
-                pc_base: 0,
-                memory_image: HashMap::new(),
-                preprocessed_shape: None,
-                apcs_by_start_idx: HashMap::new(),
-            }),
-=======
             program: Arc::new(Program::new(instructions, 0, 0)),
->>>>>>> origin/multilinear_v6
             ..Default::default()
         };
         let chip = ProgramChip::new();
