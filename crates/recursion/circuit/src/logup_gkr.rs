@@ -2,17 +2,17 @@ use itertools::Itertools;
 use sp1_recursion_compiler::prelude::*;
 use std::{collections::BTreeSet, marker::PhantomData, ops::Deref};
 
-use slop_algebra::{extension::BinomialExtensionField, AbstractField};
+use slop_algebra::AbstractField;
 use slop_multilinear::{full_geq, Mle, MleEval, Point};
 use sp1_hypercube::{
     air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
     LogupGkrRoundProof,
 };
-use sp1_primitives::SP1Field;
+use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::Builder;
 
 use crate::{
-    challenger::FieldChallengerVariable,
+    challenger::{CanObserveVariable, FieldChallengerVariable},
     sumcheck::{evaluate_mle_ext, verify_sumcheck},
     symbolic::IntoSymbolic,
     witness::{WitnessWriter, Witnessable},
@@ -25,9 +25,9 @@ pub struct RecursiveLogUpGkrVerifier<C, SC, A>(PhantomData<(C, SC, A)>);
 
 impl<C, SC, A> RecursiveLogUpGkrVerifier<C, SC, A>
 where
-    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    C: CircuitConfig,
     SC: SP1FieldConfigVariable<C>,
-    A: MachineAir<C::F>,
+    A: MachineAir<SP1Field>,
 {
     /// Verify the `LogUp` GKR proof.
     ///
@@ -36,28 +36,21 @@ where
     #[allow(clippy::too_many_lines)]
     pub fn verify_logup_gkr(
         builder: &mut Builder<C>,
-        shard_chips: &BTreeSet<Chip<C::F, A>>,
-        degrees: &[Point<Felt<C::F>>],
-        alpha: Ext<C::F, C::EF>,
-        beta_seed: Point<Ext<C::F, C::EF>>,
-        cumulative_sum: SymbolicExt<C::F, C::EF>,
+        shard_chips: &BTreeSet<Chip<SP1Field, A>>,
+        degrees: &[Point<Felt<SP1Field>>],
+        alpha: Ext<SP1Field, SP1ExtensionField>,
+        beta_seed: Point<Ext<SP1Field, SP1ExtensionField>>,
+        cumulative_sum: SymbolicExt<SP1Field, SP1ExtensionField>,
         max_log_row_count: usize,
-        proof: &LogupGkrProof<Ext<C::F, C::EF>>,
+        proof: &LogupGkrProof<Ext<SP1Field, SP1ExtensionField>>,
         challenger: &mut SC::FriChallengerVariable,
     ) {
         let LogupGkrProof { circuit_output, round_proofs, logup_evaluations } = proof;
-
-        //  TODO: compare the number of variables to total number of itneractions as read from
-        // chips.
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
 
         // Observe the output claims.
-        for (n, d) in
-            numerator.guts().as_slice().iter().zip_eq(denominator.guts().as_slice().iter())
-        {
-            challenger.observe_ext_element(builder, *n);
-            challenger.observe_ext_element(builder, *d);
-        }
+        challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
+        challenger.observe_variable_length_extension_slice(builder, denominator.guts().as_slice());
 
         // Verify that the cumulative sum matches the claimed one.
         let output_cumulative_sum = numerator
@@ -66,7 +59,7 @@ where
             .iter()
             .zip_eq(denominator.guts().as_slice().iter())
             .map(|(n, d)| *n / *d)
-            .sum::<SymbolicExt<C::F, C::EF>>();
+            .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         // Assert that the cumulative sum matches the claimed one.
         builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
 
@@ -146,9 +139,9 @@ where
         // Compute the expected opening of the last layer numerator and denominator values from the
         // trace openings.
         let mut numerator_values =
-            Vec::<SymbolicExt<C::F, C::EF>>::with_capacity(num_of_interactions);
+            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
         let mut denominator_values =
-            Vec::<SymbolicExt<C::F, C::EF>>::with_capacity(num_of_interactions);
+            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
         let mut point_extended = IntoSymbolic::<C>::as_symbolic(point);
 
         let alpha = IntoSymbolic::<C>::as_symbolic(&alpha);
@@ -156,18 +149,20 @@ where
             &beta_seed,
         ));
         point_extended.add_dimension(SymbolicExt::zero());
+        let len = shard_chips.len();
+        let len_felt: Felt<_> = builder.constant(SP1Field::from_canonical_usize(len));
+        challenger.observe(builder, len_felt);
         for ((chip, openings), threshold) in
             shard_chips.iter().zip_eq(chip_openings.values()).zip_eq(degrees)
         {
             // Observe the opening
             if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                for eval in prep_eval.deref().iter() {
-                    challenger.observe_ext_element(builder, *eval);
-                }
+                challenger.observe_variable_length_extension_slice(builder, prep_eval.deref());
             }
-            for eval in openings.main_trace_evaluations.deref().iter() {
-                challenger.observe_ext_element(builder, *eval);
-            }
+            challenger.observe_variable_length_extension_slice(
+                builder,
+                openings.main_trace_evaluations.deref(),
+            );
             let threshold = threshold.iter().map(|x| SymbolicExt::from(*x)).collect::<Point<_>>();
             let geq_eval = full_geq(&threshold, &point_extended);
             let ChipEvaluation { main_trace_evaluations, preprocessed_trace_evaluations } =
@@ -186,10 +181,10 @@ where
                     betas.as_slice(),
                 );
                 let padding_trace_opening =
-                    MleEval::from(vec![C::F::zero(); main_trace_evaluations.num_polynomials()]);
+                    MleEval::from(vec![SP1Field::zero(); main_trace_evaluations.num_polynomials()]);
                 let padding_preprocessed_opening = preprocessed_trace_evaluations
                     .as_ref()
-                    .map(|eval| MleEval::from(vec![C::F::zero(); eval.num_polynomials()]));
+                    .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
                 let (padding_numerator, padding_denominator) = interaction.eval(
                     padding_preprocessed_opening.as_ref(),
                     &padding_trace_opening,
@@ -199,7 +194,8 @@ where
 
                 let numerator_eval = real_numerator - padding_numerator * geq_eval;
                 let denominator_eval = real_denominator
-                    + (SymbolicExt::<C::F, C::EF>::one() - padding_denominator) * geq_eval;
+                    + (SymbolicExt::<SP1Field, SP1ExtensionField>::one() - padding_denominator)
+                        * geq_eval;
                 let numerator_eval = if is_send { numerator_eval } else { -numerator_eval };
                 numerator_values.push(numerator_eval);
                 denominator_values.push(denominator_eval);
@@ -211,14 +207,14 @@ where
         let numerator_values = numerator_values
             .into_iter()
             .map(|x| builder.eval(x))
-            .collect::<Vec<Ext<C::F, C::EF>>>();
+            .collect::<Vec<Ext<SP1Field, SP1ExtensionField>>>();
         let numerator = Mle::from(numerator_values);
         // Pad the denominator values with ones.
         denominator_values.resize(1 << interaction_point.dimension(), SymbolicExt::one());
         let denominator_values = denominator_values
             .into_iter()
             .map(|x| builder.eval(x))
-            .collect::<Vec<Ext<C::F, C::EF>>>();
+            .collect::<Vec<Ext<SP1Field, SP1ExtensionField>>>();
         let denominator = Mle::from(denominator_values);
 
         let expected_numerator_eval =

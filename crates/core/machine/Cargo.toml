@@ -10,24 +10,22 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-bincode = "1.3.3"
-rand = "0.8.5"
+bincode = { workspace = true }
 serde = { workspace = true, features = ["derive", "rc"] }
 serde_json = { workspace = true }
 itertools = { workspace = true }
-num = { version = "0.4.3" }
-cargo_metadata = "0.18.1"
-rrs_lib = { package = "rrs-lib", git = "https://github.com/succinctlabs/rrs-succinct.git", branch = "gautham/rv64executor-2" }
+num = { workspace = true }
+rrs-lib = { workspace = true }
 slop-air = { workspace = true }
-slop-koala-bear = { workspace = true }
 slop-algebra = { workspace = true }
+slop-challenger = { workspace = true }
 slop-keccak-air = { workspace = true }
 slop-matrix = { workspace = true }
 slop-maybe-rayon = { workspace = true }
 slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
-sp1-build = { workspace = true }
+sp1-jit = { workspace = true }
 
 # Powdr CLI dependencies
 clap = { version = "^4.3", features = ["derive"] }
@@ -43,57 +41,53 @@ powdr-riscv-elf = { workspace = true }
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
 slop-futures = { workspace = true }
+futures = { workspace = true }
 
-rayon = "1.10.0"
-rayon-scan = "0.1.1"
-sysinfo = "0.30.13"
+rayon = { workspace = true }
+rayon-scan = { workspace = true }
+sysinfo = { workspace = true }
 
-amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
-  "bls381",
-] }
-cfg-if = "1.0.0"
-generic-array = { version = "=1.1.0", features = ["alloc", "serde"] }
-typenum = "1.17.0"
+amcl = { workspace = true, features = ["bls381"] }
+cfg-if = { workspace = true }
+generic-array = { workspace = true, features = ["alloc", "serde"] }
+typenum = { workspace = true }
+enum-map = { workspace = true, features = ["serde"] }
 
-num_cpus = "1.16.0"
-tempfile = "3.10.1"
+num_cpus = { workspace = true }
+tempfile = { workspace = true }
 tracing = { workspace = true }
-tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
-tracing-subscriber = { workspace = true, features = ["std", "env-filter", "json"] }
-strum = { workspace = true }
-strum_macros = { workspace = true }
-thiserror = "1.0.63"
+tracing-forest = { workspace = true, features = ["ansi", "smallvec"] }
+tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
+strum = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 
 sp1-hypercube = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-curves = { workspace = true }
-slop-poseidon2 = { workspace = true }
-tokio = { workspace = true }
-static_assertions = "1.1.0"
+tokio = { workspace = true, features = ["rt", "sync"] }
+static_assertions = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
 expect-test = "1.5.1"
 rand = { workspace = true }
-num = { version = "0.4.3", features = ["rand"] }
+num = { workspace = true, features = ["rand"] }
 sp1-core-executor = { workspace = true }
 test-artifacts = { workspace = true }
-tokio = { workspace = true }
 slop-air = { workspace = true }
-slop-koala-bear = { workspace = true }
 slop-algebra = { workspace = true }
 slop-matrix = { workspace = true }
-tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-hex = "0.4.3"
-elliptic-curve = "0.13.8"
-k256 = { version = "0.13.3", features = ["expose-field"] }
-p256 = { version = "0.13.2", features = ["expose-field"] }
+tiny-keccak = { workspace = true, features = ["keccak"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+slop-alloc = { workspace = true }
+slop-basefold = { workspace = true }
+slop-multilinear = { workspace = true }
+slop-sumcheck = { workspace = true }
 
 [build-dependencies]
 sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }
-slop-koala-bear = { workspace = true }
 
 [features]
 debug = []

@@ -52,6 +52,7 @@ impl ProofSystem {
         *mut c_char,
         *mut c_char,
         *mut c_char,
+        *mut c_char,
     ) -> *mut c_char {
         match self {
             ProofSystem::Plonk => bind::VerifyPlonkBn254,
@@ -99,6 +100,7 @@ fn prove(system: ProofSystem, data_dir: &str, witness_path: &str) -> ProofResult
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify(
     system: ProofSystem,
     data_dir: &str,
@@ -107,6 +109,7 @@ fn verify(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<(), String> {
     let data_dir = CString::new(data_dir).expect("CString::new failed");
     let proof = CString::new(proof).expect("CString::new failed");
@@ -114,6 +117,7 @@ fn verify(
     let committed_values_digest =
         CString::new(committed_values_digest).expect("CString::new failed");
     let exit_code = CString::new(exit_code).expect("CString::new failed");
+    let proof_nonce = CString::new(proof_nonce).expect("CString::new failed");
     let vk_root = CString::new(vk_root).expect("CString::new failed");
 
     let err_ptr = unsafe {
@@ -124,6 +128,7 @@ fn verify(
             committed_values_digest.as_ptr() as *mut c_char,
             exit_code.as_ptr() as *mut c_char,
             vk_root.as_ptr() as *mut c_char,
+            proof_nonce.as_ptr() as *mut c_char,
         )
     };
     if err_ptr.is_null() {
@@ -159,7 +164,7 @@ pub fn build_plonk_bn254(data_dir: &str) {
 
 pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
     match prove(ProofSystem::Plonk, data_dir, witness_path) {
-        ProofResult::Plonk(proof) => unsafe { PlonkBn254Proof::from_raw(proof) },
+        ProofResult::Plonk(proof) => unsafe { plonk_bn254_proof_from_raw(proof) },
         _ => unreachable!(),
     }
 }
@@ -171,6 +176,7 @@ pub fn verify_plonk_bn254(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<(), String> {
     verify(
         ProofSystem::Plonk,
@@ -180,6 +186,7 @@ pub fn verify_plonk_bn254(
         committed_values_digest,
         exit_code,
         vk_root,
+        proof_nonce,
     )
 }
 
@@ -193,7 +200,7 @@ pub fn build_groth16_bn254(data_dir: &str) {
 
 pub fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> Groth16Bn254Proof {
     match prove(ProofSystem::Groth16, data_dir, witness_path) {
-        ProofResult::Groth16(proof) => unsafe { Groth16Bn254Proof::from_raw(proof) },
+        ProofResult::Groth16(proof) => unsafe { groth16_bn254_proof_from_raw(proof) },
         _ => unreachable!(),
     }
 }
@@ -205,6 +212,7 @@ pub fn verify_groth16_bn254(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<(), String> {
     verify(
         ProofSystem::Groth16,
@@ -214,6 +222,7 @@ pub fn verify_groth16_bn254(
         committed_values_digest,
         exit_code,
         vk_root,
+        proof_nonce,
     )
 }
 
@@ -251,40 +260,38 @@ unsafe fn ptr_to_string_freed(input: *mut c_char) -> String {
     string
 }
 
-impl PlonkBn254Proof {
-    unsafe fn from_raw(c_proof: *mut C_PlonkBn254Proof) -> Self {
-        let proof = PlonkBn254Proof {
-            public_inputs: [
-                ptr_to_string_cloned((*c_proof).PublicInputs[0]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[1]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[2]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[3]),
-            ],
-            encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
-            raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
-            plonk_vkey_hash: [0; 32],
-        };
-        bind::FreePlonkBn254Proof(c_proof);
-        proof
-    }
+unsafe fn plonk_bn254_proof_from_raw(c_proof: *mut C_PlonkBn254Proof) -> PlonkBn254Proof {
+    let proof = PlonkBn254Proof {
+        public_inputs: [
+            ptr_to_string_cloned((*c_proof).PublicInputs[0]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[1]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[2]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[3]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[4]),
+        ],
+        encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
+        raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
+        plonk_vkey_hash: [0; 32],
+    };
+    bind::FreePlonkBn254Proof(c_proof);
+    proof
 }
 
-impl Groth16Bn254Proof {
-    unsafe fn from_raw(c_proof: *mut C_Groth16Bn254Proof) -> Self {
-        let proof = Groth16Bn254Proof {
-            public_inputs: [
-                ptr_to_string_cloned((*c_proof).PublicInputs[0]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[1]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[2]),
-                ptr_to_string_cloned((*c_proof).PublicInputs[3]),
-            ],
-            encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
-            raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
-            groth16_vkey_hash: [0; 32],
-        };
-        bind::FreeGroth16Bn254Proof(c_proof);
-        proof
-    }
+unsafe fn groth16_bn254_proof_from_raw(c_proof: *mut C_Groth16Bn254Proof) -> Groth16Bn254Proof {
+    let proof = Groth16Bn254Proof {
+        public_inputs: [
+            ptr_to_string_cloned((*c_proof).PublicInputs[0]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[1]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[2]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[3]),
+            ptr_to_string_cloned((*c_proof).PublicInputs[4]),
+        ],
+        encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
+        raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
+        groth16_vkey_hash: [0; 32],
+    };
+    bind::FreeGroth16Bn254Proof(c_proof);
+    proof
 }
 
 #[cfg(test)]

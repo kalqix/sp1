@@ -3,56 +3,14 @@ use futures::prelude::*;
 use itertools::Itertools;
 use rayon::prelude::*;
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Backend, CpuBackend};
+use slop_alloc::CpuBackend;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, PaddedMle, Padding, PartialLagrangeBackend, Point};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    future::Future,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use crate::{air::MachineAir, prover::Traces, Chip, Interaction};
+use crate::{prover::Traces, Interaction};
 
 use super::{LogUpGkrCpuLayer, LogUpGkrOutput, LogupGkrCpuTraceGenerator};
-
-/// TODO
-pub trait LogUpGkrTraceGenerator<F: Field, EF: ExtensionField<F>, A: MachineAir<F>, B: Backend>:
-    'static + Send + Sync
-{
-    /// The Gkr Circuit type.
-    ///
-    /// The circuit contains all the information required for the prover to generate proofs for each
-    /// circuit layer.
-    type Circuit: LogUpGkrCircuit;
-
-    /// Generate the GKR circuit for the given chips, preprocessed traces, main traces, and the
-    /// permutation challenges `alpha` and `beta`.
-    ///
-    /// `alpha` is the challenge used for the Reed-Solomon fingerprint of the messages and `beta` is
-    /// the challenge point for the log-derivative expression.
-    fn generate_gkr_circuit(
-        &self,
-        chips: &BTreeSet<Chip<F, A>>,
-        preprocessed_traces: Traces<F, B>,
-        traces: Traces<F, B>,
-        public_values: Vec<F>,
-        alpha: EF,
-        beta_seed: Point<EF>,
-    ) -> impl Future<Output = (LogUpGkrOutput<EF, B>, Self::Circuit)> + Send;
-}
-
-/// Basic information about the GKR circuit.
-pub trait LogUpGkrCircuit {
-    /// The layer type of the GKR circuit.
-    type CircuitLayer;
-
-    /// The number of layers in the GKR circuit.
-    fn num_layers(&self) -> usize;
-
-    /// Get the next layer of the GKR circuit.
-    fn next(&mut self) -> impl Future<Output = Option<Self::CircuitLayer>> + Send;
-}
 
 pub(crate) fn generate_interaction_vals<F: Field, EF: ExtensionField<F>>(
     interaction: &Interaction<F>,
@@ -178,10 +136,10 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
         let betas = CpuBackend::partial_lagrange(&beta_seed).await.into_buffer().into_vec();
         let mut total_interactions = 0;
         for (name, interactions) in interactions.iter() {
-            let main_trace = main_traces.get(name).unwrap().clone();
+            let main_trace = main_traces.get(name.as_str()).unwrap().clone();
             let height = main_trace.num_real_entries();
 
-            let preprocessed_trace = preprocessed_traces.get(name).cloned();
+            let preprocessed_trace = preprocessed_traces.get(name.as_str()).cloned();
             let num_interactions = interactions.len();
             total_interactions += num_interactions;
             let mut numer_evals = vec![F::zero(); height * num_interactions];

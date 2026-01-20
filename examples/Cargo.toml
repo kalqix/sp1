@@ -35,9 +35,9 @@ members = [
   "keccak-bench/script",
   "mprotect/program",
   "mprotect/script",
-  "untrusted_program/jit-program",
+  # "untrusted_program/jit-program",
   "untrusted_program/program",
-  "untrusted_program/script",  
+  "untrusted_program/script",
   "regex/program",
   "regex/script",
   "rsa/program",
@@ -76,16 +76,12 @@ sp1-helper = { path = "../crates/helper", default-features = false }
 sp1-primitives = { path = "../crates/primitives" }
 sp1-prover = { path = "../crates/prover" }
 sp1-recursion-compiler = { path = "../crates/recursion/compiler" }
-sp1-recursion-core = { path = "../crates/recursion/core", default-features = false }
-sp1-recursion-derive = { path = "../crates/recursion/derive", default-features = false }
 sp1-recursion-gnark-ffi = { path = "../crates/recursion/gnark-ffi", default-features = false }
 sp1-recursion-program = { path = "../crates/recursion/program", default-features = false }
 sp1-recursion-circuit = { path = "../crates/recursion/circuit", default-features = false }
 sp1-sdk = { path = "../crates/sdk" }
 sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
-sp1-zkvm = { path = "../crates/zkvm/entrypoint",  features = [
-  "lib",
-] }
+sp1-zkvm = { path = "../crates/zkvm/entrypoint", features = ["lib"] }
 sp1-cuda = { path = "../crates/cuda" }
 tokio = { version = "1.4", features = ["full"] }
 powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "71c3c3d", default-features = false }

@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 use crate::{septic_digest::SepticDigest, MachineRecord};
 use slop_air::BaseAir;
 use slop_algebra::Field;
@@ -27,7 +29,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     }
 
     /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> String;
+    fn name(&self) -> &'static str;
 
     /// A list of column names. The length should equal `self.width()`.
     fn column_names(&self) -> Vec<String> {
@@ -47,12 +49,31 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// - `input` is the execution record containing the events to be written to the trace.
     /// - `output` is the execution record containing events that the `MachineAir` can add to the
     ///   record such as byte lookup requests.
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F>;
+    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
+        let padded_nb_rows = self.num_rows(input).unwrap();
+        let num_columns = <Self as BaseAir<F>>::width(self);
+        let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
+        self.generate_trace_into(input, output, values.spare_capacity_mut());
+
+        unsafe {
+            values.set_len(padded_nb_rows * num_columns);
+        }
+
+        RowMajorMatrix::new(values, num_columns)
+    }
 
     /// Generate the dependencies for a given execution record.
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         self.generate_trace(input, output);
     }
+
+    /// Generate the trace into a slice of `MaybeUninit<F>`.
+    fn generate_trace_into(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        buffer: &mut [MaybeUninit<F>],
+    );
 
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
@@ -63,13 +84,38 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     }
 
     /// The number of rows in the preprocessed trace
-    fn preprocessed_num_rows(&self, _program: &Self::Program, _instrs_len: usize) -> Option<usize> {
+    fn preprocessed_num_rows(&self, _program: &Self::Program) -> Option<usize> {
         None
     }
 
-    /// Generate the preprocessed trace given a specific program.
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    /// The number of rows in the preprocessed trace using the program and the instr len.
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        _program: &Self::Program,
+        _instrs_len: usize,
+    ) -> Option<usize> {
         None
+    }
+
+    /// Generate the preprocessed trace into a slice of `MaybeUninit<F>`.
+    fn generate_preprocessed_trace_into(&self, _: &Self::Program, _: &mut [MaybeUninit<F>]) {}
+
+    /// Generate the preprocessed trace given a specific program.
+    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        if self.preprocessed_width() == 0 {
+            return None;
+        }
+
+        let padded_nb_rows = self.preprocessed_num_rows(program).unwrap();
+        let num_columns = self.preprocessed_width();
+        let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
+        self.generate_preprocessed_trace_into(program, values.spare_capacity_mut());
+
+        unsafe {
+            values.set_len(padded_nb_rows * num_columns);
+        }
+
+        Some(RowMajorMatrix::new(values, num_columns))
     }
 }
 
@@ -83,4 +129,6 @@ pub trait MachineProgram<F>: Send + Sync {
     fn from_elf(elf: &[u8]) -> Result<Self, String>
     where
         Self: Sized;
+    /// Gets the flag indicating if untrusted programs are allowed.
+    fn enable_untrusted_programs(&self) -> F;
 }

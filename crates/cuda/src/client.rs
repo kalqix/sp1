@@ -1,6 +1,8 @@
-use sp1_core_machine::{io::SP1Stdin, recursion::SP1RecursionProof};
+use sp1_core_executor::SP1Context;
+use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::Elf;
-use sp1_prover::{InnerSC, OuterSC, SP1CoreProof, SP1VerifyingKey};
+use sp1_prover::worker::ProofFromNetwork;
+use sp1_prover_types::network_base_types::ProofMode;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -35,68 +37,25 @@ impl CudaClient {
     pub(crate) async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
         let request = Request::Setup { elf: elf.as_ref().into() };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
             Response::Setup { id, vk } => Ok(CudaProvingKey::new(id, elf, vk, self.clone())),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
         }
     }
 
-    /// Create a core proof.
-    pub(crate) async fn core(
+    pub(crate) async fn prove_with_mode(
         &self,
-        key: &CudaProvingKey,
+        pk: &CudaProvingKey,
         stdin: SP1Stdin,
-    ) -> Result<SP1CoreProof, CudaClientError> {
-        let request = Request::Core { key: key.id(), stdin };
+        context: SP1Context<'static>,
+        mode: ProofMode,
+    ) -> Result<ProofFromNetwork, CudaClientError> {
+        let key = pk.id();
+        let proof_nonce = context.proof_nonce;
+        let request = Request::ProveWithMode { mode, key, stdin, proof_nonce };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
-            Response::Core { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Compress a core proof.
-    pub(crate) async fn compress(
-        &self,
-        vk: &SP1VerifyingKey,
-        proof: SP1CoreProof,
-        deferred: Vec<SP1RecursionProof<InnerSC>>,
-    ) -> Result<SP1RecursionProof<InnerSC>, CudaClientError> {
-        let request = Request::Compress { vk: vk.clone(), proof, deferred };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Compress { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Shrink a compress proof.
-    pub(crate) async fn shrink(
-        &self,
-        proof: SP1RecursionProof<InnerSC>,
-    ) -> Result<SP1RecursionProof<InnerSC>, CudaClientError> {
-        let request = Request::Shrink { proof };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Shrink { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Wrap a shrink proof.
-    pub(crate) async fn wrap(
-        &self,
-        proof: SP1RecursionProof<InnerSC>,
-    ) -> Result<SP1RecursionProof<OuterSC>, CudaClientError> {
-        let request = Request::Wrap { proof };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Wrap { proof } => Ok(proof),
+            Response::Proof { proof } => Ok(proof),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
         }
     }
@@ -105,7 +64,6 @@ impl CudaClient {
     pub(crate) async fn destroy(&self, key: [u8; 32]) -> Result<(), CudaClientError> {
         let request = Request::Destroy { key };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
             Response::Ok => Ok(()),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),

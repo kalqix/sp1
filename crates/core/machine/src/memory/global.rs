@@ -8,12 +8,15 @@ use crate::{
 };
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use slop_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+use slop_matrix::Matrix;
+use slop_maybe_rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator, ParallelSlice,
+    ParallelSliceMut,
+};
 use sp1_core_executor::{
     events::{ByteRecord, GlobalInteractionEvent, MemoryInitializeFinalizeEvent},
     ExecutionRecord, Program,
@@ -50,10 +53,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match self.kind {
-            MemoryChipType::Initialize => "MemoryGlobalInit".to_string(),
-            MemoryChipType::Finalize => "MemoryGlobalFinalize".to_string(),
+            MemoryChipType::Initialize => "MemoryGlobalInit",
+            MemoryChipType::Finalize => "MemoryGlobalFinalize",
         }
     }
 
@@ -149,11 +152,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         let mut memory_events = match self.kind {
             MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
             MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
@@ -165,12 +169,28 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         };
 
         memory_events.sort_by_key(|event| event.addr);
-        let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = memory_events
-            .par_iter()
-            .map(|event| {
+
+        let padded_nb_rows = <MemoryGlobalChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let num_event_rows = memory_events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_MEMORY_INIT_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_MEMORY_INIT_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_MEMORY_INIT_COLS)
+        };
+
+        values.par_chunks_exact_mut(NUM_MEMORY_INIT_COLS).zip(memory_events.par_iter()).for_each(
+            |(row, event)| {
+                let cols: &mut MemoryInitCols<F> = row.borrow_mut();
                 let MemoryInitializeFinalizeEvent { addr, value, timestamp } = event.to_owned();
-                let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-                let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
+
                 cols.addr[0] = F::from_canonical_u16((addr & 0xFFFF) as u16);
                 cols.addr[1] = F::from_canonical_u16(((addr >> 16) & 0xFFFF) as u16);
                 cols.addr[2] = F::from_canonical_u16(((addr >> 32) & 0xFFFF) as u16);
@@ -180,15 +200,18 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 cols.is_real = F::one();
                 cols.value_lower = F::from_canonical_u32((value >> 32 & 0xFF) as u32);
                 cols.value_upper = F::from_canonical_u32((value >> 40 & 0xFF) as u32);
-                row
-            })
-            .collect::<Vec<_>>();
+            },
+        );
 
         let mut blu = vec![];
         for i in 0..memory_events.len() {
+            let row_start = i * NUM_MEMORY_INIT_COLS;
+            let row = &mut values[row_start..row_start + NUM_MEMORY_INIT_COLS];
+            let cols: &mut MemoryInitCols<F> = row.borrow_mut();
+
             let addr = memory_events[i].addr;
-            let cols: &mut MemoryInitCols<F> = rows[i].as_mut_slice().borrow_mut();
             let prev_addr = if i == 0 { previous_addr } else { memory_events[i - 1].addr };
+
             if prev_addr == 0 && i != 0 {
                 cols.prev_valid = F::zero();
             } else {
@@ -205,16 +228,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             if prev_addr != 0 || i != 0 {
                 cols.is_comp = F::one();
                 cols.lt_cols.populate_unsigned(&mut blu, 1, prev_addr, addr);
+            } else {
+                cols.is_comp = F::zero();
+                cols.lt_cols = LtOperationUnsigned::<F>::default();
             }
         }
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        rows.resize(
-            <MemoryGlobalChip as MachineAir<F>>::num_rows(self, input).unwrap(),
-            [F::zero(); NUM_MEMORY_INIT_COLS],
-        );
-
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -256,12 +274,6 @@ pub struct MemoryInitCols<T: Copy> {
 
     /// The value of the memory access.
     pub value: Word<T>,
-
-    /// Packed limb 1 for global message
-    pub limb_1: T,
-
-    /// Packed limb 2 for global message
-    pub limb_2: T,
 
     /// Lower half of third limb of the value
     pub value_lower: T,
@@ -475,7 +487,7 @@ where
 //     use sp1_core_executor::{Executor, Trace};
 //     use sp1_hypercube::InteractionKind;
 //     use sp1_hypercube::{
-//         koala_bear_poseidon2::SP1CoreJaggedConfig, debug_interactions_with_all_chips,
+//         koala_bear_poseidon2::SP1InnerPcs, debug_interactions_with_all_chips,
 // SP1CoreOpts,         StarkMachine,
 //     };
 
@@ -509,8 +521,8 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine: StarkMachine<SP1CoreJaggedConfig, RiscvAir<SP1Field>> =
-//             RiscvAir::machine(SP1CoreJaggedConfig::new());
+//         let machine: StarkMachine<SP1InnerPcs, RiscvAir<SP1Field>> =
+//             RiscvAir::machine(SP1InnerPcs::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -521,7 +533,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//             debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -529,7 +541,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//         debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
@@ -545,7 +557,7 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine = RiscvAir::machine(SP1CoreJaggedConfig::new());
+//         let machine = RiscvAir::machine(SP1InnerPcs::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -555,7 +567,7 @@ where
 //         );
 
 //         let shards = runtime.records;
-//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//         debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),

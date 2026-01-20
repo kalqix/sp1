@@ -1,5 +1,4 @@
 use crate::{
-    basefold::merkle_tree::MerkleProof,
     hash::FieldHasher,
     machine::{
         MerkleProofVariable, SP1CompressWithVKeyWitnessValues, SP1CompressWithVKeyWitnessVariable,
@@ -7,26 +6,25 @@ use crate::{
     },
 };
 use slop_algebra::AbstractField;
-use slop_challenger::DuplexChallenger;
-use slop_jagged::JaggedConfig;
+use slop_challenger::{DuplexChallenger, IopCtx};
 use slop_symmetric::Hash;
-use sp1_primitives::{SP1Field, SP1Perm};
-use std::borrow::Borrow;
+use sp1_primitives::{SP1Field, SP1GlobalContext, SP1Perm};
+use std::{borrow::Borrow, marker::PhantomData};
 
 use super::{
-    InnerChallenge, InnerVal, SP1DeferredWitnessValues, SP1DeferredWitnessVariable,
-    SP1NormalizeWitnessValues, SP1RecursionWitnessVariable, SP1ShapedWitnessValues,
+    InnerVal, SP1DeferredWitnessValues, SP1DeferredWitnessVariable, SP1NormalizeWitnessValues,
+    SP1RecursionWitnessVariable, SP1ShapedWitnessValues,
 };
 use crate::{
-    basefold::{RecursiveBasefoldConfigImpl, RecursiveBasefoldVerifier},
+    basefold::RecursiveBasefoldVerifier,
     challenger::DuplexChallengerVariable,
     hash::FieldHasherVariable,
-    jagged::RecursiveJaggedConfigImpl,
+    jagged::RecursivePcsImpl,
     shard::{MachineVerifyingKeyVariable, ShardProofVariable},
     witness::{WitnessWriter, Witnessable},
-    CircuitConfig, InnerSC, SP1FieldConfigVariable,
+    CircuitConfig, SP1FieldConfigVariable,
 };
-use sp1_hypercube::{MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof, Word};
+use sp1_hypercube::{MachineVerifyingKey, MerkleProof, SP1PcsProofInner, ShardProof, Word};
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, Felt},
@@ -44,9 +42,9 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Word<T> {
     }
 }
 
-impl<C> Witnessable<C> for DuplexChallenger<<InnerSC as JaggedConfig>::F, SP1Perm, 16, 8>
+impl<C> Witnessable<C> for DuplexChallenger<SP1Field, SP1Perm, 16, 8>
 where
-    C: CircuitConfig<F = <InnerSC as JaggedConfig>::F, EF = <InnerSC as JaggedConfig>::EF>,
+    C: CircuitConfig,
 {
     type WitnessVariable = DuplexChallengerVariable<C>;
 
@@ -54,7 +52,7 @@ where
         let sponge_state = self.sponge_state.read(builder);
         let input_buffer = self.input_buffer.read(builder);
         let output_buffer = self.output_buffer.read(builder);
-        DuplexChallengerVariable { sponge_state, input_buffer, output_buffer }
+        DuplexChallengerVariable { sponge_state, input_buffer, output_buffer, marker: PhantomData }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
@@ -66,7 +64,7 @@ where
 
 impl<C, F, W, const DIGEST_ELEMENTS: usize> Witnessable<C> for Hash<F, W, DIGEST_ELEMENTS>
 where
-    C: CircuitConfig<F: Witnessable<C>, EF: Witnessable<C>>,
+    C: CircuitConfig,
     W: Witnessable<C>,
 {
     type WitnessVariable = [W::WitnessVariable; DIGEST_ELEMENTS];
@@ -82,15 +80,10 @@ where
     }
 }
 
-pub type JC<C, SC> =
-    RecursiveJaggedConfigImpl<C, SC, RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>>;
+pub type JC<C, SC> = RecursivePcsImpl<C, SC, RecursiveBasefoldVerifier<C, SC>>;
 
-impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1CoreJaggedConfig> {
-    type WitnessVariable = SP1RecursionWitnessVariable<
-        InnerConfig,
-        SP1CoreJaggedConfig,
-        JC<InnerConfig, SP1CoreJaggedConfig>,
-    >;
+impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> {
+    type WitnessVariable = SP1RecursionWitnessVariable<InnerConfig, SP1GlobalContext>;
 
     fn read(&self, builder: &mut Builder<InnerConfig>) -> Self::WitnessVariable {
         let vk = self.vk.read(builder);
@@ -98,12 +91,14 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1CoreJaggedConfig>
         let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let vk_root = self.vk_root.read(builder);
+        let num_deferred_proofs = self.num_deferred_proofs.read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
             is_complete,
             reconstruct_deferred_digest,
             vk_root,
+            num_deferred_proofs,
         }
     }
 
@@ -113,20 +108,17 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1CoreJaggedConfig>
         self.reconstruct_deferred_digest.write(witness);
         self.is_complete.write(witness);
         self.vk_root.write(witness);
+        self.num_deferred_proofs.write(witness);
     }
 }
 
-impl<
-        C: CircuitConfig<F = InnerVal, EF = InnerChallenge>,
-        SC: SP1FieldConfigVariable<C> + Send + Sync,
-    > Witnessable<C> for SP1ShapedWitnessValues<SC>
+impl<GC: IopCtx + SP1FieldConfigVariable<C>, C: CircuitConfig, Proof> Witnessable<C>
+    for SP1ShapedWitnessValues<GC, Proof>
 where
-    SC::Commitment:
-        Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
-    MachineVerifyingKey<SC>: Witnessable<C, WitnessVariable = MachineVerifyingKeyVariable<C, SC>>,
-    ShardProof<SC>: Witnessable<C, WitnessVariable = ShardProofVariable<C, SC, JC<C, SC>>>,
+    MachineVerifyingKey<GC>: Witnessable<C, WitnessVariable = MachineVerifyingKeyVariable<C, GC>>,
+    ShardProof<GC, Proof>: Witnessable<C, WitnessVariable = ShardProofVariable<C, GC>>,
 {
-    type WitnessVariable = SP1ShapedWitnessVariable<C, SC, JC<C, SC>>;
+    type WitnessVariable = SP1ShapedWitnessVariable<C, GC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vks_and_proofs = self.vks_and_proofs.read(builder);
@@ -141,12 +133,11 @@ where
     }
 }
 
-impl<C> Witnessable<C> for SP1DeferredWitnessValues<SP1CoreJaggedConfig>
+impl<C> Witnessable<C> for SP1DeferredWitnessValues<SP1GlobalContext, SP1PcsProofInner>
 where
-    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
+    C: CircuitConfig<Bit = Felt<InnerVal>>,
 {
-    type WitnessVariable =
-        SP1DeferredWitnessVariable<C, SP1CoreJaggedConfig, JC<C, SP1CoreJaggedConfig>>;
+    type WitnessVariable = SP1DeferredWitnessVariable<C, SP1GlobalContext>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vks_and_proofs = self.vks_and_proofs.read(builder);
@@ -155,7 +146,8 @@ where
             self.start_reconstruct_deferred_digest.read(builder);
         let sp1_vk_digest = self.sp1_vk_digest.read(builder);
         let end_pc = self.end_pc.read(builder);
-        let is_page_protect_active = self.is_page_protect_active.read(builder);
+        let proof_nonce = self.proof_nonce.read(builder);
+        let deferred_proof_index = self.deferred_proof_index.read(builder);
 
         SP1DeferredWitnessVariable {
             vks_and_proofs,
@@ -163,7 +155,8 @@ where
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
             end_pc,
-            is_page_protect_active,
+            proof_nonce,
+            deferred_proof_index,
         }
     }
 
@@ -173,11 +166,12 @@ where
         self.start_reconstruct_deferred_digest.write(witness);
         self.sp1_vk_digest.write(witness);
         self.end_pc.write(witness);
-        self.is_page_protect_active.write(witness);
+        self.proof_nonce.write(witness);
+        self.deferred_proof_index.write(witness);
     }
 }
 
-impl<C: CircuitConfig, HV: FieldHasherVariable<C>> Witnessable<C> for MerkleProof<C::F, HV>
+impl<C: CircuitConfig, HV: FieldHasherVariable<C>> Witnessable<C> for MerkleProof<HV>
 where
     HV::Digest: Witnessable<C, WitnessVariable = HV::DigestVariable>,
 {
@@ -212,12 +206,12 @@ where
     }
 }
 
-impl<C: CircuitConfig<F = SP1Field>, SC: SP1FieldConfigVariable<C>> Witnessable<C>
+impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> Witnessable<C>
     for SP1MerkleProofWitnessValues<SC>
 where
     // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
-    SC: FieldHasher<SP1Field>,
-    <SC as FieldHasher<SP1Field>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
+    SC: FieldHasher<F = SP1Field>,
+    <SC as IopCtx>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
 {
     type WitnessVariable = SP1MerkleProofWitnessVariable<C, SC>;
 
@@ -236,18 +230,19 @@ where
     }
 }
 
-impl<C: CircuitConfig<F = SP1Field, EF = InnerChallenge>, SC: SP1FieldConfigVariable<C>>
-    Witnessable<C> for SP1CompressWithVKeyWitnessValues<SC>
+impl<C: CircuitConfig, Proof> Witnessable<C> for SP1CompressWithVKeyWitnessValues<Proof>
 where
-    // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
-    SC: FieldHasher<SP1Field>,
-    <SC as FieldHasher<SP1Field>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
-    SC::Commitment:
-        Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
-    MachineVerifyingKey<SC>: Witnessable<C, WitnessVariable = MachineVerifyingKeyVariable<C, SC>>,
-    ShardProof<SC>: Witnessable<C, WitnessVariable = ShardProofVariable<C, SC, JC<C, SC>>>,
+    <SP1GlobalContext as IopCtx>::Digest: Witnessable<
+        C,
+        WitnessVariable = <SP1GlobalContext as FieldHasherVariable<C>>::DigestVariable,
+    >,
+    MachineVerifyingKey<SP1GlobalContext>:
+        Witnessable<C, WitnessVariable = MachineVerifyingKeyVariable<C, SP1GlobalContext>>,
+    ShardProof<SP1GlobalContext, Proof>:
+        Witnessable<C, WitnessVariable = ShardProofVariable<C, SP1GlobalContext>>,
+    SP1GlobalContext: SP1FieldConfigVariable<C>,
 {
-    type WitnessVariable = SP1CompressWithVKeyWitnessVariable<C, SC, JC<C, SC>>;
+    type WitnessVariable = SP1CompressWithVKeyWitnessVariable<C, SP1GlobalContext>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         SP1CompressWithVKeyWitnessVariable {

@@ -1,12 +1,12 @@
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 
 use hashbrown::HashMap;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
@@ -18,12 +18,12 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     operations::{MulOperation, MulOperationInput},
-    utils::{next_multiple_of_32, zeroed_f_vec},
+    utils::next_multiple_of_32,
 };
 
 /// The number of main trace columns for `MulChip`.
@@ -41,7 +41,7 @@ pub struct MulCols<T> {
     pub state: CPUState<T>,
 
     /// The adapter to read program and register information.
-    pub adapter: ALUTypeReader<T>,
+    pub adapter: RTypeReader<T>,
 
     /// The output operand.
     pub a: Word<T>,
@@ -70,8 +70,8 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Mul".to_string()
+    fn name(&self) -> &'static str {
+        "Mul"
     }
 
     fn column_names(&self) -> Vec<String> {
@@ -84,16 +84,27 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
         Some(nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        _output: &mut ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Generate the trace rows for each event.
         let nb_rows = input.mul_events.len();
         let padded_nb_rows = <MulChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MUL_COLS);
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+
+        unsafe {
+            let padding_start = nb_rows * NUM_MUL_COLS;
+            let padding_size = (padded_nb_rows - nb_rows) * NUM_MUL_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, nb_rows * NUM_MUL_COLS) };
 
         values.chunks_mut(chunk_size * NUM_MUL_COLS).enumerate().par_bridge().for_each(
             |(i, rows)| {
@@ -111,9 +122,6 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
                 });
             },
         );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MUL_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -289,7 +297,7 @@ where
 
         // Constrain the program and register reads.
         let a_expr = local.a.map(|x| x.into());
-        let alu_reader_input = ALUTypeReaderInput::<AB, AB::Expr>::new(
+        let alu_reader_input = RTypeReaderInput::<AB, AB::Expr>::new(
             local.state.clk_high::<AB>(),
             local.state.clk_low::<AB>(),
             local.state.pc,
@@ -299,7 +307,7 @@ where
             local.adapter,
             is_real.clone(),
         );
-        <ALUTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, alu_reader_input);
+        <RTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, alu_reader_input);
     }
 }
 
@@ -319,7 +327,7 @@ where
 //     };
 //     use sp1_hypercube::{
 //         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         koala_bear_poseidon2::SP1CoreJaggedConfig,
+//         koala_bear_poseidon2::SP1InnerPcs,
 //         Chip, CpuProver, MachineProver, StarkMachine, Val,
 //     };
 
@@ -417,7 +425,7 @@ where
 
 //         // Run setup.
 //         let air = MulChip::default();
-//         let config = SP1CoreJaggedConfig::new();
+//         let config = SP1InnerPcs::new();
 //         let chip = Chip::new(air);
 //         let (pk, vk) = setup_test_machine(StarkMachine::new(
 //             config.clone(),
@@ -430,7 +438,7 @@ where
 //         let air = MulChip::default();
 //         let chip: Chip<SP1Field, MulChip> = Chip::new(air);
 //         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<SP1CoreJaggedConfig, MulChip>(vec![shard], machine, pk, vk).unwrap();
+//         run_test_machine::<SP1InnerPcs, MulChip>(vec![shard], machine, pk, vk).unwrap();
 //     }
 
 //     #[test]
@@ -473,13 +481,13 @@ where
 //                 let program = Program::new(instructions, 0, 0);
 //                 let stdin = SP1Stdin::new();
 
-//                 type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
+//                 type P = CpuProver<SP1InnerPcs, RiscvAir<SP1Field>>;
 
 //                 let malicious_trace_pv_generator = move |prover: &P,
 //                                                          record: &mut ExecutionRecord|
 //                       -> Vec<(
 //                     String,
-//                     RowMajorMatrix<Val<SP1CoreJaggedConfig>>,
+//                     RowMajorMatrix<Val<SP1InnerPcs>>,
 //                 )> {
 //                     let mut malicious_record = record.clone();
 //                     malicious_record.cpu_events[0].a = op_a as u32;

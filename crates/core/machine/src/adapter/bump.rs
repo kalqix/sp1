@@ -1,17 +1,14 @@
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 
-use crate::{
-    air::SP1CoreAirBuilder,
-    utils::{next_multiple_of_32, zeroed_f_vec},
-};
+use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, Field, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Program, PC_INC,
@@ -55,8 +52,8 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "StateBump".to_string()
+    fn name(&self) -> &'static str {
+        "StateBump"
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -79,8 +76,7 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
                     blu.add_bit_range_check((next_clk_0_16 - 1) / 8, 13);
                     blu.add_bit_range_check(next_clk_32_48, 16);
                     blu.add_u8_range_checks(&[next_clk_16_24, next_clk_24_32]);
-                    blu.add_bit_range_check(pc_0 / 4, 14);
-                    blu.add_u16_range_checks(&[pc_1, pc_2]);
+                    blu.add_u16_range_checks(&[pc_0, pc_1, pc_2]);
                 });
                 blu
             })
@@ -95,14 +91,29 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
         Some(next_multiple_of_32(nb_rows, size_log2))
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         let chunk_size = 1;
         let padded_nb_rows = <StateBumpChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_STATE_BUMP_COLS);
+
+        let num_event_rows = input.bump_state_events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_STATE_BUMP_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_STATE_BUMP_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_STATE_BUMP_COLS)
+        };
 
         values.chunks_mut(chunk_size * NUM_STATE_BUMP_COLS).enumerate().for_each(|(i, rows)| {
             rows.chunks_mut(NUM_STATE_BUMP_COLS).enumerate().for_each(|(j, row)| {
@@ -149,14 +160,13 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
                     if (next_clk >> 24) != (clk >> 24) {
                         cols.is_clk = F::one();
+                    } else {
+                        cols.is_clk = F::zero();
                     }
                     cols.is_real = F::one();
                 }
             });
         });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_STATE_BUMP_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -233,15 +243,6 @@ where
             builder.assert_bool(carry.clone());
         }
         builder.assert_zero(carry);
-
-        // Check that the `next_pc` is a multiple of `4`.
-        builder.send_byte(
-            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-            local.next_pc[0].into() * AB::F::from_canonical_u32(4).inverse(),
-            AB::Expr::from_canonical_u32(14),
-            AB::Expr::zero(),
-            local.is_real,
-        );
-        builder.slice_range_check_u16(&local.next_pc[1..3], local.is_real);
+        builder.slice_range_check_u16(&local.next_pc, local.is_real);
     }
 }

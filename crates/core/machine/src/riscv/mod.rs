@@ -5,17 +5,6 @@ use strum::IntoEnumIterator;
 use core::fmt;
 use std::{collections::BTreeSet, sync::Arc};
 
-use hashbrown::HashMap;
-use itertools::Itertools;
-use slop_algebra::PrimeField32;
-use sp1_core_executor::{ExecutionRecord, RiscvAirId};
-use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
-use sp1_hypercube::{
-    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-    Chip, Machine, MachineShape,
-};
-use strum_macros::{EnumDiscriminants, EnumIter};
-
 use crate::{
     adapter::bump::StateBumpChip,
     autoprecompiles::{chip::ApcChip, instruction::Sp1Instruction},
@@ -30,11 +19,9 @@ use crate::{
             store_byte::StoreByteChip, store_double::StoreDoubleChip, store_half::StoreHalfChip,
             store_word::StoreWordChip,
         },
-        MemoryBumpChip, MemoryChipType, MemoryLocalChip, PageProtChip, PageProtGlobalChip,
-        PageProtLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW,
-        NUM_PAGE_PROT_ENTRIES_PER_ROW,
+        MemoryBumpChip, MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
+        NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW, NUM_PAGE_PROT_ENTRIES_PER_ROW,
     },
-    program::{InstructionDecodeChip, InstructionFetchChip},
     range::RangeChip,
     syscall::{
         instructions::SyscallInstrsChip,
@@ -42,6 +29,17 @@ use crate::{
     },
     utype::UTypeChip,
 };
+use hashbrown::HashMap;
+use itertools::Itertools;
+use slop_algebra::PrimeField32;
+use sp1_core_executor::{ExecutionRecord, RiscvAirId};
+use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
+use sp1_hypercube::{
+    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
+    Chip, Machine, MachineShape,
+};
+use std::mem::MaybeUninit;
+use strum::{EnumDiscriminants, EnumIter};
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
@@ -98,10 +96,6 @@ pub const MAX_NUMBER_OF_SHARDS: usize = 1 << MAX_LOG_NUMBER_OF_SHARDS;
 pub enum RiscvAir<F: PrimeField32> {
     /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
-    InstructionDecode(InstructionDecodeChip),
-    InstructionFetch(InstructionFetchChip),
-    /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
-    // Cpu(CpuChip),
     /// An AIR for the RISC-V Add instruction.
     Add(AddChip),
     /// An AIR for the RISC-V Addw instruction.
@@ -160,18 +154,10 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryGlobalInit(MemoryGlobalChip),
     /// A table for finalizing the global memory state.
     MemoryGlobalFinal(MemoryGlobalChip),
-    /// A table for initializing the global page prot state.
-    PageProtGlobalInit(PageProtGlobalChip),
-    /// A table for finalizing the global page prot state.
-    PageProtGlobalFinal(PageProtGlobalChip),
     /// A table for the local memory state.
     MemoryLocal(MemoryLocalChip),
     /// A table for bumping memory timestamps.
     MemoryBump(MemoryBumpChip),
-    /// A table for page prot access.
-    PageProt(PageProtChip),
-    /// A table for page prot access.
-    PageProtLocal(PageProtLocalChip),
     /// A table for bumping the state timestamps.
     StateBump(StateBumpChip),
     /// A table for all the syscall invocations.
@@ -319,17 +305,11 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Branch(BranchChip::default()),
             RiscvAir::Jal(JalChip::default()),
             RiscvAir::Jalr(JalrChip::default()),
-            RiscvAir::InstructionDecode(InstructionDecodeChip::default()),
-            RiscvAir::InstructionFetch(InstructionFetchChip::default()),
             RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),
             RiscvAir::MemoryBump(MemoryBumpChip::new()),
-            RiscvAir::PageProt(PageProtChip::default()),
-            RiscvAir::PageProtLocal(PageProtLocalChip::default()),
             RiscvAir::StateBump(StateBumpChip::new()),
             RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
             RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
-            RiscvAir::PageProtGlobalInit(PageProtGlobalChip::new(MemoryChipType::Initialize)),
-            RiscvAir::PageProtGlobalFinal(PageProtGlobalChip::new(MemoryChipType::Finalize)),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
             RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
@@ -363,10 +343,8 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster = extend_base(
-            &preprocessed_chips,
-            [SyscallPrecompile, MemoryLocal, PageProtLocal, Global],
-        );
+        let base_precompile_cluster =
+            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -394,7 +372,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Bn254Fp2AddSub].as_slice(),
             [Bn254Fp2Mul].as_slice(),
             [Bls12381Decompress].as_slice(),
-            [Mprotect].as_slice(),
             [Poseidon2].as_slice(),
         ]
         .into_iter()
@@ -430,25 +407,18 @@ impl<F: PrimeField32> RiscvAir<F> {
                 Jalr,
                 SyscallInstrs,
                 MemoryBump,
-                PageProt,
-                PageProtLocal,
                 StateBump,
                 MemoryLocal,
                 Global,
-                InstructionDecode,
-                InstructionFetch,
             ],
         );
 
-        let memory_boundary_cluster = extend_base(
-            &preprocessed_chips,
-            [MemoryGlobalInit, MemoryGlobalFinal, Global, PageProtGlobalInit, PageProtGlobalFinal],
-        );
+        let memory_boundary_cluster =
+            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
-                .as_slice(),
+            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
@@ -474,8 +444,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 [
                     MemoryGlobalInit,
                     MemoryGlobalFinal,
-                    PageProtGlobalInit,
-                    PageProtGlobalFinal,
                     Sha256Extend,
                     Sha256ExtendControl,
                     Sha256Compress,
@@ -521,336 +489,306 @@ impl<F: PrimeField32> RiscvAir<F> {
         // The order of the chips is used to determine the order of trace generation.
         let mut chips = vec![];
 
-        let instruction_decode =
-            Chip::new(RiscvAir::InstructionDecode(InstructionDecodeChip::default()));
-        costs.insert(instruction_decode.name(), instruction_decode.cost());
-        chips.push(instruction_decode);
-
-        let instruction_fetch =
-            Chip::new(RiscvAir::InstructionFetch(InstructionFetchChip::default()));
-        costs.insert(instruction_fetch.name(), instruction_fetch.cost());
-        chips.push(instruction_fetch);
-
         let program = Chip::new(RiscvAir::Program(ProgramChip::default()));
-        costs.insert(program.name(), program.cost());
+        costs.insert(program.name().to_string(), program.cost());
         chips.push(program);
 
         let sha_extend = Chip::new(RiscvAir::Sha256Extend(ShaExtendChip::default()));
-        costs.insert(sha_extend.name(), sha_extend.cost());
+        costs.insert(sha_extend.name().to_string(), sha_extend.cost());
         chips.push(sha_extend);
 
         let sha_extend_control =
             Chip::new(RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()));
-        costs.insert(sha_extend_control.name(), sha_extend_control.cost());
+        costs.insert(sha_extend_control.name().to_string(), sha_extend_control.cost());
         chips.push(sha_extend_control);
 
         let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
-        costs.insert(sha_compress.name(), sha_compress.cost());
+        costs.insert(sha_compress.name().to_string(), sha_compress.cost());
         chips.push(sha_compress);
 
         let sha_compress_control =
             Chip::new(RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()));
-        costs.insert(sha_compress_control.name(), sha_compress_control.cost());
+        costs.insert(sha_compress_control.name().to_string(), sha_compress_control.cost());
         chips.push(sha_compress_control);
 
         let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
             EdwardsCurve<Ed25519Parameters>,
         >::new()));
-        costs.insert(ed_add_assign.name(), ed_add_assign.cost());
+        costs.insert(ed_add_assign.name().to_string(), ed_add_assign.cost());
         chips.push(ed_add_assign);
 
         let ed_decompress = Chip::new(RiscvAir::Ed25519Decompress(EdDecompressChip::<
             Ed25519Parameters,
         >::default()));
-        costs.insert(ed_decompress.name(), ed_decompress.cost());
+        costs.insert(ed_decompress.name().to_string(), ed_decompress.cost());
         chips.push(ed_decompress);
 
         let k256_decompress = Chip::new(RiscvAir::K256Decompress(WeierstrassDecompressChip::<
             SwCurve<Secp256k1Parameters>,
         >::with_lsb_rule()));
-        costs.insert(k256_decompress.name(), k256_decompress.cost());
+        costs.insert(k256_decompress.name().to_string(), k256_decompress.cost());
         chips.push(k256_decompress);
 
         let secp256k1_add_assign = Chip::new(RiscvAir::Secp256k1Add(WeierstrassAddAssignChip::<
             SwCurve<Secp256k1Parameters>,
         >::new()));
-        costs.insert(secp256k1_add_assign.name(), secp256k1_add_assign.cost());
+        costs.insert(secp256k1_add_assign.name().to_string(), secp256k1_add_assign.cost());
         chips.push(secp256k1_add_assign);
 
         let secp256k1_double_assign =
             Chip::new(RiscvAir::Secp256k1Double(WeierstrassDoubleAssignChip::<
                 SwCurve<Secp256k1Parameters>,
             >::new()));
-        costs.insert(secp256k1_double_assign.name(), secp256k1_double_assign.cost());
+        costs.insert(secp256k1_double_assign.name().to_string(), secp256k1_double_assign.cost());
         chips.push(secp256k1_double_assign);
 
         let p256_decompress = Chip::new(RiscvAir::P256Decompress(WeierstrassDecompressChip::<
             SwCurve<Secp256r1Parameters>,
         >::with_lsb_rule()));
-        costs.insert(p256_decompress.name(), p256_decompress.cost());
+        costs.insert(p256_decompress.name().to_string(), p256_decompress.cost());
         chips.push(p256_decompress);
 
         let secp256r1_add_assign = Chip::new(RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<
             SwCurve<Secp256r1Parameters>,
         >::new()));
-        costs.insert(secp256r1_add_assign.name(), secp256r1_add_assign.cost());
+        costs.insert(secp256r1_add_assign.name().to_string(), secp256r1_add_assign.cost());
         chips.push(secp256r1_add_assign);
 
         let secp256r1_double_assign =
             Chip::new(RiscvAir::Secp256r1Double(WeierstrassDoubleAssignChip::<
                 SwCurve<Secp256r1Parameters>,
             >::new()));
-        costs.insert(secp256r1_double_assign.name(), secp256r1_double_assign.cost());
+        costs.insert(secp256r1_double_assign.name().to_string(), secp256r1_double_assign.cost());
         chips.push(secp256r1_double_assign);
 
         let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
-        costs.insert(keccak_permute.name(), keccak_permute.cost());
+        costs.insert(keccak_permute.name().to_string(), keccak_permute.cost());
         chips.push(keccak_permute);
 
         let keccak_control = Chip::new(RiscvAir::KeccakPControl(KeccakPermuteControlChip::new()));
-        costs.insert(keccak_control.name(), keccak_control.cost());
+        costs.insert(keccak_control.name().to_string(), keccak_control.cost());
         chips.push(keccak_control);
 
         let bn254_add_assign = Chip::new(RiscvAir::Bn254Add(WeierstrassAddAssignChip::<
             SwCurve<Bn254Parameters>,
         >::new()));
-        costs.insert(bn254_add_assign.name(), bn254_add_assign.cost());
+        costs.insert(bn254_add_assign.name().to_string(), bn254_add_assign.cost());
         chips.push(bn254_add_assign);
 
         let bn254_double_assign = Chip::new(RiscvAir::Bn254Double(WeierstrassDoubleAssignChip::<
             SwCurve<Bn254Parameters>,
         >::new()));
-        costs.insert(bn254_double_assign.name(), bn254_double_assign.cost());
+        costs.insert(bn254_double_assign.name().to_string(), bn254_double_assign.cost());
         chips.push(bn254_double_assign);
 
         let bls12381_add = Chip::new(RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<
             SwCurve<Bls12381Parameters>,
         >::new()));
-        costs.insert(bls12381_add.name(), bls12381_add.cost());
+        costs.insert(bls12381_add.name().to_string(), bls12381_add.cost());
         chips.push(bls12381_add);
 
         let bls12381_double = Chip::new(RiscvAir::Bls12381Double(WeierstrassDoubleAssignChip::<
             SwCurve<Bls12381Parameters>,
         >::new()));
-        costs.insert(bls12381_double.name(), bls12381_double.cost());
+        costs.insert(bls12381_double.name().to_string(), bls12381_double.cost());
         chips.push(bls12381_double);
 
         let uint256_mul = Chip::new(RiscvAir::Uint256Mul(Uint256MulChip::default()));
-        costs.insert(uint256_mul.name(), uint256_mul.cost());
+        costs.insert(uint256_mul.name().to_string(), uint256_mul.cost());
         chips.push(uint256_mul);
 
         let u256x2048_mul = Chip::new(RiscvAir::U256x2048Mul(U256x2048MulChip::default()));
-        costs.insert(u256x2048_mul.name(), u256x2048_mul.cost());
+        costs.insert(u256x2048_mul.name().to_string(), u256x2048_mul.cost());
         chips.push(u256x2048_mul);
 
         let uint256_ops = Chip::new(RiscvAir::Uint256Ops(Uint256OpsChip::default()));
-        costs.insert(uint256_ops.name(), uint256_ops.cost());
+        costs.insert(uint256_ops.name().to_string(), uint256_ops.cost());
         chips.push(uint256_ops);
 
         let bls12381_fp = Chip::new(RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
-        costs.insert(bls12381_fp.name(), bls12381_fp.cost());
+        costs.insert(bls12381_fp.name().to_string(), bls12381_fp.cost());
         chips.push(bls12381_fp);
 
         let bls12381_fp2_addsub =
             Chip::new(RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()));
-        costs.insert(bls12381_fp2_addsub.name(), bls12381_fp2_addsub.cost());
+        costs.insert(bls12381_fp2_addsub.name().to_string(), bls12381_fp2_addsub.cost());
         chips.push(bls12381_fp2_addsub);
 
         let bls12381_fp2_mul =
             Chip::new(RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()));
-        costs.insert(bls12381_fp2_mul.name(), bls12381_fp2_mul.cost());
+        costs.insert(bls12381_fp2_mul.name().to_string(), bls12381_fp2_mul.cost());
         chips.push(bls12381_fp2_mul);
 
         let bn254_fp = Chip::new(RiscvAir::Bn254Fp(FpOpChip::<Bn254BaseField>::new()));
-        costs.insert(bn254_fp.name(), bn254_fp.cost());
+        costs.insert(bn254_fp.name().to_string(), bn254_fp.cost());
         chips.push(bn254_fp);
 
         let bn254_fp2_addsub =
             Chip::new(RiscvAir::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()));
-        costs.insert(bn254_fp2_addsub.name(), bn254_fp2_addsub.cost());
+        costs.insert(bn254_fp2_addsub.name().to_string(), bn254_fp2_addsub.cost());
         chips.push(bn254_fp2_addsub);
 
         let bn254_fp2_mul =
             Chip::new(RiscvAir::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()));
-        costs.insert(bn254_fp2_mul.name(), bn254_fp2_mul.cost());
+        costs.insert(bn254_fp2_mul.name().to_string(), bn254_fp2_mul.cost());
         chips.push(bn254_fp2_mul);
 
         let bls12381_decompress =
             Chip::new(RiscvAir::Bls12381Decompress(WeierstrassDecompressChip::<
                 SwCurve<Bls12381Parameters>,
             >::with_lexicographic_rule()));
-        costs.insert(bls12381_decompress.name(), bls12381_decompress.cost());
+        costs.insert(bls12381_decompress.name().to_string(), bls12381_decompress.cost());
         chips.push(bls12381_decompress);
 
         let mprotect = Chip::new(RiscvAir::Mprotect(MProtectChip::default()));
-        costs.insert(mprotect.name(), mprotect.cost());
+        costs.insert(mprotect.name().to_string(), mprotect.cost());
         chips.push(mprotect);
 
         let syscall_core = Chip::new(RiscvAir::SyscallCore(SyscallChip::core()));
-        costs.insert(syscall_core.name(), syscall_core.cost());
+        costs.insert(syscall_core.name().to_string(), syscall_core.cost());
         chips.push(syscall_core);
 
         let syscall_precompile = Chip::new(RiscvAir::SyscallPrecompile(SyscallChip::precompile()));
-        costs.insert(syscall_precompile.name(), syscall_precompile.cost());
+        costs.insert(syscall_precompile.name().to_string(), syscall_precompile.cost());
         chips.push(syscall_precompile);
 
         let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::default()));
-        costs.insert(div_rem.name(), div_rem.cost());
+        costs.insert(div_rem.name().to_string(), div_rem.cost());
         chips.push(div_rem);
 
         let add = Chip::new(RiscvAir::Add(AddChip::default()));
-        costs.insert(add.name(), add.cost());
+        costs.insert(add.name().to_string(), add.cost());
         chips.push(add);
 
         let addw = Chip::new(RiscvAir::Addw(AddwChip::default()));
-        costs.insert(addw.name(), addw.cost());
+        costs.insert(addw.name().to_string(), addw.cost());
         chips.push(addw);
 
         let addi = Chip::new(RiscvAir::Addi(AddiChip::default()));
-        costs.insert(addi.name(), addi.cost());
+        costs.insert(addi.name().to_string(), addi.cost());
         chips.push(addi);
 
         let sub = Chip::new(RiscvAir::Sub(SubChip::default()));
-        costs.insert(sub.name(), sub.cost());
+        costs.insert(sub.name().to_string(), sub.cost());
         chips.push(sub);
 
         let subw = Chip::new(RiscvAir::Subw(SubwChip::default()));
-        costs.insert(subw.name(), subw.cost());
+        costs.insert(subw.name().to_string(), subw.cost());
         chips.push(subw);
 
         let bitwise = Chip::new(RiscvAir::Bitwise(BitwiseChip::default()));
-        costs.insert(bitwise.name(), bitwise.cost());
+        costs.insert(bitwise.name().to_string(), bitwise.cost());
         chips.push(bitwise);
 
         let mul = Chip::new(RiscvAir::Mul(MulChip::default()));
-        costs.insert(mul.name(), mul.cost());
+        costs.insert(mul.name().to_string(), mul.cost());
         chips.push(mul);
 
         let shift_right = Chip::new(RiscvAir::ShiftRight(ShiftRightChip::default()));
-        costs.insert(shift_right.name(), shift_right.cost());
+        costs.insert(shift_right.name().to_string(), shift_right.cost());
         chips.push(shift_right);
 
         let shift_left = Chip::new(RiscvAir::ShiftLeft(ShiftLeftChip::default()));
-        costs.insert(shift_left.name(), shift_left.cost());
+        costs.insert(shift_left.name().to_string(), shift_left.cost());
         chips.push(shift_left);
 
         let lt = Chip::new(RiscvAir::Lt(LtChip::default()));
-        costs.insert(lt.name(), lt.cost());
+        costs.insert(lt.name().to_string(), lt.cost());
         chips.push(lt);
 
         let load_byte = Chip::new(RiscvAir::LoadByte(LoadByteChip::default()));
-        costs.insert(load_byte.name(), load_byte.cost());
+        costs.insert(load_byte.name().to_string(), load_byte.cost());
         chips.push(load_byte);
 
         let load_half = Chip::new(RiscvAir::LoadHalf(LoadHalfChip::default()));
-        costs.insert(load_half.name(), load_half.cost());
+        costs.insert(load_half.name().to_string(), load_half.cost());
         chips.push(load_half);
 
         let load_word = Chip::new(RiscvAir::LoadWord(LoadWordChip::default()));
-        costs.insert(load_word.name(), load_word.cost());
+        costs.insert(load_word.name().to_string(), load_word.cost());
         chips.push(load_word);
 
         let load_x0 = Chip::new(RiscvAir::LoadX0(LoadX0Chip::default()));
-        costs.insert(load_x0.name(), load_x0.cost());
+        costs.insert(load_x0.name().to_string(), load_x0.cost());
         chips.push(load_x0);
 
         let load_double = Chip::new(RiscvAir::LoadDouble(LoadDoubleChip::default()));
-        costs.insert(load_double.name(), load_double.cost());
+        costs.insert(load_double.name().to_string(), load_double.cost());
         chips.push(load_double);
 
         let store_byte = Chip::new(RiscvAir::StoreByte(StoreByteChip::default()));
-        costs.insert(store_byte.name(), store_byte.cost());
+        costs.insert(store_byte.name().to_string(), store_byte.cost());
         chips.push(store_byte);
 
         let store_half = Chip::new(RiscvAir::StoreHalf(StoreHalfChip::default()));
-        costs.insert(store_half.name(), store_half.cost());
+        costs.insert(store_half.name().to_string(), store_half.cost());
         chips.push(store_half);
 
         let store_word = Chip::new(RiscvAir::StoreWord(StoreWordChip::default()));
-        costs.insert(store_word.name(), store_word.cost());
+        costs.insert(store_word.name().to_string(), store_word.cost());
         chips.push(store_word);
 
         let store_double = Chip::new(RiscvAir::StoreDouble(StoreDoubleChip::default()));
-        costs.insert(store_double.name(), store_double.cost());
+        costs.insert(store_double.name().to_string(), store_double.cost());
         chips.push(store_double);
 
         let utype = Chip::new(RiscvAir::UType(UTypeChip::default()));
-        costs.insert(utype.name(), utype.cost());
+        costs.insert(utype.name().to_string(), utype.cost());
         chips.push(utype);
 
         let branch = Chip::new(RiscvAir::Branch(BranchChip::default()));
-        costs.insert(branch.name(), branch.cost());
+        costs.insert(branch.name().to_string(), branch.cost());
         chips.push(branch);
 
         let jal = Chip::new(RiscvAir::Jal(JalChip::default()));
-        costs.insert(jal.name(), jal.cost());
+        costs.insert(jal.name().to_string(), jal.cost());
         chips.push(jal);
 
         let jalr = Chip::new(RiscvAir::Jalr(JalrChip::default()));
-        costs.insert(jalr.name(), jalr.cost());
+        costs.insert(jalr.name().to_string(), jalr.cost());
         chips.push(jalr);
 
         let syscall_instrs = Chip::new(RiscvAir::SyscallInstrs(SyscallInstrsChip::default()));
-        costs.insert(syscall_instrs.name(), syscall_instrs.cost());
+        costs.insert(syscall_instrs.name().to_string(), syscall_instrs.cost());
         chips.push(syscall_instrs);
 
         let memory_bump = Chip::new(RiscvAir::MemoryBump(MemoryBumpChip::new()));
-        costs.insert(memory_bump.name(), memory_bump.cost());
+        costs.insert(memory_bump.name().to_string(), memory_bump.cost());
         chips.push(memory_bump);
 
-        let page_prot = Chip::new(RiscvAir::PageProt(PageProtChip::default()));
-        costs.insert(page_prot.name(), page_prot.cost());
-        chips.push(page_prot);
-
-        let page_prot_local = Chip::new(RiscvAir::PageProtLocal(PageProtLocalChip::default()));
-        costs.insert(page_prot_local.name(), page_prot_local.cost());
-        chips.push(page_prot_local);
-
         let state_bump = Chip::new(RiscvAir::StateBump(StateBumpChip::new()));
-        costs.insert(state_bump.name(), state_bump.cost());
+        costs.insert(state_bump.name().to_string(), state_bump.cost());
         chips.push(state_bump);
 
         let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
             MemoryChipType::Initialize,
         )));
-        costs.insert(memory_global_init.name(), memory_global_init.cost());
+        costs.insert(memory_global_init.name().to_string(), memory_global_init.cost());
         chips.push(memory_global_init);
 
         let memory_global_finalize =
             Chip::new(RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)));
-        costs.insert(memory_global_finalize.name(), memory_global_finalize.cost());
+        costs.insert(memory_global_finalize.name().to_string(), memory_global_finalize.cost());
         chips.push(memory_global_finalize);
 
-        let page_prot_global_init = Chip::new(RiscvAir::PageProtGlobalInit(
-            PageProtGlobalChip::new(MemoryChipType::Initialize),
-        ));
-        costs.insert(page_prot_global_init.name(), page_prot_global_init.cost());
-        chips.push(page_prot_global_init);
-
-        let page_prot_global_finalize = Chip::new(RiscvAir::PageProtGlobalFinal(
-            PageProtGlobalChip::new(MemoryChipType::Finalize),
-        ));
-        costs.insert(page_prot_global_finalize.name(), page_prot_global_finalize.cost());
-        chips.push(page_prot_global_finalize);
-
         let memory_local = Chip::new(RiscvAir::MemoryLocal(MemoryLocalChip::new()));
-        costs.insert(memory_local.name(), memory_local.cost());
+        costs.insert(memory_local.name().to_string(), memory_local.cost());
         chips.push(memory_local);
 
         let global = Chip::new(RiscvAir::Global(GlobalChip));
-        costs.insert(global.name(), global.cost());
+        costs.insert(global.name().to_string(), global.cost());
         chips.push(global);
 
         let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
-        costs.insert(byte.name(), byte.cost());
+        costs.insert(byte.name().to_string(), byte.cost());
         chips.push(byte);
 
         let range = Chip::new(RiscvAir::RangeLookup(RangeChip::default()));
-        costs.insert(range.name(), range.cost());
+        costs.insert(range.name().to_string(), range.cost());
         chips.push(range);
 
         let poseidon2 = Chip::new(RiscvAir::Poseidon2(Poseidon2Chip::new()));
-        costs.insert(poseidon2.name(), poseidon2.cost());
+        costs.insert(poseidon2.name().to_string(), poseidon2.cost());
         chips.push(poseidon2);
 
         assert_eq!(chips.len(), costs.len(), "chips and costs must have the same length",);
@@ -935,7 +873,7 @@ impl<F: PrimeField32> Eq for RiscvAir<F> {}
 
 impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.name().hash(state);
+        self.name().to_string().hash(state);
     }
 }
 
@@ -949,8 +887,6 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
     fn from(value: RiscvAirDiscriminants) -> Self {
         match value {
             RiscvAirDiscriminants::Program => RiscvAirId::Program,
-            RiscvAirDiscriminants::InstructionDecode => RiscvAirId::InstructionDecode,
-            RiscvAirDiscriminants::InstructionFetch => RiscvAirId::InstructionFetch,
             RiscvAirDiscriminants::Add => RiscvAirId::Add,
             RiscvAirDiscriminants::Addw => RiscvAirId::Addw,
             RiscvAirDiscriminants::Addi => RiscvAirId::Addi,
@@ -973,8 +909,6 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::StoreDouble => RiscvAirId::StoreDouble,
             RiscvAirDiscriminants::RangeLookup => RiscvAirId::Range,
             RiscvAirDiscriminants::MemoryBump => RiscvAirId::MemoryBump,
-            RiscvAirDiscriminants::PageProt => RiscvAirId::PageProt,
-            RiscvAirDiscriminants::PageProtLocal => RiscvAirId::PageProtLocal,
             RiscvAirDiscriminants::StateBump => RiscvAirId::StateBump,
             RiscvAirDiscriminants::UType => RiscvAirId::UType,
             RiscvAirDiscriminants::Branch => RiscvAirId::Branch,
@@ -984,8 +918,6 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::ByteLookup => RiscvAirId::Byte,
             RiscvAirDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
             RiscvAirDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
-            RiscvAirDiscriminants::PageProtGlobalInit => RiscvAirId::PageProtGlobalInit,
-            RiscvAirDiscriminants::PageProtGlobalFinal => RiscvAirId::PageProtGlobalFinalize,
             RiscvAirDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
             RiscvAirDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
             RiscvAirDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
@@ -1255,13 +1187,20 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 #[cfg(test)]
 pub mod tests {
 
-    use std::sync::Arc;
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
     use slop_air::BaseAir;
-
-    use sp1_core_executor::{Instruction, Opcode, Program};
+    use sp1_core_executor::{
+        cost_and_height_per_syscall, rv64im_costs, syscalls::SyscallCode, Instruction, Opcode,
+        Program, RiscvAirId, MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA,
+    };
+    use sp1_hypercube::{air::MachineAir, InteractionBuilder, MachineRecord};
     use sp1_primitives::SP1Field;
 
+<<<<<<< HEAD
     use sp1_primitives::io::SP1PublicValues;
 
     use crate::{
@@ -1272,20 +1211,28 @@ pub mod tests {
     };
     use sp1_core_executor::add_halt;
     use sp1_hypercube::{InteractionKind, MachineVerifierConfigError, SP1CoreJaggedConfig};
+=======
+    use crate::{
+        programs::tests::*,
+        riscv::RiscvAir,
+        utils::{run_test_small_trace, setup_logger},
+    };
+    use sp1_core_executor::add_halt;
+    use sp1_hypercube::InteractionKind;
+    use strum::IntoEnumIterator;
+>>>>>>> origin/multilinear_v6
     //     use sp1_primitives::SP1Field;
     //     use sp1_core_executor::{Instruction, Opcode, Program, SP1Context};
     //     use sp1_hypercube::{
-    //         koala_bear_poseidon2::SP1CoreJaggedConfig, CpuProver, MachineProver, SP1CoreOpts,
+    //         koala_bear_poseidon2::SP1InnerPcs, CpuProver, MachineProver, SP1CoreOpts,
     //         StarkProvingKey, StarkVerifyingKey,
     //     };
 
-    // TODO:  Re-enable when we get all precompiles compatible w/ v6 (specifically the
-    // first_row, last_row.
     // #[test]
     // fn test_primitives_and_machine_air_names_match() {
     //     let chips = RiscvAir::<SP1Field>::chips();
     //     for (a, b) in chips.iter().zip_eq(RiscvAirId::iter()) {
-    //         assert_eq!(a.name(), b.to_string());
+    //         assert_eq!(a.name().to_string(), b.to_string());
     //     }
     // }
 
@@ -1317,6 +1264,64 @@ pub mod tests {
         let machine_costs = RiscvAir::<SP1Field>::costs();
         assert_eq!(costs, machine_costs);
     }
+
+    #[test]
+    fn core_air_complexity_consistency() {
+        let complexity = sp1_core_executor::get_complexity_mapping();
+        let machine = RiscvAir::<SP1Field>::machine();
+        for chip in machine.chips() {
+            let id = chip.air.id();
+            let expected = complexity[id];
+            assert_eq!(
+                chip.num_constraints as u64, expected,
+                "Complexity mismatch for {:?}: chip has {} constraints, expected {}",
+                id, chip.num_constraints, expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_interaction_counts() {
+        let interaction_sizes = RiscvAir::<SP1Field>::machine()
+            .chips()
+            .iter()
+            .flat_map(|chip| {
+                chip.sends()
+                    .iter()
+                    .chain(chip.receives().iter())
+                    .map(|interaction| (interaction.kind, interaction.values.len() as usize))
+            })
+            .collect::<BTreeSet<(InteractionKind, usize)>>();
+
+        for (kind, size) in interaction_sizes {
+            assert_eq!(kind.num_values() as usize, size);
+        }
+    }
+
+    #[test]
+    fn test_eval_public_values_interactions() {
+        let machine = RiscvAir::<SP1Field>::machine();
+        let kinds_and_counts = machine.chips().iter().flat_map(|chip| {
+            let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.width());
+            <<RiscvAir<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
+            let (sends, receives) = builder.interactions();
+            sends.iter().chain(receives.iter()).map(|interaction| (interaction.kind, interaction.values.len())).collect::<BTreeSet<(InteractionKind, usize)>>()
+        }).collect::<BTreeMap<InteractionKind, usize>>();
+
+        let expected_kinds = InteractionKind::all_kinds()
+            .iter()
+            .filter_map(|kind| {
+                if kind.appears_in_eval_public_values() {
+                    Some((*kind, kind.num_values()))
+                } else {
+                    None
+                }
+            })
+            .collect::<BTreeMap<InteractionKind, usize>>();
+
+        assert_eq!(kinds_and_counts, expected_kinds);
+    }
+
     #[test]
     #[ignore = "should only be used to generate the artifact"]
     fn write_core_air_costs() {
@@ -1331,14 +1336,53 @@ pub mod tests {
         serde_json::to_writer_pretty(file, &costs).unwrap();
     }
 
+<<<<<<< HEAD
     use crate::io::SP1Stdin;
+=======
+    #[test]
+    fn test_maximum_padding() {
+        let machine = RiscvAir::<SP1Field>::machine();
+        let chip_clusters = &machine.shape().chip_clusters;
+
+        for cluster in chip_clusters {
+            let mut total_columns = 0;
+            for chip in cluster {
+                total_columns += chip.preprocessed_width();
+                total_columns += chip.width();
+            }
+            assert!((32 * total_columns) as u64 <= MAXIMUM_PADDING_AREA);
+        }
+    }
+
+    #[test]
+    fn test_maximum_cycle() {
+        // Assumes that the maximum possible single shard trace area comes from precompiles.
+        let costs = rv64im_costs();
+        for syscall_code in SyscallCode::iter() {
+            if syscall_code.should_send() == 0 {
+                continue;
+            }
+            // We turn off the page protection for now.
+            let (mut cost_per_syscall, _) =
+                cost_and_height_per_syscall(syscall_code, &costs, false);
+            cost_per_syscall += costs[&RiscvAirId::SyscallInstrs];
+            cost_per_syscall += costs[&RiscvAirId::MemoryBump] * 32;
+            cost_per_syscall += costs[&RiscvAirId::StateBump];
+
+            assert!(cost_per_syscall as u64 <= MAXIMUM_CYCLE_AREA);
+        }
+    }
+
+    use crate::{io::SP1Stdin, utils::run_test};
+>>>>>>> origin/multilinear_v6
 
     #[tokio::test]
     async fn test_simple_prove() {
         setup_logger();
         let program = simple_program();
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1393,7 +1437,8 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1407,7 +1452,8 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1421,7 +1467,8 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1570,7 +1617,8 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test]
@@ -1586,7 +1634,8 @@ pub mod tests {
             add_halt(&mut instructions);
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test(Arc::new(program), stdin).await.unwrap();
+            run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+            run_test_small_trace(Arc::new(program), stdin).await.unwrap();
         }
     }
 
@@ -1604,7 +1653,8 @@ pub mod tests {
             add_halt(&mut instructions);
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test(Arc::new(program), stdin).await.unwrap();
+            run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+            run_test_small_trace(Arc::new(program), stdin).await.unwrap();
         }
     }
 
@@ -1669,7 +1719,8 @@ pub mod tests {
         add_halt(&mut instructions);
         let program = Program::new(instructions.to_vec(), 0, 0);
         let stdin = SP1Stdin::new();
-        run_test(Arc::new(program), stdin).await.unwrap();
+        run_test(Arc::new(program.clone()), stdin.clone()).await.unwrap();
+        run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1790,12 +1841,12 @@ pub mod tests {
     // #[test]
     // fn test_key_serde() {
     //     let program = ssz_withdrawals_program();
-    //     let config = SP1CoreJaggedConfig::new();
+    //     let config = SP1InnerPcs::new();
     //     let machine = RiscvAir::machine(config);
     //     let (pk, vk) = machine.setup(&program);
 
     //     let serialized_pk = bincode::serialize(&pk).unwrap();
-    //     let deserialized_pk: StarkProvingKey<SP1CoreJaggedConfig> =
+    //     let deserialized_pk: StarkProvingKey<SP1InnerPcs> =
     //         bincode::deserialize(&serialized_pk).unwrap();
     //     assert_eq!(pk.preprocessed_commit, deserialized_pk.preprocessed_commit);
     //     assert_eq!(pk.pc_start_rel, deserialized_pk.pc_start_rel);
@@ -1804,7 +1855,7 @@ pub mod tests {
     //     assert_eq!(pk.chip_ordering, deserialized_pk.chip_ordering);
 
     //     let serialized_vk = bincode::serialize(&vk).unwrap();
-    //     let deserialized_vk: StarkVerifyingKey<SP1CoreJaggedConfig> =
+    //     let deserialized_vk: StarkVerifyingKey<SP1InnerPcs> =
     //         bincode::deserialize(&serialized_vk).unwrap();
     //     assert_eq!(vk.pc_start_rel, deserialized_vk.pc_start_rel);
     //     assert_eq!(vk.chip_information.len(), deserialized_vk.chip_information.len());

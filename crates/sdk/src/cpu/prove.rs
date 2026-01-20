@@ -11,10 +11,11 @@ use anyhow::Result;
 // use sp1_core_executor::IoWriter;
 use sp1_core_machine::io::SP1Stdin;
 
-use super::{CPUProverError, CPUProvingKey, CpuProver};
+use super::{CPUProverError, CpuProver};
 use crate::{
     prover::{BaseProveRequest, ProveRequest},
-    SP1ProofWithPublicValues,
+    utils::proof_mode,
+    SP1ProofWithPublicValues, SP1ProvingKey,
 };
 
 /// A builder for proving a program on the CPU.
@@ -26,7 +27,7 @@ pub struct CpuProveBuilder<'a> {
 }
 
 impl<'a> CpuProveBuilder<'a> {
-    pub(super) const fn new(prover: &'a CpuProver, pk: &'a CPUProvingKey, stdin: SP1Stdin) -> Self {
+    pub(super) const fn new(prover: &'a CpuProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self { base: BaseProveRequest::new(prover, pk, stdin) }
     }
 
@@ -79,24 +80,26 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let proof = client.prove(pk, stdin).run().await.unwrap();
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).await.unwrap();
+    /// });
     /// ```
     async fn run(self) -> Result<SP1ProofWithPublicValues, CPUProverError> {
         // Get the arguments.
         let BaseProveRequest { prover, pk, stdin, mode, mut context_builder } = self.base;
-        let context = context_builder.build();
 
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
         crate::utils::sp1_dump(&pk.elf, &stdin);
 
-        prover.prove_impl(pk, stdin, context, mode).await
+        let context = context_builder.build();
+        Ok(prover.prover.prove_with_mode(&pk.elf, stdin, context, proof_mode(mode)).await?.into())
     }
 }
 

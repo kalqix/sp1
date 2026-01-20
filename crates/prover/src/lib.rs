@@ -1,27 +1,11 @@
-//! An end-to-end-prover implementation for the SP1 RISC-V zkVM.
-//!
-//! Separates the proof generation process into multiple stages:
-//!
-//! 1. Generate shard proofs which split up and prove the valid execution of a RISC-V program.
-//! 2. Compress shard proofs into a single shard proof.
-//! 3. Wrap the shard proof into a SNARK-friendly field.
-//! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a PLONK proof.
-
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::new_without_default)]
-#![allow(clippy::collapsible_else_if)]
-
 pub mod build;
-pub mod components;
-// pub mod gas; // TODO reimplement gas
-pub mod core;
-pub mod error;
-pub mod local;
+mod components;
 pub mod recursion;
 pub mod shapes;
 mod types;
 pub mod utils;
 pub mod verify;
+<<<<<<< HEAD
 
 use core::SP1CoreProver;
 pub use recursion::SP1RecursionProver;
@@ -46,10 +30,13 @@ use sp1_hypercube::{SP1CoreJaggedConfig, SP1OuterConfig};
 use sp1_primitives::SP1Field;
 use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use sp1_recursion_compiler::config::InnerConfig;
+=======
+pub mod worker;
+>>>>>>> origin/multilinear_v6
 
 pub use types::*;
 
-pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
+pub use components::*;
 
 /// The global version for all components of SP1.
 ///
@@ -58,6 +45,7 @@ pub use components::{CpuSP1ProverComponents, SP1ProverComponents};
 /// docker image.
 pub const SP1_CIRCUIT_VERSION: &str = include_str!("../SP1_VERSION");
 
+<<<<<<< HEAD
 /// The configuration for the core prover.
 pub type CoreSC = SP1CoreJaggedConfig;
 pub const CORE_LOG_BLOWUP: usize = 1;
@@ -457,3 +445,6 @@ where
         )
     }
 }
+=======
+pub use sp1_hypercube::{HashableKey, SP1VerifyingKey};
+>>>>>>> origin/multilinear_v6

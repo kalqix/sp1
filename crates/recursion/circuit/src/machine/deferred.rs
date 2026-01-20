@@ -4,20 +4,21 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use slop_challenger::IopCtx;
 
 use crate::machine::{
     assert_recursion_public_values_valid, SP1MerkleProofVerifier, SP1MerkleProofWitnessValues,
-    SP1MerkleProofWitnessVariable,
+    SP1MerkleProofWitnessVariable, VkAndProof,
 };
 use slop_air::Air;
-use slop_algebra::AbstractField;
+use slop_algebra::{AbstractField, PrimeField32};
 use sp1_hypercube::{
-    air::{MachineAir, POSEIDON_NUM_WORDS},
+    air::{MachineAir, ShardRange, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     septic_curve::SepticCurve,
     septic_digest::SepticDigest,
-    MachineVerifyingKey, ShardProof,
+    ShardProof,
 };
-use sp1_primitives::SP1Field;
+use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::{Builder, Felt};
 
 use sp1_recursion_executor::{
@@ -25,72 +26,85 @@ use sp1_recursion_executor::{
 };
 
 use crate::{
-    basefold::{RecursiveBasefoldConfigImpl, RecursiveBasefoldProof, RecursiveBasefoldVerifier},
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     hash::{FieldHasher, FieldHasherVariable},
-    jagged::RecursiveJaggedConfig,
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
-    CircuitConfig, SP1FieldConfigVariable, SP1FieldFriConfig,
+    CircuitConfig, SP1FieldConfigVariable,
 };
 
 use super::{assert_complete, recursion_public_values_digest};
 
-pub struct SP1DeferredVerifier<C, SC, A, JC> {
-    _phantom: std::marker::PhantomData<(C, SC, A, JC)>,
+pub struct SP1DeferredVerifier<GC, C, A> {
+    _phantom: std::marker::PhantomData<(GC, C, A)>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(
-    serialize = "SC::Challenger: Serialize, ShardProof<SC>: Serialize, [SC::F; DIGEST_SIZE]: Serialize, SC::Digest: Serialize"
+    serialize = "GC::Challenger: Serialize, ShardProof<GC, Proof>: Serialize, [GC::F; DIGEST_SIZE]: Serialize"
 ))]
 #[serde(bound(
-    deserialize = "SC::Challenger: Deserialize<'de>, ShardProof<SC>: Deserialize<'de>,  [SC::F; DIGEST_SIZE]: Deserialize<'de>, SC::Digest: Deserialize<'de>"
+    deserialize = "GC::Challenger: Deserialize<'de>, ShardProof<GC, Proof>: Deserialize<'de>,  [GC::F; DIGEST_SIZE]: Deserialize<'de>"
 ))]
-pub struct SP1DeferredWitnessValues<SC: SP1FieldFriConfig + FieldHasher<SP1Field> + Send + Sync> {
-    pub vks_and_proofs: Vec<(MachineVerifyingKey<SC>, ShardProof<SC>)>,
-    pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,
-    pub start_reconstruct_deferred_digest: [SC::F; POSEIDON_NUM_WORDS],
-    pub sp1_vk_digest: [SC::F; DIGEST_SIZE],
-    pub end_pc: [SC::F; 3],
-    pub is_page_protect_active: SC::F,
+pub struct SP1DeferredWitnessValues<
+    GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + FieldHasher,
+    Proof,
+> {
+    pub vks_and_proofs: Vec<VkAndProof<GC, Proof>>,
+    pub vk_merkle_data: SP1MerkleProofWitnessValues<GC>,
+    pub start_reconstruct_deferred_digest: [GC::F; POSEIDON_NUM_WORDS],
+    pub sp1_vk_digest: [GC::F; DIGEST_SIZE],
+    pub end_pc: [GC::F; 3],
+    pub proof_nonce: [GC::F; PROOF_NONCE_NUM_WORDS],
+    pub deferred_proof_index: GC::F,
+}
+
+impl<GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + FieldHasher, Proof>
+    SP1DeferredWitnessValues<GC, Proof>
+{
+    /// The deferred proof range.
+    ///
+    /// The deferred proofs are put at the "start" and assigned initial and final timestamp equal to
+    /// `1`. The rest of the range values are set to zero.
+    pub fn range(&self) -> ShardRange {
+        let prev_deferred_proof = self.deferred_proof_index.as_canonical_u32() as u64;
+        let deferred_proof = prev_deferred_proof + self.vks_and_proofs.len() as u64;
+        ShardRange {
+            timestamp_range: (1, 1),
+            initialized_address_range: (0, 0),
+            finalized_address_range: (0, 0),
+            initialized_page_index_range: (0, 0),
+            finalized_page_index_range: (0, 0),
+            deferred_proof_range: (prev_deferred_proof, deferred_proof),
+        }
+    }
 }
 
 #[allow(clippy::type_complexity)]
 pub struct SP1DeferredWitnessVariable<
-    C: CircuitConfig<F = SP1Field, EF = crate::EF>,
+    C: CircuitConfig,
     SC: FieldHasherVariable<C> + SP1FieldConfigVariable<C>,
-    JC: RecursiveJaggedConfig<
-        BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-    >,
 > {
-    pub vks_and_proofs: Vec<(MachineVerifyingKeyVariable<C, SC>, ShardProofVariable<C, SC, JC>)>,
+    pub vks_and_proofs: Vec<(MachineVerifyingKeyVariable<C, SC>, ShardProofVariable<C, SC>)>,
     pub vk_merkle_data: SP1MerkleProofWitnessVariable<C, SC>,
-    pub start_reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
-    pub sp1_vk_digest: [Felt<C::F>; DIGEST_SIZE],
-    pub end_pc: [Felt<C::F>; 3],
-    pub is_page_protect_active: Felt<C::F>,
+    pub start_reconstruct_deferred_digest: [Felt<SP1Field>; POSEIDON_NUM_WORDS],
+    pub sp1_vk_digest: [Felt<SP1Field>; DIGEST_SIZE],
+    pub end_pc: [Felt<SP1Field>; 3],
+    pub proof_nonce: [Felt<SP1Field>; PROOF_NONCE_NUM_WORDS],
+    pub deferred_proof_index: Felt<SP1Field>,
 }
 
-impl<C, SC, A, JC> SP1DeferredVerifier<C, SC, A, JC>
+impl<GC, C, A> SP1DeferredVerifier<GC, C, A>
 where
-    SC: SP1FieldConfigVariable<
+    GC: IopCtx<F = SP1Field, EF = SP1ExtensionField>
+        + SP1FieldConfigVariable<
             C,
             FriChallengerVariable = DuplexChallengerVariable<C>,
             DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],
         > + Send
         + Sync,
-    C: CircuitConfig<F = SC::F, EF = SC::EF, Bit = Felt<SP1Field>>,
-    A: MachineAir<SC::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    JC: RecursiveJaggedConfig<
-        F = C::F,
-        EF = C::EF,
-        Circuit = C,
-        Commitment = SC::DigestVariable,
-        Challenger = SC::FriChallengerVariable,
-        BatchPcsProof = RecursiveBasefoldProof<RecursiveBasefoldConfigImpl<C, SC>>,
-        BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-    >,
+    C: CircuitConfig,
+    A: MachineAir<SP1Field> + for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
 {
     /// Verify a batch of deferred proofs.
     ///
@@ -103,8 +117,8 @@ where
     /// - Aggregates the proof information into the accumulated deferred digest.
     pub fn verify(
         builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<A, SC, C, JC>,
-        input: SP1DeferredWitnessVariable<C, SC, JC>,
+        machine: &RecursiveShardVerifier<GC, A, C>,
+        input: SP1DeferredWitnessVariable<C, GC>,
         value_assertions: bool,
     ) {
         let SP1DeferredWitnessVariable {
@@ -113,7 +127,8 @@ where
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
             end_pc,
-            is_page_protect_active,
+            proof_nonce,
+            deferred_proof_index,
         } = input;
 
         // First, verify the merkle tree proofs.
@@ -121,7 +136,7 @@ where
         let values = vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect::<Vec<_>>();
         SP1MerkleProofVerifier::verify(builder, values, vk_merkle_data, value_assertions);
 
-        let mut deferred_public_values_stream: Vec<Felt<C::F>> =
+        let mut deferred_public_values_stream: Vec<Felt<SP1Field>> =
             (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
         let deferred_public_values: &mut RecursionPublicValues<_> =
             deferred_public_values_stream.as_mut_slice().borrow_mut();
@@ -131,42 +146,46 @@ where
             start_reconstruct_deferred_digest;
 
         // Initialize the consistency check variable.
-        let mut reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS] =
+        let mut reconstruct_deferred_digest: [Felt<SP1Field>; POSEIDON_NUM_WORDS] =
             start_reconstruct_deferred_digest;
+
+        // Save the number of deferred proofs before consuming the vector.
+        let num_deferred_proofs = SP1Field::from_canonical_usize(vks_and_proofs.len());
 
         for (vk, shard_proof) in vks_and_proofs {
             // Prepare a challenger.
-            let mut challenger = SC::challenger_variable(builder);
+            let mut challenger = GC::challenger_variable(builder);
             // Observe the vk and start pc.
             challenger.observe(builder, vk.preprocessed_commit);
             challenger.observe_slice(builder, vk.pc_start);
             challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
             challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+            challenger.observe(builder, vk.enable_untrusted_programs);
             // Observe the padding.
-            let zero: Felt<_> = builder.eval(C::F::zero());
-            for _ in 0..7 {
+            let zero: Felt<_> = builder.eval(SP1Field::zero());
+            for _ in 0..6 {
                 challenger.observe(builder, zero);
             }
 
             machine.verify_shard(builder, &vk, &shard_proof, &mut challenger);
 
             // Get the current public values.
-            let current_public_values: &RecursionPublicValues<Felt<C::F>> =
+            let current_public_values: &RecursionPublicValues<Felt<SP1Field>> =
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the `vk_root` is the same as the witnessed one.
             for (elem, expected) in current_public_values.vk_root.iter().zip(vk_root.iter()) {
                 builder.assert_felt_eq(*elem, *expected);
             }
             // Assert that the public values are valid.
-            assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
+            assert_recursion_public_values_valid::<C, GC>(builder, current_public_values);
 
             // Assert that the proof is complete.
-            builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
+            builder.assert_felt_eq(current_public_values.is_complete, SP1Field::one());
 
             // Update deferred proof digest
             // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] ||
             // pv.committed_value_digest[..16] )
-            let mut inputs: [Felt<C::F>; 48] = array::from_fn(|_| builder.uninit());
+            let mut inputs: [Felt<SP1Field>; 48] = array::from_fn(|_| builder.uninit());
             inputs[0..DIGEST_SIZE].copy_from_slice(&reconstruct_deferred_digest);
 
             inputs[DIGEST_SIZE..DIGEST_SIZE + DIGEST_SIZE]
@@ -178,13 +197,13 @@ where
                     inputs[j * 4 + k + 16] = element;
                 }
             }
-            reconstruct_deferred_digest = SC::hash(builder, &inputs);
+            reconstruct_deferred_digest = GC::hash(builder, &inputs);
         }
 
         // Set the public values.
 
-        let zero = builder.eval(C::F::zero());
-        let one = builder.eval(C::F::one());
+        let zero = builder.eval(SP1Field::zero());
+        let one = builder.eval(SP1Field::one());
 
         // Set initial_pc, end_pc, initial_shard, and end_shard to be the hinted values.
         deferred_public_values.pc_start = end_pc;
@@ -224,12 +243,16 @@ where
         deferred_public_values.commit_deferred_syscall = zero;
         // Assign the deferred proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
+        // Set the deferred proof index.
+        deferred_public_values.prev_deferred_proof = deferred_proof_index;
+        deferred_public_values.deferred_proof =
+            builder.eval(deferred_proof_index + num_deferred_proofs);
         // Set the is_complete flag.
         deferred_public_values.is_complete = zero;
-        deferred_public_values.is_page_protect_active = is_page_protect_active;
+        deferred_public_values.proof_nonce = proof_nonce;
         // Set the cumulative sum to zero.
         deferred_public_values.global_cumulative_sum =
-            SepticDigest(SepticCurve::convert(SepticDigest::<C::F>::zero().0, |value| {
+            SepticDigest(SepticCurve::convert(SepticDigest::<SP1Field>::zero().0, |value| {
                 builder.eval(value)
             }));
         // Set the first shard flag to zero.
@@ -240,10 +263,10 @@ where
         deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         deferred_public_values.digest =
-            recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
+            recursion_public_values_digest::<C, GC>(builder, deferred_public_values);
 
         assert_complete(builder, deferred_public_values, deferred_public_values.is_complete);
 
-        SC::commit_recursion_public_values(builder, *deferred_public_values);
+        GC::commit_recursion_public_values(builder, *deferred_public_values);
     }
 }

@@ -18,6 +18,8 @@ pub enum PlonkError {
     InverseNotFound,
     #[error("Invalid number of digests")]
     InvalidNumberOfDigests,
+    #[error("Invalid verifying key")]
+    InvalidVerifyingKey,
     #[error("Invalid witness")]
     InvalidWitness,
     #[error("Pairing check failed")]
@@ -28,6 +30,6 @@ pub enum PlonkError {
     TranscriptError,
     #[error("Plonk vkey hash mismatch")]
     PlonkVkeyHashMismatch,
-    #[error("General error")]
+    #[error("General error: {0}")]
     GeneralError(#[from] crate::error::Error),
 }

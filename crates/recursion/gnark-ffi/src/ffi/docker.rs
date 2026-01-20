@@ -61,9 +61,7 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
         tracing::error!("stderr: {:?}", stderr);
 
         return Err(anyhow!(
-            "Docker command failed \n stdout: {:?}\n stderr: {:?}",
-            stdout,
-            stderr
+            "Docker command failed \n --- stdout: --- \n{stdout}\n --- stderr: --- \n{stderr}\n"
         ));
     }
     Ok(())
@@ -121,6 +119,7 @@ pub fn build_groth16_bn254(data_dir: &str) {
     build(ProofSystem::Groth16, data_dir).expect("failed to build with docker");
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify(
     system: ProofSystem,
     data_dir: &str,
@@ -129,6 +128,7 @@ fn verify(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<()> {
     let mut proof_file = tempfile::NamedTempFile::new()?;
     proof_file.write_all(proof.as_bytes())?;
@@ -144,12 +144,21 @@ fn verify(
             "verify",
             "--system",
             system.as_str(),
+            "--data-dir",
             "/circuit",
+            "--proof-path",
             "/proof",
+            "--vkey-hash",
             vkey_hash,
+            "--committed-values-digest",
             committed_values_digest,
+            "--exit-code",
             exit_code,
+            "--proof-nonce",
+            proof_nonce,
+            "--vk-root",
             vk_root,
+            "--output-path",
             "/output",
         ],
         &mounts,
@@ -169,6 +178,7 @@ pub fn verify_plonk_bn254(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<()> {
     verify(
         ProofSystem::Plonk,
@@ -177,6 +187,7 @@ pub fn verify_plonk_bn254(
         vkey_hash,
         committed_values_digest,
         exit_code,
+        proof_nonce,
         vk_root,
     )
 }
@@ -188,6 +199,7 @@ pub fn verify_groth16_bn254(
     committed_values_digest: &str,
     exit_code: &str,
     vk_root: &str,
+    proof_nonce: &str,
 ) -> Result<()> {
     verify(
         ProofSystem::Groth16,
@@ -197,6 +209,7 @@ pub fn verify_groth16_bn254(
         committed_values_digest,
         exit_code,
         vk_root,
+        proof_nonce,
     )
 }
 

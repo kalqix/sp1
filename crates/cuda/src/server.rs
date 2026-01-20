@@ -82,9 +82,7 @@ mod native {
             tracing::debug!("Downloading `cuslop-server`");
 
             let version = format!("v{}", sp1_primitives::SP1_VERSION);
-            let repo = "succinctlabs/sp1-wip";
-
-            // todo!(nhtyy): sp1-wip -> sp1
+            let repo = "succinctlabs/sp1";
             let static_url = format!("https://github.com/{repo}/releases/download");
             let asset_name = format!("cuslop_server_{version}_x86_64.tar.gz");
 
@@ -253,8 +251,7 @@ mod docker {
                 "-e",
                 &format!("RUST_LOG={}", "debug"),
                 "-e",
-                "CUDA_VISIBLE_DEVICES",
-                &cuda_id.to_string(),
+                &format!("CUDA_VISIBLE_DEVICES={cuda_id}"),
                 // Remove the container on exit.
                 "--rm",
                 // Share the tmp directory with the container.

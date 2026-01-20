@@ -6,6 +6,7 @@ use crate::{
     subproof::SubproofVerifier,
 };
 use hashbrown::HashMap;
+use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use std::io::Write;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
@@ -50,7 +51,7 @@ impl StatusCode {
     /// Check if the status code is equal to the given value.
     #[must_use]
     pub const fn is_accepted_code(&self, code: u32) -> bool {
-        self.0 == Self::ANY.0 || self.0 == code
+        (code == 0 || code == 1) && (self.0 == Self::ANY.0 || self.0 == code)
     }
 }
 
@@ -80,6 +81,10 @@ pub struct SP1Context<'a> {
     /// This option will noticeably slow down execution, so it should be disabled in most cases.
     pub calculate_gas: bool,
 
+    /// The nonce used for this specific proof execution (4 x u32 = 128 bits of entropy).
+    /// This nonce ensures each proof is unique even for identical programs and inputs.
+    pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+
     /// The IO options for the [`SP1Executor`].
     pub io_options: IoOptions<'a>,
 }
@@ -99,6 +104,7 @@ pub struct SP1ContextBuilder<'a> {
     deferred_proof_verification: bool,
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
+    proof_nonce: [u32; 4],
     // TODO remove the lifetime here, change stdout and stderr options to accept channels.
     io_options: IoOptions<'a>,
 }
@@ -132,6 +138,7 @@ impl<'a> SP1ContextBuilder<'a> {
             deferred_proof_verification: true,
             calculate_gas: true,
             expected_exit_code: None,
+            proof_nonce: [0, 0, 0, 0], // Default to zeros, will be set by SDK
             io_options: IoOptions::new(),
         }
     }
@@ -170,12 +177,14 @@ impl<'a> SP1ContextBuilder<'a> {
         let cycle_limit = take(&mut self.max_cycles);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
         let calculate_gas = take(&mut self.calculate_gas);
+        let proof_nonce = take(&mut self.proof_nonce);
         SP1Context {
             hook_registry,
             subproof_verifier,
             max_cycles: cycle_limit,
             deferred_proof_verification,
             calculate_gas,
+            proof_nonce,
             io_options: take(&mut self.io_options),
             expected_exit_code: self.expected_exit_code.unwrap_or(StatusCode::SUCCESS),
         }
@@ -258,6 +267,13 @@ impl<'a> SP1ContextBuilder<'a> {
         self.expected_exit_code = Some(code);
         self
     }
+
+    /// Set the proof nonce for this execution.
+    /// This nonce ensures each proof is unique even for identical programs and inputs.
+    pub fn proof_nonce(&mut self, nonce: [u32; 4]) -> &mut Self {
+        self.proof_nonce = nonce;
+        self
+    }
 }
 
 /// The IO options for the [`SP1Executor`].
@@ -289,9 +305,9 @@ impl Clone for IoOptions<'_> {
 /// A trait for [`Write`] types to be used in the executor.
 ///
 /// This trait is generically implemented for any [`Write`] + [`Send`] type.
-pub trait IoWriter: Write + Send {}
+pub trait IoWriter: Write + Send + Sync {}
 
-impl<W: Write + Send> IoWriter for W {}
+impl<W: Write + Send + Sync> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {

@@ -7,6 +7,7 @@ pub mod prove;
 
 use std::sync::Arc;
 
+<<<<<<< HEAD
 use anyhow::Result;
 use powdr_autoprecompiles::Apc;
 use prove::CpuProveBuilder;
@@ -21,6 +22,14 @@ use sp1_prover::{
     error::SP1ProverError,
     local::{LocalProver, LocalProverOpts},
     SP1ProverBuilder, SP1VerifyingKey,
+=======
+use prove::CpuProveBuilder;
+use sp1_core_executor::ExecutionError;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::Elf;
+use sp1_prover::worker::{
+    cpu_worker_builder, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
+>>>>>>> origin/multilinear_v6
 };
 use sp1_prover::{
     // verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
@@ -29,9 +38,8 @@ use sp1_prover::{
 };
 
 use crate::{
-    install::try_install_circuit_artifacts,
-    prover::{Prover, ProvingKey, SendFutureResult},
-    SP1Proof, SP1ProofMode, SP1ProofWithPublicValues,
+    prover::{Prover, SendFutureResult},
+    SP1ProvingKey,
 };
 
 use thiserror::Error;
@@ -39,6 +47,7 @@ use thiserror::Error;
 /// A prover that uses the CPU to execute and prove programs.
 #[derive(Clone)]
 pub struct CpuProver {
+<<<<<<< HEAD
     pub(crate) prover: Arc<LocalProver<CpuSP1ApcProverComponents>>,
 }
 
@@ -52,6 +61,9 @@ pub struct CPUProvingKey {
     pub(crate) vk: SP1VerifyingKey,
     pub(crate) program: Arc<Program>,
     pub(crate) elf: Elf,
+=======
+    pub(crate) prover: Arc<SP1LocalNode>,
+>>>>>>> origin/multilinear_v6
 }
 
 /// An error occurred while proving.
@@ -59,7 +71,7 @@ pub struct CPUProvingKey {
 pub enum CPUProverError {
     /// An error occurred while proving.
     #[error(transparent)]
-    Prover(#[from] SP1ProverError),
+    Prover(#[from] TaskError),
 
     /// An error occurred while executing.
     #[error(transparent)]
@@ -70,33 +82,24 @@ pub enum CPUProverError {
     Unexpected(#[from] anyhow::Error),
 }
 
-impl ProvingKey for CPUProvingKey {
-    fn verifying_key(&self) -> &SP1VerifyingKey {
-        &self.vk
-    }
-
-    fn elf(&self) -> &[u8] {
-        &self.elf
-    }
-}
-
 impl Prover for CpuProver {
-    type ProvingKey = CPUProvingKey;
+    type ProvingKey = SP1ProvingKey;
     type Error = CPUProverError;
     type ProveRequest<'a> = CpuProveBuilder<'a>;
 
+<<<<<<< HEAD
     fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
         self.prover.clone()
+=======
+    fn inner(&self) -> &SP1NodeCore {
+        self.prover.core()
+>>>>>>> origin/multilinear_v6
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {
         async move {
-            let (raw, program, vk) = self.prover.prover().core().setup(&elf).await;
-
-            // todo!(n): safety comments
-            let inner = unsafe { raw.into_inner() };
-
-            Ok(CPUProvingKey { raw: inner, vk, elf, program })
+            let vk = self.prover.setup(&elf).await?;
+            Ok(SP1ProvingKey { vk, elf })
         }
     }
 
@@ -113,6 +116,7 @@ impl CpuProver {
 
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
+<<<<<<< HEAD
     pub async fn new_with_opts(
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
         apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
@@ -126,21 +130,29 @@ impl CpuProver {
         // Override core_opts if provided
         if let Some(core_opts) = core_opts {
             opts.core_opts = core_opts;
+=======
+    pub async fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
+        let worker_builder = cpu_worker_builder().with_core_opts(core_opts.unwrap_or_default());
+        Self {
+            prover: Arc::new(
+                SP1LocalNodeBuilder::from_worker_client_builder(worker_builder)
+                    .build()
+                    .await
+                    .unwrap(),
+            ),
+>>>>>>> origin/multilinear_v6
         }
-
-        let prover = Arc::new(LocalProver::new(prover, opts));
-
-        Self { prover }
     }
 
-    /// # ⚠️ WARNING: This prover is unsound and should NEVER be used in production.
-    /// It is intended purely for development and debugging purposes.
+    /// # ⚠️ WARNING: This prover is experimental and should not be used in production.
+    /// It is intended for development and debugging purposes.
     ///
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     /// Verification of the proof system's verification key is skipped, meaning that the
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
-    #[cfg(feature = "unsound")]
+    #[cfg(feature = "experimental")]
     #[must_use]
+<<<<<<< HEAD
     pub async fn new_unsound(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
@@ -228,5 +240,9 @@ impl CpuProver {
             }
             _ => unreachable!(),
         }
+=======
+    pub async fn new_experimental() -> Self {
+        Self::new_with_opts(None).await
+>>>>>>> origin/multilinear_v6
     }
 }

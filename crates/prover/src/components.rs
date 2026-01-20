@@ -1,36 +1,139 @@
+<<<<<<< HEAD
 use slop_jagged::{JaggedConfig, Poseidon2Bn254JaggedCpuProverComponents};
 use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_hypercube::{
     prover::{CpuMachineProverComponents, MachineProverComponents},
     Machine, MachineVerifier, SP1CpuJaggedProverComponents,
+=======
+use sp1_core_executor::HEIGHT_THRESHOLD;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::{
+    prover::{AirProver, CpuShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
+    MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContextImpl, ShardVerifier,
+>>>>>>> origin/multilinear_v6
 };
-use sp1_primitives::SP1Field;
-use sp1_recursion_circuit::machine::InnerVal;
-
-use crate::{
-    core::CoreProverComponents,
-    recursion::{RecursionProverComponents, WrapProverComponents},
-    CompressAir, CoreSC, InnerSC, OuterSC, WrapAir,
+use sp1_primitives::{
+    fri_params::{core_fri_config, recursion_fri_config, shrink_fri_config, wrap_fri_config},
+    SP1Field, SP1GlobalContext, SP1OuterGlobalContext,
 };
+use sp1_verifier::compressed::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT};
+use static_assertions::const_assert;
 
-pub struct SP1Config {}
+pub const CORE_LOG_STACKING_HEIGHT: u32 = 21;
+pub const CORE_MAX_LOG_ROW_COUNT: usize = 22;
 
-pub type CoreProver<C> =
-    <<C as SP1ProverComponents>::CoreComponents as MachineProverComponents>::Prover;
+const_assert!(HEIGHT_THRESHOLD <= (1 << CORE_MAX_LOG_ROW_COUNT));
 
-pub type RecursionProver<C> =
-    <<C as SP1ProverComponents>::RecursionComponents as MachineProverComponents>::Prover;
+use sp1_recursion_machine::RecursionAir;
 
-pub type WrapProver<C> =
-    <<C as SP1ProverComponents>::WrapComponents as MachineProverComponents>::Prover;
+const COMPRESS_DEGREE: usize = 3;
+const SHRINK_DEGREE: usize = 3;
+const WRAP_DEGREE: usize = 3;
+
+pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 2>;
+pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 2>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 1>;
+
+pub const RECURSION_LOG_TRACE_AREA: usize = 27;
+const SHRINK_LOG_STACKING_HEIGHT: u32 = 18;
+pub(crate) const SHRINK_MAX_LOG_ROW_COUNT: usize = 19;
+
+pub(crate) const WRAP_LOG_STACKING_HEIGHT: u32 = 21;
+
+pub type CoreSC = ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, RiscvAir<SP1Field>>;
+
+pub type RecursionSC =
+    ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, CompressAir<SP1Field>>;
+pub type ShrinkSC =
+    ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, ShrinkAir<SP1Field>>;
+
+pub type WrapSC =
+    ShardContextImpl<SP1OuterGlobalContext, SP1Pcs<SP1OuterGlobalContext>, WrapAir<SP1Field>>;
+
+pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
+    /// The default verifier for the core prover.
+    ///
+    /// The verifier fixes the parameters of the underlying proof system.
+    fn verifier() -> MachineVerifier<SP1GlobalContext, CoreSC> {
+        let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
+        let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
+
+        let machine = RiscvAir::machine();
+
+        let core_verifier = ShardVerifier::from_basefold_parameters(
+            core_fri_config(),
+            core_log_stacking_height,
+            core_max_log_row_count,
+            machine.clone(),
+        );
+
+        MachineVerifier::new(core_verifier)
+    }
+}
+
+impl<C> CoreProver for C where C: AirProver<SP1GlobalContext, CoreSC> {}
+
+pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
+    fn verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
+        let compress_log_stacking_height = RECURSION_LOG_STACKING_HEIGHT;
+        let compress_max_log_row_count = RECURSION_MAX_LOG_ROW_COUNT;
+
+        let machine = CompressAir::<SP1Field>::compress_machine();
+        let recursion_shard_verifier = ShardVerifier::from_basefold_parameters(
+            recursion_fri_config(),
+            compress_log_stacking_height,
+            compress_max_log_row_count,
+            machine.clone(),
+        );
+
+        MachineVerifier::new(recursion_shard_verifier)
+    }
+
+    fn shrink_verifier() -> MachineVerifier<SP1GlobalContext, ShrinkSC> {
+        let shrink_log_stacking_height = SHRINK_LOG_STACKING_HEIGHT;
+        let shrink_max_log_row_count = SHRINK_MAX_LOG_ROW_COUNT;
+
+        let machine = CompressAir::<SP1Field>::shrink_machine();
+        let recursion_shard_verifier = ShardVerifier::from_basefold_parameters(
+            shrink_fri_config(),
+            shrink_log_stacking_height,
+            shrink_max_log_row_count,
+            machine.clone(),
+        );
+
+        MachineVerifier::new(recursion_shard_verifier)
+    }
+}
+
+pub trait WrapProver: AirProver<SP1OuterGlobalContext, WrapSC> {
+    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+        let wrap_log_stacking_height = WRAP_LOG_STACKING_HEIGHT;
+        let wrap_max_log_row_count = RECURSION_MAX_LOG_ROW_COUNT;
+
+        let machine = WrapAir::<SP1Field>::wrap_machine();
+        let wrap_shard_verifier = ShardVerifier::from_basefold_parameters(
+            wrap_fri_config(),
+            wrap_log_stacking_height,
+            wrap_max_log_row_count,
+            machine.clone(),
+        );
+
+        MachineVerifier::new(wrap_shard_verifier)
+    }
+}
+
+impl<C> RecursionProver for C where C: AirProver<SP1GlobalContext, RecursionSC> {}
+
+impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 
 pub trait SP1ProverComponents: Send + Sync + 'static {
     /// The prover for making SP1 core proofs.
-    type CoreComponents: CoreProverComponents;
+    type CoreProver: CoreProver;
     /// The prover for making SP1 recursive proofs.
-    type RecursionComponents: RecursionProverComponents;
-    type WrapComponents: WrapProverComponents;
+    type RecursionProver: RecursionProver;
+    type WrapProver: WrapProver;
 
+<<<<<<< HEAD
     fn core_verifier(
         machine: Machine<
             <CoreSC as JaggedConfig>::F,
@@ -38,36 +141,38 @@ pub trait SP1ProverComponents: Send + Sync + 'static {
         >,
     ) -> MachineVerifier<CoreSC, <Self::CoreComponents as MachineProverComponents>::Air> {
         <Self::CoreComponents as CoreProverComponents>::verifier(machine)
+=======
+    fn core_verifier() -> MachineVerifier<SP1GlobalContext, CoreSC> {
+        <Self::CoreProver as CoreProver>::verifier()
+>>>>>>> origin/multilinear_v6
     }
 
-    fn compress_verifier() -> MachineVerifier<InnerSC, CompressAir<InnerVal>> {
-        <Self::RecursionComponents as RecursionProverComponents>::verifier()
+    fn compress_verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
+        <Self::RecursionProver as RecursionProver>::verifier()
     }
 
-    fn shrink_verifier() -> MachineVerifier<InnerSC, CompressAir<InnerVal>> {
-        <Self::RecursionComponents as RecursionProverComponents>::shrink_verifier()
+    fn shrink_verifier() -> MachineVerifier<SP1GlobalContext, ShrinkSC> {
+        <Self::RecursionProver as RecursionProver>::shrink_verifier()
     }
 
-    fn wrap_verifier() -> MachineVerifier<OuterSC, WrapAir<InnerVal>> {
-        <Self::WrapComponents as WrapProverComponents>::wrap_verifier()
+    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+        <Self::WrapProver as WrapProver>::wrap_verifier()
     }
 }
 
 pub struct CpuSP1ProverComponents;
 
 impl SP1ProverComponents for CpuSP1ProverComponents {
-    type CoreComponents = CpuMachineProverComponents<
-        SP1CpuJaggedProverComponents,
-        RiscvAir<<CoreSC as JaggedConfig>::F>,
+    type CoreProver = CpuShardProver<
+        SP1GlobalContext,
+        SP1Pcs<SP1GlobalContext>,
+        SP1InnerPcsProver,
+        RiscvAir<SP1Field>,
     >;
-    type RecursionComponents = CpuMachineProverComponents<
-        SP1CpuJaggedProverComponents,
-        CompressAir<<InnerSC as JaggedConfig>::F>,
-    >;
-    type WrapComponents = CpuMachineProverComponents<
-        Poseidon2Bn254JaggedCpuProverComponents<SP1Field>,
-        WrapAir<<OuterSC as JaggedConfig>::F>,
-    >;
+    type RecursionProver =
+        CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;
+    type WrapProver =
+        CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
 }
 
 pub struct CpuSP1ApcProverComponents;

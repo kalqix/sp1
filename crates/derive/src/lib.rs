@@ -97,7 +97,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(
     MachineAir,
-    attributes(sp1_core_path, execution_record_path, program_path, builder_path, eval_trait_bound)
+    attributes(execution_record_path, program_path, builder_path, eval_trait_bound)
 )]
 pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
@@ -161,6 +161,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let preprocessed_num_rows_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::preprocessed_num_rows(x, program)
+                }
+            });
+
             let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -175,10 +182,24 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let generate_preprocessed_trace_into_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_preprocessed_trace_into(x, program, buffer)
+                }
+            });
+
             let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
                     #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace(x, input, output)
+                }
+            });
+
+            let generate_trace_into_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace_into(x, input, output, buffer)
                 }
             });
 
@@ -217,7 +238,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
                     type Program = #program_path;
 
-                    fn name(&self) -> String {
+                    fn name(&self) -> &'static str {
                         match self {
                             #(#name_arms,)*
                         }
@@ -235,12 +256,28 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
+                    fn preprocessed_num_rows(&self, program: &#program_path,) -> Option<usize> {
+                        match self {
+                            #(#preprocessed_num_rows_arms,)*
+                        }
+                    }
+
                     fn generate_preprocessed_trace(
                         &self,
                         program: &#program_path,
                     ) -> Option<slop_matrix::dense::RowMajorMatrix<F>> {
                         match self {
                             #(#generate_preprocessed_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_preprocessed_trace_into(
+                        &self,
+                        program: &#program_path,
+                        buffer: &mut [MaybeUninit<F>],
+                    ) {
+                        match self {
+                            #(#generate_preprocessed_trace_into_arms,)*
                         }
                     }
 
@@ -251,6 +288,17 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     ) -> slop_matrix::dense::RowMajorMatrix<F> {
                         match self {
                             #(#generate_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_trace_into(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                        buffer: &mut [MaybeUninit<F>],
+                    ){
+                        match self {
+                            #(#generate_trace_into_arms,)*
                         }
                     }
 

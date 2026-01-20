@@ -148,6 +148,7 @@ where
 
             // Get the public values from the record.
             let public_values = record.public_values::<F>();
+
             tx.send((chips_and_traces, public_values)).ok().unwrap();
             // Emphasize that we are dropping the record after sending the traces.
             drop(record);
@@ -173,7 +174,7 @@ where
             .map(|chip| {
                 let num_polynomials = chip.width();
                 (
-                    chip.name(),
+                    chip.name().to_string(),
                     PaddedMle::zeros_in(
                         num_polynomials,
                         max_log_row_count as u32,
@@ -187,7 +188,7 @@ where
         let real_traces = join_all(chips_and_traces.into_iter().map(|(chip, trace)| async move {
             let trace = self.trace_allocator.copy_into(trace).await.unwrap();
             let mle = Arc::new(trace);
-            (chip.name(), PaddedMle::padded_with_zeros(mle, max_log_row_count as u32))
+            (chip.name().to_string(), PaddedMle::padded_with_zeros(mle, max_log_row_count as u32))
         }))
         .await;
 
@@ -216,7 +217,7 @@ where
             let named_preprocessed_traces = airs
                 .par_iter()
                 .filter_map(|air| {
-                    let name = air.name();
+                    let name = air.name().to_string();
                     let trace = air.generate_preprocessed_trace(&program);
                     trace.map(Mle::from).map(|tr| (name, tr))
                 })
@@ -266,7 +267,7 @@ where
             let named_preprocessed_traces = airs
                 .par_iter()
                 .filter_map(|air| {
-                    let name = air.name();
+                    let name = air.name().to_string();
                     let trace = air.generate_preprocessed_trace(&program);
                     trace.map(Mle::from).map(|tr| (name, tr))
                 })
@@ -301,7 +302,7 @@ where
             .map(|chip| {
                 let num_polynomials = chip.width();
                 (
-                    chip.name(),
+                    chip.name().to_string(),
                     PaddedMle::zeros_in(
                         num_polynomials,
                         max_log_row_count as u32,
@@ -336,7 +337,7 @@ where
         let real_traces = join_all(chips_and_traces.into_iter().map(|(chip, trace)| async move {
             let trace = self.trace_allocator.copy_into(trace).await.unwrap();
             let mle = Arc::new(trace);
-            (chip.name(), PaddedMle::padded_with_zeros(mle, max_log_row_count as u32))
+            (chip.name().to_string(), PaddedMle::padded_with_zeros(mle, max_log_row_count as u32))
         }))
         .await;
 

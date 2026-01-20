@@ -1,16 +1,15 @@
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
-use sp1_core_machine::utils::{next_multiple_of_32, pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
 use sp1_recursion_executor::{
     instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     Block, ExecutionRecord, Instruction, RecursionProgram,
 };
-use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
+use std::{borrow::BorrowMut, iter::zip, marker::PhantomData, mem::MaybeUninit};
 
 use crate::builder::SP1RecursionAirBuilder;
 
@@ -53,19 +52,55 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "MemoryVar".to_string()
+    fn name(&self) -> &'static str {
+        "MemoryVar"
     }
     fn preprocessed_width(&self) -> usize {
         NUM_MEM_PREPROCESSED_INIT_COLS * VAR_EVENTS_PER_ROW
     }
 
-    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
-        let height = program.shape.as_ref().and_then(|shape| shape.height(self));
-        Some(next_multiple_of_32(instrs_len, height))
+    fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
+        let instrs_len = program
+            .inner
+            .iter()
+            // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
+            .flat_map(|instruction| match instruction.inner() {
+                Instruction::Hint(HintInstr { output_addrs_mults })
+                | Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults,
+                    input_addr: _, // No receive interaction for the hint operation
+                }) => output_addrs_mults.iter().collect(),
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                    output_addrs_mults,
+                    input_addr: _, // No receive interaction for the hint operation
+                }) => output_addrs_mults.iter().collect(),
+                Instruction::HintAddCurve(instr) => {
+                    let HintAddCurveInstr {
+                    output_x_addrs_mults,
+                    output_y_addrs_mults, .. // No receive interaction for the hint operation
+                } = instr.as_ref();
+                    output_x_addrs_mults.iter().chain(output_y_addrs_mults.iter()).collect()
+                }
+                _ => vec![],
+            })
+            .count();
+        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        program: &Self::Program,
+        instrs_len: usize,
+    ) -> Option<usize> {
+        let height = program.shape.as_ref().and_then(|shape| shape.height(self));
+        Some(next_multiple_of_32(instrs_len.div_ceil(VAR_EVENTS_PER_ROW), height))
+    }
+
+    fn generate_preprocessed_trace_into(
+        &self,
+        program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Allocating an intermediate `Vec` is faster.
         let accesses = program
             .inner
@@ -92,10 +127,25 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
             })
             .collect::<Vec<_>>();
 
-        let nb_rows = accesses.len().div_ceil(VAR_EVENTS_PER_ROW);
-        let padded_nb_rows = self.preprocessed_num_rows(program, nb_rows).unwrap();
-        let mut values =
-            vec![F::zero(); padded_nb_rows * NUM_MEM_PREPROCESSED_INIT_COLS * VAR_EVENTS_PER_ROW];
+        let padded_nb_rows =
+            self.preprocessed_num_rows_with_instrs_len(program, accesses.len()).unwrap();
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(
+                buffer_ptr,
+                padded_nb_rows * NUM_MEM_PREPROCESSED_INIT_COLS * VAR_EVENTS_PER_ROW,
+            )
+        };
+
+        unsafe {
+            let padding_start = accesses.len() * NUM_MEM_ACCESS_COLS;
+            let padding_size = padded_nb_rows * NUM_MEM_PREPROCESSED_INIT_COLS * VAR_EVENTS_PER_ROW
+                - padding_start;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = accesses.len() * NUM_MEM_ACCESS_COLS;
@@ -103,8 +153,6 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
             .par_chunks_mut(NUM_MEM_ACCESS_COLS)
             .zip_eq(accesses)
             .for_each(|(row, &(addr, mult))| *row.borrow_mut() = MemoryAccessCols { addr, mult });
-
-        Some(RowMajorMatrix::new(values, NUM_MEM_PREPROCESSED_INIT_COLS * VAR_EVENTS_PER_ROW))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -118,35 +166,37 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace_into(
+        &self,
+        input: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows = self.num_rows(input).unwrap();
+        let events = &input.mem_var_events;
+        let num_events = events.len();
+
+        unsafe {
+            let padding_start = num_events * NUM_MEM_INIT_COLS;
+            let padding_size =
+                padded_nb_rows * NUM_MEM_INIT_COLS * VAR_EVENTS_PER_ROW - padding_start;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_events * NUM_MEM_INIT_COLS) };
+
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let mut rows = input
-            .mem_var_events
-            .chunks(VAR_EVENTS_PER_ROW)
-            .map(|row_events| {
-                let mut row = vec![F::zero(); NUM_MEM_INIT_COLS * VAR_EVENTS_PER_ROW];
-                let cols: &mut MemoryVarCols<_, VAR_EVENTS_PER_ROW> =
-                    row.as_mut_slice().borrow_mut();
-                for (cell, vals) in zip(&mut cols.values, row_events) {
-                    *cell = vals.inner;
-                }
-                row
-            })
-            .collect::<Vec<_>>();
-
-        let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
-        // Pad the rows to the next multiple of 32.
-        pad_rows_fixed(
-            &mut rows,
-            || vec![F::zero(); NUM_MEM_INIT_COLS * VAR_EVENTS_PER_ROW],
-            height,
+        let populate_len = events.len() * NUM_MEM_INIT_COLS;
+        values[..populate_len].par_chunks_mut(NUM_MEM_INIT_COLS).zip_eq(events).for_each(
+            |(row, &vals)| {
+                let cols: &mut Block<F> = row.borrow_mut();
+                *cols = vals.inner;
+            },
         );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEM_INIT_COLS * VAR_EVENTS_PER_ROW,
-        )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {

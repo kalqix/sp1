@@ -1,4 +1,5 @@
 use std::{fmt::Display, hash::Hash, sync::Arc};
+use thousands::Separable;
 
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::{Field, PrimeField32};
@@ -7,7 +8,6 @@ use slop_uni_stark::{get_max_constraint_degree, get_symbolic_constraints, Symbol
 
 use crate::{
     air::{MachineAir, SP1AirBuilder},
-    log2_ceil_usize,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
@@ -24,8 +24,6 @@ pub struct Chip<F: Field, A> {
     pub sends: Arc<Vec<Interaction<F>>>,
     /// The interactions that the chip receives.
     pub receives: Arc<Vec<Interaction<F>>>,
-    /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
-    pub log_quotient_degree: usize,
     /// The total number of constraints in the chip.
     pub num_constraints: usize,
 }
@@ -36,7 +34,6 @@ impl<F: Field, A: MachineAir<F>> std::fmt::Debug for Chip<F, A> {
             .field("air", &self.air.name())
             .field("sends", &self.sends.len())
             .field("receives", &self.receives.len())
-            .field("log_quotient_degree", &self.log_quotient_degree)
             .field("num_constraints", &self.num_constraints)
             .finish()
     }
@@ -48,7 +45,6 @@ impl<F: Field, A> Clone for Chip<F, A> {
             air: self.air.clone(),
             sends: self.sends.clone(),
             receives: self.receives.clone(),
-            log_quotient_degree: self.log_quotient_degree,
             num_constraints: self.num_constraints,
         }
     }
@@ -65,12 +61,6 @@ impl<F: Field, A> Chip<F, A> {
     #[must_use]
     pub fn receives(&self) -> &[Interaction<F>] {
         &self.receives
-    }
-
-    /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
-    #[must_use]
-    pub const fn log_quotient_degree(&self) -> usize {
-        self.log_quotient_degree
     }
 
     /// Consumes the chip and returns the underlying air.
@@ -103,7 +93,7 @@ where
 
         let nb_byte_sends = sends.iter().filter(|s| s.kind == InteractionKind::Byte).count();
         let nb_byte_receives = receives.iter().filter(|r| r.kind == InteractionKind::Byte).count();
-        tracing::debug!(
+        tracing::trace!(
             "chip {} has {} byte interactions",
             air.name(),
             nb_byte_sends + nb_byte_receives
@@ -116,9 +106,8 @@ where
             max_constraint_degree = std::cmp::max(max_constraint_degree, MAX_CONSTRAINT_DEGREE);
         }
         assert!(max_constraint_degree > 0);
-        let max_constraint_degree = 3;
-        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
+        assert!(max_constraint_degree <= MAX_CONSTRAINT_DEGREE);
         // Count the number of constraints.
         // TODO: unify this with the constraint degree calculation.
         let num_constraints =
@@ -128,7 +117,7 @@ where
         let receives = Arc::new(receives);
 
         let air = Arc::new(air);
-        Self { air, sends, receives, log_quotient_degree, num_constraints }
+        Self { air, sends, receives, num_constraints }
     }
 
     /// Returns the number of interactions in the chip.
@@ -170,20 +159,6 @@ where
         let main_cols = self.width();
         (preprocessed_cols + main_cols) as u64
     }
-
-    /// Returns the width of the quotient polynomial.
-    #[inline]
-    #[must_use]
-    pub const fn quotient_width(&self) -> usize {
-        1 << self.log_quotient_degree
-    }
-
-    /// Returns the log2 of the batch size.
-    #[inline]
-    #[must_use]
-    pub const fn logup_batch_size(&self) -> usize {
-        1 << self.log_quotient_degree
-    }
 }
 
 impl<F, A> BaseAir<F> for Chip<F, A>
@@ -209,7 +184,7 @@ where
 
     type Program = A::Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         self.air.name()
     }
 
@@ -217,8 +192,16 @@ where
         <A as MachineAir<F>>::preprocessed_width(&self.air)
     }
 
-    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
-        <A as MachineAir<F>>::preprocessed_num_rows(&self.air, program, instrs_len)
+    fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
+        <A as MachineAir<F>>::preprocessed_num_rows(&self.air, program)
+    }
+
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        program: &Self::Program,
+        instrs_len: usize,
+    ) -> Option<usize> {
+        <A as MachineAir<F>>::preprocessed_num_rows_with_instrs_len(&self.air, program, instrs_len)
     }
 
     fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
@@ -231,6 +214,15 @@ where
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
         self.air.generate_trace(input, output)
+    }
+
+    fn generate_trace_into(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+        buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
+        self.air.generate_trace_into(input, output, buffer);
     }
 
     fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
@@ -301,7 +293,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.name().cmp(&other.name())
+        self.name().cmp(other.name())
     }
 }
 
@@ -327,7 +319,7 @@ impl<F: Field> ChipStatistics<F> {
     /// Creates a new chip statistics from a chip and height.
     #[must_use]
     pub fn new<A: MachineAir<F>>(chip: &Chip<F, A>, height: usize) -> Self {
-        let name = chip.name();
+        let name = chip.name().to_string();
         let preprocessed_cols = chip.preprocessed_width();
         let main_cols = chip.width();
         let sends = chip.sends().len();
@@ -378,10 +370,10 @@ impl<F: Field> Display for ChipStatistics<F> {
             f,
             "{:<15} | Prep Cols = {:<5} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
             self.name,
-            self.preprocessed_cols,
-            self.main_cols,
-            self.height,
-            self.total_number_of_cells()
+            self.preprocessed_cols.separate_with_underscores(),
+            self.main_cols.separate_with_underscores(),
+            self.height.separate_with_underscores(),
+            self.total_number_of_cells().separate_with_underscores()
         )
     }
 }

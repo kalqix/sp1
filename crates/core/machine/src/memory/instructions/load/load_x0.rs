@@ -6,24 +6,23 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
-    utils::{next_multiple_of_32, zeroed_f_vec},
+    utils::next_multiple_of_32,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
-use sp1_primitives::consts::PROT_READ;
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -71,9 +70,6 @@ pub struct LoadX0Columns<T> {
 
     /// Whether this is a load double word instruction.
     pub is_ld: T,
-
-    /// Whether the page protection is active.
-    pub is_page_protect_active: T,
 }
 
 impl<F> BaseAir<F> for LoadX0Chip {
@@ -87,8 +83,8 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "LoadX0".to_string()
+    fn name(&self) -> &'static str {
+        "LoadX0"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -99,14 +95,28 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
         Some(nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         let chunk_size = std::cmp::max((input.memory_load_x0_events.len()) / num_cpus::get(), 1);
         let padded_nb_rows = <LoadX0Chip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_LOAD_X0_COLUMNS);
+        let num_event_rows = input.memory_load_x0_events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_LOAD_X0_COLUMNS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_LOAD_X0_COLUMNS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_LOAD_X0_COLUMNS)
+        };
 
         let blu_events = values
             .chunks_mut(chunk_size * NUM_LOAD_X0_COLUMNS)
@@ -121,8 +131,6 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
                     if idx < input.memory_load_x0_events.len() {
                         let event = &input.memory_load_x0_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
-                        cols.is_page_protect_active =
-                            F::from_canonical_u32(input.public_values.is_page_protect_active);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
                     }
@@ -132,9 +140,6 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
             .collect::<Vec<_>>();
 
         output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_LOAD_X0_COLUMNS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -277,20 +282,6 @@ where
             &aligned_addr.clone().map(Into::into),
             local.memory_access,
             is_real.clone(),
-        );
-
-        // Check page protect active is set correctly based on public value and is_real
-        let public_values = builder.extract_public_values();
-        let expected_page_protect_active =
-            public_values.is_page_protect_active.into() * is_real.clone();
-        builder.assert_eq(local.is_page_protect_active, expected_page_protect_active);
-
-        builder.send_page_prot(
-            clk_high.clone(),
-            clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
-            &aligned_addr.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ),
-            local.is_page_protect_active.into(),
         );
 
         // This chip is specifically for load operations with `op_a = x0`.

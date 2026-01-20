@@ -19,14 +19,21 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
+<<<<<<< HEAD
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
 use std::sync::Arc;
+=======
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::Elf;
+use sp1_prover::worker::SP1NodeCore;
+>>>>>>> origin/multilinear_v6
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum EnvProver {
     /// A mock prover that does not prove anything.
     Mock(MockProver),
@@ -60,9 +67,11 @@ impl EnvProver {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut client = ProverClient::from_env().await;
-    /// let opts = SP1CoreOpts { page_protect: true, ..Default::default() };
-    /// client = client.with_opts(opts).await;
+    /// tokio_test::block_on(async {
+    ///     let mut client = ProverClient::from_env().await;
+    ///     let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
+    ///     client = client.with_opts(opts).await;
+    /// });
     /// ```
     pub async fn with_opts(self, opts: SP1CoreOpts) -> Self {
         Self::from_env_with_opts(Some(opts), vec![]).await
@@ -111,7 +120,11 @@ impl Prover for EnvProver {
     type ProvingKey = EnvProvingKey;
     type ProveRequest<'a> = prove::EnvProveRequest<'a>;
 
+<<<<<<< HEAD
     fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
+=======
+    fn inner(&self) -> &SP1NodeCore {
+>>>>>>> origin/multilinear_v6
         match self {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),

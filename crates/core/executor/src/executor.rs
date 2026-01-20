@@ -7,12 +7,18 @@ use crate::profiler::Profiler;
 use crate::{
     estimator::RecordEstimator,
     events::{
+<<<<<<< HEAD
         ApcEvents, ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord, PrecompileEvents,
+=======
+        InstructionDecodeEvent, InstructionFetchEvent, MemoryRecordEnum,
+        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
+>>>>>>> origin/multilinear_v6
         NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
     Apc, StatusCode, NUM_REGISTERS,
 };
+use sp1_jit::debug::{self, DebugState};
 
 use clap::ValueEnum;
 use enum_map::{EnumArray, EnumMap};
@@ -51,6 +57,9 @@ use crate::{
 pub const M64: u64 = 0xFFFFFFFFFFFFFFFF;
 
 /// The increment for the program counter.  Is used for all instructions except
+use std::sync::mpsc;
+
+/// The default increment for the program counter.  Is used for all instructions except
 /// for branches and jumps.
 pub const PC_INC: u32 = 4;
 /// The default increment for the timestamp.
@@ -234,11 +243,12 @@ pub struct Executor<'a> {
     transpiler: InstructionTranspiler,
 
     /// Decoded instruction cache.
-    decoded_instruction_cache: HashMap<u64, Instruction>,
+    decoded_instruction_cache: HashMap<u32, Instruction>,
 
     /// Decoded instruction events.
     decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
 
+<<<<<<< HEAD
     /// The apc candidate at this point in the execution, if any
     apc_candidate: Option<ApcCandidate>,
 }
@@ -346,6 +356,13 @@ impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
             cpu_local_page_prot_access_len: record.cpu_local_page_prot_access.len(),
         }
     }
+=======
+    /// The proof nonce.
+    proof_nonce: [u32; 4],
+
+    /// Sends debug state every instruction when in debug mode.
+    debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
+>>>>>>> origin/multilinear_v6
 }
 
 /// The configuration of the executor.
@@ -385,8 +402,12 @@ impl ExecutorConfig for Unconstrained {
 }
 
 /// The different modes the executor can run in.
+<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 #[derive(Default)]
+=======
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+>>>>>>> origin/multilinear_v6
 pub enum ExecutorMode {
     /// Run the execution with no tracing or checkpointing.
     #[default]
@@ -455,7 +476,7 @@ pub struct LocalCounts {
     pub local_instruction_fetch: usize,
 
     /// The number of instruction decode events that occurred in this shard.
-    pub shard_distinct_instructions: HashSet<(u64, u32)>,
+    pub shard_distinct_instructions: HashSet<u32>,
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -504,6 +525,14 @@ pub enum ExecutionError {
     /// Page protect is off, and the instruction is not found.
     #[error("Instruction not found, page protect/ untrusted program set to off")]
     InstructionNotFound(),
+
+    /// The sharding state is invalid.
+    #[error("Running executor in non-sharding state, but got a shard boundary or trace end")]
+    InvalidShardingState(),
+
+    /// Other error.
+    #[error("Unexpected error: {0}")]
+    Other(String),
 }
 
 impl<'a> Executor<'a> {
@@ -557,7 +586,11 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn with_context(program: Arc<Program>, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a default record with the program.
-        let record = ExecutionRecord::new(program.clone());
+        let record = ExecutionRecord::new(
+            program.clone(),
+            context.proof_nonce,
+            opts.global_dependencies_opt,
+        );
 
         let hook_registry = context.hook_registry.unwrap_or_default();
 
@@ -629,7 +662,12 @@ impl<'a> Executor<'a> {
             decoded_instruction_cache: HashMap::new(),
             decoded_instruction_events: HashMap::new(),
             opts,
+<<<<<<< HEAD
             apc_candidate: None,
+=======
+            proof_nonce: context.proof_nonce,
+            debug_sender: None,
+>>>>>>> origin/multilinear_v6
         }
     }
 
@@ -1290,7 +1328,7 @@ impl<'a> Executor<'a> {
         let mut record =
             self.mr::<E>(addr, false, self.timestamp(&MemoryAccessPosition::Memory), None);
 
-        if self.opts.page_protect {
+        if self.program.enable_untrusted_programs {
             let page_prot_record = self.page_prot_access::<E>(
                 addr / PAGE_SIZE as u64,
                 PROT_READ,
@@ -1351,7 +1389,7 @@ impl<'a> Executor<'a> {
         let mut record =
             self.mw::<E>(addr, value, false, self.timestamp(&MemoryAccessPosition::Memory), None);
 
-        if self.opts.page_protect {
+        if self.program.enable_untrusted_programs {
             let page_prot_record = self.page_prot_access::<E>(
                 addr / PAGE_SIZE as u64,
                 PROT_WRITE,
@@ -1425,17 +1463,17 @@ impl<'a> Executor<'a> {
 
         if let Some(x) = self.memory_accesses.a {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_a as u64));
+                self.record.bump_memory_events.push((x, instruction.op_a as u64, false));
             }
         }
         if let Some(x) = self.memory_accesses.b {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_b));
+                self.record.bump_memory_events.push((x, instruction.op_b, false));
             }
         }
         if let Some(x) = self.memory_accesses.c {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_c));
+                self.record.bump_memory_events.push((x, instruction.op_c, false));
             }
         }
 
@@ -1536,7 +1574,7 @@ impl<'a> Executor<'a> {
                 self.record.lt_events.push((event, record));
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH | Opcode::MULW => {
-                let record = ALUTypeRecord::new(record, instruction);
+                let record = RTypeRecord::new(record, instruction);
                 self.record.mul_events.push((event, record));
             }
             Opcode::DIVU
@@ -1547,7 +1585,7 @@ impl<'a> Executor<'a> {
             | Opcode::DIVUW
             | Opcode::REMUW
             | Opcode::REMW => {
-                let record = ALUTypeRecord::new(record, instruction);
+                let record = RTypeRecord::new(record, instruction);
                 self.record.divrem_events.push((event, record));
             }
             _ => unreachable!(),
@@ -1845,8 +1883,13 @@ impl<'a> Executor<'a> {
     fn fetch<E: ExecutorConfig>(&mut self) -> Result<(Instruction, Option<Apc>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
+<<<<<<< HEAD
             Ok((*instruction.0, instruction.1.copied()))
         } else if self.opts.page_protect {
+=======
+            Ok(*instruction)
+        } else if self.program.enable_untrusted_programs {
+>>>>>>> origin/multilinear_v6
             let aligned_pc = align(self.state.pc);
 
             let timestamp = self.timestamp(&MemoryAccessPosition::UntrustedInstruction);
@@ -1880,16 +1923,15 @@ impl<'a> Executor<'a> {
             }
 
             let instruction: Instruction;
-            if let Some(cached_instruction) = self.decoded_instruction_cache.get(&self.state.pc) {
+            if let Some(cached_instruction) = self.decoded_instruction_cache.get(&instruction_value)
+            {
                 instruction = *cached_instruction;
             } else {
                 instruction = process_instruction(&mut self.transpiler, instruction_value).unwrap();
-                self.decoded_instruction_cache.insert(self.state.pc, instruction);
+                self.decoded_instruction_cache.insert(instruction_value, instruction);
             }
 
-            self.local_counts
-                .shard_distinct_instructions
-                .insert((self.state.pc, instruction_value));
+            self.local_counts.shard_distinct_instructions.insert(instruction_value);
 
             Ok((instruction, None))
         } else {
@@ -1909,7 +1951,6 @@ impl<'a> Executor<'a> {
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
         // Will be set to a non-default value if the instruction is a syscall.
-
         let (mut a, b, c): (u64, u64, u64);
 
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
@@ -1926,6 +1967,10 @@ impl<'a> Executor<'a> {
                 self.local_counts.event_counts.core[instruction.opcode] -= 1;
                 self.local_counts.load_x0_counts += 1;
             }
+        }
+
+        if let Some(sender) = &self.debug_sender {
+            sender.send(Some(self.current_state())).expect("Failed to send debug state");
         }
 
         if instruction.is_alu_instruction() {
@@ -2397,7 +2442,7 @@ impl<'a> Executor<'a> {
                     b % c
                 }
             }
-            // RISCV-64
+            // RISCV-64 word operations
             Opcode::ADDW => (Wrapping(b as i32) + Wrapping(c as i32)).0 as i64 as u64,
             Opcode::SUBW => (Wrapping(b as i32) - Wrapping(c as i32)).0 as i64 as u64,
             Opcode::MULW => (Wrapping(b as i32) * Wrapping(c as i32)).0 as i64 as u64,
@@ -2429,7 +2474,7 @@ impl<'a> Executor<'a> {
                     (((b as u32) % (c as u32)) as i32) as i64 as u64
                 }
             }
-            // RISC-V 64-bit operations
+            // RISCV-64 bit operations
             Opcode::SLLW => (((b as i64) << (c & 0x1f)) as i32) as i64 as u64,
             Opcode::SRLW => (((b as u32) >> ((c & 0x1f) as u32)) as i32) as u64,
             Opcode::SRAW => {
@@ -2685,7 +2730,7 @@ impl<'a> Executor<'a> {
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
     #[allow(clippy::too_many_lines)]
-    fn execute_cycle<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
+    pub fn execute_cycle<E: ExecutorConfig>(&mut self) -> Result<bool, ExecutionError> {
         if E::MODE == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
@@ -2771,6 +2816,7 @@ impl<'a> Executor<'a> {
 
             if !maximal_size_reached {
                 self.state.shard_finished = true;
+<<<<<<< HEAD
                 // If an apc candidate was being run, report a segmentation error.
                 if let Some(apc_candidate) = self.apc_candidate.take() {
                     self.report
@@ -2785,7 +2831,29 @@ impl<'a> Executor<'a> {
                     );
                 }
                 self.state.initial_timestamp = self.state.clk;
+=======
+                if E::MODE == ExecutorMode::Trace {
+                    for register in 0..NUM_REGISTERS {
+                        let record = self.rr_traced::<E>(
+                            Register::from_u8(register as u8),
+                            false,
+                            self.state.clk - 1,
+                            None,
+                        );
+                        self.record.bump_memory_events.push((
+                            MemoryRecordEnum::Read(record),
+                            register as u64,
+                            true,
+                        ));
+                    }
+                } else {
+                    for register in 0..NUM_REGISTERS {
+                        self.rr::<E>(Register::from_u8(register as u8), false, self.state.clk - 1);
+                    }
+                }
+>>>>>>> origin/multilinear_v6
                 self.record.last_timestamp = self.state.clk;
+                self.state.initial_timestamp = self.state.clk;
                 self.bump_record::<E>();
             }
 
@@ -2828,13 +2896,13 @@ impl<'a> Executor<'a> {
         )
         .0;
         self.local_counts = LocalCounts::default();
-        // Copy all of the existing local memory accesses to the record's local_memory_access vec.
 
+        // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         if E::MODE == ExecutorMode::Trace {
             for (_, event) in self.local_memory_access.drain() {
                 self.record.cpu_local_memory_access.push(event);
             }
-            if self.opts.page_protect {
+            if self.program.enable_untrusted_programs {
                 for (_, event) in self.local_page_prot_access.drain() {
                     self.record.cpu_local_page_prot_access.push(event);
                 }
@@ -2940,12 +3008,21 @@ impl<'a> Executor<'a> {
         Ok((checkpoint, public_values, done))
     }
 
-    fn initialize(&mut self) {
+    #[allow(missing_docs)]
+    pub fn initialize(&mut self) {
         self.state.clk = 1;
 
         tracing::debug!("loading memory image");
-        for (&addr, value) in &self.program.memory_image {
-            self.state.memory.insert(addr, MemoryEntry::init(*value));
+        for (addr, value) in self.program.memory_image.iter() {
+            self.state.memory.insert(*addr, MemoryEntry::init(*value));
+        }
+        if self.program.enable_untrusted_programs {
+            for (&page_idx, page_prot) in &self.program.page_prot_image {
+                self.state.page_prots.insert(
+                    page_idx,
+                    PageProtRecord { external_flag: false, timestamp: 0, page_prot: *page_prot },
+                );
+            }
         }
         self.state.memory.insert(0, MemoryEntry::init(0));
     }
@@ -3096,8 +3173,11 @@ impl<'a> Executor<'a> {
         self.record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
         self.record.public_values.commit_syscall = public_values.commit_syscall;
         self.record.public_values.commit_deferred_syscall = public_values.commit_deferred_syscall;
-        // Set is_page_protect_active from the page_protect option
-        self.record.public_values.is_page_protect_active = self.opts.page_protect as u32;
+        // Set is_untrusted_program_enabled from the enable_untrusted_programs option.
+        self.record.public_values.is_untrusted_programs_enabled =
+            self.program.enable_untrusted_programs as u32;
+
+        self.record.public_values.proof_nonce = self.proof_nonce;
 
         if self.record.contains_cpu() {
             self.record.public_values.pc_start = self.record.pc_start.unwrap();
@@ -3201,6 +3281,7 @@ impl<'a> Executor<'a> {
                     if !self.record.program.memory_image.contains_key(&addr) {
                         let initial_value =
                             self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+
                         memory_initialize_events
                             .push(MemoryInitializeFinalizeEvent::initialize(addr, *initial_value));
                     }
@@ -3214,8 +3295,9 @@ impl<'a> Executor<'a> {
                     self.report.touched_memory_addresses += 1;
                 }
 
-                // Program memory is initialized in the MemoryProgram chip and doesn't require any
-                // events, so we only send init events for other memory addresses.
+                // Program memory is initialized in the initial_global_cumulative_sum and doesn't
+                // require any events, so we only send init events for other memory
+                // addresses.
                 if !self.record.program.memory_image.contains_key(&addr) {
                     let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                     memory_initialize_events
@@ -3226,7 +3308,7 @@ impl<'a> Executor<'a> {
                 memory_finalize_events
                     .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
             }
-            if self.opts.page_protect {
+            if self.program.enable_untrusted_programs {
                 let page_prot_initialize_events =
                     &mut self.record.global_page_prot_initialize_events;
                 page_prot_initialize_events.reserve_exact(self.state.page_prots.len());
@@ -3237,10 +3319,16 @@ impl<'a> Executor<'a> {
                 for page_idx in self.state.page_prots.keys() {
                     let record = self.state.page_prots.get(page_idx).unwrap();
 
-                    page_prot_initialize_events.push(PageProtInitializeFinalizeEvent::initialize(
-                        *page_idx,
-                        DEFAULT_PAGE_PROT,
-                    ));
+                    // Only push initialize event if the page prot idx is not in the initial page
+                    // prot image.
+                    if !self.record.program.page_prot_image.contains_key(page_idx) {
+                        page_prot_initialize_events.push(
+                            PageProtInitializeFinalizeEvent::initialize(
+                                *page_idx,
+                                DEFAULT_PAGE_PROT,
+                            ),
+                        );
+                    }
 
                     page_prot_finalize_events.push(
                         PageProtInitializeFinalizeEvent::finalize_from_record(*page_idx, record),
@@ -3276,7 +3364,8 @@ impl<'a> Executor<'a> {
 
         // Compute the maximum number of MemoryBump events.
         // `MemoryBump` chip is used when each register's memory timestamp's top 24 bits increment.
-        event_counts[RiscvAirId::MemoryBump] = (NUM_REGISTERS as u64) * bump_clk_high;
+        // Also, it's used to bump the register's timestamp at the end of the shard.
+        event_counts[RiscvAirId::MemoryBump] = (NUM_REGISTERS as u64) * (bump_clk_high + 1);
 
         // Compute the maximum number of StateBump events;
         event_counts[RiscvAirId::StateBump] = bump_clk_high + local_counts.state_bump_counts;
@@ -3382,7 +3471,7 @@ impl<'a> Executor<'a> {
 
         // Compute the number of events in the global chip.
         event_counts[RiscvAirId::Global] =
-            2 * touched_addresses + 2 * touched_page_prot + syscalls_sent;
+            2 * (touched_addresses + 32) + 2 * touched_page_prot + syscalls_sent;
 
         // Compute the number of events in the retained precompiles.
         for &air_id in internal_syscalls_air_id {
@@ -3405,6 +3494,31 @@ impl<'a> Executor<'a> {
     }
 }
 
+<<<<<<< HEAD
+=======
+impl debug::DebugState for Executor<'_> {
+    fn current_state(&self) -> debug::State {
+        let registers = self.state.memory.registers.registers.map(|r| r.map_or(0, |r| r.value));
+        debug::State {
+            pc: self.state.pc,
+            clk: self.state.clk,
+            global_clk: self.state.global_clk,
+            registers,
+        }
+    }
+
+    fn new_debug_receiver(&mut self) -> Option<mpsc::Receiver<Option<debug::State>>> {
+        self.debug_sender
+            .is_none()
+            .then(|| {
+                let (tx, rx) = mpsc::sync_channel(0);
+                self.debug_sender = Some(tx);
+                Some(rx)
+            })
+            .flatten()
+    }
+}
+>>>>>>> origin/multilinear_v6
 
 /// Aligns an address to the nearest double word below or equal to it.
 #[must_use]

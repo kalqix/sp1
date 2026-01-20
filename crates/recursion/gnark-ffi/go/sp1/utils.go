@@ -35,11 +35,12 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 	(*proof).WriteRawTo(&buf)
 	proofBytes := buf.Bytes()
 
-	var publicInputs [4]string
+	var publicInputs [5]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommittedValuesDigest
 	publicInputs[2] = witnessInput.ExitCode
 	publicInputs[3] = witnessInput.VkRoot
+	publicInputs[4] = witnessInput.ProofNonce
 
 	// Cast plonk proof into plonk_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*plonk_bn254.Proof)
@@ -49,6 +50,7 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 	var encodedProofBuf bytes.Buffer
 	writeUint256(&encodedProofBuf, parseBig(witnessInput.ExitCode))
 	writeUint256(&encodedProofBuf, parseBig(witnessInput.VkRoot))
+	writeUint256(&encodedProofBuf, parseBig(witnessInput.ProofNonce))
 	encodedProofBuf.Write(encodedProof)
 
 	return Proof{
@@ -63,11 +65,12 @@ func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Proof {
 	(*proof).WriteRawTo(&buf)
 	proofBytes := buf.Bytes()
 
-	var publicInputs [4]string
+	var publicInputs [5]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommittedValuesDigest
 	publicInputs[2] = witnessInput.ExitCode
 	publicInputs[3] = witnessInput.VkRoot
+	publicInputs[4] = witnessInput.ProofNonce
 
 	// Cast groth16 proof into groth16_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*groth16_bn254.Proof)
@@ -77,6 +80,7 @@ func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Proof {
 	var encodedProofBuf bytes.Buffer
 	writeUint256(&encodedProofBuf, parseBig(witnessInput.ExitCode))
 	writeUint256(&encodedProofBuf, parseBig(witnessInput.VkRoot))
+	writeUint256(&encodedProofBuf, parseBig(witnessInput.ProofNonce))
 	encodedProofBuf.Write(encodedProof)
 
 	return Proof{
@@ -104,6 +108,7 @@ func NewCircuit(witnessInput WitnessInput) Circuit {
 		CommittedValuesDigest: witnessInput.CommittedValuesDigest,
 		ExitCode:              witnessInput.ExitCode,
 		VkRoot:                witnessInput.VkRoot,
+		ProofNonce:            witnessInput.ProofNonce,
 		Vars:                  vars,
 		Felts:                 felts,
 		Exts:                  exts,

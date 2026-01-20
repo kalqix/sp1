@@ -1,5 +1,8 @@
 use core::{fmt::Debug, mem::size_of};
-use std::borrow::{Borrow, BorrowMut};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    ops::Range,
+};
 
 use deepsize2::DeepSizeOf;
 use itertools::Itertools;
@@ -18,8 +21,11 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 /// The number of field elements in the poseidon2 digest.
 pub const POSEIDON_NUM_WORDS: usize = 8;
 
+/// The number of 32 bit words in the SP1 proof's proof nonce.
+pub const PROOF_NONCE_NUM_WORDS: usize = 4;
+
 /// Stores all of a shard proof's public values.
-#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug, DeepSizeOf)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq, Eq, DeepSizeOf)]
 #[repr(C)]
 pub struct PublicValues<W1, W2, W3, T> {
     /// The `committed_value_digest` value before this shard.
@@ -131,13 +137,17 @@ pub struct PublicValues<W1, W2, W3, T> {
     pub last_timestamp_inv: T,
 
     /// Whether or not this shard is the first shard of the proof.
-    pub is_first_shard: T,
+    pub is_first_execution_shard: T,
 
-    /// Whether page protect access is checked.
-    pub is_page_protect_active: T,
+    /// Whether untrusted program support is enabled.  This specifically will enable fetching
+    /// instructions from memory during runtime and checking/setting page permissions.
+    pub is_untrusted_programs_enabled: T,
+
+    /// The nonce used for this proof.
+    pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
 
     /// This field is here to ensure that the size of the public values struct is a multiple of 8.
-    pub empty: [T; 0],
+    pub empty: [T; 4],
 }
 
 impl PublicValues<u32, u64, u64, u32> {
@@ -152,6 +162,24 @@ impl PublicValues<u32, u64, u64, u32> {
             ret.as_mut_slice().borrow_mut();
         *ret_ref_mut = field_values;
         ret
+    }
+
+    /// Get the range of the shard.
+    ///
+    /// TODO: deprecate this once recursion is fully streaming.
+    #[must_use]
+    pub fn range(&self) -> ShardRange {
+        ShardRange {
+            timestamp_range: (self.initial_timestamp, self.last_timestamp),
+            initialized_address_range: (self.previous_init_addr, self.last_init_addr),
+            finalized_address_range: (self.previous_finalize_addr, self.last_finalize_addr),
+            initialized_page_index_range: (self.previous_init_page_idx, self.last_init_page_idx),
+            finalized_page_index_range: (
+                self.previous_finalize_page_idx,
+                self.last_finalize_page_idx,
+            ),
+            deferred_proof_range: (0, 0),
+        }
     }
 
     /// Resets the public values to zero.
@@ -170,7 +198,129 @@ impl PublicValues<u32, u64, u64, u32> {
         copy.last_finalize_page_idx = 0;
         copy
     }
+
+    /// Get the public values corresponding to initial state of the program for a non-execution
+    /// shard.
+    #[must_use]
+    pub fn initialize(&self, pc_start_abs: u64, enable_untrusted_programs: bool) -> Self {
+        let mut state = *self;
+        state.pc_start = pc_start_abs;
+        state.next_pc = pc_start_abs;
+        state.initial_timestamp = 1;
+        state.last_timestamp = 1;
+        state.is_timestamp_high_eq = 1;
+        state.is_timestamp_low_eq = 1;
+        state.is_first_execution_shard = 0;
+        state.is_execution_shard = 0;
+        state.initial_timestamp_inv = 0;
+        state.last_timestamp_inv = 0;
+        state.is_untrusted_programs_enabled = enable_untrusted_programs as u32;
+        state
+    }
+
+    /// Update the public values to the state.
+    pub fn update_state(&mut self, state: &PublicValues<u32, u64, u64, u32>) {
+        self.pc_start = state.pc_start;
+        self.next_pc = state.next_pc;
+        self.exit_code = state.exit_code;
+        self.initial_timestamp = state.initial_timestamp;
+        self.last_timestamp = state.last_timestamp;
+        self.is_timestamp_high_eq = state.is_timestamp_high_eq;
+        self.is_timestamp_low_eq = state.is_timestamp_low_eq;
+        self.last_timestamp_inv = state.last_timestamp_inv;
+        self.initial_timestamp_inv = state.initial_timestamp_inv;
+        self.is_first_execution_shard = state.is_first_execution_shard;
+        self.is_execution_shard = state.is_execution_shard;
+        self.is_untrusted_programs_enabled = state.is_untrusted_programs_enabled;
+    }
+
+    /// Update the public values to the state, as a non-execution shard in the initial state of the
+    /// program's execution.
+    pub fn update_initialized_state(&mut self, pc_start_abs: u64, enable_untrusted_programs: bool) {
+        self.pc_start = pc_start_abs;
+        self.next_pc = pc_start_abs;
+        self.exit_code = 0;
+        self.initial_timestamp = 1;
+        self.last_timestamp = 1;
+        self.is_timestamp_high_eq = 1;
+        self.is_timestamp_low_eq = 1;
+        self.is_first_execution_shard = 0;
+        self.is_execution_shard = 0;
+        self.initial_timestamp_inv = 0;
+        self.last_timestamp_inv = 0;
+        self.is_untrusted_programs_enabled = enable_untrusted_programs as u32;
+    }
+
+    /// Update the public values to the state, as a non-execution shard in the final state of the
+    /// program's execution.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_finalized_state(
+        &mut self,
+        timestamp: u64,
+        pc: u64,
+        exit_code: u32,
+        is_untrusted_programs_enabled: u32,
+        committed_value_digest: [u32; PV_DIGEST_NUM_WORDS],
+        deferred_proofs_digest: [u32; POSEIDON_NUM_WORDS],
+        nonce: [u32; PROOF_NONCE_NUM_WORDS],
+    ) {
+        self.pc_start = pc;
+        self.next_pc = pc;
+        self.exit_code = exit_code;
+        self.initial_timestamp = timestamp;
+        self.last_timestamp = timestamp;
+        self.is_timestamp_high_eq = 1;
+        self.is_timestamp_low_eq = 1;
+        self.is_first_execution_shard = 0;
+        self.is_execution_shard = 0;
+        self.initial_timestamp_inv = 0;
+        self.last_timestamp_inv = 0;
+        self.prev_committed_value_digest = committed_value_digest;
+        self.committed_value_digest = committed_value_digest;
+        self.prev_deferred_proofs_digest = deferred_proofs_digest;
+        self.deferred_proofs_digest = deferred_proofs_digest;
+        self.is_untrusted_programs_enabled = is_untrusted_programs_enabled;
+        self.prev_exit_code = exit_code;
+        self.prev_commit_syscall = 1;
+        self.commit_syscall = 1;
+        self.prev_commit_deferred_syscall = 1;
+        self.commit_deferred_syscall = 1;
+        self.proof_nonce = nonce;
+    }
+
+    /// Similar to [`update_finalized_state`], but takes all the values from an existing public
+    /// values struct for convenience.
+    pub fn update_finalized_state_from_public_values(
+        &mut self,
+        public_values: &PublicValues<u32, u64, u64, u32>,
+    ) {
+        self.update_finalized_state(
+            public_values.last_timestamp,
+            public_values.next_pc,
+            public_values.exit_code,
+            public_values.is_untrusted_programs_enabled,
+            public_values.committed_value_digest,
+            public_values.deferred_proofs_digest,
+            public_values.proof_nonce,
+        );
+    }
 }
+
+/// Returns a timestamp from a limbs array.
+///
+/// The representation of the timestamp is given in big endian by bit decomposition of bits
+/// (16, 8, 8, 16)
+#[inline]
+pub fn timestamp_from_limbs<F: PrimeField32>(limbs: &[F; 4]) -> u64 {
+    let mut timestamp = (limbs[0].as_canonical_u32() as u64) << 32;
+    timestamp += (limbs[1].as_canonical_u32() as u64) << 24;
+    timestamp += (limbs[2].as_canonical_u32() as u64) << 16;
+    timestamp += limbs[3].as_canonical_u32() as u64;
+    timestamp
+}
+
+/// A type alias for the public values of the SP1 core proof.
+pub type SP1CorePublicValues<F> = PublicValues<[F; 4], [F; 3], [F; 4], F>;
 
 impl<F: PrimeField32> PublicValues<[F; 4], [F; 3], [F; 4], F> {
     /// Returns the commit digest as a vector of little-endian bytes.
@@ -179,6 +329,102 @@ impl<F: PrimeField32> PublicValues<[F; 4], [F; 3], [F; 4], F> {
             .iter()
             .flat_map(|w| w.iter().map(|f| f.as_canonical_u32() as u8))
             .collect_vec()
+    }
+
+    /// Returns the initial timestamp.
+    pub fn initial_timestamp(&self) -> u64 {
+        timestamp_from_limbs(&self.initial_timestamp)
+    }
+
+    /// Returns the last timestamp.
+    pub fn last_timestamp(&self) -> u64 {
+        timestamp_from_limbs(&self.last_timestamp)
+    }
+
+    /// Returns the previous initialization address.
+    pub fn previous_init_addr(&self) -> u64 {
+        self.previous_init_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the last initialization address.
+    pub fn last_init_addr(&self) -> u64 {
+        self.last_init_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the previous finalize address.
+    pub fn previous_finalize_addr(&self) -> u64 {
+        self.previous_finalize_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the last finalize address.
+    pub fn last_finalize_addr(&self) -> u64 {
+        self.last_finalize_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the previous initialization page index.
+    pub fn previous_init_page_idx(&self) -> u64 {
+        self.previous_init_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the last initialization page index.
+    pub fn last_init_page_idx(&self) -> u64 {
+        self.last_init_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the previous finalize page index.
+    pub fn previous_finalize_page_idx(&self) -> u64 {
+        self.previous_finalize_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the last finalize page index.
+    pub fn last_finalize_page_idx(&self) -> u64 {
+        self.last_finalize_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64)
+    }
+
+    /// Returns the range of the shard.
+    #[must_use]
+    pub fn range(&self) -> ShardRange {
+        let timestamp_range = (self.initial_timestamp(), self.last_timestamp());
+        let initialized_address_range = (self.previous_init_addr(), self.last_init_addr());
+        let finalized_address_range = (self.previous_finalize_addr(), self.last_finalize_addr());
+        let initialized_page_index_range =
+            (self.previous_init_page_idx(), self.last_init_page_idx());
+        let finalized_page_index_range =
+            (self.previous_finalize_page_idx(), self.last_finalize_page_idx());
+        let deferred_proof_range = (0, 0);
+
+        ShardRange {
+            timestamp_range,
+            initialized_address_range,
+            finalized_address_range,
+            initialized_page_index_range,
+            finalized_page_index_range,
+            deferred_proof_range,
+        }
     }
 }
 
@@ -247,10 +493,11 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
-            is_page_protect_active,
+            is_untrusted_programs_enabled,
+            proof_nonce,
             initial_timestamp_inv,
             last_timestamp_inv,
-            is_first_shard,
+            is_first_execution_shard,
             ..
         } = value;
 
@@ -356,8 +603,11 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
 
         let initial_timestamp_inv = F::from_canonical_u32(initial_timestamp_inv);
         let last_timestamp_inv = F::from_canonical_u32(last_timestamp_inv);
-        let is_first_shard = F::from_canonical_u32(is_first_shard);
-        let is_page_protect_active = F::from_canonical_u32(is_page_protect_active);
+        let is_first_execution_shard = F::from_canonical_u32(is_first_execution_shard);
+        let is_untrusted_programs_enabled = F::from_canonical_u32(is_untrusted_programs_enabled);
+
+        let proof_nonce: [_; PROOF_NONCE_NUM_WORDS] =
+            core::array::from_fn(|i| F::from_canonical_u32(proof_nonce[i]));
 
         Self {
             prev_committed_value_digest,
@@ -393,12 +643,184 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
-            is_page_protect_active,
+            is_untrusted_programs_enabled,
             initial_timestamp_inv,
             last_timestamp_inv,
-            is_first_shard,
+            is_first_execution_shard,
+            proof_nonce,
             empty: core::array::from_fn(|_| F::zero()),
         }
+    }
+}
+
+/// A shard boundary is a single shard that is being proven.
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[repr(C)]
+pub struct ShardBoundary {
+    /// The timestamp.
+    pub timestamp: u64,
+    /// The initialized address.
+    pub initialized_address: u64,
+    /// The finalized address.
+    pub finalized_address: u64,
+    /// The initialized page index.
+    pub initialized_page_index: u64,
+    /// The finalized page index.
+    pub finalized_page_index: u64,
+    /// The deferred proof index
+    pub deferred_proof: u64,
+}
+
+impl ShardBoundary {
+    /// Returns the initial shard boundary.
+    ///
+    /// The initial shard boundary has timestamp set to 1, the other values are set to 0.
+    #[inline]
+    #[must_use]
+    pub fn initial() -> Self {
+        Self {
+            timestamp: 1,
+            initialized_address: 0,
+            finalized_address: 0,
+            initialized_page_index: 0,
+            finalized_page_index: 0,
+            deferred_proof: 0,
+        }
+    }
+}
+
+/// The range of the shard with respect to the program execution ordering.
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[repr(C)]
+pub struct ShardRange {
+    /// The timestamp range of the shard
+    pub timestamp_range: (u64, u64),
+    /// The initialized address range of the shard,
+    pub initialized_address_range: (u64, u64),
+    /// The finalized address range of the shard
+    pub finalized_address_range: (u64, u64),
+    /// The initialized page index range of the shard
+    pub initialized_page_index_range: (u64, u64),
+    /// The finalized page index range of the shard
+    pub finalized_page_index_range: (u64, u64),
+    /// The deferred proof index range of the shard
+    pub deferred_proof_range: (u64, u64),
+}
+
+impl From<Range<ShardBoundary>> for ShardRange {
+    fn from(value: Range<ShardBoundary>) -> Self {
+        Self {
+            timestamp_range: (value.start.timestamp, value.end.timestamp),
+            initialized_address_range: (
+                value.start.initialized_address,
+                value.end.initialized_address,
+            ),
+            finalized_address_range: (value.start.finalized_address, value.end.finalized_address),
+            initialized_page_index_range: (
+                value.start.initialized_page_index,
+                value.end.initialized_page_index,
+            ),
+            finalized_page_index_range: (
+                value.start.finalized_page_index,
+                value.end.finalized_page_index,
+            ),
+            deferred_proof_range: (value.start.deferred_proof, value.end.deferred_proof),
+        }
+    }
+}
+
+impl ShardRange {
+    /// Returns the start boundary of the shard.
+    #[must_use]
+    #[inline]
+    pub fn start(&self) -> ShardBoundary {
+        ShardBoundary {
+            timestamp: self.timestamp_range.0,
+            initialized_address: self.initialized_address_range.0,
+            finalized_address: self.finalized_address_range.0,
+            initialized_page_index: self.initialized_page_index_range.0,
+            finalized_page_index: self.finalized_page_index_range.0,
+            deferred_proof: self.deferred_proof_range.0,
+        }
+    }
+
+    /// Returns the end boundary of the shard.
+    #[must_use]
+    #[inline]
+    pub fn end(&self) -> ShardBoundary {
+        ShardBoundary {
+            timestamp: self.timestamp_range.1,
+            initialized_address: self.initialized_address_range.1,
+            finalized_address: self.finalized_address_range.1,
+            initialized_page_index: self.initialized_page_index_range.1,
+            finalized_page_index: self.finalized_page_index_range.1,
+            deferred_proof: self.deferred_proof_range.1,
+        }
+    }
+
+    /// Returns the shard range for deferred precompile shards.
+    #[must_use]
+    #[inline]
+    pub fn deferred() -> Self {
+        Self {
+            timestamp_range: (1, 1),
+            initialized_address_range: (0, 0),
+            finalized_address_range: (0, 0),
+            initialized_page_index_range: (0, 0),
+            finalized_page_index_range: (0, 0),
+            deferred_proof_range: (0, 0),
+        }
+    }
+
+    /// Returns the shard range for precompile shards.
+    ///
+    /// Precompile shards are ordered after deferred proofs in the compress tree.
+    /// They have `timestamp_range: (1, 1)` and `deferred_proof_range` set to
+    /// `(num_deferred_proofs, num_deferred_proofs)` so they chain correctly
+    /// with deferred proofs.
+    #[must_use]
+    #[inline]
+    pub fn precompile(num_deferred_proofs: usize) -> Self {
+        Self {
+            timestamp_range: (1, 1),
+            initialized_address_range: (0, 0),
+            finalized_address_range: (0, 0),
+            initialized_page_index_range: (0, 0),
+            finalized_page_index_range: (0, 0),
+            deferred_proof_range: (num_deferred_proofs as u64, num_deferred_proofs as u64),
+        }
+    }
+}
+
+impl core::fmt::Display for ShardRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ShardRange:")?;
+        write!(f, "timestamp_range: {}..{}", self.timestamp_range.0, self.timestamp_range.1)?;
+        write!(
+            f,
+            "initialized_address_range: {}..{}",
+            self.initialized_address_range.0, self.initialized_address_range.1
+        )?;
+        write!(
+            f,
+            "finalized_address_range: {}..{}",
+            self.finalized_address_range.0, self.finalized_address_range.1
+        )?;
+        write!(
+            f,
+            "initialized_page_index_range: {}..{}",
+            self.initialized_page_index_range.0, self.initialized_page_index_range.1
+        )?;
+        write!(
+            f,
+            "finalized_page_index_range: {}..{}",
+            self.finalized_page_index_range.0, self.finalized_page_index_range.1
+        )?;
+        Ok(())
     }
 }
 

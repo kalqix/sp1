@@ -1,10 +1,9 @@
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_algebra::PrimeField32;
-use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, SyscallEvent},
     syscalls::SyscallCode,
@@ -14,7 +13,7 @@ use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
 use struct_reflection::StructReflectionHelper;
 
-use crate::utils::{next_multiple_of_32, zeroed_f_vec};
+use crate::{operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32};
 
 use super::{
     columns::{SyscallInstrColumns, NUM_SYSCALL_INSTR_COLS},
@@ -26,8 +25,8 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "SyscallInstrs".to_string()
+    fn name(&self) -> &'static str {
+        "SyscallInstrs"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -37,14 +36,28 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         let chunk_size = std::cmp::max((input.syscall_events.len()) / num_cpus::get(), 1);
         let padded_nb_rows = <SyscallInstrsChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_SYSCALL_INSTR_COLS);
+        let num_event_rows = input.syscall_events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_SYSCALL_INSTR_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_SYSCALL_INSTR_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_SYSCALL_INSTR_COLS)
+        };
 
         let blu_events = values
             .chunks_mut(chunk_size * NUM_SYSCALL_INSTR_COLS)
@@ -68,9 +81,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
             .collect::<Vec<_>>();
 
         output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_SYSCALL_INSTR_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -136,15 +146,13 @@ impl SyscallInstrsChip {
             syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
         );
 
-        // Populate `is_page_protect`.
-        cols.is_page_protect.populate_from_field_element(
-            syscall_id - F::from_canonical_u32(SyscallCode::MPROTECT.syscall_id()),
-        );
-
         // Populate `is_commit_deferred_proofs`.
         cols.is_commit_deferred_proofs.populate_from_field_element(
             syscall_id - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
         );
+
+        cols.index_bitmap = [F::zero(); 8];
+        cols.expected_public_values_digest = [F::zero(); 4];
 
         // For `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
         if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
@@ -164,10 +172,14 @@ impl SyscallInstrsChip {
         // Add the SP1Field range check of the operands.
         if cols.is_halt == F::one() {
             cols.op_b_range_check.populate(Word::from(event.arg1), blu);
+        } else {
+            cols.op_b_range_check = SP1FieldWordRangeChecker::default();
         }
 
         if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()) {
             cols.op_c_range_check.populate(Word::from(event.arg2), blu);
+        } else {
+            cols.op_c_range_check = SP1FieldWordRangeChecker::default();
         }
     }
 }

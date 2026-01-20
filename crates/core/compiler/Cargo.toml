@@ -10,7 +10,6 @@ include.workspace = true
 
 [dependencies]
 slop-air = { workspace = true }
-slop-koala-bear = { workspace = true }
 
 sp1-core-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
@@ -18,7 +17,7 @@ sp1-primitives = { workspace = true }
 
 # dependencies for the binary
 
-clap = { version = "4.5.7", features = ["derive", "env"] }
+clap = { workspace = true, features = ["derive", "env"] }
 serde_json = { workspace = true }
 
 [lints]

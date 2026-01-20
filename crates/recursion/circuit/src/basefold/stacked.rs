@@ -1,9 +1,8 @@
 use super::RecursiveMultilinearPcsVerifier;
-use crate::sumcheck::evaluate_mle_ext;
-use slop_algebra::extension::BinomialExtensionField;
+use crate::{challenger::FieldChallengerVariable, sumcheck::evaluate_mle_ext};
 use slop_commit::Rounds;
-use slop_multilinear::{Evaluations, Mle, Point};
-use sp1_primitives::SP1Field;
+use slop_multilinear::{Mle, MleEval, Point};
+use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Ext, SymbolicExt},
@@ -16,35 +15,34 @@ pub struct RecursiveStackedPcsVerifier<P> {
 }
 
 pub struct RecursiveStackedPcsProof<PcsProof, F, EF> {
-    pub batch_evaluations: Rounds<Evaluations<Ext<F, EF>>>,
+    pub batch_evaluations: Rounds<MleEval<Ext<F, EF>>>,
     pub pcs_proof: PcsProof,
 }
 
-impl<
-        P: RecursiveMultilinearPcsVerifier<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
-    > RecursiveStackedPcsVerifier<P>
-{
+impl<P: RecursiveMultilinearPcsVerifier> RecursiveStackedPcsVerifier<P> {
     pub const fn new(recursive_pcs_verifier: P, log_stacking_height: u32) -> Self {
         Self { recursive_pcs_verifier, log_stacking_height }
     }
 
-    pub fn verify_trusted_evaluation(
+    pub fn verify_untrusted_evaluation(
         &self,
         builder: &mut Builder<P::Circuit>,
         commitments: &[P::Commitment],
-        point: &Point<Ext<P::F, P::EF>>,
-        proof: &RecursiveStackedPcsProof<P::Proof, P::F, P::EF>,
-        evaluation_claim: SymbolicExt<P::F, P::EF>,
+        point: &Point<Ext<SP1Field, SP1ExtensionField>>,
+        proof: &RecursiveStackedPcsProof<P::Proof, SP1Field, SP1ExtensionField>,
+        evaluation_claim: SymbolicExt<SP1Field, SP1ExtensionField>,
         challenger: &mut P::Challenger,
     ) {
+        let claim_ext: Ext<_, _> = builder.eval(evaluation_claim);
+        challenger.observe_ext_element(builder, claim_ext);
         let (batch_point, stack_point) =
             point.split_at(point.dimension() - self.log_stacking_height as usize);
         let batch_evaluations =
-            proof.batch_evaluations.iter().flatten().flatten().cloned().collect::<Mle<_>>();
+            proof.batch_evaluations.iter().flatten().cloned().collect::<Mle<_>>();
 
         builder.cycle_tracker_v2_enter("rizz - evaluate_mle_ext");
         let expected_evaluation = evaluate_mle_ext(builder, batch_evaluations, batch_point)[0];
-        builder.assert_ext_eq(evaluation_claim, expected_evaluation);
+        builder.assert_ext_eq(claim_ext, expected_evaluation);
         builder.cycle_tracker_v2_exit();
 
         builder.cycle_tracker_v2_enter("rizz - verify_untrusted_evaluations");
@@ -63,37 +61,35 @@ impl<
 #[cfg(test)]
 mod tests {
     use rand::thread_rng;
+    use slop_challenger::IopCtx;
     use slop_commit::Message;
     use sp1_core_machine::utils::setup_logger;
-    use sp1_hypercube::{SP1BasefoldConfig, SP1CoreJaggedConfig};
-    use sp1_recursion_compiler::circuit::AsmConfig;
+    use sp1_recursion_compiler::{circuit::AsmConfig, config::InnerConfig};
     use std::{collections::VecDeque, marker::PhantomData, sync::Arc};
 
     use slop_algebra::extension::BinomialExtensionField;
-    use sp1_primitives::SP1DiffusionMatrix;
+    use sp1_primitives::{SP1DiffusionMatrix, SP1GlobalContext};
 
     use crate::{
-        basefold::{
-            tcs::RecursiveMerkleTreeTcs, RecursiveBasefoldConfigImpl, RecursiveBasefoldVerifier,
-        },
+        basefold::{tcs::RecursiveMerkleTreeTcs, RecursiveBasefoldVerifier},
         challenger::DuplexChallengerVariable,
         witness::Witnessable,
     };
 
     use super::*;
 
-    use slop_basefold::BasefoldVerifier;
+    use slop_basefold::{BasefoldVerifier, FriConfig};
     use slop_basefold_prover::BasefoldProver;
     use slop_challenger::CanObserve;
 
     use slop_commit::Rounds;
 
     use crate::challenger::CanObserveVariable;
-    use slop_multilinear::Mle;
-    use slop_stacked::{FixedRateInterleave, StackedPcsProver, StackedPcsVerifier};
-    use sp1_hypercube::{inner_perm, prover::SP1BasefoldCpuProverComponents};
+    use slop_multilinear::{Mle, MultilinearPcsProver};
+    use slop_stacked::StackedPcsProver;
+    use sp1_hypercube::{inner_perm, prover::SP1MerkleTreeProver};
     use sp1_recursion_compiler::circuit::{AsmBuilder, AsmCompiler};
-    use sp1_recursion_executor::Runtime;
+    use sp1_recursion_executor::Executor;
 
     use sp1_primitives::SP1Field;
     type F = SP1Field;
@@ -103,8 +99,9 @@ mod tests {
         log_stacking_height: u32,
         batch_size: usize,
     ) {
-        type C = SP1BasefoldConfig;
-        type Prover = BasefoldProver<SP1BasefoldCpuProverComponents>;
+        type C = InnerConfig;
+        type SC = SP1GlobalContext;
+        type Prover = BasefoldProver<SP1GlobalContext, SP1MerkleTreeProver>;
         type EF = BinomialExtensionField<SP1Field, 4>;
         let total_data_length = round_widths_and_log_heights
             .iter()
@@ -112,8 +109,6 @@ mod tests {
             .sum::<usize>();
         let total_number_of_variables = total_data_length.next_power_of_two().ilog2();
         assert_eq!(1 << total_number_of_variables, total_data_length);
-
-        let log_blowup = 1;
 
         let mut rng = thread_rng();
         let round_mles = round_widths_and_log_heights
@@ -125,14 +120,15 @@ mod tests {
             })
             .collect::<Rounds<_>>();
 
-        let pcs_verifier = BasefoldVerifier::<C>::new(log_blowup);
+        let pcs_verifier = BasefoldVerifier::<SC>::new(
+            FriConfig::default_fri_config(),
+            round_widths_and_log_heights.len(),
+        );
         let pcs_prover = Prover::new(&pcs_verifier);
-        let stacker = FixedRateInterleave::new(batch_size);
 
-        let verifier = StackedPcsVerifier::new(pcs_verifier, log_stacking_height);
-        let prover = StackedPcsProver::new(pcs_prover, stacker, log_stacking_height);
+        let prover = StackedPcsProver::new(pcs_prover, log_stacking_height, batch_size);
 
-        let mut challenger = verifier.pcs_verifier.challenger();
+        let mut challenger = SC::default_challenger();
         let mut commitments = vec![];
         let mut prover_data = Rounds::new();
         let mut batch_evaluations = Rounds::new();
@@ -141,7 +137,7 @@ mod tests {
         let (batch_point, stack_point) =
             point.split_at(point.dimension() - log_stacking_height as usize);
         for mles in round_mles.iter() {
-            let (commitment, data) = prover.commit_multilinears(mles.clone()).await.unwrap();
+            let (commitment, data, _) = prover.commit_multilinear(mles.clone()).await.unwrap();
             challenger.observe(commitment);
             commitments.push(commitment);
             let evaluations = prover.round_batch_evaluations(&stack_point, &data).await;
@@ -156,47 +152,42 @@ mod tests {
         let eval_claim = batch_evaluations_mle.eval_at(&batch_point).await[0];
 
         let proof = prover
-            .prove_trusted_evaluation(
-                point.clone(),
-                eval_claim,
-                prover_data,
-                batch_evaluations,
-                &mut challenger,
-            )
+            .prove_untrusted_evaluation(point.clone(), eval_claim, prover_data, &mut challenger)
             .await
             .unwrap();
 
-        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::default();
         let mut witness_stream = Vec::new();
         let mut challenger_variable = DuplexChallengerVariable::new(&mut builder);
 
-        Witnessable::<AsmConfig<F, EF>>::write(&commitments, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&commitments, &mut witness_stream);
         let commitments = commitments.read(&mut builder);
 
         for commitment in commitments.iter() {
             challenger_variable.observe(&mut builder, *commitment);
         }
 
-        Witnessable::<AsmConfig<F, EF>>::write(&point, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&point, &mut witness_stream);
         let point = point.read(&mut builder);
 
-        Witnessable::<AsmConfig<F, EF>>::write(&proof, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&proof, &mut witness_stream);
         let proof = proof.read(&mut builder);
 
-        Witnessable::<AsmConfig<F, EF>>::write(&eval_claim, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&eval_claim, &mut witness_stream);
         let eval_claim = eval_claim.read(&mut builder);
 
-        let verifier = BasefoldVerifier::<C>::new(log_blowup);
-        let recursive_verifier = RecursiveBasefoldVerifier::<
-            RecursiveBasefoldConfigImpl<AsmConfig<F, EF>, SP1CoreJaggedConfig>,
-        > {
+        let verifier = BasefoldVerifier::<SC>::new(
+            FriConfig::default_fri_config(),
+            round_widths_and_log_heights.len(),
+        );
+        let recursive_verifier = RecursiveBasefoldVerifier::<C, SC> {
             fri_config: verifier.fri_config,
-            tcs: RecursiveMerkleTreeTcs::<AsmConfig<F, EF>, SP1CoreJaggedConfig>(PhantomData),
+            tcs: RecursiveMerkleTreeTcs::<C, SC>(PhantomData),
         };
         let recursive_verifier =
             RecursiveStackedPcsVerifier::new(recursive_verifier, log_stacking_height);
 
-        recursive_verifier.verify_trusted_evaluation(
+        recursive_verifier.verify_untrusted_evaluation(
             &mut builder,
             &commitments,
             &point,
@@ -209,10 +200,11 @@ mod tests {
         let block = builder.into_root_block();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
-        let mut runtime = Runtime::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
-        runtime.witness_stream = witness_stream.into();
-        runtime.debug_stdout = Box::new(&mut buf);
-        runtime.run().unwrap();
+        let mut executor =
+            Executor::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
+        executor.witness_stream = witness_stream.into();
+        executor.debug_stdout = Box::new(&mut buf);
+        executor.run().unwrap();
     }
 
     #[tokio::test]

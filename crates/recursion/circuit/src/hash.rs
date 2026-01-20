@@ -1,16 +1,16 @@
 use std::{
-    fmt::Debug,
+    borrow::Borrow,
     iter::{repeat, zip},
 };
 
 use itertools::Itertools;
 use slop_algebra::{AbstractField, Field};
-use slop_bn254::Bn254Fr;
-use slop_merkle_tree::{outer_perm, OUTER_CHALLENGER_STATE_WIDTH};
-use slop_symmetric::Permutation;
-use sp1_hypercube::{inner_perm, SP1CoreJaggedConfig, SP1OuterConfig};
-use sp1_primitives::SP1Field;
-use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Felt, Var};
+use slop_bn254::{outer_perm, Bn254Fr, OUTER_CHALLENGER_STATE_WIDTH};
+use slop_challenger::IopCtx;
+use slop_symmetric::{CryptographicHasher, Permutation};
+use sp1_hypercube::{inner_perm, SP1InnerPcs};
+use sp1_primitives::{SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
+use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, Var};
 use sp1_recursion_executor::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
 use crate::{
@@ -18,37 +18,40 @@ use crate::{
     CircuitConfig,
 };
 
-pub trait FieldHasher<F: Field> {
-    type Digest: Copy + Default + Eq + Ord + Copy + Debug + Send + Sync;
-
+pub trait FieldHasher: IopCtx {
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest;
+
+    fn hash_slice(input: &[Self::F]) -> Self::Digest;
 }
 
 pub trait Poseidon2SP1FieldHasherVariable<C: CircuitConfig> {
     fn poseidon2_permute(
         builder: &mut Builder<C>,
-        state: [Felt<C::F>; PERMUTATION_WIDTH],
-    ) -> [Felt<C::F>; PERMUTATION_WIDTH];
+        state: [Felt<SP1Field>; PERMUTATION_WIDTH],
+    ) -> [Felt<SP1Field>; PERMUTATION_WIDTH];
 
     /// Applies the Poseidon2 hash function to the given array.
     ///
     /// Reference: [p3_symmetric::PaddingFreeSponge]
-    fn poseidon2_hash(builder: &mut Builder<C>, input: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE] {
+    fn poseidon2_hash(
+        builder: &mut Builder<C>,
+        input: &[Felt<SP1Field>],
+    ) -> [Felt<SP1Field>; DIGEST_SIZE] {
         // static_assert(RATE < WIDTH)
-        let mut state = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        let mut state = core::array::from_fn(|_| builder.eval(SP1Field::zero()));
         for input_chunk in input.chunks(HASH_RATE) {
             state[..input_chunk.len()].copy_from_slice(input_chunk);
             state = Self::poseidon2_permute(builder, state);
         }
-        let digest: [Felt<C::F>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+        let digest: [Felt<SP1Field>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
         digest
     }
 }
 
-pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
+pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher {
     type DigestVariable: Clone + Copy;
 
-    fn hash(builder: &mut Builder<C>, input: &[Felt<C::F>]) -> Self::DigestVariable;
+    fn hash(builder: &mut Builder<C>, input: &[Felt<SP1Field>]) -> Self::DigestVariable;
 
     fn compress(builder: &mut Builder<C>, input: [Self::DigestVariable; 2])
         -> Self::DigestVariable;
@@ -65,32 +68,49 @@ pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
     fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable);
 }
 
-impl FieldHasher<SP1Field> for SP1CoreJaggedConfig {
-    type Digest = [SP1Field; DIGEST_SIZE];
-
-    fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
+impl FieldHasher for SP1GlobalContext {
+    fn constant_compress(
+        input: [<SP1GlobalContext as IopCtx>::Digest; 2],
+    ) -> <SP1GlobalContext as IopCtx>::Digest {
         let mut pre_iter = input.into_iter().flatten().chain(repeat(SP1Field::zero()));
         let mut pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
         inner_perm().permute_mut(&mut pre);
         pre[..DIGEST_SIZE].try_into().unwrap()
     }
+
+    fn hash_slice(input: &[SP1Field]) -> <SP1GlobalContext as IopCtx>::Digest {
+        let mut state = [SP1Field::zero(); PERMUTATION_WIDTH];
+        for input_chunk in input.chunks(HASH_RATE) {
+            state[..input_chunk.len()].copy_from_slice(input_chunk);
+            inner_perm().permute_mut(&mut state);
+        }
+        let digest: [SP1Field; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+        digest
+    }
 }
 
-impl<C: CircuitConfig<F = SP1Field>> Poseidon2SP1FieldHasherVariable<C> for SP1CoreJaggedConfig {
+impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1InnerPcs {
     fn poseidon2_permute(
         builder: &mut Builder<C>,
-        input: [Felt<<C>::F>; PERMUTATION_WIDTH],
-    ) -> [Felt<<C>::F>; PERMUTATION_WIDTH] {
+        input: [Felt<SP1Field>; PERMUTATION_WIDTH],
+    ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
         C::poseidon2_permute_v2(builder, input)
     }
 }
 
-impl<C: CircuitConfig<F = SP1Field, Bit = Felt<SP1Field>>> FieldHasherVariable<C>
-    for SP1CoreJaggedConfig
-{
+impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1GlobalContext {
+    fn poseidon2_permute(
+        builder: &mut Builder<C>,
+        input: [Felt<SP1Field>; PERMUTATION_WIDTH],
+    ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
+        C::poseidon2_permute_v2(builder, input)
+    }
+}
+
+impl<C: CircuitConfig<Bit = Felt<SP1Field>>> FieldHasherVariable<C> for SP1GlobalContext {
     type DigestVariable = [Felt<SP1Field>; DIGEST_SIZE];
 
-    fn hash(builder: &mut Builder<C>, input: &[Felt<<C as Config>::F>]) -> Self::DigestVariable {
+    fn hash(builder: &mut Builder<C>, input: &[Felt<SP1Field>]) -> Self::DigestVariable {
         <Self as Poseidon2SP1FieldHasherVariable<C>>::poseidon2_hash(builder, input)
     }
 
@@ -139,11 +159,11 @@ impl<C: CircuitConfig<F = SP1Field, Bit = Felt<SP1Field>>> FieldHasherVariable<C
     }
 }
 
-impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1OuterConfig {
+impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1OuterGlobalContext {
     fn poseidon2_permute(
         builder: &mut Builder<C>,
-        state: [Felt<<C>::F>; PERMUTATION_WIDTH],
-    ) -> [Felt<<C>::F>; PERMUTATION_WIDTH] {
+        state: [Felt<SP1Field>; PERMUTATION_WIDTH],
+    ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
         let state: [Felt<_>; PERMUTATION_WIDTH] = state.map(|x| builder.eval(x));
         builder.push_op(DslIr::CircuitPoseidon2PermuteKoalaBear(Box::new(state)));
         state
@@ -152,25 +172,31 @@ impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1OuterConfig {
 
 pub const BN254_DIGEST_SIZE: usize = 1;
 
-impl FieldHasher<SP1Field> for SP1OuterConfig {
-    type Digest = [Bn254Fr; BN254_DIGEST_SIZE];
-
+impl FieldHasher for SP1OuterGlobalContext {
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
-        let mut state = [input[0][0], input[1][0], Bn254Fr::zero()];
+        let mut state = [
+            Borrow::<[Bn254Fr; 1]>::borrow(&input[0])[0],
+            Borrow::<[Bn254Fr; 1]>::borrow(&input[1])[0],
+            Bn254Fr::zero(),
+        ];
         outer_perm().permute_mut(&mut state);
-        [state[0]; BN254_DIGEST_SIZE]
+        [state[0]; BN254_DIGEST_SIZE].into()
+    }
+
+    fn hash_slice(input: &[SP1Field]) -> Self::Digest {
+        SP1OuterGlobalContext::default_hasher_and_compressor().0.hash_slice(input)
     }
 }
 
-impl<C: CircuitConfig<F = SP1Field, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
-    for SP1OuterConfig
+impl<C: CircuitConfig<N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
+    for SP1OuterGlobalContext
 {
     type DigestVariable = [Var<Bn254Fr>; BN254_DIGEST_SIZE];
 
-    fn hash(builder: &mut Builder<C>, input: &[Felt<<C as Config>::F>]) -> Self::DigestVariable {
+    fn hash(builder: &mut Builder<C>, input: &[Felt<SP1Field>]) -> Self::DigestVariable {
         assert!(C::N::bits() == slop_bn254::Bn254Fr::bits());
-        assert!(C::F::bits() == sp1_primitives::SP1Field::bits());
-        let num_f_elms = C::N::bits() / C::F::bits();
+        assert!(SP1Field::bits() == sp1_primitives::SP1Field::bits());
+        let num_f_elms = C::N::bits() / SP1Field::bits();
         let mut state: [Var<C::N>; OUTER_CHALLENGER_STATE_WIDTH] =
             [builder.eval(C::N::zero()), builder.eval(C::N::zero()), builder.eval(C::N::zero())];
         for block_chunk in &input.iter().chunks(POSEIDON_2_BB_RATE) {

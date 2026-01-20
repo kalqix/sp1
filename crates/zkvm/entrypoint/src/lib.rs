@@ -24,16 +24,18 @@ pub mod lib {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+include!(concat!(env!("OUT_DIR"), "/configs.rs"));
+
 /// The number of 32 bit words that the public values digest is composed of.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub const POSEIDON_NUM_WORDS: usize = 8;
 
 #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
-const MAX_MEMORY: usize = 1 << 37;
+const MAX_MEMORY: usize = configs::MAX_MEMORY;
 
 /// Size of the reserved region for input values with the embedded allocator.
 #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
-pub(crate) const EMBEDDED_RESERVED_INPUT_REGION_SIZE: usize = 1 << 34;
+pub(crate) const EMBEDDED_RESERVED_INPUT_REGION_SIZE: usize = configs::INPUT_REGION_SIZE;
 
 /// Start of the reserved region for inputs with the embedded allocator.
 #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
@@ -140,7 +142,7 @@ mod zkvm {
         }
     }
 
-    cfg_if::cfg_if! {
+    cfg_if! {
         if #[cfg(feature = "blake3")] {
             pub static mut PUBLIC_VALUES_HASHER: Option<blake3::Hasher> = None;
         }
@@ -148,6 +150,47 @@ mod zkvm {
             pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
         }
     }
+
+    /// The ELF note values.
+    const NAME: [u8; 8] = *b"SUCCINCT";
+    const NAMESZ_LE: [u8; 4] = (NAME.len() as u32).to_le_bytes();
+    const DESC: [u8; 4] = [b'1', 0, 0, 0];
+    const DESCSZ_LE: [u8; 4] = (1u32).to_le_bytes();
+    const TYPE_LE: [u8; 4] =
+        (sp1_primitives::consts::NOTE_UNTRUSTED_PROGRAM_ENABLED as u32).to_le_bytes();
+
+    #[cfg(feature = "untrusted_programs")]
+    #[link_section = ".note.succinct"]
+    #[used]
+    pub static ELF_NOTE: [u8; 24] = [
+        // header
+        NAMESZ_LE[0],
+        NAMESZ_LE[1],
+        NAMESZ_LE[2],
+        NAMESZ_LE[3],
+        DESCSZ_LE[0],
+        DESCSZ_LE[1],
+        DESCSZ_LE[2],
+        DESCSZ_LE[3],
+        TYPE_LE[0],
+        TYPE_LE[1],
+        TYPE_LE[2],
+        TYPE_LE[3],
+        // name (8)
+        NAME[0],
+        NAME[1],
+        NAME[2],
+        NAME[3],
+        NAME[4],
+        NAME[5],
+        NAME[6],
+        NAME[7],
+        // desc (4)
+        DESC[0],
+        DESC[1],
+        DESC[2],
+        DESC[3],
+    ];
 
     #[no_mangle]
     unsafe extern "C" fn __start() {

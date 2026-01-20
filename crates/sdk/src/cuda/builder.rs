@@ -5,12 +5,19 @@
 use std::sync::Arc;
 
 use super::CudaProver;
+<<<<<<< HEAD
 use crate::cpu::CpuProver;
 use powdr_autoprecompiles::Apc;
+=======
+>>>>>>> origin/multilinear_v6
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
 use sp1_cuda::CudaProver as CudaProverImpl;
+<<<<<<< HEAD
 use sp1_primitives::SP1Field;
+=======
+use sp1_prover::worker::SP1LightNode;
+>>>>>>> origin/multilinear_v6
 
 /// A builder for the [`CudaProver`].
 ///
@@ -49,9 +56,11 @@ impl CudaProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
@@ -66,9 +75,11 @@ impl CudaProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
@@ -95,15 +106,16 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
+<<<<<<< HEAD
         let cpu_prover = CpuProver::new_with_opts(self.core_opts, self.apcs).await;
+=======
+        let node = SP1LightNode::with_opts(self.core_opts.unwrap_or_default()).await;
+>>>>>>> origin/multilinear_v6
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,
         };
 
-        CudaProver {
-            cpu_prover,
-            prover: cuda_prover.expect("Failed to create the CUDA prover impl"),
-        }
+        CudaProver { node, prover: cuda_prover.expect("Failed to create the CUDA prover impl") }
     }
 }

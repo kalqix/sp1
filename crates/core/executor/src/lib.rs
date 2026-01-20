@@ -23,6 +23,7 @@
 mod air;
 mod context;
 mod cost;
+mod debug;
 mod disassembler;
 pub mod estimator;
 pub mod events;
@@ -30,6 +31,25 @@ mod executor;
 mod hook;
 mod instruction;
 mod io;
+mod tracing;
+pub use tracing::TracingVM;
+mod vm;
+pub use vm::{
+    gas::get_complexity_mapping,
+    memory::CompressedMemory,
+    results::CycleResult,
+    shapes::{MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA},
+    CoreVM,
+};
+mod hooks;
+mod splicing;
+pub use splicing::{SplicedMinimalTrace, SplicingVM};
+mod estimating;
+pub use estimating::GasEstimatingVM;
+
+mod minimal;
+pub use minimal::*;
+
 mod memory;
 pub mod opcode;
 mod opts;
@@ -37,7 +57,6 @@ mod opts;
 mod profiler;
 mod program;
 mod record;
-mod recursion;
 mod register;
 mod report;
 mod retain;
@@ -52,16 +71,18 @@ pub use cost::*;
 pub use executor::*;
 pub use hook::*;
 pub use instruction::*;
+// pub use minimal::*;
 pub use opcode::*;
 pub use opts::*;
 pub use program::*;
 pub use record::*;
-pub use recursion::*;
 pub use register::*;
 pub use report::*;
 pub use retain::*;
 pub use state::*;
 pub use utils::*;
+
+pub use sp1_hypercube::SP1RecursionProof;
 
 /// A module for testing programs.
 #[cfg(test)]

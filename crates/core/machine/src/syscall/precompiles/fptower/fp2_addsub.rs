@@ -1,15 +1,15 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
-    utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
+    operations::{AddrAddOperation, SyscallAddrOperation},
+    utils::{limbs_to_words, next_multiple_of_32},
 };
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, FieldOperation, MemoryRecordEnum, PrecompileEvent},
     syscalls::SyscallCode,
@@ -24,20 +24,17 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
-use sp1_primitives::{
-    consts::{PROT_READ, PROT_WRITE},
-    polynomial::Polynomial,
-};
+use sp1_primitives::polynomial::Polynomial;
 use std::{
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use typenum::Unsigned;
 
 use crate::{
     operations::field::{field_op::FieldOpCols, range::FieldLtCols},
-    utils::{pad_rows_fixed, words_to_bytes_le_vec},
+    utils::words_to_bytes_le_vec,
 };
 
 pub const fn num_fp2_addsub_cols<P: FpOpField>() -> usize {
@@ -58,8 +55,6 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub y_addrs: GenericArray<AddrAddOperation<T>, P::WordsCurvePoint>,
     pub x_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
     pub y_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
-    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
-    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
     pub(crate) c0_range: FieldLtCols<T, P>,
@@ -99,10 +94,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match P::FIELD_TYPE {
-            FieldType::Bn254 => "Bn254Fp2AddSubAssign".to_string(),
-            FieldType::Bls12381 => "Bls12381Fp2AddSubAssign".to_string(),
+            FieldType::Bn254 => "Bn254Fp2AddSubAssign",
+            FieldType::Bls12381 => "Bls12381Fp2AddSubAssign",
         }
     }
 
@@ -116,30 +111,45 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
-        // operation.  Only retrieve precompile events for that operation.
-        // TODO:  Fix this.
+    fn generate_trace_into(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows =
+            <Fp2AddSubAssignChip<P> as MachineAir<F>>::num_rows(self, input).unwrap();
 
         let events = match P::FIELD_TYPE {
-            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_ADD).iter(),
-            FieldType::Bls12381 => {
-                input.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).iter()
-            }
+            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_ADD),
+            FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP2_ADD),
         };
 
-        let mut rows = Vec::new();
+        let num_event_rows = events.len();
         let mut new_byte_lookup_events = Vec::new();
 
-        for (_, event) in events {
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * num_fp2_addsub_cols::<P>())
+        };
+
+        unsafe {
+            let padding_start = num_event_rows * num_fp2_addsub_cols::<P>();
+            let padding_size = (padded_nb_rows - num_event_rows) * num_fp2_addsub_cols::<P>();
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        values.chunks_mut(num_fp2_addsub_cols::<P>()).enumerate().for_each(|(idx, row)| {
+            let (_, event) = &events[idx];
             let event = match (P::FIELD_TYPE, event) {
                 (FieldType::Bn254, PrecompileEvent::Bn254Fp2AddSub(event)) => event,
                 (FieldType::Bls12381, PrecompileEvent::Bls12381Fp2AddSub(event)) => event,
                 _ => unreachable!(),
             };
 
-            let mut row = zeroed_f_vec(num_fp2_addsub_cols::<P>());
-            let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
+            let cols: &mut Fp2AddSubAssignCols<F, P> = row.borrow_mut();
 
             let p = &event.x;
             let q = &event.y;
@@ -177,61 +187,31 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 cols.x_access[i].populate(record, &mut new_byte_lookup_events);
                 cols.x_addrs[i].populate(&mut new_byte_lookup_events, event.x_ptr, i as u64 * 8);
             }
-            if input.public_values.is_page_protect_active == 1 {
-                cols.read_slice_page_prot_access.populate(
-                    &mut new_byte_lookup_events,
-                    event.y_ptr,
-                    event.y_ptr + 8 * (cols.y_addrs.len() - 1) as u64,
-                    event.clk,
-                    PROT_READ,
-                    &event.page_prot_records.read_page_prot_records[0],
-                    &event.page_prot_records.read_page_prot_records.get(1).copied(),
-                    input.public_values.is_page_protect_active,
-                );
-
-                cols.write_slice_page_prot_access.populate(
-                    &mut new_byte_lookup_events,
-                    event.x_ptr,
-                    event.x_ptr + 8 * (cols.x_addrs.len() - 1) as u64,
-                    event.clk + 1,
-                    PROT_READ | PROT_WRITE,
-                    &event.page_prot_records.write_page_prot_records[0],
-                    &event.page_prot_records.write_page_prot_records.get(1).copied(),
-                    input.public_values.is_page_protect_active,
-                );
-            }
-
-            rows.push(row);
-        }
+        });
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = zeroed_f_vec(num_fp2_addsub_cols::<P>());
-                let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
-                cols.is_add = F::one();
-                let zero = BigUint::zero();
-                Self::populate_field_ops(
-                    &mut vec![],
-                    cols,
-                    zero.clone(),
-                    zero.clone(),
-                    zero.clone(),
-                    zero,
-                    FieldOperation::Add,
-                );
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_fp2_addsub_cols::<P>(),
-        )
+        for idx in num_event_rows..padded_nb_rows {
+            let row_start = idx * num_fp2_addsub_cols::<P>();
+            let row = unsafe {
+                core::slice::from_raw_parts_mut(
+                    buffer[row_start..].as_mut_ptr() as *mut F,
+                    num_fp2_addsub_cols::<P>(),
+                )
+            };
+            let cols: &mut Fp2AddSubAssignCols<F, P> = row.borrow_mut();
+            cols.is_add = F::one();
+            let zero = BigUint::zero();
+            Self::populate_field_ops(
+                &mut vec![],
+                cols,
+                zero.clone(),
+                zero.clone(),
+                zero.clone(),
+                zero,
+                FieldOperation::Add,
+            );
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -410,28 +390,6 @@ where
             y_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into(),
-            &local.y_ptr.addr.map(Into::into),
-            &local.y_addrs[local.y_addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ),
-            &local.read_slice_page_prot_access,
-            local.is_real.into(),
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into() + AB::Expr::one(),
-            &local.x_ptr.addr.map(Into::into),
-            &local.x_addrs[local.x_addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
-            &local.write_slice_page_prot_access,
-            local.is_real.into(),
         );
     }
 }

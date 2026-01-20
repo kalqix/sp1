@@ -598,9 +598,7 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        GkrCircuitLayer, LogUpGkrRoundProver, LogupGkrCpuRoundProver, LogupGkrCpuTraceGenerator,
-    };
+    use crate::{prove_gkr_round, GkrCircuitLayer, LogupGkrCpuTraceGenerator};
 
     use super::*;
     use itertools::Itertools;
@@ -608,8 +606,7 @@ mod tests {
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
     use slop_alloc::CpuBackend;
 
-    use slop_basefold::BasefoldVerifier;
-    use slop_challenger::FieldChallenger;
+    use slop_challenger::{FieldChallenger, IopCtx};
     use slop_matrix::dense::RowMajorMatrix;
     use slop_multilinear::{PaddedMle, Padding};
     use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
@@ -863,11 +860,10 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn test_logup_poly_sumcheck_circuit_layer() {
-        type Config = crate::SP1BasefoldConfig;
+        type GC = sp1_primitives::SP1GlobalContext;
         let mut rng = thread_rng();
 
-        let verifier = BasefoldVerifier::<Config>::new(1);
-        let get_challenger = move || verifier.clone().challenger();
+        let get_challenger = move || GC::default_challenger();
 
         let interaction_counts = vec![4, 5, 6];
         let num_rows: usize = 8;
@@ -1197,15 +1193,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_logup_gkr_round_prover() {
-        type Config = crate::SP1BasefoldConfig;
+        type GC = sp1_primitives::SP1GlobalContext;
         type TraceGenerator = LogupGkrCpuTraceGenerator<SP1Field, EF, ()>;
-        let verifier = BasefoldVerifier::<Config>::new(1);
-        let get_challenger = move || verifier.clone().challenger();
+        let get_challenger = move || GC::default_challenger();
         let trace_generator = TraceGenerator::default();
 
         let mut rng = thread_rng();
 
-        let prover = LogupGkrCpuRoundProver;
         let interaction_counts = vec![4, 5, 6];
         let num_interaction_variables =
             interaction_counts.iter().sum::<usize>().next_power_of_two().ilog2();
@@ -1251,9 +1245,14 @@ mod tests {
         let mut eval_point = first_eval_point.clone();
 
         for layer in layers {
-            let round_proof = prover
-                .prove_round(layer, &eval_point, numerator_eval, denominator_eval, &mut challenger)
-                .await;
+            let round_proof = prove_gkr_round(
+                layer,
+                &eval_point,
+                numerator_eval,
+                denominator_eval,
+                &mut challenger,
+            )
+            .await;
             // Observe the prover message.
             challenger.observe_ext_element(round_proof.numerator_0);
             challenger.observe_ext_element(round_proof.denominator_0);

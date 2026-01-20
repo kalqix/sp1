@@ -1,4 +1,4 @@
-use crate::air::SP1AirBuilder;
+use crate::{air::SP1AirBuilder, InteractionKind};
 use hashbrown::HashMap;
 use slop_algebra::AbstractField;
 
@@ -18,4 +18,31 @@ pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
 
     /// Constrains the public values of the record.
     fn eval_public_values<AB: SP1AirBuilder>(builder: &mut AB);
+
+    /// The interaction kinds that appear in `eval_public_values`. Needed so that the shard verifier
+    /// knows how much randomness to allocate for the `LogUpGkr` `beta_seed` challenge.
+    fn interactions_in_public_values() -> Vec<InteractionKind>;
+}
+
+/// This exists only for the zerocheck unit test on `MinimalAddChip`.
+impl MachineRecord for Vec<(u32, u32, u32)> {
+    fn stats(&self) -> HashMap<String, usize> {
+        let mut map = HashMap::new();
+        map.insert("num_addi".to_string(), self.len());
+        map
+    }
+
+    fn append(&mut self, other: &mut Self) {
+        self.append(other);
+    }
+
+    fn public_values<F: AbstractField>(&self) -> Vec<F> {
+        vec![]
+    }
+
+    fn eval_public_values<AB: SP1AirBuilder>(_builder: &mut AB) {}
+
+    fn interactions_in_public_values() -> Vec<InteractionKind> {
+        vec![]
+    }
 }

@@ -47,9 +47,11 @@ impl CpuProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cpu().core_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cpu().core_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
@@ -64,9 +66,11 @@ impl CpuProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cpu().with_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cpu().with_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
@@ -83,7 +87,9 @@ impl CpuProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().cpu().build().await;
+    /// tokio_test::block_on(async {
+    ///     let prover = ProverClient::builder().cpu().build().await;
+    /// });
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {

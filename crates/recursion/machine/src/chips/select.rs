@@ -1,16 +1,15 @@
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir, PairBuilder};
-use slop_algebra::{AbstractField, Field, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_algebra::{Field, PrimeField32};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
-use sp1_core_machine::utils::next_multiple_of_32;
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, ExecutionRecord, Instruction, RecursionProgram, SelectInstr, SelectIo,
 };
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use crate::builder::SP1RecursionAirBuilder;
 
@@ -47,40 +46,69 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "Select".to_string()
+    fn name(&self) -> &'static str {
+        "Select"
     }
 
     fn preprocessed_width(&self) -> usize {
         SELECT_PREPROCESSED_COLS
     }
 
-    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
+    fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
+        let instrs_len = program
+            .inner
+            .iter()
+            .filter_map(|instruction| match instruction.inner() {
+                Instruction::Select(x) => Some(x),
+                _ => None,
+            })
+            .count();
+        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+    }
+
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        program: &Self::Program,
+        instrs_len: usize,
+    ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
         Some(next_multiple_of_32(instrs_len, height))
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace_into(
+        &self,
+        program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
             "generate_preprocessed_trace only supports SP1Field field"
         );
 
-        let instrs = unsafe {
-            std::mem::transmute::<Vec<&SelectInstr<F>>, Vec<&SelectInstr<SP1Field>>>(
-                program
-                    .inner
-                    .iter()
-                    .filter_map(|instruction| match instruction.inner() {
-                        Instruction::Select(x) => Some(x),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-            )
+        let instrs = program
+            .inner
+            .iter()
+            .filter_map(|instruction| match instruction.inner() {
+                Instruction::Select(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let padded_nb_rows =
+            self.preprocessed_num_rows_with_instrs_len(program, instrs.len()).unwrap();
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * SELECT_PREPROCESSED_COLS)
         };
-        let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![SP1Field::zero(); padded_nb_rows * SELECT_PREPROCESSED_COLS];
+
+        unsafe {
+            let padding_start = instrs.len() * SELECT_PREPROCESSED_COLS;
+            let padding_size = padded_nb_rows * SELECT_PREPROCESSED_COLS - padding_start;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * SELECT_PREPROCESSED_COLS;
@@ -89,19 +117,13 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
                 let SelectInstr { addrs, mult1, mult2 } = instr;
                 let access: &mut SelectPreprocessedCols<_> = row.borrow_mut();
                 *access = SelectPreprocessedCols {
-                    is_real: SP1Field::one(),
+                    is_real: F::one(),
                     addrs: addrs.to_owned(),
                     mult1: mult1.to_owned(),
                     mult2: mult2.to_owned(),
                 };
             },
         );
-
-        // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
-            SELECT_PREPROCESSED_COLS,
-        ))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -114,18 +136,32 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
         Some(next_multiple_of_32(events.len(), height))
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace_into(
+        &self,
+        input: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
-            "generate_trace only supports SP1Field field"
+            "generate_trace_into only supports SP1Field"
         );
+        let padded_nb_rows = <SelectChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let events = &input.select_events;
+        let num_event_rows = events.len();
 
-        let events = unsafe {
-            std::mem::transmute::<&Vec<SelectIo<F>>, &Vec<SelectIo<SP1Field>>>(&input.select_events)
-        };
-        let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![SP1Field::zero(); padded_nb_rows * SELECT_COLS];
+        unsafe {
+            let padding_start = num_event_rows * SELECT_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * SELECT_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * SELECT_COLS) };
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * SELECT_COLS;
@@ -135,12 +171,6 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
                 *cols = SelectCols { vals };
             },
         );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<_>>(values) },
-            SELECT_COLS,
-        )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -186,16 +216,16 @@ where
 mod tests {
     use crate::{chips::test_fixtures, test::test_recursion_linear_program};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use slop_jagged::JaggedConfig;
-
-    use sp1_hypercube::SP1CoreJaggedConfig;
+    use slop_algebra::AbstractField;
+    use slop_challenger::IopCtx;
+    use sp1_primitives::SP1GlobalContext;
     use sp1_recursion_executor::{instruction as instr, MemAccessKind};
 
     use super::*;
 
     #[tokio::test]
     async fn prove_select() {
-        type F = <SP1CoreJaggedConfig as JaggedConfig>::F;
+        type F = <SP1GlobalContext as IopCtx>::F;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut addr = 0;

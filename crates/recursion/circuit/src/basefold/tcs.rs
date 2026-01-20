@@ -1,33 +1,22 @@
-use crate::{basefold::merkle_tree::verify, hash::FieldHasherVariable, AsRecursive, CircuitConfig};
+use crate::{basefold::merkle_tree::verify, hash::FieldHasherVariable, CircuitConfig};
 use itertools::Itertools;
-use slop_algebra::PrimeField31;
-use slop_merkle_tree::{MerkleTreeTcs, MerkleTreeTcsProof, Poseidon2Bn254Config};
+use slop_algebra::AbstractField;
 use slop_tensor::Tensor;
-use sp1_hypercube::{SP1CoreJaggedConfig, SP1MerkleTreeConfig, SP1OuterConfig};
+use sp1_primitives::SP1Field;
 use sp1_recursion_compiler::ir::{Builder, Felt, IrIter};
 use std::marker::PhantomData;
 
-pub trait RecursiveTcs: Sized {
-    type Data;
-    type Commitment;
-    type Proof;
-    type Circuit: CircuitConfig<Bit = Self::Bit>;
-    type Bit;
-
-    fn verify_tensor_openings(
-        builder: &mut Builder<Self::Circuit>,
-        commit: &Self::Commitment,
-        indices: &[Vec<Self::Bit>],
-        opening: &RecursiveTensorCsOpening<Self>,
-    );
-}
-
 /// An opening of a tensor commitment scheme.
-pub struct RecursiveTensorCsOpening<C: RecursiveTcs> {
+pub struct RecursiveTensorCsOpening<CommitmentVariable> {
     /// The claimed values of the opening.
-    pub values: Tensor<C::Data>,
+    pub values: Tensor<Felt<SP1Field>>,
     /// The proof of the opening.
-    pub proof: <C as RecursiveTcs>::Proof,
+    pub proof: Tensor<CommitmentVariable>,
+
+    pub merkle_root: CommitmentVariable,
+
+    pub log_height: usize,
+    pub width: usize,
 }
 
 #[derive(Debug, Copy, PartialEq, Eq)]
@@ -39,50 +28,41 @@ impl<C, M> Clone for RecursiveMerkleTreeTcs<C, M> {
     }
 }
 
-impl<C: CircuitConfig> AsRecursive<C> for MerkleTreeTcs<SP1MerkleTreeConfig> {
-    type Recursive = RecursiveMerkleTreeTcs<C, SP1CoreJaggedConfig>;
-}
-
-impl<C: CircuitConfig> AsRecursive<C> for MerkleTreeTcs<Poseidon2Bn254Config<C::F>>
-where
-    C::F: PrimeField31,
-{
-    type Recursive = RecursiveMerkleTreeTcs<C, SP1OuterConfig>;
-}
-
-impl<C, M> RecursiveTcs for RecursiveMerkleTreeTcs<C, M>
+impl<C, M> RecursiveMerkleTreeTcs<C, M>
 where
     C: CircuitConfig,
     M: FieldHasherVariable<C>,
 {
-    type Data = Felt<C::F>;
-    type Commitment = M::DigestVariable;
-    type Proof = MerkleTreeTcsProof<M::DigestVariable>;
-    type Circuit = C;
-    type Bit = C::Bit;
-
-    fn verify_tensor_openings(
-        builder: &mut Builder<Self::Circuit>,
-        commit: &Self::Commitment,
-        indices: &[Vec<Self::Bit>],
-        opening: &RecursiveTensorCsOpening<Self>,
+    pub fn verify_tensor_openings(
+        builder: &mut Builder<C>,
+        commit: &M::DigestVariable,
+        indices: &[Vec<C::Bit>],
+        opening: &RecursiveTensorCsOpening<M::DigestVariable>,
     ) {
         let chunk_size = indices.len().div_ceil(8);
+
+        let log_height = builder.constant(SP1Field::from_canonical_usize(opening.log_height));
+        let width = builder.constant(SP1Field::from_canonical_usize(opening.width));
+        let hash = M::hash(builder, &[log_height, width]);
+        let expected_commit = M::compress(builder, [opening.merkle_root, hash]);
+        M::assert_digest_eq(builder, expected_commit, *commit);
+
         indices
             .iter()
-            .zip_eq(opening.proof.paths.split())
+            .zip_eq(opening.proof.split())
+            .map(|(x, y)| (x.clone(), y.as_slice().to_vec()))
+            .collect::<Vec<_>>()
             .chunks(chunk_size)
-            .into_iter()
             .enumerate()
             .ir_par_map_collect::<Vec<_>, _, _>(builder, |builder, (i, chunk)| {
-                for (j, (index, path)) in chunk.into_iter().enumerate() {
+                for (j, (index, path)) in chunk.iter().enumerate() {
                     let claimed_values_slices =
                         opening.values.get(i * chunk_size + j).unwrap().as_slice().to_vec();
 
                     let path = path.as_slice().to_vec();
                     let digest = M::hash(builder, &claimed_values_slices);
 
-                    verify::<C, M>(builder, path, index.to_vec(), digest, *commit);
+                    verify::<C, M>(builder, path, index.to_vec(), digest, opening.merkle_root);
                 }
             });
     }
@@ -92,22 +72,22 @@ where
 mod tests {
     use rand::{thread_rng, Rng};
     use slop_commit::Message;
+    use slop_merkle_tree::{ComputeTcsOpenings, MerkleTreeOpeningAndProof, TensorCsProver};
     use sp1_hypercube::inner_perm;
     use sp1_recursion_compiler::circuit::AsmConfig;
     use std::sync::Arc;
 
     use slop_algebra::extension::BinomialExtensionField;
-    use sp1_primitives::SP1DiffusionMatrix;
+    use sp1_primitives::{SP1DiffusionMatrix, SP1GlobalContext};
 
     use crate::witness::Witnessable;
 
     use super::*;
     use itertools::Itertools;
-    use slop_commit::{ComputeTcsOpenings, TensorCsOpening, TensorCsProver};
     use slop_tensor::Tensor;
     use sp1_hypercube::prover::SP1MerkleTreeProver;
     use sp1_recursion_compiler::circuit::{AsmBuilder, AsmCompiler};
-    use sp1_recursion_executor::Runtime;
+    use sp1_recursion_executor::Executor;
 
     use sp1_primitives::SP1Field;
     type F = SP1Field;
@@ -133,28 +113,28 @@ mod tests {
         let indices = (0..num_indices).map(|_| rng.gen_range(0..height)).collect_vec();
         let proof = prover.prove_openings_at_indices(data, &indices).await.unwrap();
         let openings = prover.compute_openings_at_indices(tensors, &indices).await;
-        let opening: TensorCsOpening<MerkleTreeTcs<SP1MerkleTreeConfig>> =
-            TensorCsOpening { values: openings, proof };
+        let opening: MerkleTreeOpeningAndProof<SP1GlobalContext> =
+            MerkleTreeOpeningAndProof { values: openings, proof };
 
         let bit_len = height.next_power_of_two().ilog2();
 
-        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::default();
         let mut witness_stream = Vec::new();
 
         let mut index_bits = Vec::new();
         for index in indices {
             let bits = (0..bit_len).map(|i| (index >> i) & 1 == 1).collect_vec();
-            Witnessable::<AsmConfig<F, EF>>::write(&bits, &mut witness_stream);
+            Witnessable::<AsmConfig>::write(&bits, &mut witness_stream);
             let bits = bits.read(&mut builder);
             index_bits.push(bits);
         }
 
-        Witnessable::<AsmConfig<F, EF>>::write(&root, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&root, &mut witness_stream);
         let root = root.read(&mut builder);
-        Witnessable::<AsmConfig<F, EF>>::write(&opening, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&opening, &mut witness_stream);
         let opening = opening.read(&mut builder);
 
-        RecursiveMerkleTreeTcs::<AsmConfig<F, EF>, SP1CoreJaggedConfig>::verify_tensor_openings(
+        RecursiveMerkleTreeTcs::<AsmConfig, SP1GlobalContext>::verify_tensor_openings(
             &mut builder,
             &root,
             &index_bits,
@@ -164,9 +144,10 @@ mod tests {
         let block = builder.into_root_block();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
-        let mut runtime = Runtime::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
-        runtime.witness_stream = witness_stream.into();
-        runtime.run().unwrap();
+        let mut executor =
+            Executor::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
+        executor.witness_stream = witness_stream.into();
+        executor.run().unwrap();
     }
 
     #[tokio::test]
@@ -189,12 +170,12 @@ mod tests {
         let indices = (0..num_indices).map(|_| rng.gen_range(0..height)).collect_vec();
         let proof = prover.prove_openings_at_indices(data, &indices).await.unwrap();
         let openings = prover.compute_openings_at_indices(tensors, &indices).await;
-        let opening: TensorCsOpening<MerkleTreeTcs<SP1MerkleTreeConfig>> =
-            TensorCsOpening { values: openings, proof };
+        let opening: MerkleTreeOpeningAndProof<SP1GlobalContext> =
+            MerkleTreeOpeningAndProof { values: openings, proof };
 
         let bit_len = height.next_power_of_two().ilog2();
 
-        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::default();
         let mut witness_stream = Vec::new();
 
         let mut index_bits = Vec::new();
@@ -202,17 +183,17 @@ mod tests {
             let bits = (0..bit_len)
                 .map(|i| if i == 0 { (index >> i) & 1 == 0 } else { (index >> i) & 1 == 1 })
                 .collect_vec();
-            Witnessable::<AsmConfig<F, EF>>::write(&bits, &mut witness_stream);
+            Witnessable::<AsmConfig>::write(&bits, &mut witness_stream);
             let bits = bits.read(&mut builder);
             index_bits.push(bits);
         }
 
-        Witnessable::<AsmConfig<F, EF>>::write(&root, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&root, &mut witness_stream);
         let root = root.read(&mut builder);
-        Witnessable::<AsmConfig<F, EF>>::write(&opening, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&opening, &mut witness_stream);
         let opening = opening.read(&mut builder);
 
-        RecursiveMerkleTreeTcs::<AsmConfig<F, EF>, SP1CoreJaggedConfig>::verify_tensor_openings(
+        RecursiveMerkleTreeTcs::<AsmConfig, SP1GlobalContext>::verify_tensor_openings(
             &mut builder,
             &root,
             &index_bits,
@@ -222,8 +203,9 @@ mod tests {
         let block = builder.into_root_block();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
-        let mut runtime = Runtime::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
-        runtime.witness_stream = witness_stream.into();
-        runtime.run().expect_err("merkle proof should not verify");
+        let mut executor =
+            Executor::<F, EF, SP1DiffusionMatrix>::new(program.clone(), inner_perm());
+        executor.witness_stream = witness_stream.into();
+        executor.run().expect_err("merkle proof should not verify");
     }
 }

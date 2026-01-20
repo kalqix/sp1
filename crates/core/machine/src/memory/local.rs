@@ -1,15 +1,12 @@
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 
-use crate::{
-    air::WordAirBuilder,
-    utils::{next_multiple_of_32, zeroed_f_vec},
-};
+use crate::{air::WordAirBuilder, utils::next_multiple_of_32};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -101,15 +98,15 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "MemoryLocal".to_string()
+    fn name(&self) -> &'static str {
+        "MemoryLocal"
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         let mut events = Vec::new();
 
         input.get_local_mem_events().for_each(|mem_event| {
-            let mut blu = Vec::new();
+            let mut blu = Vec::with_capacity(10); // 1 + 4 + 1 + 4
             let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
             let initial_value_byte1 = ((mem_event.initial_mem_access.value >> 40) & 0xFF) as u32;
             blu.add_u8_range_check(initial_value_byte0 as u8, initial_value_byte1 as u8);
@@ -166,17 +163,30 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         Some(next_multiple_of_32(nb_rows, size_log2))
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
-        input: &Self::Record,
-        _output: &mut Self::Record,
-    ) -> RowMajorMatrix<F> {
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();
         let nb_rows = nb_rows(events.len());
         let padded_nb_rows = <MemoryLocalChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
         let chunk_size = std::cmp::max(nb_rows / num_cpus::get(), 0) + 1;
+
+        unsafe {
+            let padding_start = nb_rows * NUM_MEMORY_LOCAL_INIT_COLS;
+            let padding_size = (padded_nb_rows - nb_rows) * NUM_MEMORY_LOCAL_INIT_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, nb_rows * NUM_MEMORY_LOCAL_INIT_COLS)
+        };
 
         let mut chunks = values[..nb_rows * NUM_MEMORY_LOCAL_INIT_COLS]
             .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
@@ -225,9 +235,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                 }
             });
         });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -366,7 +373,7 @@ where
 //     use sp1_core_executor::{ExecutionRecord, Executor, Trace};
 //     use sp1_hypercube::{
 //         air::{InteractionScope, MachineAir},
-//         koala_bear_poseidon2::SP1CoreJaggedConfig,
+//         koala_bear_poseidon2::SP1InnerPcs,
 //         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
 //     };
 
@@ -395,8 +402,8 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine: StarkMachine<SP1CoreJaggedConfig, RiscvAir<SP1Field>> =
-//             RiscvAir::machine(SP1CoreJaggedConfig::new());
+//         let machine: StarkMachine<SP1InnerPcs, RiscvAir<SP1Field>> =
+//             RiscvAir::machine(SP1InnerPcs::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -407,7 +414,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//             debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -415,7 +422,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//         debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
@@ -431,7 +438,7 @@ where
 //         let program_clone = program.clone();
 //         let mut runtime = Executor::new(program, SP1CoreOpts::default());
 //         runtime.run::<Trace>().unwrap();
-//         let machine = RiscvAir::machine(SP1CoreJaggedConfig::new());
+//         let machine = RiscvAir::machine(SP1InnerPcs::new());
 //         let (pkey, _) = machine.setup(&program_clone);
 //         let opts = SP1CoreOpts::default();
 //         machine.generate_dependencies(
@@ -442,7 +449,7 @@ where
 
 //         let shards = runtime.records;
 //         for shard in shards.clone() {
-//             debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//             debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //                 &machine,
 //                 &pkey,
 //                 &[*shard],
@@ -450,7 +457,7 @@ where
 //                 InteractionScope::Local,
 //             );
 //         }
-//         debug_interactions_with_all_chips::<SP1CoreJaggedConfig, RiscvAir<SP1Field>>(
+//         debug_interactions_with_all_chips::<SP1InnerPcs, RiscvAir<SP1Field>>(
 //             &machine,
 //             &pkey,
 //             &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),

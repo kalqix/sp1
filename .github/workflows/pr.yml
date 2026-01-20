@@ -2,12 +2,13 @@ name: PR
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, multilinear_v6]
   pull_request:
     branches:
       - "**"
     paths:
       - "crates/**"
+      - "slop/**"
       - "examples/**"
       - "Cargo.toml"
       - ".github/workflows/**"
@@ -57,11 +58,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound -- --test-threads=4
+          args: --release --workspace --exclude sp1-verifier --features native-gnark --features experimental -- --test-threads=4
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
-          SP1_DEV: 1
 
   test-arm:
     name: Test (ARM)
@@ -99,11 +99,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --workspace --exclude sp1-verifier --exclude sp1-sdk --features native-gnark --features unsound
+          args: --release --workspace --exclude sp1-verifier --features native-gnark --features experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
-          SP1_DEV: 1
 
   # TODO: Enable once recursion crates are fixed for multilinear.
   # test-verifier:
@@ -164,14 +163,12 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli          
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-          toolchain: nightly
 
       - name: Check test-artifacts
         uses: actions-rs/cargo@v1
@@ -190,6 +187,7 @@ jobs:
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUSTFLAGS: "--cfg sp1_debug_constraints"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -240,7 +238,7 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli  
+          cd crates/cli
 
       - name: Check workspace no features
         uses: actions-rs/cargo@v1

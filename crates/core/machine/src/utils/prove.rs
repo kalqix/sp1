@@ -11,17 +11,17 @@ use crate::{executor::MachineExecutor, riscv::RiscvAir};
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
+use slop_challenger::IopCtx;
 use sp1_hypercube::{
     air::{MachineAir, PublicValues},
     prover::{
-        MachineProverBuilder, MachineProverComponents, MachineProvingKey, MemoryPermit,
-        ProverSemaphore,
+        AirProver, MachineProverBuilder, MemoryPermit, PcsProof, ProverSemaphore, ProvingKey,
     },
-    Machine, MachineProof, MachineRecord, ShardProof, ShardVerifier,
+    Machine, MachineProof, MachineRecord, ShardContext, ShardProof, ShardVerifier,
 };
 
 use crate::{io::SP1Stdin, utils::concurrency::TurnBasedSync};
-use sp1_core_executor::{ExecutionState, SP1CoreOpts};
+use sp1_core_executor::{ExecutionState, SP1CoreOpts, SplitOpts};
 
 use sp1_core_executor::{
     subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
@@ -73,6 +73,8 @@ pub fn generate_records<F: PrimeField32>(
     report_aggregate: Arc<Mutex<ExecutionReport>>,
     opts: SP1CoreOpts,
 ) {
+    let split_opts =
+        SplitOpts::new(&opts, program.instructions.len(), program.enable_untrusted_programs);
     loop {
         let received = { checkpoints_rx.lock().unwrap().blocking_recv() };
         if let Some((index, mut checkpoint, done, _)) = received {
@@ -94,7 +96,7 @@ pub fn generate_records<F: PrimeField32>(
             state.next_pc = record.public_values.next_pc;
             state.initial_timestamp = record.public_values.initial_timestamp;
             state.last_timestamp = record.public_values.last_timestamp;
-            state.is_first_shard = (record.public_values.initial_timestamp == 1) as u32;
+            state.is_first_execution_shard = (record.public_values.initial_timestamp == 1) as u32;
 
             let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
             let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
@@ -159,7 +161,7 @@ pub fn generate_records<F: PrimeField32>(
             deferred.append(&mut record.defer(&[]));
 
             // See if any deferred shards are ready to be committed to.
-            let mut deferred = deferred.split(done, None, opts.split_opts);
+            let mut deferred = deferred.split(done, &mut record, false, &split_opts);
             tracing::debug!("deferred {} records", deferred.len());
 
             // Update the public values & prover state for the shards which do not
@@ -182,7 +184,7 @@ pub fn generate_records<F: PrimeField32>(
                 state.last_timestamp = state.initial_timestamp;
                 state.is_timestamp_high_eq = 1;
                 state.is_timestamp_low_eq = 1;
-                state.is_first_shard = 0;
+                state.is_first_execution_shard = 0;
                 state.is_execution_shard = 0;
 
                 let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
@@ -190,7 +192,8 @@ pub fn generate_records<F: PrimeField32>(
                 let last_timestamp_high = (state.last_timestamp >> 24) as u32;
                 let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
 
-                state.is_first_shard = (record.public_values.initial_timestamp == 1) as u32;
+                state.is_first_execution_shard =
+                    (record.public_values.initial_timestamp == 1) as u32;
                 state.initial_timestamp_inv =
                     F::from_canonical_u32(initial_timestamp_high + initial_timestamp_low - 1)
                         .inverse()
@@ -221,15 +224,23 @@ pub fn generate_records<F: PrimeField32>(
     }
 }
 
+<<<<<<< HEAD
 #[allow(clippy::too_many_arguments)]
 pub async fn prove_core<F, PC, A>(
     verifier: ShardVerifier<PC::Config, A>,
     prover: Arc<PC::Prover>,
     pk: Arc<MachineProvingKey<PC>>,
+=======
+pub async fn prove_core<GC, SC, PC>(
+    verifier: ShardVerifier<GC, SC>,
+    prover: Arc<PC>,
+    pk: Arc<ProvingKey<GC, SC, PC>>,
+>>>>>>> origin/multilinear_v6
     program: Arc<Program>,
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
+<<<<<<< HEAD
     machine: Machine<F, A>,
 ) -> Result<(MachineProof<PC::Config>, u64), SP1CoreProverError>
 where
@@ -241,13 +252,26 @@ where
 
     let (_, cycles) = prove_core_stream::<_, PC, _>(
         verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
+=======
+) -> Result<(MachineProof<GC, PcsProof<GC, SC>>, u64), SP1CoreProverError>
+where
+    GC: IopCtx,
+    SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
+    PC: AirProver<GC, SC>,
+    GC::F: PrimeField32,
+{
+    let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let (_, cycles) = prove_core_stream::<GC, SC, PC>(
+        verifier, prover, pk, program, stdin, opts, context, proof_tx,
+>>>>>>> origin/multilinear_v6
     )
     .await
     .unwrap();
 
     let mut shard_proofs = BTreeMap::new();
     while let Some(proof) = proof_rx.recv().await {
-        let public_values: &PublicValues<[F; 4], [F; 3], [F; 4], F> =
+        let public_values: &PublicValues<[GC::F; 4], [GC::F; 3], [GC::F; 4], GC::F> =
             proof.public_values.as_slice().borrow();
         shard_proofs.insert(
             (
@@ -266,15 +290,24 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
+<<<<<<< HEAD
 pub(crate) async fn prove_core_stream<F, PC, A>(
     // TODO: clean this up
     verifier: ShardVerifier<PC::Config, A>,
     prover: Arc<PC::Prover>,
     pk: Arc<MachineProvingKey<PC>>,
+=======
+pub(crate) async fn prove_core_stream<GC, SC, PC>(
+    // TODO: clean this up
+    verifier: ShardVerifier<GC, SC>,
+    prover: Arc<PC>,
+    pk: Arc<ProvingKey<GC, SC, PC>>,
+>>>>>>> origin/multilinear_v6
     program: Arc<Program>,
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
+<<<<<<< HEAD
     proof_tx: UnboundedSender<ShardProof<PC::Config>>,
     machine: Machine<F, A>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
@@ -282,6 +315,15 @@ where
     A: MachineAir<F, Record = ExecutionRecord>,
     PC: MachineProverComponents<F = F, Air = A>,
     F: PrimeField32,
+=======
+    proof_tx: UnboundedSender<ShardProof<GC, PcsProof<GC, SC>>>,
+) -> Result<(Vec<u8>, u64), SP1CoreProverError>
+where
+    GC: IopCtx,
+    SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
+    PC: AirProver<GC, SC>,
+    GC::F: PrimeField32,
+>>>>>>> origin/multilinear_v6
 {
     // TODO: get this from input
     let num_record_workers = 4;
@@ -289,18 +331,35 @@ where
     let (records_tx, mut records_rx) =
         mpsc::unbounded_channel::<(ExecutionRecord, Option<MemoryPermit>)>();
 
+<<<<<<< HEAD
     let machine_executor =
         MachineExecutor::<F, A>::new(u32::MAX as u64, num_record_workers, opts.clone(), machine);
+=======
+    let record_memory = sysinfo::System::new_all().total_memory() / 7;
+
+    let machine_executor = MachineExecutor::<GC::F>::new(
+        record_memory.try_into().unwrap_or_else(|_| {
+            tracing::warn!(
+                "truncating available memory {record_memory} into {}. this is a bug.",
+                usize::MAX
+            );
+            usize::MAX
+        }),
+        num_record_workers,
+        opts.clone(),
+    );
+>>>>>>> origin/multilinear_v6
 
     let prover_permits = ProverSemaphore::new(5);
-    let prover = MachineProverBuilder::<PC>::new(verifier, vec![prover_permits], vec![prover])
-        .num_workers(num_trace_gen_workers)
-        .build();
+    let prover =
+        MachineProverBuilder::<GC, SC, PC>::new(verifier, vec![prover_permits], vec![prover])
+            .num_workers(num_trace_gen_workers)
+            .build();
 
     let prover_handle = tokio::spawn(async move {
         let mut handles = Vec::new();
-        while let Some((record, _permit)) = records_rx.recv().await {
-            let handle = prover.prove_shard(pk.clone(), record);
+        while let Some(record) = records_rx.recv().await {
+            let handle = prover.prove_shard(pk.clone(), record.0);
             handles.push(handle);
         }
         for handle in handles {
