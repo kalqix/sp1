@@ -12,7 +12,9 @@ use crate::{
     ITypeRecord, Opcode,
 };
 
-<<<<<<< HEAD
+/// This constant is chosen for backwards compatibility with the V4 gas model: with this factor,
+/// the gas costs of op-succinct blocks in V6 will approximately match those in V4.
+const GAS_NORMALIZATION_FACTOR: u64 = 191;
 /// Counts the number of times an APC was invoked along with its success and failure reasons.
 /// Note that in theory many reasons can lead to an APC failing, so the sum of the fields is *NOT*
 /// necessarily equal to the total number of invocations.
@@ -27,11 +29,6 @@ pub struct ApcCount {
     /// The number of runs of this apc in which a segmentation occurred
     pub segmentation_error: u64,
 }
-=======
-/// This constant is chosen for backwards compatibility with the V4 gas model: with this factor,
-/// the gas costs of op-succinct blocks in V6 will approximately match those in V4.
-const GAS_NORMALIZATION_FACTOR: u64 = 191;
->>>>>>> origin/multilinear_v6
 
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]

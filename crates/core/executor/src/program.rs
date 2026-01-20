@@ -44,7 +44,10 @@ pub struct Program {
     pub memory_image: Arc<HashMap<u64, u64>>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
-<<<<<<< HEAD
+    /// Flag indicating if untrusted programs are allowed.
+    pub enable_untrusted_programs: bool,
+    /// Function symbols for profiling & debugging. In the form of (name, start address, size)
+    pub function_symbols: Vec<(String, u64, u64)>,
     /// The ranges of instructions that have APC chips.
     pub apcs_by_start_idx: HashMap<usize, Apc>,
 }
@@ -113,12 +116,6 @@ impl From<&(usize, usize)> for ApcRange {
     fn from((start, end): &(usize, usize)) -> Self {
         Self::new(*start, *end - *start)
     }
-=======
-    /// Flag indicating if untrusted programs are allowed.
-    pub enable_untrusted_programs: bool,
-    /// Function symbols for profiling & debugging. In the form of (name, start address, size)
-    pub function_symbols: Vec<(String, u64, u64)>,
->>>>>>> origin/multilinear_v6
 }
 
 impl Program {
@@ -162,12 +159,9 @@ impl Program {
             page_prot_image: HashMap::new(),
             memory_image: Arc::new(HashMap::new()),
             preprocessed_shape: None,
-<<<<<<< HEAD
-            apcs_by_start_idx: HashMap::new(),
-=======
             enable_untrusted_programs: false,
             function_symbols: Vec::new(),
->>>>>>> origin/multilinear_v6
+            apcs_by_start_idx: HashMap::new(),
         }
     }
 
@@ -189,10 +183,6 @@ impl Program {
 
         // Transpile the RV64IM instructions.
         let instruction_pair = transpile(&elf.instructions);
-<<<<<<< HEAD
-        let (instructions, instructions_encoded): (Vec<Instruction>, _) =
-            instruction_pair.into_iter().unzip();
-=======
         let (instructions, instructions_encoded): (Vec<Instruction>, Vec<u32>) =
             instruction_pair.into_iter().unzip();
 
@@ -202,7 +192,6 @@ impl Program {
         if instructions.len() > (1 << 22) {
             eyre::bail!("elf has too many instructions");
         }
->>>>>>> origin/multilinear_v6
 
         // Return the program.
         Ok(Program {
@@ -213,12 +202,9 @@ impl Program {
             memory_image: elf.memory_image,
             page_prot_image: elf.page_prot_image,
             preprocessed_shape: None,
-<<<<<<< HEAD
-            apcs_by_start_idx: HashMap::new(),
-=======
             enable_untrusted_programs: elf.enable_untrusted_programs,
             function_symbols: elf.function_symbols,
->>>>>>> origin/multilinear_v6
+            apcs_by_start_idx: HashMap::new(),
         })
     }
 
@@ -247,15 +233,11 @@ impl Program {
     /// Fetch the instruction at the given program counter, as well as the apc, if any.
     pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&Apc>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
-<<<<<<< HEAD
         if idx < self.instructions.len() {
             Some((&self.instructions[idx], self.apcs_by_start_idx.get(&idx)))
         } else {
             None
         }
-=======
-        self.instructions.get(idx)
->>>>>>> origin/multilinear_v6
     }
 }
 
@@ -330,12 +312,11 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
         )
     }
 
-<<<<<<< HEAD
     fn from_elf(elf: &[u8]) -> Result<Self, String> {
         Program::from(elf).map_err(|e| e.to_string())
-=======
+    }
+
     fn enable_untrusted_programs(&self) -> F {
         F::from_bool(self.enable_untrusted_programs)
->>>>>>> origin/multilinear_v6
     }
 }

@@ -79,6 +79,7 @@ impl ReportGenerator {
             touched_memory_addresses: 0,
             gas: Some(gas),
             exit_code: self.exit_code,
+            apc_counts: todo!(),
         }
     }
 

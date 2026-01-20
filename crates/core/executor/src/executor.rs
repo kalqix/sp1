@@ -7,14 +7,10 @@ use crate::profiler::Profiler;
 use crate::{
     estimator::RecordEstimator,
     events::{
-<<<<<<< HEAD
         ApcEvents, ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
-        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord, PrecompileEvents,
-=======
-        InstructionDecodeEvent, InstructionFetchEvent, MemoryRecordEnum,
-        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
->>>>>>> origin/multilinear_v6
-        NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
+        MemoryRecordEnum, PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
+        PrecompileEvents, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
+        NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
     Apc, StatusCode, NUM_REGISTERS,
 };
@@ -248,7 +244,12 @@ pub struct Executor<'a> {
     /// Decoded instruction events.
     decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
 
-<<<<<<< HEAD
+    /// The proof nonce.
+    proof_nonce: [u32; 4],
+
+    /// Sends debug state every instruction when in debug mode.
+    debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
+
     /// The apc candidate at this point in the execution, if any
     apc_candidate: Option<ApcCandidate>,
 }
@@ -356,13 +357,6 @@ impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
             cpu_local_page_prot_access_len: record.cpu_local_page_prot_access.len(),
         }
     }
-=======
-    /// The proof nonce.
-    proof_nonce: [u32; 4],
-
-    /// Sends debug state every instruction when in debug mode.
-    debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
->>>>>>> origin/multilinear_v6
 }
 
 /// The configuration of the executor.
@@ -402,12 +396,7 @@ impl ExecutorConfig for Unconstrained {
 }
 
 /// The different modes the executor can run in.
-<<<<<<< HEAD
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
-#[derive(Default)]
-=======
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
->>>>>>> origin/multilinear_v6
 pub enum ExecutorMode {
     /// Run the execution with no tracing or checkpointing.
     #[default]
@@ -662,12 +651,9 @@ impl<'a> Executor<'a> {
             decoded_instruction_cache: HashMap::new(),
             decoded_instruction_events: HashMap::new(),
             opts,
-<<<<<<< HEAD
-            apc_candidate: None,
-=======
             proof_nonce: context.proof_nonce,
             debug_sender: None,
->>>>>>> origin/multilinear_v6
+            apc_candidate: None,
         }
     }
 
@@ -1883,13 +1869,8 @@ impl<'a> Executor<'a> {
     fn fetch<E: ExecutorConfig>(&mut self) -> Result<(Instruction, Option<Apc>), ExecutionError> {
         let program_instruction = self.program.fetch(self.state.pc);
         if let Some(instruction) = program_instruction {
-<<<<<<< HEAD
             Ok((*instruction.0, instruction.1.copied()))
-        } else if self.opts.page_protect {
-=======
-            Ok(*instruction)
         } else if self.program.enable_untrusted_programs {
->>>>>>> origin/multilinear_v6
             let aligned_pc = align(self.state.pc);
 
             let timestamp = self.timestamp(&MemoryAccessPosition::UntrustedInstruction);
@@ -2292,6 +2273,7 @@ impl<'a> Executor<'a> {
                                 )
                                 .collect()
                         },
+                        global_dependencies_opt: todo!(),
                     };
                     assert_eq!(
                         self.record.precompile_events.len(),
@@ -2816,7 +2798,6 @@ impl<'a> Executor<'a> {
 
             if !maximal_size_reached {
                 self.state.shard_finished = true;
-<<<<<<< HEAD
                 // If an apc candidate was being run, report a segmentation error.
                 if let Some(apc_candidate) = self.apc_candidate.take() {
                     self.report
@@ -2831,7 +2812,6 @@ impl<'a> Executor<'a> {
                     );
                 }
                 self.state.initial_timestamp = self.state.clk;
-=======
                 if E::MODE == ExecutorMode::Trace {
                     for register in 0..NUM_REGISTERS {
                         let record = self.rr_traced::<E>(
@@ -2851,7 +2831,6 @@ impl<'a> Executor<'a> {
                         self.rr::<E>(Register::from_u8(register as u8), false, self.state.clk - 1);
                     }
                 }
->>>>>>> origin/multilinear_v6
                 self.record.last_timestamp = self.state.clk;
                 self.state.initial_timestamp = self.state.clk;
                 self.bump_record::<E>();
@@ -3494,8 +3473,6 @@ impl<'a> Executor<'a> {
     }
 }
 
-<<<<<<< HEAD
-=======
 impl debug::DebugState for Executor<'_> {
     fn current_state(&self) -> debug::State {
         let registers = self.state.memory.registers.registers.map(|r| r.map_or(0, |r| r.value));
@@ -3518,7 +3495,6 @@ impl debug::DebugState for Executor<'_> {
             .flatten()
     }
 }
->>>>>>> origin/multilinear_v6
 
 /// Aligns an address to the nearest double word below or equal to it.
 #[must_use]
