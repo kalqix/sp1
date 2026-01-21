@@ -8,7 +8,7 @@ use crate::{
     autoprecompiles::{ExecutionRecordSnapshot, ExecutionSnapshot, Sp1ApcCandidates},
     estimator::RecordEstimator,
     events::{
-        ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent,
+        ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent, MemoryRecordEnum,
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PageProtRecord,
         NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW_EXEC, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC,
     },
@@ -1336,22 +1336,22 @@ impl<'a> Executor<'a> {
             && next_pc == self.state.pc.wrapping_add(4)
             && (next_pc >> 16) != (self.state.pc >> 16);
         if bump1 || bump2 {
-            self.record.bump_state_events.push((clk, increment, bump2, next_pc));
+            self.bump_state(clk, increment, bump2, next_pc);
         }
 
         if let Some(x) = self.memory_accesses.a {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_a as u64));
+                self.bump_memory(x, instruction.op_a as u64);
             }
         }
         if let Some(x) = self.memory_accesses.b {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_b));
+                self.bump_memory(x, instruction.op_b);
             }
         }
         if let Some(x) = self.memory_accesses.c {
             if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
-                self.record.bump_memory_events.push((x, instruction.op_c));
+                self.bump_memory(x, instruction.op_c);
             }
         }
 
@@ -1919,57 +1919,26 @@ impl<'a> Executor<'a> {
         Ok(())
     }
 
-    // TODO: Currently unused, but we need to check that no bump events happened before creating apc
-    // events fn check_no_bump<E: ExecutorConfig>(&mut self, apc_candidate: &ApcCandidate) ->
-    // bool {     let created_bump_state_event = self.record.bump_state_events.len()
-    //         > snapshot.record.bump_state_events_len;
-    //     let created_bump_memory_event = self.record.bump_memory_events.len()
-    //         > snapshot.record.bump_memory_events_len;
-
-    //     if created_bump_state_event {
-    //         self.report.apc_counts.entry(apc_candidate.apc.id).or_default().state_bump_error +=
-    // 1;         tracing::error!(
-    //             "global clock {}: APC {} cancelled: state bump error detected",
-    //             self.state.global_clk,
-    //             apc_candidate.apc.id
-    //         );
-    //     }
-    //     if created_bump_memory_event {
-    //         self.report.apc_counts.entry(apc_candidate.apc.id).or_default().memory_bump_error +=
-    // 1;         tracing::error!(
-    //             "global clock {}: APC {} cancelled: memory bump error detected",
-    //             self.state.global_clk,
-    //             apc_candidate.apc.id
-    //         );
-    //     }
-
-    //     // update the counts
-    //     // WARNING: Note that this happens even if the APC was cancelled. The reason is that
-    //     // we don't know whether memory or state bump events have occurred unless we're in
-    //     // trace mode.
-    //     if !E::UNCONSTRAINED {
-    //         let local_mem = self.local_counts.local_mem;
-    //         self.local_counts = snapshot.local_counts.clone();
-    //         self.local_counts.local_mem = local_mem;
-
-    //         // add 1 to this apc
-    //         *self.local_counts.event_counts.apc.entry(apc_candidate.apc.id).or_default() += 1;
-    //     }
-
-    //     !(created_bump_state_event || created_bump_memory_event)
-    // }
-
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
     fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<ExecutionSnapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
+        // Extracts events from vector `v` at the given (from, to) index ranges.
+        // Returns Vec<Vec<T>> where each inner Vec contains the events for one APC call.
+        //
+        // We process outputs in reverse order to preserve indices during drain/split_off.
+        // This means apc_records ends up reversed, so we reverse it at the end to match
+        // the original order (important: apc_records gets zipped with apc_ids in izip!).
+        //
+        // Note: software_records (events between APC ranges that stay in v) end up in
+        // scrambled order, but this is fine because chips process events independently of order.
         fn extract<T>(
             v: &mut Vec<T>,
             outputs: impl DoubleEndedIterator<Item = (usize, usize)>,
         ) -> Vec<Vec<T>> {
-            let (apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.rev().fold(
+            let (mut apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.rev().fold(
                 (vec![], vec![]),
                 |(mut extracted, mut to_add_to_software), (from, to)| {
                     to_add_to_software.extend(v.drain(to..));
@@ -1978,6 +1947,7 @@ impl<'a> Executor<'a> {
                 },
             );
             v.extend(software_records);
+            apc_records.reverse();
             apc_records
         }
 
@@ -2693,6 +2663,7 @@ impl<'a> Executor<'a> {
             local_counts: self.local_counts.clone(),
             report: self.report.clone(),
             pc: self.state.pc,
+            global_clk: self.state.global_clk,
         });
 
         let outputs = self.apc_candidates.extract_calls();
@@ -2707,6 +2678,7 @@ impl<'a> Executor<'a> {
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
                     pc: self.state.pc,
+                    global_clk: self.state.global_clk,
                 });
             }
         }
@@ -2769,13 +2741,15 @@ impl<'a> Executor<'a> {
             if !maximal_size_reached {
                 self.state.shard_finished = true;
                 // Check the state a last time, as some candidates may have just finished
-                // TODO: should we with this? It's a niche condition
+                // TODO: should we bother with this? It's a niche condition
                 self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
                     record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
                     pc: self.state.pc,
+                    global_clk: self.state.global_clk,
                 });
+
                 // If an apc candidate was being run, report a segmentation error.
                 for apc_id in self.apc_candidates.abort_in_progress() {
                     self.report.apc_counts.entry(apc_id as u64).or_default().segmentation_error +=
@@ -2810,6 +2784,34 @@ impl<'a> Executor<'a> {
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
+    }
+
+    /// Handle a state bump event by aborting all in-progress APC candidates.
+    /// Records state_bump_error for each aborted candidate.
+    fn bump_state(&mut self, clk: u64, increment: u64, bump2: bool, next_pc: u64) {
+        self.record.bump_state_events.push((clk, increment, bump2, next_pc));
+        for apc_id in self.apc_candidates.abort_in_progress() {
+            self.report.apc_counts.entry(apc_id as u64).or_default().state_bump_error += 1;
+            tracing::error!(
+                "global clock {}: APC {} cancelled: state bump error detected",
+                self.state.global_clk,
+                apc_id
+            );
+        }
+    }
+
+    /// Handle a memory bump event by aborting all in-progress APC candidates.
+    /// Records memory_bump_error for each aborted candidate.
+    fn bump_memory(&mut self, x: MemoryRecordEnum, op: u64) {
+        self.record.bump_memory_events.push((x, op));
+        for apc_id in self.apc_candidates.abort_in_progress() {
+            self.report.apc_counts.entry(apc_id as u64).or_default().memory_bump_error += 1;
+            tracing::error!(
+                "global clock {}: APC {} cancelled: memory bump error detected",
+                self.state.global_clk,
+                apc_id
+            );
+        }
     }
 
     /// Bump the record.
@@ -3442,7 +3444,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, SP1Context, SP1CoreOpts, Simple, Trace};
+    use crate::{Register, ShardingThreshold, SP1Context, SP1CoreOpts, Simple, Trace};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -3828,6 +3830,143 @@ mod tests {
         assert_eq!(runtime.record.apc_events.get_events(0).unwrap().count, 1);
         assert!(runtime.record.apc_events.get_events(1).is_none());
         assert!(runtime.record.apc_events.get_events(2).is_none());
+    }
+
+    #[test]
+    fn test_apc_segmentation_error() {
+        // This test verifies that when segmentation occurs while an APC is in progress,
+        // the APC is properly aborted and a segmentation_error is recorded.
+        //
+        // Note: This complements `test_add_apc_prove_segment` in riscv/mod.rs which tests
+        // small APCs that complete before segmentation. This test specifically verifies
+        // that large APCs are properly aborted when segmentation interrupts them.
+
+        // Create enough instructions to span multiple segmentation check points (every 16 cycles)
+        // The APC will cover instructions 0 to 47 (48 instructions total)
+        let mut instructions: Vec<Instruction> = std::iter::repeat([
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ])
+        .flatten()
+        .take(48)
+        .collect();
+
+        add_halt(&mut instructions);
+
+        let program_without_apcs = Program::new(instructions, 0, 0);
+
+        // Create a large APC covering instructions 0-47
+        let apc_range_and_cost =
+            vec![(&(0, 47), 1, OptimisticConstraints::from_constraints(vec![]))];
+
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
+
+        // Set very small sharding thresholds so segmentation happens early
+        // This should trigger segmentation around instruction 16 while APC is still in progress
+        let mut opts = SP1CoreOpts::default();
+        opts.sharding_threshold = ShardingThreshold { element_threshold: 1000, height_threshold: 16 };
+
+        let mut runtime = Executor::new(Arc::new(program), opts);
+        runtime.run::<Trace>().unwrap();
+
+        // Verify the APC was tracked
+        let apc_counts = &runtime.report.apc_counts;
+        assert!(!apc_counts.is_empty(), "Expected APC to be tracked");
+
+        // Get the APC count for APC 0
+        let apc_0_count = apc_counts.get(&0).expect("Expected APC 0 to be tracked");
+
+        // The APC should have been aborted with a segmentation error
+        assert_eq!(
+            apc_0_count.segmentation_error, 1,
+            "Expected exactly 1 segmentation_error for APC 0"
+        );
+
+        // The APC should NOT have completed successfully
+        assert_eq!(
+            apc_0_count.success, 0,
+            "Expected no successful completions since segmentation aborted the APC"
+        );
+
+        // No bump errors should have occurred
+        assert_eq!(apc_0_count.state_bump_error, 0);
+        assert_eq!(apc_0_count.memory_bump_error, 0);
+    }
+
+    #[test]
+    fn test_apc_state_bump_error() {
+        // This test verifies that when a state bump (bump2) occurs during an APC,
+        // the APC is properly rejected and a state_bump_error is recorded.
+        //
+        // There are two types of state bumps:
+        // - bump1: Clock overflow - triggers when clk's top 24 bits change (requires ~2M cycles)
+        // - bump2: PC overflow - triggers when PC crosses a 16-bit boundary (testable with pc_base)
+        //
+        // Memory bump also requires clk to reach 2^24 (~2M cycles), making it impractical
+        // to test with unit tests. However, the APC rejection logic is identical for all
+        // bump types (comparing event count in from_snapshot vs to_snapshot), so this test
+        // validates the shared code path.
+        //
+        // This test uses bump2 by setting pc_base = 0xFFF0, so instruction 3 (at PC 0xFFFC)
+        // will cause next_pc = 0x10000, crossing the 16-bit boundary.
+        //
+        // Instruction layout:
+        //   Index 0: PC = 0xFFF0
+        //   Index 1: PC = 0xFFF4
+        //   Index 2: PC = 0xFFF8
+        //   Index 3: PC = 0xFFFC -> next_pc = 0x10000 (bump2 triggers here!)
+        //   Index 4: PC = 0x10000
+        //   Index 5: PC = 0x10004
+        //   Index 6: PC = 0x10008
+        //   Index 7: PC = 0x1000C
+
+        let mut instructions: Vec<Instruction> = std::iter::repeat([
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ])
+        .flatten()
+        .take(12)
+        .collect();
+
+        add_halt(&mut instructions);
+
+        // Set pc_base = 0xFFF0 so that instruction 3 triggers bump2
+        let pc_base: u64 = 0xFFF0;
+        let program_without_apcs = Program::new(instructions, pc_base, pc_base);
+
+        // Create an APC covering instructions 0-7 which spans the bump point at index 3
+        let apc_range_and_cost =
+            vec![(&(0, 7), 1, OptimisticConstraints::from_constraints(vec![]))];
+
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
+
+        let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
+        runtime.run::<Trace>().unwrap();
+
+        // Verify the APC was tracked
+        let apc_counts = &runtime.report.apc_counts;
+        assert!(!apc_counts.is_empty(), "Expected APC to be tracked");
+
+        // Get the APC count for APC 0
+        let apc_0_count = apc_counts.get(&0).expect("Expected APC 0 to be tracked");
+
+        // The APC should have been rejected with a state bump error
+        assert_eq!(
+            apc_0_count.state_bump_error, 1,
+            "Expected exactly 1 state_bump_error for APC 0"
+        );
+
+        // The APC should NOT have completed successfully
+        assert_eq!(
+            apc_0_count.success, 0,
+            "Expected no successful completions since state bump rejected the APC"
+        );
+
+        // No other errors should have occurred
+        assert_eq!(apc_0_count.segmentation_error, 0);
+        assert_eq!(apc_0_count.memory_bump_error, 0);
     }
 
     #[test]

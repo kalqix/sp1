@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use hashbrown::HashMap;
 use powdr_autoprecompiles::execution::{ApcCandidates, Snapshot};
 
@@ -11,7 +9,10 @@ pub type Sp1ApcCandidates = ApcCandidates<ExecutionState, Apc, ExecutionSnapshot
 
 impl Snapshot for ExecutionSnapshot {
     fn instret(&self) -> usize {
-        self.record.cpu_event_count as usize
+        // Use global_clk for APC overlap detection. global_clk is always incremented
+        // regardless of execution mode, making it suitable for tracking instruction
+        // boundaries in both Checkpoint and Trace modes.
+        self.global_clk as usize
     }
 }
 
@@ -21,6 +22,8 @@ pub struct ExecutionSnapshot {
     pub local_counts: LocalCounts,
     pub report: ExecutionReport,
     pub pc: u64,
+    /// The global_clk value at the time of the snapshot. Used for APC overlap detection.
+    pub global_clk: u64,
 }
 
 #[derive(Debug)]
