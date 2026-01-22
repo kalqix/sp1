@@ -4,7 +4,6 @@
 
 use std::marker::PhantomData;
 
-use derive_where::derive_where;
 use sp1_hypercube::{Machine, ShardContext};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover::SP1ProverComponents;
@@ -51,28 +50,25 @@ impl<C: SP1ProverComponents> ProverClient<C> {
         EnvProver::new(machine).await
     }
 
-    /// Like `from_env`, but allows you to specify the machine to use.
-    #[must_use]
-    pub async fn from_env_with_machine(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> EnvProver<C> {
-        EnvProver::new(machine).await
-    }
-
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder() -> ProverClientBuilder<C> {
-        ProverClientBuilder::default()
+    pub fn builder(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> ProverClientBuilder<C> {
+        ProverClientBuilder::new(machine)
     }
 }
 
 /// A builder to define which proving client to use.
-#[derive_where(Default)]
-pub struct ProverClientBuilder<C> {
-    _marker: PhantomData<C>,
+pub struct ProverClientBuilder<C: SP1ProverComponents> {
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 }
 
 impl<C: SP1ProverComponents> ProverClientBuilder<C> {
+    fn new(machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>) -> Self {
+        Self { machine }
+    }
+
     /// Builds a [`CpuProver`] specifically for local CPU proving.
     ///
     /// # Usage
@@ -131,7 +127,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     #[cfg(feature = "network")]
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder<C> {
-        NetworkProverBuilder::new()
+        NetworkProverBuilder::new(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network with a specified mode.
@@ -158,7 +154,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
             rpc_url: None,
             tee_signers: None,
             network_mode: Some(mode),
-            machine: None,
+            machine: self.machine.clone(),
         }
     }
 }

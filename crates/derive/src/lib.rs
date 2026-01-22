@@ -238,7 +238,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
                     type Program = #program_path;
 
-                    fn name(&self) -> &'static str {
+                    fn name(&self) -> &str {
                         match self {
                             #(#name_arms,)*
                         }

@@ -24,23 +24,37 @@ use super::prove_core;
 //     Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
+pub async fn run_test_with_machine_opts<
+    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<SP1Field>>
+        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
+>(
+    program: Arc<Program>,
+    inputs: SP1Stdin,
+    machine: Machine<SP1Field, A>,
+    opts: SP1CoreOpts,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    let mut runtime = Executor::new(program, opts);
+    runtime.write_vecs(&inputs.buffer);
+    runtime.run::<Trace>().unwrap();
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+
+    let _ = run_test_core_with_machine(runtime, inputs, 21, 22, machine).await?;
+    Ok(public_values)
+}
+
 pub async fn run_test_with_machine<
     A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
         + Debug
         + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>, // + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
+        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
 >(
     program: Arc<Program>,
     inputs: SP1Stdin,
     machine: Machine<SP1Field, A>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    let mut runtime = Executor::new(program, SP1CoreOpts::default());
-    runtime.write_vecs(&inputs.buffer);
-    runtime.run::<Trace>().unwrap();
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-    let _ = run_test_core(runtime, inputs, 21, 22).await?;
-    Ok(public_values)
+    run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
 }
 
 pub async fn run_test(
@@ -109,8 +123,33 @@ pub async fn run_test_core(
     MachineProof<SP1GlobalContext, SP1PcsProofInner>,
     MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
 > {
-    let machine = RiscvAir::machine();
+    run_test_core_with_machine(
+        runtime,
+        inputs,
+        log_stacking_height,
+        max_log_row_count,
+        RiscvAir::machine(),
+    )
+    .await
+}
 
+#[allow(unused_variables)]
+pub async fn run_test_core_with_machine<A>(
+    runtime: Executor<'static>,
+    inputs: SP1Stdin,
+    log_stacking_height: u32,
+    max_log_row_count: usize,
+    machine: Machine<SP1Field, A>,
+) -> Result<
+    MachineProof<SP1GlobalContext, SP1PcsProofInner>,
+    MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
+>
+where
+    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
+        + Debug
+        + Air<SymbolicAirBuilder<SP1Field>>
+        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
+{
     let verifier = ShardVerifier::from_basefold_parameters(
         FriConfig::default_fri_config(),
         log_stacking_height,
@@ -131,7 +170,6 @@ pub async fn run_test_core(
         SP1GlobalContext,
         InnerSC<_>,
         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>,
-        _,
     >(
         verifier.clone(),
         Arc::new(prover),

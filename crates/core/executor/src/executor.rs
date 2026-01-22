@@ -2273,7 +2273,7 @@ impl<'a> Executor<'a> {
                                 )
                                 .collect()
                         },
-                        global_dependencies_opt: todo!(),
+                        global_dependencies_opt: self.record.global_dependencies_opt,
                     };
                     assert_eq!(
                         self.record.precompile_events.len(),

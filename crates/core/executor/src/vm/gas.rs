@@ -1,5 +1,5 @@
 use crate::{
-    events::MemoryRecord, syscalls::SyscallCode, vm::shapes::riscv_air_id_from_opcode,
+    events::MemoryRecord, syscalls::SyscallCode, vm::shapes::riscv_air_id_from_opcode, ApcCount,
     CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId,
 };
 use enum_map::EnumMap;
@@ -20,6 +20,7 @@ pub struct ReportGenerator {
     is_last_read_external: CompressedMemory,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
+    pub apc_counts: Box<HashMap<u64, ApcCount>>,
 
     shard_start_clk: u64,
     exit_code: u64,
@@ -43,6 +44,7 @@ impl ReportGenerator {
             is_last_read_external: CompressedMemory::new(),
             shard_start_clk,
             exit_code: 0,
+            apc_counts: Box::default(),
         }
     }
 
@@ -79,7 +81,7 @@ impl ReportGenerator {
             touched_memory_addresses: 0,
             gas: Some(gas),
             exit_code: self.exit_code,
-            apc_counts: todo!(),
+            apc_counts: self.apc_counts.clone(),
         }
     }
 

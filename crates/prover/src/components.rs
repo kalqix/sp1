@@ -2,7 +2,6 @@ use slop_air::Air;
 use slop_challenger::IopCtx;
 use slop_jagged::DefaultJaggedProver;
 use slop_multilinear::MultilinearPcsProver;
-use slop_stacked::StackedPcsVerifier;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
 use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_hypercube::{
@@ -10,8 +9,8 @@ use sp1_hypercube::{
     prover::{
         AirProver, CpuShardProver, PcsProof, SP1InnerPcsProver, SP1OuterPcsProver, ShardProver,
     },
-    Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, SP1PcsProofInner, ShardContext,
-    ShardContextImpl, ShardVerifier,
+    Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContext, ShardContextImpl,
+    ShardVerifier,
 };
 use sp1_primitives::{
     fri_params::{core_fri_config, recursion_fri_config, shrink_fri_config, wrap_fri_config},
@@ -56,7 +55,7 @@ pub type WrapSC =
 
 pub trait CoreProver<SC>: AirProver<SP1GlobalContext, SC>
 where
-    SC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
+    SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
     SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
 {
     /// The default verifier for the core prover.
@@ -94,7 +93,7 @@ where
 
 impl<SC, C> CoreProver<SC> for C
 where
-    SC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
+    SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
     SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
     C: AirProver<SP1GlobalContext, SC>,
 {
@@ -156,7 +155,7 @@ impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 pub trait SP1ProverComponents: Send + Sync + Clone + 'static
 where
     Self::CoreProver: CoreAirProverFactory<SP1GlobalContext, Self::CoreSC>,
-    Self::CoreSC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
+    Self::CoreSC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
     <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
         + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
 {

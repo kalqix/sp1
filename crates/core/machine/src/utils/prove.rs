@@ -224,7 +224,8 @@ pub fn generate_records<F: PrimeField32>(
     }
 }
 
-pub async fn prove_core<GC, SC, PC, A>(
+#[allow(clippy::too_many_arguments)]
+pub async fn prove_core<GC, SC, PC>(
     verifier: ShardVerifier<GC, SC>,
     prover: Arc<PC>,
     pk: Arc<ProvingKey<GC, SC, PC>>,
@@ -232,18 +233,18 @@ pub async fn prove_core<GC, SC, PC, A>(
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
-    machine: Machine<GC::F, A>,
+    machine: Machine<GC::F, SC::Air>,
 ) -> Result<(MachineProof<GC, PcsProof<GC, SC>>, u64), SP1CoreProverError>
 where
     GC: IopCtx,
-    SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
+    SC: ShardContext<GC>,
     PC: AirProver<GC, SC>,
     GC::F: PrimeField32,
-    A: MachineAir<GC::F, Record = ExecutionRecord>,
+    SC::Air: MachineAir<GC::F, Record = ExecutionRecord>,
 {
     let (proof_tx, mut proof_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (_, cycles) = prove_core_stream::<GC, SC, PC, A>(
+    let (_, cycles) = prove_core_stream::<GC, SC, PC>(
         verifier, prover, pk, program, stdin, opts, context, proof_tx, machine,
     )
     .await
@@ -270,7 +271,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn prove_core_stream<GC, SC, PC, A>(
+pub(crate) async fn prove_core_stream<GC, SC, PC>(
     // TODO: clean this up
     verifier: ShardVerifier<GC, SC>,
     prover: Arc<PC>,
@@ -280,14 +281,14 @@ pub(crate) async fn prove_core_stream<GC, SC, PC, A>(
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
     proof_tx: UnboundedSender<ShardProof<GC, PcsProof<GC, SC>>>,
-    machine: Machine<GC::F, A>,
+    machine: Machine<GC::F, SC::Air>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     GC: IopCtx,
-    SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
+    SC: ShardContext<GC>,
     PC: AirProver<GC, SC>,
     GC::F: PrimeField32,
-    A: MachineAir<GC::F, Record = ExecutionRecord>,
+    SC::Air: MachineAir<GC::F, Record = ExecutionRecord>,
 {
     // TODO: get this from input
     let num_record_workers = 4;
@@ -297,7 +298,7 @@ where
 
     let record_memory = sysinfo::System::new_all().total_memory() / 7;
 
-    let machine_executor = MachineExecutor::<GC::F, A>::new(
+    let machine_executor = MachineExecutor::<GC::F, SC::Air>::new(
         record_memory.try_into().unwrap_or_else(|_| {
             tracing::warn!(
                 "truncating available memory {record_memory} into {}. this is a bug.",

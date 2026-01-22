@@ -8,7 +8,6 @@ use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_basefold::FriConfig;
 use slop_challenger::IopCtx;
-use slop_stacked::StackedPcsVerifier;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},

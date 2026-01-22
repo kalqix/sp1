@@ -61,6 +61,8 @@ impl<F: PrimeField32> From<Arc<Apc<F, Sp1Instruction>>> for CachedApc<F> {
 pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
     id: u64,
+    /// The name of this APC
+    name: String,
     /// The cached APC.
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC.
@@ -69,7 +71,12 @@ pub struct ApcChip<F: PrimeField32> {
 
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<Apc<F, Sp1Instruction>>, id: usize) -> Self {
-        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
+        Self {
+            id: id as u64,
+            name: format!("APC_{id}"),
+            cached_apc: apc.into(),
+            machine: RiscvAir::machine(),
+        }
     }
 
     pub fn apc(&self) -> &Arc<Apc<F, Sp1Instruction>> {
@@ -93,8 +100,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> &'static str {
-        unimplemented!()
+    fn name(&self) -> &str {
+        &self.name
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -461,11 +468,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     fn generate_trace_into(
         &self,
-        input: &Self::Record,
-        output: &mut Self::Record,
-        buffer: &mut [std::mem::MaybeUninit<F>],
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _buffer: &mut [std::mem::MaybeUninit<F>],
     ) {
-        todo!()
+        todo!("implement this instead of `generate_trace` and use the default implementation for `generate_trace`")
     }
 }
 

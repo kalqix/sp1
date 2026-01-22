@@ -7,7 +7,7 @@ use clap::Parser;
 use sp1_prover::{CpuSP1ProverComponents, ProverMode};
 use sp1_sdk::{
     network::{signer::NetworkSigner, FulfillmentStrategy, NetworkMode},
-    Elf, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin,
+    Elf, ProveRequest, Prover, ProverClient, ProvingKey, RiscvAir, SP1Stdin,
 };
 
 #[derive(Parser, Clone)]
@@ -38,7 +38,10 @@ async fn main() {
     let performance_report = match args.mode {
         ProverMode::Cpu => {
             let (prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder().cpu().build().await
+                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+                    .cpu()
+                    .build()
+                    .await
             })
             .await;
 
@@ -69,7 +72,10 @@ async fn main() {
         }
         ProverMode::Cuda => {
             let (prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder().cuda().build().await
+                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+                    .cuda()
+                    .build()
+                    .await
             })
             .await;
 
@@ -103,7 +109,7 @@ async fn main() {
                 .expect("NETWORK_PRIVATE_KEY environment variable must be set");
             let signer = NetworkSigner::local(&private_key).expect("failed to create signer");
             let (prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder()
+                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
                     .network_for(NetworkMode::Mainnet)
                     .rpc_url("https://rpc.sepolia.succinct.xyz")
                     .signer(signer)

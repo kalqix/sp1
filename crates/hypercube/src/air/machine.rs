@@ -29,7 +29,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     }
 
     /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// A list of column names. The length should equal `self.width()`.
     fn column_names(&self) -> Vec<String> {

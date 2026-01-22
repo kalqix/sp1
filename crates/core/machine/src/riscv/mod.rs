@@ -1186,16 +1186,16 @@ pub mod tests {
         cost_and_height_per_syscall, rv64im_costs, syscalls::SyscallCode, Instruction, Opcode,
         Program, RiscvAirId, MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA,
     };
-    use sp1_hypercube::{
-        air::MachineAir, InteractionBuilder, MachineRecord,
-    };
+    use sp1_hypercube::{air::MachineAir, InteractionBuilder, MachineRecord};
     use sp1_primitives::SP1Field;
 
     use crate::{
         autoprecompiles::create_apcs,
         programs::tests::*,
         riscv::{RiscvAir, RiscvAirWithApcs},
-        utils::{run_test_small_trace, setup_logger},
+        utils::{
+            run_test_small_trace, run_test_with_machine, run_test_with_machine_opts, setup_logger,
+        },
     };
     use sp1_core_executor::add_halt;
     use sp1_hypercube::InteractionKind;
@@ -1213,24 +1213,6 @@ pub mod tests {
     //     for (a, b) in chips.iter().zip_eq(RiscvAirId::iter()) {
     //         assert_eq!(a.name().to_string(), b.to_string());
     //     }
-    // }
-
-    // async fn run_test(
-    //     program: Arc<Program>,
-    //     stdin: SP1Stdin,
-    // ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    //     crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
-    // }
-
-    // async fn run_test_with_opts(
-    //     program: Arc<Program>,
-    //     stdin: SP1Stdin,
-    //     opts: sp1_core_executor::SP1CoreOpts,
-    // ) -> Result<
-    //     (SP1PublicValues, sp1_hypercube::MachineProof<SP1CoreJaggedConfig>),
-    //     MachineVerifierConfigError<SP1CoreJaggedConfig>,
-    // > {
-    //     crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
     // }
 
     use hashbrown::HashMap;
@@ -1447,37 +1429,6 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_add_prove_segment() {
-        use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
-        setup_logger();
-        // Segmentation happens when:
-        // 1. Executor checks for segmentation every 16 instructions.
-        // 2. The trace is over preset sharding threshold of trace cell count or trace height.
-        // Therefore, this segmentation test example must include at least 16 instructions.
-        let mut instructions = std::iter::repeat([
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ])
-        .flatten()
-        .take(16)
-        .collect();
-
-        add_halt(&mut instructions);
-        let program = Program::new(instructions, 0, 0);
-        let stdin = SP1Stdin::new();
-        let mut opts = SP1CoreOpts::default();
-        // This is a very small threshold and is almost guaranteed to segment when the executor
-        // checks for segmentation.
-        opts.sharding_threshold =
-            ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        // let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
-        unimplemented!();
-        // Number of segments
-        // assert_eq!(proofs.shard_proofs.len(), 2);
-    }
-
-    #[tokio::test]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![
@@ -1498,13 +1449,9 @@ pub mod tests {
         let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
         let program = program.with_apcs(apc_range_and_costs);
         let stdin = SP1Stdin::new();
-        crate::utils::run_test_with_machine(
-            Arc::new(program),
-            stdin,
-            RiscvAirWithApcs::machine(apcs),
-        )
-        .await
-        .unwrap();
+        run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine(apcs))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1532,16 +1479,9 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        // let (_, proofs) = crate::utils::run_test_with_machine_opts(
-        //     Arc::new(program),
-        //     stdin,
-        //     RiscvAirWithApcs::machine(apcs),
-        //     opts,
-        // )
-        // .await
-        // .unwrap();
-        unimplemented!();
-        // assert_eq!(proofs.shard_proofs.len(), 2);
+        run_test_with_machine_opts(Arc::new(program), stdin, RiscvAirWithApcs::machine(apcs), opts)
+            .await
+            .unwrap();
     }
 
     #[test]
