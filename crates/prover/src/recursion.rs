@@ -14,7 +14,7 @@ use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     prover::ZerocheckAir,
     verify_merkle_proof, HashableKey, MachineVerifier, MachineVerifyingKey, MerkleProof,
-    SP1InnerPcs, SP1PcsProofInner, ShardContext, ShardVerifier,
+    SP1InnerPcs, SP1Pcs, SP1PcsProofInner, ShardContext, ShardVerifier,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_recursion_circuit::{
@@ -44,7 +44,7 @@ pub trait BasefoldFriConfig<GC: IopCtx> {
     fn fri_config(&self) -> &FriConfig<GC::F>;
 }
 
-impl<GC: IopCtx> BasefoldFriConfig<GC> for StackedPcsVerifier<GC> {
+impl<GC: IopCtx> BasefoldFriConfig<GC> for SP1Pcs<GC> {
     fn fri_config(&self) -> &FriConfig<GC::F> {
         &self.basefold_verifier.fri_config
     }

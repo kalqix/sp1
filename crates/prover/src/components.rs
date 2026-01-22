@@ -4,10 +4,12 @@ use slop_jagged::DefaultJaggedProver;
 use slop_multilinear::MultilinearPcsProver;
 use slop_stacked::StackedPcsVerifier;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_hypercube::{
     air::MachineAir,
-    prover::{AirProver, CpuShardProver, PcsProof, ShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
+    prover::{
+        AirProver, CpuShardProver, PcsProof, SP1InnerPcsProver, SP1OuterPcsProver, ShardProver,
+    },
     Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, SP1PcsProofInner, ShardContext,
     ShardContextImpl, ShardVerifier,
 };
@@ -41,6 +43,8 @@ pub(crate) const SHRINK_MAX_LOG_ROW_COUNT: usize = 19;
 pub(crate) const WRAP_LOG_STACKING_HEIGHT: u32 = 21;
 
 pub type CoreSC = ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, RiscvAir<SP1Field>>;
+pub type CoreSCWithApcs =
+    ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, RiscvAirWithApcs<SP1Field>>;
 
 pub type RecursionSC =
     ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, CompressAir<SP1Field>>;
@@ -155,16 +159,8 @@ where
     Self::CoreSC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
     <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
         + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
-    Self::CorePcsVerifier: slop_multilinear::MultilinearPcsVerifier<
-            SP1GlobalContext,
-            Proof = SP1PcsProofInner,
-            VerifierError = <SP1InnerPcs as slop_multilinear::MultilinearPcsVerifier<
-                SP1GlobalContext,
-            >>::VerifierError,
-        > + crate::recursion::BasefoldFriConfig<SP1GlobalContext>,
 {
-    type CorePcsVerifier: slop_multilinear::MultilinearPcsVerifier<SP1GlobalContext>;
-    type CoreSC: ShardContext<SP1GlobalContext, Config = Self::CorePcsVerifier>;
+    type CoreSC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>;
     /// The prover for making SP1 core proofs.
     type CoreProver: CoreProver<Self::CoreSC>;
     /// The prover for making SP1 recursive proofs.
@@ -194,7 +190,6 @@ where
 pub struct CpuSP1ProverComponents;
 
 impl SP1ProverComponents for CpuSP1ProverComponents {
-    type CorePcsVerifier = StackedPcsVerifier<SP1GlobalContext>;
     type CoreSC = CoreSC;
     type CoreProver = CpuShardProver<
         SP1GlobalContext,
@@ -208,17 +203,19 @@ impl SP1ProverComponents for CpuSP1ProverComponents {
         CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
 }
 
-// pub struct CpuSP1ApcProverComponents;
+#[derive(Clone, Copy)]
+pub struct CpuSP1ApcProverComponents;
 
-// impl SP1ProverComponents for CpuSP1ApcProverComponents {
-//     type CoreProver = CpuShardProver<
-//         SP1GlobalContext,
-//         SP1Pcs<SP1GlobalContext>,
-//         SP1InnerPcsProver,
-//         RiscvAirWithApcs<SP1Field>,
-//     >;
-//     type RecursionProver =
-//         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;
-//     type WrapProver =
-//         CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
-// }
+impl SP1ProverComponents for CpuSP1ApcProverComponents {
+    type CoreSC = CoreSCWithApcs;
+    type CoreProver = CpuShardProver<
+        SP1GlobalContext,
+        SP1Pcs<SP1GlobalContext>,
+        SP1InnerPcsProver,
+        RiscvAirWithApcs<SP1Field>,
+    >;
+    type RecursionProver =
+        CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;
+    type WrapProver =
+        CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
+}

@@ -773,7 +773,7 @@ mod tests {
     #[cfg(feature = "experimental")]
     use sp1_core_executor::SP1Context;
 
-    use sp1_core_machine::utils::setup_logger;
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
     use sp1_recursion_executor::RecursionAirEventCount;
 
     use super::*;

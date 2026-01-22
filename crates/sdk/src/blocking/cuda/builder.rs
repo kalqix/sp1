@@ -9,9 +9,7 @@ use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_hypercube::Machine;
 use sp1_hypercube::ShardContext;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::{
-    worker::SP1LightNode, CoreAirProverFactory, SP1ProverComponents,
-};
+use sp1_prover::{worker::SP1LightNode, CoreAirProverFactory, SP1ProverComponents};
 
 /// A builder for the [`CudaProver`].
 ///
@@ -28,7 +26,7 @@ pub struct CudaProverBuilder<C: SP1ProverComponents> {
 impl<C: SP1ProverComponents> Default for CudaProverBuilder<C>
 where
     C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
- {
+{
     fn default() -> Self {
         Self::new()
     }

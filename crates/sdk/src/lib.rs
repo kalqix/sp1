@@ -67,6 +67,9 @@ pub use sp1_core_machine::io::SP1Stdin;
 pub use sp1_primitives::{io::SP1PublicValues, Elf};
 pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 
+pub use sp1_core_machine::riscv::RiscvAir;
+pub use sp1_prover::components::CpuSP1ProverComponents;
+
 /// A prelude, including all the types and traits that are commonly used.
 pub mod prelude {
     pub use super::{

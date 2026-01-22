@@ -1,13 +1,17 @@
 use std::{fmt::Debug, sync::Arc};
 
+use slop_air::Air;
+use slop_algebra::extension::BinomialExtensionField;
 use slop_basefold::FriConfig;
-use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
+use slop_uni_stark::SymbolicAirBuilder;
+use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_hypercube::{
-    prover::{AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver},
+    air::MachineAir,
+    prover::{AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver, ZerocheckAir},
     InnerSC, Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
     SP1PcsProofInner, ShardVerifier,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
 
 use crate::{io::SP1Stdin, riscv::RiscvAir};
@@ -24,8 +28,7 @@ pub async fn run_test_with_machine<
     A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
         + Debug
         + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
+        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>, // + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
 >(
     program: Arc<Program>,
     inputs: SP1Stdin,
@@ -44,7 +47,7 @@ pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    run_test_with_machine(program, inputs, RiscvAir::machine())
+    run_test_with_machine(program, inputs, RiscvAir::machine()).await
 }
 
 /// This function tests cases where `max_log_row_count` is potentially larger than the `log(trace)`.
@@ -97,13 +100,7 @@ pub async fn run_test_small_trace(
 // }
 
 #[allow(unused_variables)]
-pub async fn run_test_core<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
+pub async fn run_test_core(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
     log_stacking_height: u32,
@@ -134,6 +131,7 @@ pub async fn run_test_core<
         SP1GlobalContext,
         InnerSC<_>,
         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>,
+        _,
     >(
         verifier.clone(),
         Arc::new(prover),

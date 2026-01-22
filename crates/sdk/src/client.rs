@@ -130,7 +130,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[cfg(feature = "network")]
     #[must_use]
-    pub fn network(&self) -> NetworkProverBuilder {
+    pub fn network(&self) -> NetworkProverBuilder<C> {
         NetworkProverBuilder::new()
     }
 
@@ -151,13 +151,14 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[cfg(feature = "network")]
     #[must_use]
-    pub fn network_for(&self, mode: NetworkMode) -> NetworkProverBuilder {
+    pub fn network_for(&self, mode: NetworkMode) -> NetworkProverBuilder<C> {
         NetworkProverBuilder {
             private_key: None,
             signer: None,
             rpc_url: None,
             tee_signers: None,
             network_mode: Some(mode),
+            machine: None,
         }
     }
 }

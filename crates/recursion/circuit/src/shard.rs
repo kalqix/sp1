@@ -517,6 +517,7 @@ mod tests {
             SP1GlobalContext,
             InnerSC<_>,
             CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>,
+            _,
         >(
             verifier.clone(),
             prover,

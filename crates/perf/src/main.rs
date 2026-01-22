@@ -4,20 +4,10 @@ use std::{
 };
 
 use clap::Parser;
-<<<<<<< HEAD
-use sp1_core_executor::Program;
-use sp1_core_machine::riscv::RiscvAir;
-use sp1_cuda::CudaProver;
-use sp1_hypercube::MachineProof;
-use sp1_prover::{
-    local::{LocalProver, LocalProverOpts},
-    CpuSP1ProverComponents, ProverMode, SP1ProverBuilder,
-=======
-use sp1_prover::ProverMode;
+use sp1_prover::{CpuSP1ProverComponents, ProverMode};
 use sp1_sdk::{
     network::{signer::NetworkSigner, FulfillmentStrategy, NetworkMode},
     Elf, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin,
->>>>>>> origin/multilinear_v6
 };
 
 #[derive(Parser, Clone)]
@@ -44,18 +34,13 @@ async fn main() {
     let elf = Elf::Dynamic(std::fs::read(args.program).expect("failed to read program").into());
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
-<<<<<<< HEAD
-    let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-        .without_vk_verification()
-        .build()
-        .await;
-=======
->>>>>>> origin/multilinear_v6
 
     let performance_report = match args.mode {
         ProverMode::Cpu => {
-            let (prover, prover_init_duration) =
-                time_operation_fut(async || ProverClient::builder().cpu().build().await).await;
+            let (prover, prover_init_duration) = time_operation_fut(async || {
+                ProverClient::<CpuSP1ProverComponents>::builder().cpu().build().await
+            })
+            .await;
 
             let ((_, execution_report), execution_duration) = time_operation_fut(async || {
                 prover.execute(elf.clone(), stdin.clone()).await.unwrap()
@@ -83,8 +68,10 @@ async fn main() {
             }
         }
         ProverMode::Cuda => {
-            let (prover, prover_init_duration) =
-                time_operation_fut(async || ProverClient::builder().cuda().build().await).await;
+            let (prover, prover_init_duration) = time_operation_fut(async || {
+                ProverClient::<CpuSP1ProverComponents>::builder().cuda().build().await
+            })
+            .await;
 
             let ((_, execution_report), execution_duration) = time_operation_fut(async || {
                 prover.execute(elf.clone(), stdin.clone()).await.unwrap()
@@ -116,7 +103,7 @@ async fn main() {
                 .expect("NETWORK_PRIVATE_KEY environment variable must be set");
             let signer = NetworkSigner::local(&private_key).expect("failed to create signer");
             let (prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder()
+                ProverClient::<CpuSP1ProverComponents>::builder()
                     .network_for(NetworkMode::Mainnet)
                     .rpc_url("https://rpc.sepolia.succinct.xyz")
                     .signer(signer)

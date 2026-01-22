@@ -2,9 +2,11 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
-use std::{marker::PhantomData, sync::Arc};
 
 use alloy_primitives::Address;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_prover::SP1ProverComponents;
 
 use crate::{
     network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
@@ -15,16 +17,17 @@ use crate::{
 ///
 /// The builder is used to configure the [`NetworkProver`] before it is built.
 #[derive(Default)]
-pub struct NetworkProverBuilder<C> {
+pub struct NetworkProverBuilder<C: SP1ProverComponents> {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
-    _marker: PhantomData<C>,
+    pub(crate) machine:
+        Option<Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>>,
 }
 
-impl NetworkProverBuilder {
+impl<C: SP1ProverComponents> NetworkProverBuilder<C> {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
     pub const fn new() -> Self {
@@ -34,6 +37,7 @@ impl NetworkProverBuilder {
             tee_signers: None,
             signer: None,
             network_mode: None,
+            machine: None,
         }
     }
 
@@ -132,6 +136,15 @@ impl NetworkProverBuilder {
         self
     }
 
+    #[must_use] 
+    pub fn machine(
+        mut self,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        self.machine = Some(machine);
+        self
+    }
+
     /// Builds a [`NetworkProver`].
     ///
     /// # Details
@@ -207,6 +220,13 @@ impl NetworkProverBuilder {
             None => vec![],
         };
 
-        NetworkProver::new(signer, &rpc_url, network_mode).await.with_tee_signers(tee_signers)
+        NetworkProver::new(
+            signer,
+            &rpc_url,
+            network_mode,
+            self.machine.expect("Machine should be set"),
+        )
+        .await
+        .with_tee_signers(tee_signers)
     }
 }

@@ -1186,12 +1186,15 @@ pub mod tests {
         cost_and_height_per_syscall, rv64im_costs, syscalls::SyscallCode, Instruction, Opcode,
         Program, RiscvAirId, MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA,
     };
-    use sp1_hypercube::{air::MachineAir, InteractionBuilder, MachineRecord};
+    use sp1_hypercube::{
+        air::MachineAir, InteractionBuilder, MachineRecord,
+    };
     use sp1_primitives::SP1Field;
 
     use crate::{
+        autoprecompiles::create_apcs,
         programs::tests::*,
-        riscv::RiscvAir,
+        riscv::{RiscvAir, RiscvAirWithApcs},
         utils::{run_test_small_trace, setup_logger},
     };
     use sp1_core_executor::add_halt;
@@ -1212,23 +1215,23 @@ pub mod tests {
     //     }
     // }
 
-    async fn run_test(
-        program: Arc<Program>,
-        stdin: SP1Stdin,
-    ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-        crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
-    }
+    // async fn run_test(
+    //     program: Arc<Program>,
+    //     stdin: SP1Stdin,
+    // ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
+    //     crate::utils::run_test_with_machine(program, stdin, RiscvAir::machine()).await
+    // }
 
-    async fn run_test_with_opts(
-        program: Arc<Program>,
-        stdin: SP1Stdin,
-        opts: sp1_core_executor::SP1CoreOpts,
-    ) -> Result<
-        (SP1PublicValues, sp1_hypercube::MachineProof<SP1CoreJaggedConfig>),
-        MachineVerifierConfigError<SP1CoreJaggedConfig>,
-    > {
-        crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
-    }
+    // async fn run_test_with_opts(
+    //     program: Arc<Program>,
+    //     stdin: SP1Stdin,
+    //     opts: sp1_core_executor::SP1CoreOpts,
+    // ) -> Result<
+    //     (SP1PublicValues, sp1_hypercube::MachineProof<SP1CoreJaggedConfig>),
+    //     MachineVerifierConfigError<SP1CoreJaggedConfig>,
+    // > {
+    //     crate::utils::run_test_with_machine_opts(program, stdin, RiscvAir::machine(), opts).await
+    // }
 
     use hashbrown::HashMap;
     #[test]
@@ -1244,7 +1247,7 @@ pub mod tests {
     #[test]
     fn core_air_complexity_consistency() {
         let complexity = sp1_core_executor::get_complexity_mapping();
-        let machine = RiscvAir::machine();
+        let machine = RiscvAir::<SP1Field>::machine();
         for chip in machine.chips() {
             let id = chip.air.id();
             let expected = complexity[id];
@@ -1258,7 +1261,7 @@ pub mod tests {
 
     #[test]
     fn test_interaction_counts() {
-        let interaction_sizes = RiscvAir::machine()
+        let interaction_sizes = RiscvAir::<SP1Field>::machine()
             .chips()
             .iter()
             .flat_map(|chip| {
@@ -1276,7 +1279,7 @@ pub mod tests {
 
     #[test]
     fn test_eval_public_values_interactions() {
-        let machine = RiscvAir::machine();
+        let machine = RiscvAir::<SP1Field>::machine();
         let kinds_and_counts = machine.chips().iter().flat_map(|chip| {
             let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.width());
             <<RiscvAir<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
@@ -1314,7 +1317,7 @@ pub mod tests {
 
     #[test]
     fn test_maximum_padding() {
-        let machine = RiscvAir::machine();
+        let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
 
         for cluster in chip_clusters {
@@ -1468,9 +1471,10 @@ pub mod tests {
         // checks for segmentation.
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
+        // let (_, proofs) = run_test_with_opts(Arc::new(program), stdin, opts).await.unwrap();
+        unimplemented!();
         // Number of segments
-        assert_eq!(proofs.shard_proofs.len(), 2);
+        // assert_eq!(proofs.shard_proofs.len(), 2);
     }
 
     #[tokio::test]
@@ -1528,15 +1532,16 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        let (_, proofs) = crate::utils::run_test_with_machine_opts(
-            Arc::new(program),
-            stdin,
-            RiscvAirWithApcs::machine(apcs),
-            opts,
-        )
-        .await
-        .unwrap();
-        assert_eq!(proofs.shard_proofs.len(), 2);
+        // let (_, proofs) = crate::utils::run_test_with_machine_opts(
+        //     Arc::new(program),
+        //     stdin,
+        //     RiscvAirWithApcs::machine(apcs),
+        //     opts,
+        // )
+        // .await
+        // .unwrap();
+        unimplemented!();
+        // assert_eq!(proofs.shard_proofs.len(), 2);
     }
 
     #[test]

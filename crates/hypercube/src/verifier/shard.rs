@@ -795,7 +795,7 @@ where {
 impl<GC, SC> ShardVerifier<GC, SC>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    SC: ShardContext<GC, Config = StackedPcsVerifier<GC>>,
+    SC: ShardContext<GC, Config = SP1Pcs<GC>>,
     SC::Air: ZerocheckAir<GC::F, GC::EF>,
     GC::F: PrimeField32,
 {
