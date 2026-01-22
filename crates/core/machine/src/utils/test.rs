@@ -1,25 +1,11 @@
 use std::{fmt::Debug, sync::Arc};
 
-<<<<<<< HEAD
-use slop_air::Air;
-use slop_algebra::extension::BinomialExtensionField;
-use slop_uni_stark::SymbolicAirBuilder;
-use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
-use sp1_hypercube::{
-    air::MachineAir,
-    prover::{
-        AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore, ZerocheckAir,
-    },
-    Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1CoreJaggedConfig,
-    SP1CpuJaggedProverComponents, ShardVerifier, VerifierConstraintFolder,
-=======
 use slop_basefold::FriConfig;
 use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_hypercube::{
     prover::{AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver},
-    InnerSC, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
+    InnerSC, Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
     SP1PcsProofInner, ShardVerifier,
->>>>>>> origin/multilinear_v6
 };
 use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
 use tracing::Instrument;
@@ -43,53 +29,22 @@ pub async fn run_test_with_machine<
 >(
     program: Arc<Program>,
     inputs: SP1Stdin,
-<<<<<<< HEAD
     machine: Machine<SP1Field, A>,
-) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    match run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await {
-        Ok((public_values, _)) => Ok(public_values),
-        Err(e) => Err(e),
-    }
-}
-
-pub async fn run_test_with_machine_opts<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
-    program: Arc<Program>,
-    inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
-    opts: SP1CoreOpts,
-) -> Result<
-    (SP1PublicValues, MachineProof<SP1CoreJaggedConfig>),
-    MachineVerifierConfigError<SP1CoreJaggedConfig>,
-> {
-    let mut runtime = Executor::new(program, opts.clone());
-=======
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     let mut runtime = Executor::new(program, SP1CoreOpts::default());
->>>>>>> origin/multilinear_v6
     runtime.write_vecs(&inputs.buffer);
     runtime.run::<Trace>().unwrap();
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-<<<<<<< HEAD
-    let proof = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
-    Ok((public_values, proof))
+    let _ = run_test_core(runtime, inputs, 21, 22).await?;
+    Ok(public_values)
 }
 
 pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
-) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    run_test_with_machine(program, inputs, RiscvAir::machine()).await
-=======
-    let _ = run_test_core(runtime, inputs, 21, 22).await?;
-    Ok(public_values)
->>>>>>> origin/multilinear_v6
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    run_test_with_machine(program, inputs, RiscvAir::machine())
 }
 
 /// This function tests cases where `max_log_row_count` is potentially larger than the `log(trace)`.
@@ -151,32 +106,6 @@ pub async fn run_test_core<
 >(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
-<<<<<<< HEAD
-    machine: Machine<SP1Field, A>,
-) -> Result<MachineProof<SP1CoreJaggedConfig>, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    run_test_core_with_opts(runtime, inputs, machine, SP1CoreOpts::default()).await
-}
-
-#[allow(unused_variables)]
-pub async fn run_test_core_with_opts<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
-    runtime: Executor<'static>,
-    inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
-    opts: SP1CoreOpts,
-) -> Result<MachineProof<SP1CoreJaggedConfig>, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    let log_blowup = 1;
-    let log_stacking_height = 21;
-    let max_log_row_count = 22;
-    slop_futures::rayon::spawn(move || {
-        let x = 1;
-    });
-=======
     log_stacking_height: u32,
     max_log_row_count: usize,
 ) -> Result<
@@ -185,7 +114,6 @@ pub async fn run_test_core_with_opts<
 > {
     let machine = RiscvAir::machine();
 
->>>>>>> origin/multilinear_v6
     let verifier = ShardVerifier::from_basefold_parameters(
         FriConfig::default_fri_config(),
         log_stacking_height,
@@ -201,23 +129,6 @@ pub async fn run_test_core_with_opts<
         .instrument(tracing::debug_span!("setup").or_current())
         .await;
     let pk = unsafe { pk.into_inner() };
-<<<<<<< HEAD
-    let challenger = verifier.pcs_verifier.challenger();
-    let (proof, _) =
-        prove_core::<SP1Field, CpuMachineProverComponents<SP1CpuJaggedProverComponents, A>, A>(
-            verifier.clone(),
-            Arc::new(prover),
-            pk,
-            runtime.program.clone(),
-            inputs,
-            opts,
-            SP1Context::default(),
-            machine,
-        )
-        .instrument(tracing::debug_span!("prove core"))
-        .await
-        .unwrap();
-=======
     let challenger = verifier.jagged_pcs_verifier.challenger();
     let (proof, _) = prove_core::<
         SP1GlobalContext,
@@ -231,11 +142,11 @@ pub async fn run_test_core_with_opts<
         inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
+        machine,
     )
     .instrument(tracing::debug_span!("prove core"))
     .await
     .unwrap();
->>>>>>> origin/multilinear_v6
 
     let machine_verifier = MachineVerifier::new(verifier);
     tracing::debug_span!("verify the proof").in_scope(|| machine_verifier.verify(&vk, &proof))?;

@@ -22,21 +22,14 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
-<<<<<<< HEAD
-    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
-=======
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
->>>>>>> origin/multilinear_v6
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
     pub const fn new() -> Self {
-<<<<<<< HEAD
-        Self { private_key: None, rpc_url: None, tee_signers: None, apcs: Vec::new() }
-=======
         Self {
             private_key: None,
             rpc_url: None,
@@ -44,7 +37,6 @@ impl NetworkProverBuilder {
             signer: None,
             network_mode: None,
         }
->>>>>>> origin/multilinear_v6
     }
 
     /// Sets the Secp256k1 private key (same format as the one used by Ethereum).
@@ -108,12 +100,6 @@ impl NetworkProverBuilder {
         self
     }
 
-<<<<<<< HEAD
-    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
-    #[must_use]
-    pub fn apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
-        self.apcs = apcs;
-=======
     /// Sets the network signer to use for signing requests.
     ///
     /// # Details
@@ -145,7 +131,6 @@ impl NetworkProverBuilder {
     #[must_use]
     pub fn signer(mut self, signer: NetworkSigner) -> Self {
         self.signer = Some(signer);
->>>>>>> origin/multilinear_v6
         self
     }
 
@@ -211,9 +196,6 @@ impl NetworkProverBuilder {
         let tee_signers = match self.tee_signers {
             Some(tee_signers) => tee_signers,
 
-<<<<<<< HEAD
-        NetworkProver::new(&private_key, &rpc_url, self.apcs).await.with_tee_signers(tee_signers)
-=======
             #[cfg(feature = "tee-2fa")]
             None => crate::network::retry::retry_operation(
                 || async { crate::network::tee::get_tee_signers().await.map_err(Into::into) },
@@ -228,6 +210,5 @@ impl NetworkProverBuilder {
         };
 
         NetworkProver::new(signer, &rpc_url, network_mode).await.with_tee_signers(tee_signers)
->>>>>>> origin/multilinear_v6
     }
 }

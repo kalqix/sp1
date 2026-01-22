@@ -19,31 +19,24 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-<<<<<<< HEAD
-use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
-use sp1_primitives::{Elf, SP1Field};
-use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
-use std::sync::Arc;
-=======
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::Elf;
-use sp1_prover::worker::SP1NodeCore;
->>>>>>> origin/multilinear_v6
+use sp1_prover::{worker::SP1NodeCore, SP1ProverComponents};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum EnvProver {
+pub enum EnvProver<C: SP1ProverComponents> {
     /// A mock prover that does not prove anything.
-    Mock(MockProver),
+    Mock(MockProver<C>),
     /// A CPU prover.
     Cpu(CpuProver),
     /// A CUDA prover.
-    Cuda(CudaProver),
+    Cuda(CudaProver<C>),
     /// A network prover.
     #[cfg(feature = "network")]
-    Network(NetworkProver),
+    Network(NetworkProver<C>),
 }
 
 impl EnvProver {
@@ -120,11 +113,7 @@ impl Prover for EnvProver {
     type ProvingKey = EnvProvingKey;
     type ProveRequest<'a> = prove::EnvProveRequest<'a>;
 
-<<<<<<< HEAD
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
-=======
     fn inner(&self) -> &SP1NodeCore {
->>>>>>> origin/multilinear_v6
         match self {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),

@@ -36,7 +36,6 @@ where
 struct SP1LightNodeInner<C: SP1ProverComponents> {
     /// The core node is used to execute the program and verify the proof
     core: SP1NodeCore<C>,
-    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     /// The core air prover is used to do the setup step
     core_air_prover: Arc<C::CoreProver>,
     /// The permits are used to limit the number of concurrent provers
@@ -82,11 +81,11 @@ where
             let permits = ProverSemaphore::new(1);
 
             // Get a new verifier for the light(( node.
-            let verifier = SP1Verifier::new(VerifierRecursionVks::default(), machine.clone());
+            let verifier = SP1Verifier::new(VerifierRecursionVks::default(), machine);
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);
 
-            Self { inner: Arc::new(SP1LightNodeInner { core, machine, core_air_prover, permits }) }
+            Self { inner: Arc::new(SP1LightNodeInner { core, core_air_prover, permits }) }
         })
         .await
         .expect("failed to initialize light node")

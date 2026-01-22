@@ -5,20 +5,6 @@
 use crate::StatusCode;
 use anyhow::Result;
 use itertools::Itertools;
-<<<<<<< HEAD
-use slop_air::Air;
-use slop_algebra::PrimeField32;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{
-    air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
-    VerifierConstraintFolder,
-};
-use sp1_primitives::types::Elf;
-use sp1_prover::{
-    components::{CpuSP1ApcProverComponents, SP1ProverComponents},
-    local::LocalProver,
-    CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
-=======
 use num_bigint::BigUint;
 use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
@@ -27,16 +13,13 @@ use sp1_primitives::types::Elf;
 use sp1_prover::{
     verify::verify_public_values, worker::SP1NodeCore, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
-use sp1_recursion_executor::RecursionPublicValues;
+use sp1_recursion_compiler::config::InnerConfig;
 use std::{
     borrow::Borrow,
     fmt,
     future::{Future, IntoFuture},
     str::FromStr,
->>>>>>> origin/multilinear_v6
 };
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-use sp1_recursion_compiler::config::InnerConfig;
 use thiserror::Error;
 
 /// The module that exposes the [`ExecuteRequest`] type.
@@ -65,11 +48,7 @@ pub trait Prover: Clone + Send + Sync {
         Self: 'a;
 
     /// The inner [`LocalProver`] struct used by the prover.
-<<<<<<< HEAD
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>>;
-=======
     fn inner(&self) -> &SP1NodeCore;
->>>>>>> origin/multilinear_v6
 
     /// The version of the current SP1 circuit.
     fn version(&self) -> &str {

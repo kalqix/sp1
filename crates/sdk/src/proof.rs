@@ -520,11 +520,7 @@ mod tests {
     async fn test_round_trip_proof_save_load() {
         use crate::{ProveRequest, Prover};
 
-<<<<<<< HEAD
-        let prover = crate::CpuProver::new_unsound(vec![]).await;
-=======
         let prover = crate::CpuProver::new().await;
->>>>>>> origin/multilinear_v6
         let pk = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF).await.unwrap();
         let proof = prover.prove(&pk, crate::SP1Stdin::new()).compressed().await.unwrap();
 

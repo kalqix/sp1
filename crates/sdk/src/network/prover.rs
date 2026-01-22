@@ -30,45 +30,33 @@ use crate::network::proto::GetProofRequestParamsResponse;
 
 use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
-<<<<<<< HEAD
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
-use sp1_primitives::{Elf, SP1Field};
-use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver, SP1_CIRCUIT_VERSION};
-=======
 use sp1_build::Elf;
 use sp1_core_executor::{SP1Context, StatusCode};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
     worker::{SP1LightNode, SP1NodeCore},
-    SP1_CIRCUIT_VERSION,
+    SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
->>>>>>> origin/multilinear_v6
 
 use tokio::time::sleep;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 #[derive(Clone)]
-pub struct NetworkProver {
+pub struct NetworkProver<C: SP1ProverComponents> {
     pub(crate) client: NetworkClient,
-    pub(crate) node: SP1LightNode,
+    pub(crate) node: SP1LightNode<C>,
     pub(crate) tee_signers: Vec<Address>,
     pub(crate) network_mode: NetworkMode,
 }
 
-impl Prover for NetworkProver {
+impl<C: SP1ProverComponents> Prover for NetworkProver<C> {
     // todo!(n): Remove usage of anyhow.
     type ProvingKey = SP1ProvingKey;
     type Error = anyhow::Error;
     type ProveRequest<'a> = NetworkProveBuilder<'a>;
 
-<<<<<<< HEAD
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
-        self.prover.prover.clone()
-=======
     fn inner(&self) -> &SP1NodeCore {
         self.node.inner()
->>>>>>> origin/multilinear_v6
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {
@@ -147,15 +135,6 @@ impl NetworkProver {
     /// ```
     #[must_use]
     pub async fn new(
-<<<<<<< HEAD
-        private_key: &str,
-        rpc_url: &str,
-        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
-    ) -> Self {
-        let prover = CpuProver::new(apcs).await;
-        let client = NetworkClient::new(private_key, rpc_url);
-        Self { client: Arc::new(client), prover, tee_signers: Arc::new([]) }
-=======
         signer: impl Into<NetworkSigner>,
         rpc_url: &str,
         network_mode: NetworkMode,
@@ -167,7 +146,6 @@ impl NetworkProver {
         let node = SP1LightNode::new().await;
         let client = NetworkClient::new(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode }
->>>>>>> origin/multilinear_v6
     }
 
     /// Sets the list of TEE signers, used for verifying TEE proofs.
@@ -537,15 +515,7 @@ impl NetworkProver {
             }
             let remaining_timeout = timeout.map(|t| {
                 let elapsed = start_time.elapsed();
-<<<<<<< HEAD
-                if elapsed < t {
-                    t.checked_sub(elapsed).unwrap()
-                } else {
-                    Duration::from_secs(0)
-                }
-=======
                 t.checked_sub(elapsed).unwrap_or(Duration::from_secs(0))
->>>>>>> origin/multilinear_v6
             });
 
             let (maybe_proof, fulfillment_status) =

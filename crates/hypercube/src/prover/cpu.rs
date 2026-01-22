@@ -66,21 +66,24 @@ where
     }
 }
 
-impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, SC>>>
-    ShardProver<GC, SC, C>
+impl<GC, SC, C> ShardProver<GC, SC, C>
+where
+    GC: IopCtx,
+    SC: ShardContext<GC>,
+    SC::Config: MultilinearPcsVerifier<GC>,
+    C: MultilinearPcsProver<GC, PcsProof<GC, SC>> + DefaultJaggedProver<GC, SC::Config>,
 {
     /// Create a new CPU prover.
     #[must_use]
     pub fn new(verifier: ShardVerifier<GC, SC>) -> Self {
-        // // Construct the shard prover.
-        // let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
-        // let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);
-        // let trace_generator = DefaultTraceGenerator::new(machine);
-        // let logup_gkr_trace_generator = LogupGkrCpuTraceGenerator::default();
-        // let logup_gkr_prover = GkrProverImpl::new(logup_gkr_trace_generator);
+        // Construct the shard prover.
+        let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
+        let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);
+        let trace_generator = DefaultTraceGenerator::new(machine);
+        let logup_gkr_trace_generator = LogupGkrCpuTraceGenerator::default();
+        let logup_gkr_prover = GkrProverImpl::new(logup_gkr_trace_generator);
 
-        // Self { trace_generator, logup_gkr_prover, pcs_prover }
-        unimplemented!()
+        Self { trace_generator, logup_gkr_prover, pcs_prover }
     }
 }
 

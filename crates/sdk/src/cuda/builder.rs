@@ -5,32 +5,24 @@
 use std::sync::Arc;
 
 use super::CudaProver;
-<<<<<<< HEAD
-use crate::cpu::CpuProver;
-use powdr_autoprecompiles::Apc;
-=======
->>>>>>> origin/multilinear_v6
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
 use sp1_cuda::CudaProver as CudaProverImpl;
-<<<<<<< HEAD
 use sp1_primitives::SP1Field;
-=======
-use sp1_prover::worker::SP1LightNode;
->>>>>>> origin/multilinear_v6
+use sp1_prover::{worker::SP1LightNode, CoreProver, SP1ProverComponents};
 
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
 #[derive(Debug, Default)]
-pub struct CudaProverBuilder {
+pub struct CudaProverBuilder<C: SP1ProverComponents> {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 }
 
-impl CudaProverBuilder {
+impl<C: SP1ProverComponents> CudaProverBuilder<C> {
     /// Sets the CUDA device id.
     ///
     /// # Details
@@ -86,13 +78,6 @@ impl CudaProverBuilder {
         self.core_opts(opts)
     }
 
-    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
-    #[must_use]
-    pub fn with_apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
-        self.apcs = apcs;
-        self
-    }
-
     /// Builds a [`CudaProver`].
     ///
     /// # Details
@@ -106,11 +91,7 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
-<<<<<<< HEAD
-        let cpu_prover = CpuProver::new_with_opts(self.core_opts, self.apcs).await;
-=======
         let node = SP1LightNode::with_opts(self.core_opts.unwrap_or_default()).await;
->>>>>>> origin/multilinear_v6
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,

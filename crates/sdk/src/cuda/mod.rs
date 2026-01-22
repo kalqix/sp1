@@ -17,34 +17,24 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::{CudaClientError, CudaProver as CudaProverImpl, CudaProvingKey};
 use sp1_primitives::Elf;
 use sp1_prover::{
-<<<<<<< HEAD
-    components::CpuSP1ApcProverComponents, local::LocalProver, SP1CoreProofData,
-    SP1ProofWithMetadata, SP1VerifyingKey,
-=======
     worker::{SP1LightNode, SP1NodeCore},
-    SP1VerifyingKey,
->>>>>>> origin/multilinear_v6
+    SP1ProverComponents, SP1VerifyingKey,
 };
 
 /// A prover that uses the CPU for execution and the CUDA for proving.
 #[derive(Clone)]
-pub struct CudaProver {
-    pub(crate) node: SP1LightNode,
+pub struct CudaProver<C: SP1ProverComponents> {
+    pub(crate) node: SP1LightNode<C>,
     pub(crate) prover: CudaProverImpl,
 }
 
-impl Prover for CudaProver {
+impl<C: SP1ProverComponents> Prover for CudaProver<C> {
     type ProvingKey = CudaProvingKey;
     type Error = CudaClientError;
     type ProveRequest<'a> = CudaProveRequest<'a>;
 
-<<<<<<< HEAD
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
-        self.cpu_prover.inner()
-=======
     fn inner(&self) -> &SP1NodeCore {
         self.node.inner()
->>>>>>> origin/multilinear_v6
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {

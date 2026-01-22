@@ -49,7 +49,7 @@ pub type WrapSC =
 
 pub trait CoreProver<SC>: AirProver<SP1GlobalContext, SC>
 where
-    SC: ShardContext<SP1GlobalContext>,
+    SC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
     SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
 {
     /// The default verifier for the core prover.
@@ -72,7 +72,7 @@ where
 
 impl<SC, C> CoreProver<SC> for C
 where
-    SC: ShardContext<SP1GlobalContext>,
+    SC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
     SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
     C: AirProver<SP1GlobalContext, SC>,
 {
@@ -133,6 +133,7 @@ impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 
 pub trait SP1ProverComponents: Send + Sync + 'static
 where
+    Self::CoreSC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
     <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
         + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
     Self::CorePcsVerifier: slop_multilinear::MultilinearPcsVerifier<

@@ -6,9 +6,11 @@ use std::pin::Pin;
 
 use powdr_autoprecompiles::Apc;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::SP1GlobalContext;
 use sp1_prover::{
     worker::{SP1LightNode, SP1NodeCore},
-    Groth16Bn254Proof, PlonkBn254Proof, SP1VerifyingKey,
+    Groth16Bn254Proof, PlonkBn254Proof, SP1ProverComponents, SP1VerifyingKey,
 };
 
 use crate::{
@@ -21,21 +23,26 @@ use std::future::{Future, IntoFuture};
 
 /// A mock prover that can be used for testing.
 #[derive(Clone)]
-pub struct MockProver {
-    inner: SP1LightNode,
+pub struct MockProver<C: SP1ProverComponents> {
+    inner: SP1LightNode<C>,
 }
 
-impl MockProver {
+impl MockProver<C> {
     /// Create a new mock prover.
     #[must_use]
-    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
-        Self { inner: SP1LightNode::new(apcs).await }
+    pub async fn new(
+        machine: Machine<
+            SP1Field,
+            <<C as SP1ProverComponents>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+        >,
+    ) -> Self {
+        Self { inner: SP1LightNode::new(machine).await }
     }
 
     /// Create a new mock prover with custom options.
     #[must_use]
-    pub async fn new_with_opts(opts: SP1CoreOpts) -> Self {
-        Self { inner: SP1LightNode::with_opts(opts).await }
+    pub async fn new_with_opts(machine: Machine, opts: SP1CoreOpts) -> Self {
+        Self { inner: SP1LightNode::with_opts(machine, opts).await }
     }
 }
 
@@ -46,11 +53,7 @@ impl Prover for MockProver {
 
     type ProveRequest<'a> = MockProveRequest<'a>;
 
-<<<<<<< HEAD
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>> {
-=======
     fn inner(&self) -> &SP1NodeCore {
->>>>>>> origin/multilinear_v6
         self.inner.inner()
     }
 
@@ -131,13 +134,16 @@ impl<'a> IntoFuture for MockProveRequest<'a> {
 
 #[cfg(test)]
 mod tests {
+    use sp1_core_machine::riscv::RiscvAir;
+    use sp1_prover::CpuSP1ProverComponents;
+
     use crate::{prover::ProveRequest, utils::setup_logger, MockProver, Prover, SP1Stdin};
 
     /// Test mock proof creation and verification for all proof types.
     #[tokio::test]
     async fn test_mock_proof_all_types() {
         setup_logger();
-        let prover = MockProver::new().await;
+        let prover: MockProver<CpuSP1ProverComponents> = MockProver::new(RiscvAir::machine()).await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 
