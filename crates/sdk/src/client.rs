@@ -29,12 +29,14 @@ impl<C: SP1ProverComponents> ProverClient<C> {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     std::env::set_var("SP1_PROVER", "network");
     ///     std::env::set_var("NETWORK_PRIVATE_KEY", "...");
-    ///     let prover = ProverClient::from_env().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::from_env(RiscvAir::machine()).await;
     ///
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
@@ -73,53 +75,68 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder().cpu().build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
     /// ```
     #[must_use]
     pub fn cpu(&self) -> CpuProverBuilder<C> {
-        CpuProverBuilder::default()
+        CpuProverBuilder::new(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder().cuda().build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cuda()
+    ///         .build()
+    ///         .await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
     /// ```
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder<C> {
-        CudaProverBuilder::default()
+        CudaProverBuilder::new_with_opts(self.machine.clone(), None)
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder().network().build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .network()
+    ///         .build()
+    ///         .await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -134,13 +151,19 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use sp1_sdk::{network::NetworkMode, Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     network::NetworkMode, CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient,
+    ///     RiscvAir, SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder().network_for(NetworkMode::Mainnet).build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .network_for(NetworkMode::Mainnet)
+    ///         .build()
+    ///         .await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });

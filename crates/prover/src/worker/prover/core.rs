@@ -13,7 +13,7 @@ use sp1_core_machine::executor::trace_chunk;
 use sp1_hypercube::{
     air::MachineAir,
     prover::{CoreProofShape, ProverSemaphore, ProvingKey},
-    Machine, MachineProof, MachineVerifier, SP1VerifyingKey, ShardContext,
+    Machine, MachineProof, MachineVerifier, SP1Pcs, SP1VerifyingKey, ShardContext,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
@@ -122,14 +122,17 @@ pub struct CoreProvingTask {
     pub metrics: ProverMetrics,
 }
 
-struct NormalizeProgramCompiler<SC: ShardContext<SP1GlobalContext>> {
+struct NormalizeProgramCompiler<
+    SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
+> {
     cache: SP1NormalizeCache<SC::Air>,
     recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, SC::Air, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
     verifier: MachineVerifier<SP1GlobalContext, SC>,
 }
 
-impl<SC: ShardContext<SP1GlobalContext>> NormalizeProgramCompiler<SC>
+impl<SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>>
+    NormalizeProgramCompiler<SC>
 where
     SC::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
 {

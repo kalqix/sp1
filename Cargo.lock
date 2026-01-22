@@ -7615,6 +7615,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "powdr-autoprecompiles",
  "prost",
+ "rand 0.8.5",
  "reqwest",
  "reqwest-middleware",
  "rstest 0.26.1",

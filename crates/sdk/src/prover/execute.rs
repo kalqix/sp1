@@ -35,13 +35,16 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let result = client
     ///         .execute(elf, stdin)
     ///         .with_hook(1, |env, data| {
@@ -74,13 +77,16 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let result = client.execute(elf, stdin).cycle_limit(1000000).await.unwrap();
     /// });
     /// ```
@@ -103,13 +109,16 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let result = client.execute(elf, stdin).deferred_proof_verification(false).await.unwrap();
     /// });
     /// ```
@@ -134,13 +143,16 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let result = client.execute(elf, stdin).calculate_gas(false).await.unwrap();
     /// });
     /// ```

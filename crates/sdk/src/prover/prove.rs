@@ -42,13 +42,19 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
+    /// use sp1_sdk::{
+    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1ProofMode,
+    ///     SP1Stdin,
+    /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).mode(SP1ProofMode::Groth16).await.unwrap();
     /// });
@@ -68,13 +74,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -95,13 +104,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let builder = client.prove(&pk, stdin).plonk().await;
     /// });
@@ -120,13 +132,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).groth16().await.unwrap();
     /// });
@@ -145,13 +160,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).core().await.unwrap();
     /// });
@@ -170,13 +188,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).cycle_limit(1000000).await.unwrap();
     /// });
@@ -200,13 +221,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).deferred_proof_verification(false).await.unwrap();
     /// });

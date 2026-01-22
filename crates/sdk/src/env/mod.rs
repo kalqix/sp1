@@ -60,10 +60,11 @@ impl<C: SP1ProverComponents> EnvProver<C> {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
     /// tokio_test::block_on(async {
-    ///     let mut client = ProverClient::from_env().await;
+    ///     let mut client =
+    ///         ProverClient::<CpuSP1ProverComponents>::from_env(RiscvAir::machine()).await;
     ///     let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
     ///     client = client.with_opts(opts).await;
     /// });
@@ -92,7 +93,9 @@ impl<C: SP1ProverComponents> EnvProver<C> {
 
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine).await),
-            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build().await),
+            "cuda" => {
+                Self::Cuda(CudaProverBuilder::new_with_opts(machine, core_opts).build().await)
+            }
             "mock" => Self::Mock(MockProver::new(machine).await),
             #[cfg(feature = "network")]
             "network" => {

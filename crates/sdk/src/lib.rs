@@ -83,15 +83,101 @@ pub use utils::setup_logger;
 
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
-    use sp1_core_machine::riscv::RiscvAir;
-    use sp1_primitives::io::SP1PublicValues;
+    use std::sync::Arc;
 
-    use crate::{utils, MockProver, Prover, ProverClient, SP1Stdin};
+    use anyhow::Result;
+    use powdr_autoprecompiles::PgoConfig;
+    use sp1_core_executor::{RetainedEventsPreset, SP1CoreOpts};
+    use sp1_core_machine::autoprecompiles::{
+        build_elf, execution_profile_from_guest, sp1_powdr_config, CompiledProgram,
+    };
+    use sp1_core_machine::riscv::RiscvAir;
+    use sp1_core_machine::riscv::RiscvAirWithApcs;
+    use sp1_primitives::{io::SP1PublicValues, Elf};
+    use sp1_prover::components::CpuSP1ApcProverComponents;
+
+    use crate::{
+        utils, CpuProver, CpuSP1ProverComponents, MockProver, ProveRequest, Prover, ProverClient,
+        SP1Stdin,
+    };
+
+    const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
+    const GUEST_KECCAK256_SOFTWARE: &str = "../test-artifacts/programs/keccak256-software";
+
+    fn seeded_random_preimages_with_bounded_len(
+        count: usize,
+        len: usize,
+        seed: u64,
+    ) -> Vec<Vec<u8>> {
+        use rand::{distributions::Distribution, Rng, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
+        (0..count)
+            .map(|_| {
+                let actual_len = rand::distributions::Uniform::new(0_usize, len).sample(&mut rng);
+                (0..actual_len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>()
+            })
+            .collect()
+    }
+
+    fn keccak256_software_stdin(
+        // Number of Keccak hashes to compute
+        count: usize,
+        // Maximum length of each hash input
+        len: usize,
+    ) -> SP1Stdin {
+        let mut stdin = SP1Stdin::default();
+        let preimages = seeded_random_preimages_with_bounded_len(
+            count, len, 1234, // randomness seed
+        );
+        let inputs_len = preimages.len();
+        stdin.write(&inputs_len);
+        for preimage in preimages {
+            stdin.write(&preimage);
+        }
+        stdin
+    }
+
+    async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
+        let elf: Elf = build_elf(guest).into();
+
+        let execution_profile =
+            execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
+
+        let config = sp1_powdr_config(apc_count, apc_skip);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+
+        let apcs = compiled_program
+            .apcs_and_stats
+            .into_iter()
+            .map(|a| a.into_parts())
+            .map(|(apc, _)| Arc::new(apc))
+            .collect();
+
+        utils::setup_logger();
+
+        let machine = RiscvAirWithApcs::machine(apcs);
+        let core_opts = SP1CoreOpts {
+            retained_events_presets: [RetainedEventsPreset::Sha256].into(),
+            ..Default::default()
+        };
+        let client =
+            CpuProver::<CpuSP1ApcProverComponents>::new_with_opts(Some(core_opts), machine).await;
+        let pk = client.setup(elf).await?;
+        let proof = client.prove(&pk, stdin).core().await?;
+        client.verify(&proof, &pk.vk, None)?;
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::builder().cpu().build().await;
+        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+            .cpu()
+            .build()
+            .await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -103,7 +189,10 @@ mod tests {
     #[tokio::test]
     async fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::builder().cpu().build().await;
+        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+            .cpu()
+            .build()
+            .await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -117,7 +206,10 @@ mod tests {
     #[ignore = "The cycle limit logic needs to be reimplemented."]
     async fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::builder().cpu().build().await;
+        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+            .cpu()
+            .build()
+            .await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -218,7 +310,8 @@ mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.minimal_trace_chunk_threshold = 1000;
 
-        let client = MockProver::new_with_opts(RiscvAir::machine(), opts).await;
+        let client =
+            MockProver::<CpuSP1ProverComponents>::new_with_opts(RiscvAir::machine(), opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -238,7 +331,10 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_core() {
         utils::setup_logger();
-        let client = ProverClient::builder().cpu().build().await;
+        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+            .cpu()
+            .build()
+            .await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();
@@ -259,10 +355,8 @@ mod tests {
     async fn test_e2e_core_panic() {
         use sp1_core_executor::StatusCode;
 
-        use crate::{prover::ProveRequest, CpuProver};
-
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAir::machine()).await;
+        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -284,7 +378,7 @@ mod tests {
     // #[tokio::test]
     // async fn test_e2e_io_override() {
     //     utils::setup_logger();
-    //     let client = ProverClient::builder().cpu().build().await;
+    //     let client = ProverClient::builder(RiscvAir::machine()).cpu().build().await;
     //     let elf = test_artifacts::HELLO_WORLD_ELF;
 
     //     let mut stdout = Vec::new();
@@ -298,10 +392,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_compressed() {
-        use crate::{prover::ProveRequest, CpuProver};
-
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAir::machine()).await;
+        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();
@@ -322,10 +414,8 @@ mod tests {
     async fn test_e2e_compressed_panic() {
         use sp1_core_executor::StatusCode;
 
-        use crate::{prover::ProveRequest, CpuProver};
-
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAir::machine()).await;
+        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -345,10 +435,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_plonk() {
-        use crate::{prover::ProveRequest, CpuProver};
-
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAir::machine()).await;
+        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let pk = client.setup(test_artifacts::FIBONACCI_ELF).await.unwrap();
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -359,10 +447,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_groth16() {
-        use crate::{prover::ProveRequest, CpuProver};
-
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAir::machine()).await;
+        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();
@@ -371,5 +457,20 @@ mod tests {
         let proof = client.prove(&pk, stdin).groth16().await.unwrap();
 
         client.verify(&proof, &pk.vk, None).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_apc_fibonacci() -> Result<()> {
+        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
+    }
+
+    #[tokio::test]
+    async fn test_apc_keccak_100() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0).await
+    }
+
+    #[tokio::test]
+    async fn test_apc_keccak_200() -> Result<()> {
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0).await
     }
 }

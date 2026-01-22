@@ -85,13 +85,16 @@ impl<'a, C: SP1ProverComponents> CpuProveBuilder<'a, C> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cpu()
+    ///         .build()
+    ///         .await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).await.unwrap();
     /// });

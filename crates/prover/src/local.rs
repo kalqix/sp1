@@ -900,10 +900,7 @@ struct ProveTask<C: SP1ProverComponents> {
 pub mod tests {
     use slop_jagged::JaggedConfig;
     use sp1_core_executor::RetainedEventsPreset;
-    use sp1_core_machine::{
-        autoprecompiles::{build_elf, sp1_powdr_config},
-        riscv::{RiscvAir, RiscvAirWithApcs},
-    };
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_hypercube::air::MachineAir;
     use tracing::Instrument;
 
@@ -911,7 +908,7 @@ pub mod tests {
 
     use crate::{
         build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev},
-        components::{CpuSP1ApcProverComponents, CpuSP1ProverComponents},
+        components::CpuSP1ProverComponents,
         SP1ProverBuilder,
     };
 
@@ -1047,102 +1044,6 @@ pub mod tests {
         let prover = Arc::new(LocalProver::new(sp1_prover, opts));
 
         test_e2e_prover(prover, &elf, SP1Stdin::default(), Test::OnChain).await
-    }
-
-    const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
-    const GUEST_KECCAK256_SOFTWARE: &str = "../test-artifacts/programs/keccak256-software";
-
-    fn seeded_random_preimages_with_bounded_len(
-        count: usize,
-        len: usize,
-        seed: u64,
-    ) -> Vec<Vec<u8>> {
-        use rand::{distributions::Distribution, Rng, SeedableRng};
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-
-        (0..count)
-            .map(|_| {
-                let actual_len = rand::distributions::Uniform::new(0_usize, len).sample(&mut rng);
-                (0..actual_len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>()
-            })
-            .collect()
-    }
-
-    fn keccak256_software_stdin(
-        // Number of Keccak hashes to compute
-        count: usize,
-        // Maximum length of each hash input
-        len: usize,
-    ) -> SP1Stdin {
-        let mut stdin = SP1Stdin::default();
-        let preimages = seeded_random_preimages_with_bounded_len(
-            count, len, 1234, // randomness seed
-        );
-        let inputs_len = preimages.len();
-        stdin.write(&inputs_len);
-        for preimage in preimages {
-            stdin.write(&preimage);
-        }
-        stdin
-    }
-
-    async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
-        use powdr_autoprecompiles::PgoConfig;
-        use sp1_core_machine::autoprecompiles::execution_profile_from_guest;
-
-        let elf = build_elf(guest);
-
-        let execution_profile =
-            execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
-
-        let config = sp1_powdr_config(apc_count, apc_skip);
-        let pgo_config = PgoConfig::Instruction(execution_profile);
-        let compiled_program =
-            sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
-
-        let apcs = compiled_program
-            .apcs_and_stats
-            .into_iter()
-            .map(|a| a.into_parts())
-            .map(|(apc, _)| Arc::new(apc))
-            .collect();
-
-        setup_logger();
-
-        let machine = RiscvAirWithApcs::machine(apcs);
-
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(machine.clone())
-            .without_vk_verification()
-            .build()
-            .await;
-        let opts = LocalProverOpts {
-            core_opts: SP1CoreOpts {
-                retained_events_presets: [RetainedEventsPreset::Sha256].into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let prover = Arc::new(LocalProver::new(sp1_prover, opts));
-
-        test_e2e_prover(prover, &elf, stdin, Test::Core).await
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_apc_fibonacci() -> Result<()> {
-        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_apc_keccak_100() -> Result<()> {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0).await
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_apc_keccak_200() -> Result<()> {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0).await
     }
 
     #[tokio::test]

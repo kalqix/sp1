@@ -155,6 +155,8 @@ impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 pub trait SP1ProverComponents: Send + Sync + Clone + 'static
 where
     Self::CoreProver: CoreAirProverFactory<SP1GlobalContext, Self::CoreSC>,
+    Self::RecursionProver: CoreAirProverFactory<SP1GlobalContext, RecursionSC>,
+    Self::WrapProver: CoreAirProverFactory<SP1OuterGlobalContext, WrapSC>,
     Self::CoreSC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
     <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
         + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,

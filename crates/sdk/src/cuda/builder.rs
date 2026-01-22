@@ -2,8 +2,6 @@
 //!
 //! This module provides a builder for the [`CudaProver`].
 
-use std::marker::PhantomData;
-
 use super::CudaProver;
 use sp1_core_executor::SP1CoreOpts;
 use sp1_cuda::CudaProver as CudaProverImpl;
@@ -19,20 +17,20 @@ pub struct CudaProverBuilder<C: SP1ProverComponents> {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Option<Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>>,
-    _marker: std::marker::PhantomData<C>,
-}
-
-impl<C: SP1ProverComponents> Default for CudaProverBuilder<C> {
-    fn default() -> Self {
-        Self { cuda_device_id: None, core_opts: None, machine: None, _marker: PhantomData }
-    }
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 }
 
 impl<C: SP1ProverComponents> CudaProverBuilder<C>
 where
     C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
 {
+    pub fn new_with_opts(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        core_opts: Option<SP1CoreOpts>,
+    ) -> Self {
+        Self { machine, cuda_device_id: None, core_opts }
+    }
+
     /// Sets the CUDA device id.
     ///
     /// # Details
@@ -41,9 +39,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
-    /// let prover = ProverClient::builder().cuda().with_device_id(0).build();
+    /// let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     .cuda()
+    ///     .with_device_id(0)
+    ///     .build();
     /// ```
     #[must_use]
     pub fn with_device_id(mut self, id: u32) -> Self {
@@ -56,12 +57,16 @@ where
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cuda()
+    ///         .core_opts(opts)
+    ///         .build()
+    ///         .await;
     /// });
     /// ```
     #[must_use]
@@ -75,40 +80,21 @@ where
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///         .cuda()
+    ///         .with_opts(opts)
+    ///         .build()
+    ///         .await;
     /// });
     /// ```
     #[must_use]
     pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
         self.core_opts(opts)
-    }
-
-    /// Sets the core machine used by the prover.
-    #[must_use]
-    pub fn with_machine(
-        mut self,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> Self {
-        self.machine = Some(machine);
-        self
-    }
-
-    /// Creates a builder using the provided machine.
-    #[must_use]
-    pub fn new_with_machine(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> Self {
-        Self {
-            cuda_device_id: None,
-            core_opts: None,
-            machine: Some(machine),
-            _marker: std::marker::PhantomData,
-        }
     }
 
     /// Builds a [`CudaProver`].
@@ -118,13 +104,15 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
-    /// let prover = ProverClient::builder().cuda().build();
+    /// let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     .cuda()
+    ///     .build();
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver<C> {
-        let machine = self.machine.expect("CudaProverBuilder requires a machine");
+        let machine = self.machine;
         let node = SP1LightNode::with_opts(machine, self.core_opts.unwrap_or_default()).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
