@@ -6,14 +6,19 @@ pub use init::SP1LocalNodeBuilder;
 
 use either::Either;
 use mti::prelude::{MagicTypeIdExt, V7};
+use slop_air::Air;
 use sp1_core_executor::{ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{SP1PcsProofOuter, SP1RecursionProof, SP1VerifyingKey};
-use sp1_primitives::{io::SP1PublicValues, SP1OuterGlobalContext};
+use sp1_hypercube::{
+    MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, SP1PcsProofOuter, SP1RecursionProof,
+    SP1VerifyingKey, ShardContext,
+};
+use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext, SP1OuterGlobalContext};
 use sp1_prover_types::{
     network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType, InMemoryArtifactClient,
     TaskStatus, TaskType,
 };
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 pub use sp1_verifier::{ProofFromNetwork, SP1Proof};
 use tokio::task::JoinSet;
 use tracing::{instrument, Instrument};
@@ -24,27 +29,28 @@ use crate::{
         LocalWorkerClient, ProofId, RawTaskRequest, RequesterId, SP1NodeCore, TaskContext,
         VkeyMapControllerInput, VkeyMapControllerOutput, WorkerClient,
     },
+    CoreProver, SP1ProverComponents,
 };
 
-pub(crate) struct SP1NodeInner {
+pub(crate) struct SP1NodeInner<C: SP1ProverComponents> {
     artifact_client: InMemoryArtifactClient,
     worker_client: LocalWorkerClient,
-    core: SP1NodeCore,
+    core: SP1NodeCore<C>,
     _tasks: JoinSet<()>,
 }
 
-pub struct SP1LocalNode {
-    inner: Arc<SP1NodeInner>,
+pub struct SP1LocalNode<C: SP1ProverComponents> {
+    inner: Arc<SP1NodeInner<C>>,
 }
 
-impl Clone for SP1LocalNode {
+impl<C: SP1ProverComponents> Clone for SP1LocalNode<C> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl SP1LocalNode {
-    pub fn core(&self) -> &SP1NodeCore {
+impl<C: SP1ProverComponents> SP1LocalNode<C> {
+    pub fn core(&self) -> &SP1NodeCore<C> {
         &self.inner.core
     }
 

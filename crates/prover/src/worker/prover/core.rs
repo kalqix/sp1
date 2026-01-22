@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::anyhow;
-use slop_air::BaseAir;
+use slop_air::{Air, BaseAir};
 use slop_algebra::AbstractField;
 use slop_challenger::IopCtx;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
@@ -13,14 +13,17 @@ use sp1_core_machine::{executor::trace_chunk, riscv::RiscvAir};
 use sp1_hypercube::{
     air::MachineAir,
     prover::{CoreProofShape, ProverSemaphore, ProvingKey},
-    Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
+    Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
+    SP1PcsProofInner, SP1VerifyingKey, ShardContext,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
     await_scoped_vec, network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType,
 };
-use sp1_recursion_circuit::shard::RecursiveShardVerifier;
+use sp1_recursion_circuit::{
+    shard::RecursiveShardVerifier, zerocheck::RecursiveVerifierConstraintFolder,
+};
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::RecursionProgram;
 use tokio::sync::OnceCell;
@@ -34,7 +37,7 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CoreSC, SP1CircuitWitness, SP1ProverComponents,
+    CoreProver, SP1CircuitWitness, SP1ProverComponents,
 };
 
 pub struct SetupTask {
@@ -120,36 +123,34 @@ pub struct CoreProvingTask {
     pub metrics: ProverMetrics,
 }
 
-struct NormalizeProgramCompiler {
-    cache: SP1NormalizeCache,
-    recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
+struct NormalizeProgramCompiler<SC: ShardContext<SP1GlobalContext>> {
+    cache: SP1NormalizeCache<SC::Air>,
+    recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, SC::Air, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
-    verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
+    verifier: MachineVerifier<SP1GlobalContext, SC>,
 }
 
-impl NormalizeProgramCompiler {
+impl<SC: ShardContext<SP1GlobalContext>> NormalizeProgramCompiler<SC>
+where
+    SC::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
+{
     pub fn new(
-        cache: SP1NormalizeCache,
-        recursive_verifier: RecursiveShardVerifier<
-            SP1GlobalContext,
-            RiscvAir<SP1Field>,
-            InnerConfig,
-        >,
-
+        cache: SP1NormalizeCache<SC::Air>,
+        recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, SC::Air, InnerConfig>,
         reduce_shape: SP1RecursionProofShape,
-        machine_verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
+        machine_verifier: MachineVerifier<SP1GlobalContext, SC>,
     ) -> Self {
         Self { cache, recursive_verifier, reduce_shape, verifier: machine_verifier }
     }
 
-    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
+    pub fn machine(&self) -> &Machine<SP1Field, SC::Air> {
         self.verifier.machine()
     }
 
     pub fn get_program(
         &self,
         vk: SP1VerifyingKey,
-        proof_shape: &CoreProofShape<SP1Field, RiscvAir<SP1Field>>,
+        proof_shape: &CoreProofShape<SP1Field, SC::Air>,
     ) -> Arc<RecursionProgram<SP1Field>> {
         let shape = SP1NormalizeInputShape {
             proof_shapes: vec![proof_shape.clone()],
@@ -162,7 +163,7 @@ impl NormalizeProgramCompiler {
         }
 
         let input = shape.dummy_input(vk);
-        let mut program = normalize_program_from_input(&self.recursive_verifier, &input);
+        let mut program = normalize_program_from_input::<SC>(&self.recursive_verifier, &input);
         program.shape = Some(self.reduce_shape.shape.clone());
         let program = Arc::new(program);
         self.cache.push(shape, program.clone());
@@ -172,7 +173,8 @@ impl NormalizeProgramCompiler {
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
 pub struct CoreWorker<A, W, C: SP1ProverComponents> {
-    normalize_program_compiler: Arc<NormalizeProgramCompiler>,
+    normalize_program_compiler:
+        Arc<NormalizeProgramCompiler<<C::CoreProver as CoreProver>::CoreSC>>,
     opts: SP1CoreOpts,
     artifact_client: A,
     worker_client: W,
@@ -187,7 +189,9 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        normalize_program_compiler: Arc<NormalizeProgramCompiler>,
+        normalize_program_compiler: Arc<
+            NormalizeProgramCompiler<<C::CoreProver as CoreProver>::CoreSC>,
+        >,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
@@ -210,7 +214,12 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         }
     }
 
-    fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
+    fn machine(
+        &self,
+    ) -> &Machine<
+        SP1Field,
+        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+    > {
         self.normalize_program_compiler.machine()
     }
 }
@@ -538,7 +547,7 @@ where
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier()
+                C::core_verifier(unimplemented!())
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -597,8 +606,11 @@ where
     }
 }
 
-pub type CoreProvingKey<C> =
-    ProvingKey<SP1GlobalContext, CoreSC, <C as SP1ProverComponents>::CoreProver>;
+pub type CoreProvingKey<C> = ProvingKey<
+    SP1GlobalContext,
+    <<C as SP1ProverComponents>::CoreProver as CoreProver>::CoreSC,
+    <C as SP1ProverComponents>::CoreProver,
+>;
 
 /// The Core Proving Key cache is initialized once and shared across all CoreAndNormalizeWorkers.
 pub type CoreProvingKeyCache<C> = Arc<OnceCell<Arc<CoreProvingKey<C>>>>;
@@ -658,7 +670,10 @@ pub type CoreProveSubmitHandle<A, W, C> = SubmitHandle<SP1CoreEngine<A, W, C>>;
 
 pub type SetupSubmitHandle<A, C> = SubmitHandle<SetupEngine<A, C>>;
 
-pub struct SP1CoreProver<A, W, C: SP1ProverComponents> {
+pub struct SP1CoreProver<A, W, C>
+where
+    C: SP1ProverComponents,
+{
     prove_shard_engine: SP1CoreEngine<A, W, C>,
     setup_engine: SetupEngine<A, C>,
 }
@@ -739,9 +754,13 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
+        machine: Machine<
+            SP1Field,
+            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+        >,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 
@@ -795,10 +814,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
 }
 
 /// Given a record, compute the shape of the resulting shard proof.
-fn shape_from_record(
-    verifier: &MachineVerifier<SP1GlobalContext, CoreSC>,
-    record: &ExecutionRecord,
-) -> Option<CoreProofShape<SP1Field, RiscvAir<SP1Field>>> {
+fn shape_from_record<SC: ShardContext<SP1GlobalContext>>(
+    verifier: &MachineVerifier<SP1GlobalContext, SC>,
+    record: &<SC::Air as MachineAir<SP1Field>>::Record,
+) -> Option<CoreProofShape<SP1Field, SC::Air>> {
     let log_stacking_height = verifier.log_stacking_height() as usize;
     let max_log_row_count = verifier.max_log_row_count();
     let airs = verifier.machine().chips();

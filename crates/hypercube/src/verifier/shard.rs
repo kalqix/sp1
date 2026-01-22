@@ -792,9 +792,9 @@ where {
     }
 }
 
-impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, A> ShardVerifier<GC, SP1SC<GC, A>>
+impl<GC: IopCtx<F: TwoAdicField>, SC: ShardContext<GC>> ShardVerifier<GC, SC>
 where
-    A: ZerocheckAir<GC::F, GC::EF>,
+    SC::Air: ZerocheckAir<GC::F, GC::EF>,
     GC::F: PrimeField32,
 {
     /// Create a shard verifier from basefold parameters.
@@ -803,15 +803,16 @@ where
         fri_config: FriConfig<GC::F>,
         log_stacking_height: u32,
         max_log_row_count: usize,
-        machine: Machine<GC::F, A>,
+        machine: Machine<GC::F, SC::Air>,
     ) -> Self {
-        let pcs_verifier = JaggedPcsVerifier::<GC, SP1Pcs<GC>>::new_from_basefold_params(
-            fri_config,
-            log_stacking_height,
-            max_log_row_count,
-            NUM_SP1_COMMITMENTS,
-        );
-        Self { jagged_pcs_verifier: pcs_verifier, machine }
+        // let pcs_verifier = JaggedPcsVerifier::<GC, SP1Pcs<GC>>::new_from_basefold_params(
+        //     fri_config,
+        //     log_stacking_height,
+        //     max_log_row_count,
+        //     NUM_SP1_COMMITMENTS,
+        // );
+        // Self { jagged_pcs_verifier: pcs_verifier, machine }
+        unimplemented!()
     }
 }
 

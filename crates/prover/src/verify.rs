@@ -1,20 +1,11 @@
 use crate::{
     build::{get_groth16_artifacts_build_dir, get_plonk_artifacts_build_dir},
     utils::{is_recursion_public_values_valid, is_root_public_values_valid},
-    CoreSC, CpuSP1ProverComponents, RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
+    CoreProver, CpuSP1ProverComponents, RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
 };
 use anyhow::{anyhow, Result};
+use derive_where::derive_where;
 use num_bigint::BigUint;
-<<<<<<< HEAD
-use slop_air::Air;
-use slop_algebra::{AbstractField, PrimeField, PrimeField64};
-use sp1_core_executor::{subproof::SubproofVerifier, SP1RecursionProof};
-use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
-use sp1_hypercube::{
-    air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    prover::MachineProverComponents,
-    Machine, MachineVerifierConfigError, MachineVerifierError, SP1CoreJaggedConfig, SP1OuterConfig,
-=======
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, PrimeField};
 use slop_challenger::IopCtx;
@@ -22,11 +13,10 @@ use sp1_core_executor::SP1RecursionProof;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    koalabears_to_bn254, verify_merkle_proof, HashableKey, MachineVerifier,
+    koalabears_to_bn254, verify_merkle_proof, HashableKey, Machine, MachineVerifier,
     MachineVerifierConfigError, MachineVerifierError, MachineVerifyingKey, MerkleProof,
     SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner, SP1PcsProofOuter, SP1VerifyingKey, SP1WrapProof,
-    PROOF_MAX_NUM_PVS,
->>>>>>> origin/multilinear_v6
+    ShardContext, PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
@@ -71,18 +61,6 @@ bn254 proof"
     InvalidPublicValues,
 }
 
-<<<<<<< HEAD
-impl<C: SP1ProverComponents> SP1Prover<C>
-where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
-            RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
-        > + for<'a> Air<sp1_hypercube::VerifierConstraintFolder<'a, CoreSC>>,
-{
-    pub fn machine(
-        &self,
-    ) -> &Machine<SP1Field, <C::CoreComponents as MachineProverComponents>::Air> {
-        self.core_prover.machine()
-=======
 /// The verifying key for the program wrapping an SP1 proof into a SNARK friendly format.
 pub const WRAP_VK_BYTES: &[u8] = include_bytes!("../wrap_vk.bin");
 
@@ -126,9 +104,9 @@ impl VerifierRecursionVks {
     }
 }
 
-#[derive(Clone)]
-pub struct SP1Verifier {
-    pub core: MachineVerifier<SP1GlobalContext, CoreSC>,
+#[derive_where(Clone)]
+pub struct SP1Verifier<C: SP1ProverComponents> {
+    pub core: MachineVerifier<SP1GlobalContext, <C::CoreProver as CoreProver>::CoreSC>,
     pub compress: MachineVerifier<SP1GlobalContext, RecursionSC>,
     pub shrink: MachineVerifier<SP1GlobalContext, ShrinkSC>,
     pub wrap: MachineVerifier<SP1OuterGlobalContext, WrapSC>,
@@ -137,13 +115,19 @@ pub struct SP1Verifier {
     pub wrap_vk: MachineVerifyingKey<SP1OuterGlobalContext>,
 }
 
-impl SP1Verifier {
-    pub fn new(recursion_vks: VerifierRecursionVks) -> Self {
+impl<C: SP1ProverComponents> SP1Verifier<C> {
+    pub fn new(
+        recursion_vks: VerifierRecursionVks,
+        machine: Machine<
+            SP1Field,
+            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+        >,
+    ) -> Self {
         // Get the verifiers from the components.
-        let core = CpuSP1ProverComponents::core_verifier();
-        let compress = CpuSP1ProverComponents::compress_verifier();
-        let shrink = CpuSP1ProverComponents::shrink_verifier();
-        let wrap = CpuSP1ProverComponents::wrap_verifier();
+        let core = C::core_verifier(machine);
+        let compress = C::compress_verifier();
+        let shrink = C::shrink_verifier();
+        let wrap = C::wrap_verifier();
 
         // Get the wrap vk from the associated constant.
         let wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
@@ -157,7 +141,6 @@ impl SP1Verifier {
 
     pub fn set_shrink_vk(&mut self, shrink_vk: MachineVerifyingKey<SP1GlobalContext>) {
         self.shrink_vk = Some(shrink_vk);
->>>>>>> origin/multilinear_v6
     }
 
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
@@ -821,55 +804,3 @@ pub fn verify_public_values(
 
     Ok(())
 }
-<<<<<<< HEAD
-
-use crate::{
-    components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
-};
-
-impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C>
-where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<
-            RecursiveVerifierConstraintFolder<'b, sp1_recursion_compiler::config::InnerConfig>,
-        > + for<'a> Air<sp1_hypercube::VerifierConstraintFolder<'a, CoreSC>>,
-{
-    fn verify_deferred_proof(
-        &self,
-        proof: &sp1_core_machine::recursion::SP1RecursionProof<InnerSC>,
-        vk: &sp1_hypercube::MachineVerifyingKey<CoreSC>,
-        vk_hash: [u64; 4],
-        committed_value_digest: [u64; 4],
-    ) -> Result<(), MachineVerifierConfigError<CoreSC>> {
-        // Check that the vk hash matches the vk hash from the input.
-        if vk.hash_u64() != vk_hash {
-            return Err(MachineVerifierError::InvalidPublicValues(
-                "vk hash from syscall does not match vkey from input",
-            ));
-        }
-        // Check that proof is valid.
-        self.verify_compressed(
-            &SP1RecursionProof { vk: proof.vk.clone(), proof: proof.proof.clone() },
-            &SP1VerifyingKey { vk: vk.clone() },
-        )?;
-        // Check that the committed value digest matches the one from syscall
-        let public_values: &RecursionPublicValues<_> =
-            proof.proof.public_values.as_slice().borrow();
-        let pv_committed_value_digest: [u64; 4] = std::array::from_fn(|i| {
-            public_values.committed_value_digest[2 * i]
-                .iter()
-                .chain(public_values.committed_value_digest[2 * i + 1].iter())
-                .enumerate()
-                .fold(0u64, |acc, (j, &val)| acc | (val.as_canonical_u64() << (8 * j)))
-        });
-
-        if committed_value_digest != pv_committed_value_digest {
-            return Err(MachineVerifierError::InvalidPublicValues(
-                "committed_value_digest does not match",
-            ));
-        }
-
-        Ok(())
-    }
-}
-=======
->>>>>>> origin/multilinear_v6

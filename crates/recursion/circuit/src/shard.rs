@@ -514,15 +514,9 @@ mod tests {
         let (pk, vk) = prover.setup(program.clone(), ProverSemaphore::new(1)).await;
         let pk = unsafe { pk.into_inner() };
         let (proof, _) = prove_core::<
-<<<<<<< HEAD
-            SP1Field,
-            CpuMachineProverComponents<SP1CpuJaggedProverComponents, RiscvAir<SP1Field>>,
-            RiscvAir<SP1Field>,
-=======
             SP1GlobalContext,
             InnerSC<_>,
             CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>,
->>>>>>> origin/multilinear_v6
         >(
             verifier.clone(),
             prover,

@@ -186,7 +186,7 @@ where {
     }
 }
 
-impl<GC: IopCtx, SC: ShardContext<GC, Config = SP1Pcs<GC>>> MachineVerifier<GC, SC>
+impl<GC: IopCtx, SC: ShardContext<GC>> MachineVerifier<GC, SC>
 where
     GC::F: TwoAdicField,
     GC::EF: TwoAdicField,
@@ -195,6 +195,7 @@ where
     #[must_use]
     #[inline]
     pub fn fri_config(&self) -> &FriConfig<GC::F> {
-        &self.shard_verifier.jagged_pcs_verifier.pcs_verifier.basefold_verifier.fri_config
+        // &self.shard_verifier.jagged_pcs_verifier.pcs_verifier.basefold_verifier.fri_config
+        unimplemented!()
     }
 }

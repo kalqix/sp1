@@ -1,10 +1,13 @@
-use sp1_hypercube::{log2_ceil_usize, prover::ProverSemaphore};
+use slop_air::Air;
+use sp1_hypercube::{log2_ceil_usize, prover::ProverSemaphore, Machine, ShardContext};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::ArtifactClient;
+use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 
 use crate::{
     shapes::build_vk_map,
     worker::{RawTaskRequest, ShrinkProver, TaskError, VkeyMapChunkInput, VkeyMapChunkOutput},
-    SP1ProverComponents,
+    CoreProver, SP1ProverComponents,
 };
 use std::sync::Arc;
 
@@ -28,7 +31,15 @@ pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
     worker: Arc<RecursionVkWorker<C>>,
     request: RawTaskRequest,
     client: A,
-) -> Result<(), TaskError> {
+    machine: Machine<
+        SP1Field,
+        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+    >,
+) -> Result<(), TaskError>
+where
+    <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air:
+        for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
+{
     let RawTaskRequest { inputs, outputs, .. } = request;
 
     let VkeyMapChunkInput { indices, reduce_batch_size, total_inputs } =
@@ -42,6 +53,7 @@ pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
         reduce_batch_size,
         log2_ceil_usize(total_inputs),
         worker,
+        machine,
     )
     .await;
 

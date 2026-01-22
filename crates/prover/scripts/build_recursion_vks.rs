@@ -1,18 +1,9 @@
 use std::{fs::File, path::PathBuf};
 
 use clap::Parser;
-<<<<<<< HEAD
-use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
-use sp1_prover::{
-    components::CpuSP1ProverComponents,
-    shapes::{build_vk_map_to_file, DEFAULT_ARITY},
-    SP1ProverBuilder,
-};
-=======
 use either::Either;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
->>>>>>> origin/multilinear_v6
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -36,9 +27,6 @@ async fn main() {
     let end = args.end;
     let chunk_size = args.chunk_size;
 
-<<<<<<< HEAD
-    let prover = Arc::new(SP1ProverBuilder::new(RiscvAir::machine()).build().await);
-=======
     let maybe_range = start.and_then(|s| end.map(|e| (s..e).collect::<Vec<usize>>()));
     let maybe_either = maybe_range.map(Either::Left);
     let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
@@ -46,7 +34,6 @@ async fn main() {
         .await
         .unwrap();
     let result = node.build_vks(maybe_either, chunk_size).await.unwrap();
->>>>>>> origin/multilinear_v6
 
     // Create the file to store the vk map.
     let mut file = File::create(build_dir.join("vk_map.bin")).unwrap();

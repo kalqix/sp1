@@ -3,38 +3,38 @@ use std::sync::Arc;
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::{
-    prover::{CpuShardProver, ProverSemaphore},
-    SP1VerifyingKey,
+    prover::{CpuShardProver, ProverSemaphore, ShardProver},
+    SP1VerifyingKey, ShardContext, ShardContextImpl,
 };
-use sp1_primitives::io::SP1PublicValues;
+use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
 use sp1_verifier::SP1Proof;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{node::SP1NodeCore, AirProverWorker},
-    CpuSP1ProverComponents, SP1ProverComponents,
+    CoreProver, CpuSP1ProverComponents, SP1ProverComponents,
 };
 
-struct SP1LightNodeInner {
+struct SP1LightNodeInner<C: SP1ProverComponents> {
     /// The core node is used to execute the program and verify the proof
-    core: SP1NodeCore,
+    core: SP1NodeCore<C>,
     /// The core air prover is used to do the setup step
-    core_air_prover: Arc<<CpuSP1ProverComponents as SP1ProverComponents>::CoreProver>,
+    core_air_prover: Arc<C::CoreProver>,
     /// The permits are used to limit the number of concurrent provers
     permits: ProverSemaphore,
 }
 
-pub struct SP1LightNode {
-    inner: Arc<SP1LightNodeInner>,
+pub struct SP1LightNode<C: SP1ProverComponents> {
+    inner: Arc<SP1LightNodeInner<C>>,
 }
 
-impl Clone for SP1LightNode {
+impl<C: SP1ProverComponents> Clone for SP1LightNode<C> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl SP1LightNode {
+impl<C: SP1ProverComponents> SP1LightNode<C> {
     pub async fn new() -> Self {
         Self::with_opts(SP1CoreOpts::default()).await
     }
@@ -44,13 +44,13 @@ impl SP1LightNode {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
         tokio::task::spawn_blocking(|| {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = CpuSP1ProverComponents::core_verifier();
+            let core_verifier = C::core_verifier(unimplemented!());
             let core_air_prover =
-                Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
+                Arc::new(ShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
             // Get a new verifier for the light(( node.
-            let verifier = SP1Verifier::new(VerifierRecursionVks::default());
+            let verifier = SP1Verifier::new(VerifierRecursionVks::default(), unimplemented!());
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);
 
@@ -85,7 +85,7 @@ impl SP1LightNode {
     }
 
     #[inline]
-    pub fn inner(&self) -> &SP1NodeCore {
+    pub fn inner(&self) -> &SP1NodeCore<C> {
         &self.inner.core
     }
 }

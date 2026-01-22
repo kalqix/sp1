@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::prover::ProverSemaphore;
+use sp1_hypercube::{
+    prover::ProverSemaphore, Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
+    ShardContext,
+};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient};
 
 use crate::{
@@ -12,7 +16,7 @@ use crate::{
         SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
         SetupTask, TaskError, TaskId, WorkerClient,
     },
-    SP1ProverComponents,
+    CoreProver, SP1ProverComponents,
 };
 
 #[derive(Clone)]
@@ -40,6 +44,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         wrap_air_prover_and_permits: (Arc<C::WrapProver>, ProverSemaphore),
+        machine: Machine<
+            SP1Field,
+            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
+        >,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,
@@ -58,6 +66,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
             core_prover_and_permits.0,
             core_prover_and_permits.1,
             recursion_prover.clone(),
+            machine,
         );
 
         let deferred_prover = SP1DeferredProver::new(

@@ -9,9 +9,9 @@ use crate::{
 };
 
 struct SP1WorkerInner<A, W, C: SP1ProverComponents> {
-    controller: SP1Controller<A, W>,
+    controller: SP1Controller<C, A, W>,
     prover_engine: SP1ProverEngine<A, W, C>,
-    verifier: SP1Verifier,
+    verifier: SP1Verifier<C>,
 }
 
 /// A worker that can be used to run tasks for the SP1 distributed prover.
@@ -34,16 +34,16 @@ impl<A, W, C: SP1ProverComponents> Clone for SP1Worker<A, W, C> {
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1Worker<A, W, C> {
     /// Create a new worker.
     pub fn new(
-        controller: SP1Controller<A, W>,
+        controller: SP1Controller<C, A, W>,
         prover_engine: SP1ProverEngine<A, W, C>,
-        verifier: SP1Verifier,
+        verifier: SP1Verifier<C>,
     ) -> Self {
         Self { inner: Arc::new(SP1WorkerInner { controller, prover_engine, verifier }) }
     }
 
     /// Get a reference to the underlying controller.
     #[inline]
-    pub fn controller(&self) -> &SP1Controller<A, W> {
+    pub fn controller(&self) -> &SP1Controller<C, A, W> {
         &self.inner.controller
     }
 
@@ -55,7 +55,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1Worker<A, W,
 
     /// Get a reference to the underlying verifier.
     #[inline]
-    pub fn verifier(&self) -> &SP1Verifier {
+    pub fn verifier(&self) -> &SP1Verifier<C> {
         &self.inner.verifier
     }
 

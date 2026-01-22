@@ -4,8 +4,10 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_bn254::Bn254Fr;
-use sp1_hypercube::{koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardProof};
-use sp1_primitives::{io::sha256_hash, SP1Field, SP1OuterGlobalContext};
+use sp1_hypercube::{
+    koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardContext, ShardProof,
+};
+use sp1_primitives::{io::sha256_hash, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
 use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1ShapedWitnessValues, SP1WrapVerifier},
@@ -45,7 +47,7 @@ use crate::{
     recursion::RecursionVks,
     utils::words_to_bytes,
     worker::DEFAULT_MAX_COMPOSE_ARITY,
-    SP1_CIRCUIT_VERSION,
+    WrapSC, SP1_CIRCUIT_VERSION,
 };
 
 pub(crate) fn get_plonk_artifacts_build_dir(
@@ -330,7 +332,7 @@ fn build_outer_circuit(
     let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
     let wrap_verifier = wrap_verifier.shard_verifier();
     let recursive_wrap_verifier =
-        crate::recursion::recursive_verifier::<_, _, OuterConfig>(wrap_verifier);
+        crate::recursion::recursive_verifier::<_, WrapSC, OuterConfig>(wrap_verifier);
 
     let wrap_span = tracing::debug_span!("build wrap circuit").entered();
     let mut builder = Builder::<OuterConfig>::default();

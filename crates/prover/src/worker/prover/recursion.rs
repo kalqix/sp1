@@ -448,13 +448,13 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             let vk_map_path = config.vk_map_file.as_ref().map(std::path::PathBuf::from);
 
             let recursion_vks =
-RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
+                RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
 
             let recursion_vks_height = recursion_vks.height();
 
             let compress_verifier = C::compress_verifier();
             let recursive_compress_verifier =
-                recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
+                recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
             for arity in 1..=config.max_compose_arity {

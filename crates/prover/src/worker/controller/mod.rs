@@ -39,7 +39,7 @@ use tracing::Instrument;
 use crate::{
     verify::SP1Verifier,
     worker::{RawTaskRequest, TaskContext, TaskError, WorkerClient},
-    SP1_CIRCUIT_VERSION,
+    CpuSP1ProverComponents, SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
 
 #[derive(Clone)]
@@ -67,17 +67,18 @@ pub struct SP1ControllerConfig {
     pub global_memory_buffer_size: usize,
 }
 
-pub struct SP1Controller<A, W> {
+pub struct SP1Controller<C: SP1ProverComponents, A, W> {
     config: SP1ControllerConfig,
     setup_cache: Arc<Mutex<LruCache<Artifact, SP1VerifyingKey>>>,
     pub(crate) artifact_client: A,
     pub(crate) worker_client: W,
-    pub(crate) verifier: SP1Verifier,
+    pub(crate) verifier: SP1Verifier<C>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
 }
 
-impl<A, W> SP1Controller<A, W>
+impl<C, A, W> SP1Controller<C, A, W>
 where
+    C: SP1ProverComponents,
     A: ArtifactClient,
     W: WorkerClient,
 {
@@ -85,7 +86,7 @@ where
         config: SP1ControllerConfig,
         artifact_client: A,
         worker_client: W,
-        verifier: SP1Verifier,
+        verifier: SP1Verifier<C>,
     ) -> Self {
         let minimal_executor_cache =
             if config.use_fixed_pk { Some(MinimalExecutorCache::empty()) } else { None };

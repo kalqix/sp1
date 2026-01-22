@@ -10,6 +10,7 @@ use sp1_prover_types::{ArtifactClient, TaskType};
 use crate::{
     shapes::create_all_input_shapes,
     worker::{RawTaskRequest, SP1Controller, TaskError, TaskMetadata, WorkerClient},
+    SP1ProverComponents,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +39,7 @@ pub struct VkeyMapChunkOutput {
     pub panic_indices: Vec<usize>,
 }
 
-impl<A: ArtifactClient, W: WorkerClient> SP1Controller<A, W> {
+impl<C: SP1ProverComponents, A: ArtifactClient, W: WorkerClient> SP1Controller<C, A, W> {
     pub async fn run_sp1_util_vkey_map_controller(
         &self,
         request: RawTaskRequest,

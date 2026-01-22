@@ -6,7 +6,7 @@ use std::{
 use slop_algebra::extension::BinomialExtensionField;
 use slop_challenger::IopCtx;
 use slop_jagged::{DefaultJaggedProver, JaggedProver};
-use slop_multilinear::MultilinearPcsVerifier;
+use slop_multilinear::{MultilinearPcsProver, MultilinearPcsVerifier};
 use slop_stacked::StackedPcsProver;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
@@ -14,8 +14,9 @@ use super::{
     DefaultTraceGenerator, MachineProverBuilder, ProverSemaphore, ShardProver, ZerocheckAir,
 };
 use crate::{
-    prover::SP1MerkleTreeProver, GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs,
-    ShardContextImpl, ShardVerifier,
+    prover::{PcsProof, SP1MerkleTreeProver},
+    GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs, ShardContext, ShardContextImpl,
+    ShardVerifier,
 };
 
 type SC<GC, Verifier, A> = ShardContextImpl<GC, Verifier, A>;
@@ -65,24 +66,21 @@ where
     }
 }
 
-impl<GC, Verifier, A, PcsComponents> CpuShardProver<GC, Verifier, PcsComponents, A>
-where
-    GC: IopCtx,
-    Verifier: MultilinearPcsVerifier<GC>,
-    PcsComponents: DefaultJaggedProver<GC, Verifier>,
-    A: ZerocheckAir<GC::F, GC::EF>,
+impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, SC>>>
+    ShardProver<GC, SC, C>
 {
     /// Create a new CPU prover.
     #[must_use]
-    pub fn new(verifier: ShardVerifier<GC, ShardContextImpl<GC, Verifier, A>>) -> Self {
-        // Construct the shard prover.
-        let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
-        let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);
-        let trace_generator = DefaultTraceGenerator::new(machine);
-        let logup_gkr_trace_generator = LogupGkrCpuTraceGenerator::default();
-        let logup_gkr_prover = GkrProverImpl::new(logup_gkr_trace_generator);
+    pub fn new(verifier: ShardVerifier<GC, SC>) -> Self {
+        // // Construct the shard prover.
+        // let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
+        // let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);
+        // let trace_generator = DefaultTraceGenerator::new(machine);
+        // let logup_gkr_trace_generator = LogupGkrCpuTraceGenerator::default();
+        // let logup_gkr_prover = GkrProverImpl::new(logup_gkr_trace_generator);
 
-        Self { trace_generator, logup_gkr_prover, pcs_prover }
+        // Self { trace_generator, logup_gkr_prover, pcs_prover }
+        unimplemented!()
     }
 }
 
