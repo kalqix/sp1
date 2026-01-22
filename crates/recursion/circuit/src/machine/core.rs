@@ -10,8 +10,6 @@ use slop_challenger::IopCtx;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::riscv::RiscvAir;
-
 use sp1_hypercube::air::{MachineAir, PublicValues, SP1CorePublicValues};
 
 use sp1_hypercube::{air::ShardRange, MachineVerifyingKey, ShardProof};

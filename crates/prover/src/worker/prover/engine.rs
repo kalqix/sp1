@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::{
-    prover::ProverSemaphore, Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
-    ShardContext,
-};
+use sp1_hypercube::{prover::ProverSemaphore, Machine, ShardContext};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient};
 
@@ -16,7 +13,7 @@ use crate::{
         SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
         SetupTask, TaskError, TaskId, WorkerClient,
     },
-    CoreProver, SP1ProverComponents,
+    SP1ProverComponents,
 };
 
 #[derive(Clone)]

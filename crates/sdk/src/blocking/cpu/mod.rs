@@ -11,10 +11,12 @@ use anyhow::Result;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{Elf, SP1Field, SP1GlobalContext};
 use sp1_prover::worker::{
-    cpu_worker_builder, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
+    cpu_worker_builder_with_machine, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
 };
+use sp1_prover::{CpuSP1ProverComponents, SP1ProverComponents};
 
 use crate::blocking::prover::Prover;
 use crate::SP1ProvingKey;
@@ -23,14 +25,8 @@ use thiserror::Error;
 
 /// A prover that uses the CPU to execute and prove programs.
 #[derive(Clone)]
-pub struct CpuProver {
-    pub(crate) prover: Arc<SP1LocalNode>,
-}
-
-impl Default for CpuProver {
-    fn default() -> Self {
-        Self::new_with_opts(None)
-    }
+pub struct CpuProver<C: SP1ProverComponents> {
+    pub(crate) prover: Arc<SP1LocalNode<C>>,
 }
 
 /// An error occurred while proving.
@@ -49,12 +45,13 @@ pub enum CPUProverError {
     Unexpected(#[from] anyhow::Error),
 }
 
-impl Prover for CpuProver {
+impl<C: SP1ProverComponents> Prover for CpuProver<C> {
+    type Components = C;
     type ProvingKey = SP1ProvingKey;
     type Error = CPUProverError;
-    type ProveRequest<'a> = CpuProveBuilder<'a>;
+    type ProveRequest<'a> = CpuProveBuilder<'a, C>;
 
-    fn inner(&self) -> &SP1NodeCore {
+    fn inner(&self) -> &SP1NodeCore<C> {
         self.prover.core()
     }
 
@@ -70,17 +67,23 @@ impl Prover for CpuProver {
     }
 }
 
-impl CpuProver {
+impl<C: SP1ProverComponents> CpuProver<C> {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
-    pub fn new() -> Self {
-        Self::new_with_opts(None)
+    pub fn new(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::new_with_opts(None, machine)
     }
 
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
-    pub fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
-        let worker_builder = cpu_worker_builder().with_core_opts(core_opts.unwrap_or_default());
+    pub fn new_with_opts(
+        core_opts: Option<sp1_core_executor::SP1CoreOpts>,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        let worker_builder =
+            cpu_worker_builder_with_machine(machine).with_core_opts(core_opts.unwrap_or_default());
         let prover = Arc::new(
             crate::blocking::block_on(
                 SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build(),
@@ -98,7 +101,9 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub fn new_experimental() -> Self {
-        Self::new_with_opts(None)
+    pub fn new_experimental(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::new_with_opts(None, machine)
     }
 }

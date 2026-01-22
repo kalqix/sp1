@@ -15,28 +15,23 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
-use sp1_prover::worker::SP1NodeCore;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{Elf, SP1Field, SP1GlobalContext};
+use sp1_prover::{worker::SP1NodeCore, SP1ProverComponents};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
 #[derive(Clone)]
-pub enum EnvProver {
+pub enum EnvProver<C: SP1ProverComponents> {
     /// A mock prover that does not prove anything.
-    Mock(MockProver),
+    Mock(MockProver<C>),
     /// A CPU prover.
-    Cpu(CpuProver),
+    Cpu(CpuProver<C>),
     /// A CUDA prover.
-    Cuda(CudaProver),
+    Cuda(CudaProver<C>),
 }
 
-impl Default for EnvProver {
-    fn default() -> Self {
-        Self::from_env_with_opts(None)
-    }
-}
-
-impl EnvProver {
+impl<C: SP1ProverComponents> EnvProver<C> {
     /// Creates a new [`EnvProver`] from the environment.
     ///
     /// This method will read from the `SP1_PROVER` environment variable to determine which prover
@@ -44,8 +39,10 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::from_env_with_opts(None, machine)
     }
 
     /// Updates the core options for this prover.
@@ -63,8 +60,11 @@ impl EnvProver {
     /// client = client.with_opts(opts);
     /// ```
     #[must_use]
-    pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
-        Self::from_env_with_opts(Some(opts))
+    pub fn with_opts(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        opts: SP1CoreOpts,
+    ) -> Self {
+        Self::from_env_with_opts(Some(opts), machine)
     }
 
     /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
@@ -74,28 +74,32 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
-    pub fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
+    pub fn from_env_with_opts(
+        core_opts: Option<SP1CoreOpts>,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts)),
-            "cuda" => Self::Cuda(CudaProverBuilder::default().build()),
-            "mock" => Self::Mock(MockProver::new()),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine)),
+            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build()),
+            "mock" => Self::Mock(MockProver::new(machine)),
             "network" => panic!("The network prover is not supported in the blocking client"),
             _ => unreachable!(),
         }
     }
 }
 
-impl Prover for EnvProver {
+impl<C: SP1ProverComponents> Prover for EnvProver<C> {
+    type Components = C;
     type Error = anyhow::Error;
     type ProvingKey = EnvProvingKey;
-    type ProveRequest<'a> = prove::EnvProveRequest<'a>;
+    type ProveRequest<'a> = prove::EnvProveRequest<'a, C>;
 
-    fn inner(&self) -> &SP1NodeCore {
+    fn inner(&self) -> &SP1NodeCore<C> {
         match self {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),

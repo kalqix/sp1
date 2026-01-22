@@ -3,9 +3,11 @@
 //! A mock prover that can be used for testing.
 
 use sp1_core_machine::io::SP1Stdin;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover::{
     worker::{SP1LightNode, SP1NodeCore},
-    Groth16Bn254Proof, PlonkBn254Proof, SP1VerifyingKey,
+    Groth16Bn254Proof, PlonkBn254Proof, SP1ProverComponents, SP1VerifyingKey,
 };
 
 use crate::{
@@ -20,33 +22,29 @@ use crate::{
 
 /// A mock prover that can be used for testing.
 #[derive(Clone)]
-pub struct MockProver {
-    inner: SP1LightNode,
+pub struct MockProver<C: SP1ProverComponents> {
+    inner: SP1LightNode<C>,
 }
 
-impl Default for MockProver {
-    fn default() -> Self {
-        let node = block_on(SP1LightNode::new());
-        Self { inner: node }
-    }
-}
-
-impl MockProver {
+impl<C: SP1ProverComponents> MockProver<C> {
     /// Create a new mock prover.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self { inner: block_on(SP1LightNode::new(machine)) }
     }
 }
 
-impl Prover for MockProver {
+impl<C: SP1ProverComponents> Prover for MockProver<C> {
+    type Components = C;
     type ProvingKey = SP1ProvingKey;
 
     type Error = CPUProverError;
 
-    type ProveRequest<'a> = MockProveRequest<'a>;
+    type ProveRequest<'a> = MockProveRequest<'a, C>;
 
-    fn inner(&self) -> &SP1NodeCore {
+    fn inner(&self) -> &SP1NodeCore<C> {
         self.inner.inner()
     }
 
@@ -82,12 +80,12 @@ impl Prover for MockProver {
 }
 
 /// A mock prove request that can be used for testing.
-pub struct MockProveRequest<'a> {
-    pub(crate) base: BaseProveRequest<'a, MockProver>,
+pub struct MockProveRequest<'a, C: SP1ProverComponents> {
+    pub(crate) base: BaseProveRequest<'a, MockProver<C>>,
 }
 
-impl<'a> ProveRequest<'a, MockProver> for MockProveRequest<'a> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, MockProver> {
+impl<'a, C: SP1ProverComponents> ProveRequest<'a, MockProver<C>> for MockProveRequest<'a, C> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, MockProver<C>> {
         &mut self.base
     }
 
@@ -107,6 +105,8 @@ impl<'a> ProveRequest<'a, MockProver> for MockProveRequest<'a> {
 
 #[cfg(test)]
 mod tests {
+    use sp1_prover::CpuSP1ProverComponents;
+
     use crate::{
         blocking::prover::{ProveRequest, Prover},
         utils::setup_logger,
@@ -119,7 +119,8 @@ mod tests {
     #[test]
     fn test_mock_proof_all_types() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Test Core proof.
@@ -160,7 +161,8 @@ mod tests {
     #[test]
     fn test_mock_proof_public_values() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -181,7 +183,8 @@ mod tests {
     #[test]
     fn test_mock_plonk_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
 
         // Setup two different programs.
         let pk1 =
@@ -204,7 +207,8 @@ mod tests {
     #[test]
     fn test_mock_groth16_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
 
         // Setup two different programs.
         let pk1 =
@@ -227,7 +231,8 @@ mod tests {
     #[test]
     fn test_mock_plonk_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Create a Plonk proof.
@@ -248,7 +253,8 @@ mod tests {
     #[test]
     fn test_mock_groth16_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new();
+        let prover =
+            MockProver::<CpuSP1ProverComponents>::new(sp1_core_machine::riscv::RiscvAir::machine());
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Create a Groth16 proof.

@@ -17,17 +17,22 @@ use crate::{
     utils::proof_mode,
     SP1ProofWithPublicValues, SP1ProvingKey,
 };
+use sp1_prover::SP1ProverComponents;
 
 /// A builder for proving a program on the CPU.
 ///
 /// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
 /// used for only the [`crate::cpu::CpuProver`] client type.
-pub struct CpuProveBuilder<'a> {
-    pub(crate) base: BaseProveRequest<'a, CpuProver>,
+pub struct CpuProveBuilder<'a, C: SP1ProverComponents> {
+    pub(crate) base: BaseProveRequest<'a, CpuProver<C>>,
 }
 
-impl<'a> CpuProveBuilder<'a> {
-    pub(super) const fn new(prover: &'a CpuProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+impl<'a, C: SP1ProverComponents> CpuProveBuilder<'a, C> {
+    pub(super) const fn new(
+        prover: &'a CpuProver<C>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
         Self { base: BaseProveRequest::new(prover, pk, stdin) }
     }
 
@@ -103,13 +108,13 @@ impl<'a> CpuProveBuilder<'a> {
     }
 }
 
-impl<'a> ProveRequest<'a, CpuProver> for CpuProveBuilder<'a> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, CpuProver> {
+impl<'a, C: SP1ProverComponents> ProveRequest<'a, CpuProver<C>> for CpuProveBuilder<'a, C> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, CpuProver<C>> {
         &mut self.base
     }
 }
 
-impl<'a> IntoFuture for CpuProveBuilder<'a> {
+impl<'a, C: SP1ProverComponents> IntoFuture for CpuProveBuilder<'a, C> {
     type Output = Result<SP1ProofWithPublicValues, CPUProverError>;
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 

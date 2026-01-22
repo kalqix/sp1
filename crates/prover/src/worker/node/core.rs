@@ -1,21 +1,17 @@
 use std::sync::Arc;
 
-use slop_air::Air;
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 
-use sp1_hypercube::{
-    MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, SP1VerifyingKey, ShardContext,
-};
-use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
+use sp1_hypercube::SP1VerifyingKey;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_verifier::SP1Proof;
 use tracing::instrument;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{execute_with_options, SP1ExecutorConfig},
-    CpuSP1ProverComponents, SP1CoreProofData, SP1ProverComponents,
+    SP1CoreProofData, SP1ProverComponents,
 };
 
 struct SP1NodeCoreInner<C: SP1ProverComponents> {

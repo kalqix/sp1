@@ -10,18 +10,12 @@ use std::sync::Arc;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::Machine;
-use sp1_primitives::Elf;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{Elf, SP1Field, SP1GlobalContext};
 use sp1_prover::worker::{
-    cpu_worker_builder, cpu_worker_builder_with_machine, SP1LocalNode, SP1LocalNodeBuilder,
-    SP1NodeCore, TaskError,
+    cpu_worker_builder_with_machine, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
 };
-use sp1_prover::{
-    // verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
-    SP1CoreProofData,
-    SP1ProofWithMetadata,
-    SP1ProverComponents,
-};
+use sp1_prover::SP1ProverComponents;
 
 use crate::{
     prover::{Prover, SendFutureResult},
@@ -53,11 +47,12 @@ pub enum CPUProverError {
 }
 
 impl<C: SP1ProverComponents> Prover for CpuProver<C> {
+    type Components = C;
     type ProvingKey = SP1ProvingKey;
     type Error = CPUProverError;
-    type ProveRequest<'a> = CpuProveBuilder<'a>;
+    type ProveRequest<'a> = CpuProveBuilder<'a, C>;
 
-    fn inner(&self) -> &SP1NodeCore {
+    fn inner(&self) -> &SP1NodeCore<C> {
         self.prover.core()
     }
 
@@ -73,7 +68,7 @@ impl<C: SP1ProverComponents> Prover for CpuProver<C> {
     }
 }
 
-impl CpuProver {
+impl<C: SP1ProverComponents> CpuProver<C> {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     pub async fn new(
         machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
@@ -107,7 +102,9 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub async fn new_experimental() -> Self {
-        Self::new_with_opts(None).await
+    pub async fn new_experimental(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::new_with_opts(None, machine).await
     }
 }

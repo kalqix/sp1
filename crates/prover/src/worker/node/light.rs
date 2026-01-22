@@ -1,37 +1,16 @@
 use std::sync::Arc;
 
-use slop_challenger::IopCtx;
-use slop_jagged::DefaultJaggedProver;
-use slop_multilinear::MultilinearPcsProver;
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{
-    prover::{AirProver, PcsProof, ProverSemaphore, ShardProver},
-    Machine, SP1VerifyingKey, ShardContext, ShardVerifier,
-};
+use sp1_hypercube::{prover::ProverSemaphore, Machine, SP1VerifyingKey, ShardContext};
 use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use sp1_verifier::SP1Proof;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{node::SP1NodeCore, AirProverWorker},
-    SP1ProverComponents,
+    CoreAirProverFactory, SP1ProverComponents,
 };
-
-pub trait CoreAirProverFactory<GC: IopCtx, SC: ShardContext<GC>>: AirProver<GC, SC> {
-    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self;
-}
-
-impl<GC, SC, Pcs> CoreAirProverFactory<GC, SC> for ShardProver<GC, SC, Pcs>
-where
-    GC: IopCtx,
-    SC: ShardContext<GC>,
-    Pcs: MultilinearPcsProver<GC, PcsProof<GC, SC>> + DefaultJaggedProver<GC, SC::Config>,
-{
-    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self {
-        ShardProver::new(verifier)
-    }
-}
 
 struct SP1LightNodeInner<C: SP1ProverComponents> {
     /// The core node is used to execute the program and verify the proof
@@ -55,7 +34,6 @@ impl<C: SP1ProverComponents> Clone for SP1LightNode<C> {
 impl<C> SP1LightNode<C>
 where
     C: SP1ProverComponents,
-    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
 {
     pub async fn new(
         machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,

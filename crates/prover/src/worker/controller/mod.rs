@@ -39,7 +39,7 @@ use tracing::Instrument;
 use crate::{
     verify::SP1Verifier,
     worker::{RawTaskRequest, TaskContext, TaskError, WorkerClient},
-    CpuSP1ProverComponents, SP1ProverComponents, SP1_CIRCUIT_VERSION,
+    SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
 
 #[derive(Clone)]

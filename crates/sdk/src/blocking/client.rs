@@ -2,9 +2,15 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
+use std::marker::PhantomData;
+
 use crate::blocking::{
     cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
 };
+use derive_where::derive_where;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_prover::SP1ProverComponents;
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
@@ -13,9 +19,12 @@ use crate::blocking::{
 ///
 /// Note that the initialization may be slow as it loads necessary proving parameters and sets up
 /// the environment.
-pub struct ProverClient;
+#[derive_where(Default)]
+pub struct ProverClient<C> {
+    _marker: PhantomData<C>,
+}
 
-impl ProverClient {
+impl<C: SP1ProverComponents> ProverClient<C> {
     /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -32,21 +41,26 @@ impl ProverClient {
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
     #[must_use]
-    pub fn from_env() -> EnvProver {
-        EnvProver::new()
+    pub fn from_env(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> EnvProver<C> {
+        EnvProver::new(machine)
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder() -> ProverClientBuilder {
-        ProverClientBuilder
+    pub fn builder() -> ProverClientBuilder<C> {
+        ProverClientBuilder::default()
     }
 }
 
 /// A builder to define which proving client to use.
-pub struct ProverClientBuilder;
+#[derive_where(Default)]
+pub struct ProverClientBuilder<C> {
+    _marker: PhantomData<C>,
+}
 
-impl ProverClientBuilder {
+impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// Builds a [`CpuProver`] specifically for local CPU proving.
     ///
     /// # Usage
@@ -62,7 +76,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     #[allow(clippy::unused_self)]
-    pub fn cpu(&self) -> CpuProverBuilder {
+    pub fn cpu(&self) -> CpuProverBuilder<C> {
         CpuProverBuilder::new()
     }
 
@@ -81,7 +95,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     #[allow(clippy::unused_self)]
-    pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::default()
+    pub fn cuda(&self) -> CudaProverBuilder<C> {
+        CudaProverBuilder::new()
     }
 }

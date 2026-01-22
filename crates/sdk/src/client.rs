@@ -2,11 +2,12 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use std::sync::Arc;
+use std::marker::PhantomData;
 
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
-use sp1_primitives::SP1Field;
+use derive_where::derive_where;
+use sp1_hypercube::{Machine, ShardContext};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_prover::SP1ProverComponents;
 
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
 
@@ -20,9 +21,11 @@ use crate::network::{builder::NetworkProverBuilder, NetworkMode};
 ///
 /// Note that the initialization may be slow as it loads necessary proving parameters and sets up
 /// the environment.
-pub struct ProverClient;
+pub struct ProverClient<C> {
+    _marker: PhantomData<C>,
+}
 
-impl ProverClient {
+impl<C: SP1ProverComponents> ProverClient<C> {
     /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -42,27 +45,34 @@ impl ProverClient {
     /// });
     /// ```
     #[must_use]
-    pub async fn from_env() -> EnvProver {
-        EnvProver::new(Vec::new()).await
+    pub async fn from_env(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> EnvProver<C> {
+        EnvProver::new(machine).await
     }
 
-    /// Like `from_env`, but allows you to specify the APCs to use.
+    /// Like `from_env`, but allows you to specify the machine to use.
     #[must_use]
-    pub async fn from_env_with_apcs(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> EnvProver {
-        EnvProver::new(apcs).await
+    pub async fn from_env_with_machine(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> EnvProver<C> {
+        EnvProver::new(machine).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder() -> ProverClientBuilder {
-        ProverClientBuilder
+    pub fn builder() -> ProverClientBuilder<C> {
+        ProverClientBuilder::default()
     }
 }
 
 /// A builder to define which proving client to use.
-pub struct ProverClientBuilder;
+#[derive_where(Default)]
+pub struct ProverClientBuilder<C> {
+    _marker: PhantomData<C>,
+}
 
-impl ProverClientBuilder {
+impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// Builds a [`CpuProver`] specifically for local CPU proving.
     ///
     /// # Usage
@@ -79,7 +89,7 @@ impl ProverClientBuilder {
     /// });
     /// ```
     #[must_use]
-    pub fn cpu(&self) -> CpuProverBuilder {
+    pub fn cpu(&self) -> CpuProverBuilder<C> {
         CpuProverBuilder::default()
     }
 
@@ -99,7 +109,7 @@ impl ProverClientBuilder {
     /// });
     /// ```
     #[must_use]
-    pub fn cuda(&self) -> CudaProverBuilder {
+    pub fn cuda(&self) -> CudaProverBuilder<C> {
         CudaProverBuilder::default()
     }
 

@@ -2,12 +2,9 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use alloy_primitives::Address;
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
-use sp1_primitives::SP1Field;
 
 use crate::{
     network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
@@ -18,12 +15,13 @@ use crate::{
 ///
 /// The builder is used to configure the [`NetworkProver`] before it is built.
 #[derive(Default)]
-pub struct NetworkProverBuilder {
+pub struct NetworkProverBuilder<C> {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
+    _marker: PhantomData<C>,
 }
 
 impl NetworkProverBuilder {
@@ -171,7 +169,7 @@ impl NetworkProverBuilder {
     /// # }
     /// ```
     #[must_use]
-    pub async fn build(self) -> NetworkProver {
+    pub async fn build(self) -> NetworkProver<C> {
         let signer = if let Some(provided_signer) = self.signer {
             provided_signer
         } else {

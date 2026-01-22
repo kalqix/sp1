@@ -29,11 +29,12 @@ pub struct CudaProver<C: SP1ProverComponents> {
 }
 
 impl<C: SP1ProverComponents> Prover for CudaProver<C> {
+    type Components = C;
     type ProvingKey = CudaProvingKey;
     type Error = CudaClientError;
-    type ProveRequest<'a> = CudaProveRequest<'a>;
+    type ProveRequest<'a> = CudaProveRequest<'a, C>;
 
-    fn inner(&self) -> &SP1NodeCore {
+    fn inner(&self) -> &SP1NodeCore<C> {
         self.node.inner()
     }
 

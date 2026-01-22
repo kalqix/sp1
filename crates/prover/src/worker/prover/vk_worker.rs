@@ -7,7 +7,7 @@ use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use crate::{
     shapes::build_vk_map,
     worker::{RawTaskRequest, ShrinkProver, TaskError, VkeyMapChunkInput, VkeyMapChunkOutput},
-    CoreProver, SP1ProverComponents,
+    SP1ProverComponents,
 };
 use std::sync::Arc;
 

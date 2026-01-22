@@ -12,7 +12,7 @@ use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{ProverSemaphore, ShardProver},
-    Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, ShardContext,
+    Machine, ShardContext,
 };
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};

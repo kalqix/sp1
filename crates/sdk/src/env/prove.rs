@@ -6,19 +6,29 @@ use std::{
 use super::{EnvProver, EnvProvingKey};
 use crate::{prover::BaseProveRequest, ProveRequest, Prover, SP1ProofWithPublicValues};
 use anyhow::Result;
+use sp1_prover::SP1ProverComponents;
 
 /// A prover request for the [`EnvProver`].
-pub struct EnvProveRequest<'a> {
-    pub(crate) base: BaseProveRequest<'a, EnvProver>,
+pub struct EnvProveRequest<'a, C>
+where
+    C: SP1ProverComponents,
+{
+    pub(crate) base: BaseProveRequest<'a, EnvProver<C>>,
 }
 
-impl<'a> ProveRequest<'a, EnvProver> for EnvProveRequest<'a> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, EnvProver> {
+impl<'a, C> ProveRequest<'a, EnvProver<C>> for EnvProveRequest<'a, C>
+where
+    C: SP1ProverComponents,
+{
+    fn base(&mut self) -> &mut BaseProveRequest<'a, EnvProver<C>> {
         &mut self.base
     }
 }
 
-impl<'a> IntoFuture for EnvProveRequest<'a> {
+impl<'a, C> IntoFuture for EnvProveRequest<'a, C>
+where
+    C: SP1ProverComponents,
+{
     type Output = Result<SP1ProofWithPublicValues>;
 
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;

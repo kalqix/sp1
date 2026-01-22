@@ -14,7 +14,7 @@ use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     prover::ZerocheckAir,
     verify_merkle_proof, HashableKey, MachineVerifier, MachineVerifyingKey, MerkleProof,
-    SP1InnerPcs, SP1PcsProofInner, ShardContext, ShardVerifier, SP1SC,
+    SP1InnerPcs, SP1PcsProofInner, ShardContext, ShardVerifier,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_recursion_circuit::{

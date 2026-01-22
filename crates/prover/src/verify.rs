@@ -1,7 +1,7 @@
 use crate::{
     build::{get_groth16_artifacts_build_dir, get_plonk_artifacts_build_dir},
     utils::{is_recursion_public_values_valid, is_root_public_values_valid},
-    CoreProver, CpuSP1ProverComponents, RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
+    RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
 };
 use anyhow::{anyhow, Result};
 use derive_where::derive_where;
@@ -22,9 +22,7 @@ use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
     SP1Field, SP1GlobalContext, SP1OuterGlobalContext,
 };
-use sp1_recursion_circuit::{
-    machine::RootPublicValues, zerocheck::RecursiveVerifierConstraintFolder,
-};
+use sp1_recursion_circuit::machine::RootPublicValues;
 use sp1_recursion_executor::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,

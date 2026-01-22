@@ -1,12 +1,15 @@
 use slop_air::Air;
+use slop_challenger::IopCtx;
+use slop_jagged::DefaultJaggedProver;
+use slop_multilinear::MultilinearPcsProver;
 use slop_stacked::StackedPcsVerifier;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
-use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     air::MachineAir,
-    prover::{AirProver, CpuShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
-    Machine, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs, SP1OuterPcs, SP1Pcs,
-    SP1PcsProofInner, ShardContext, ShardContextImpl, ShardVerifier, ShardVerifierConfigError,
+    prover::{AirProver, CpuShardProver, PcsProof, ShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
+    Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, SP1PcsProofInner, ShardContext,
+    ShardContextImpl, ShardVerifier,
 };
 use sp1_primitives::{
     fri_params::{core_fri_config, recursion_fri_config, shrink_fri_config, wrap_fri_config},
@@ -67,6 +70,21 @@ where
         );
 
         MachineVerifier::new(core_verifier)
+    }
+}
+
+pub trait CoreAirProverFactory<GC: IopCtx, SC: ShardContext<GC>>: AirProver<GC, SC> {
+    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self;
+}
+
+impl<GC, SC, Pcs> CoreAirProverFactory<GC, SC> for ShardProver<GC, SC, Pcs>
+where
+    GC: IopCtx,
+    SC: ShardContext<GC>,
+    Pcs: MultilinearPcsProver<GC, PcsProof<GC, SC>> + DefaultJaggedProver<GC, SC::Config>,
+{
+    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self {
+        ShardProver::new(verifier)
     }
 }
 
@@ -131,8 +149,9 @@ impl<C> RecursionProver for C where C: AirProver<SP1GlobalContext, RecursionSC> 
 
 impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 
-pub trait SP1ProverComponents: Send + Sync + 'static
+pub trait SP1ProverComponents: Send + Sync + Clone + 'static
 where
+    Self::CoreProver: CoreAirProverFactory<SP1GlobalContext, Self::CoreSC>,
     Self::CoreSC: ShardContext<SP1GlobalContext, Config = StackedPcsVerifier<SP1GlobalContext>>,
     <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
         + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
@@ -171,6 +190,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct CpuSP1ProverComponents;
 
 impl SP1ProverComponents for CpuSP1ProverComponents {

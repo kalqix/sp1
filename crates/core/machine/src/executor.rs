@@ -29,7 +29,7 @@ use tracing::{Instrument, Level};
 
 use sp1_core_executor::{CycleResult, MinimalExecutor, SplicedMinimalTrace, TraceChunkRaw};
 
-use crate::{io::SP1Stdin, riscv::RiscvAir};
+use crate::io::SP1Stdin;
 
 pub struct MachineExecutor<F: PrimeField32, A> {
     num_record_workers: usize,

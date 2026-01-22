@@ -1,16 +1,11 @@
 use std::sync::Arc;
 
-use slop_air::Air;
 use slop_futures::pipeline::TaskJoinError;
-use sp1_hypercube::{
-    prover::ProverSemaphore, Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
-    ShardContext,
-};
+use sp1_hypercube::{prover::ProverSemaphore, Machine, ShardContext};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
     ArtifactClient, ArtifactType, InMemoryArtifactClient, TaskStatus, TaskType,
 };
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 

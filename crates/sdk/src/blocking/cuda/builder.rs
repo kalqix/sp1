@@ -3,23 +3,62 @@
 //! This module provides a builder for the [`CudaProver`].
 
 use super::CudaProver;
+use crate::blocking::block_on;
 use sp1_core_executor::SP1CoreOpts;
 use sp1_cuda::CudaProver as CudaProverImpl;
-use sp1_prover::worker::SP1LightNode;
-
-use crate::blocking::block_on;
+use sp1_hypercube::Machine;
+use sp1_hypercube::ShardContext;
+use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_prover::{
+    worker::SP1LightNode, CoreAirProverFactory, SP1ProverComponents,
+};
 
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-#[derive(Debug, Default)]
-pub struct CudaProverBuilder {
+#[derive(Debug)]
+pub struct CudaProverBuilder<C: SP1ProverComponents> {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
+    machine: Option<Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>>,
+    _marker: std::marker::PhantomData<C>,
 }
 
-impl CudaProverBuilder {
+impl<C: SP1ProverComponents> Default for CudaProverBuilder<C>
+where
+    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<C: SP1ProverComponents> CudaProverBuilder<C>
+where
+    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
+{
+    /// Creates a new [`CpuProverBuilder`] with default settings.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            cuda_device_id: None,
+            core_opts: None,
+            machine: None,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Sets the core machine used by the prover.
+    #[must_use]
+    pub fn with_machine(
+        mut self,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        self.machine = Some(machine);
+        self
+    }
+
     /// Sets the CUDA device id.
     ///
     /// # Details
@@ -71,6 +110,14 @@ impl CudaProverBuilder {
         self.core_opts(opts)
     }
 
+    /// Creates a builder using the provided machine.
+    #[must_use]
+    pub fn new_with_machine(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::new().with_machine(machine)
+    }
+
     /// Builds a [`CudaProver`].
     ///
     /// # Details
@@ -83,8 +130,11 @@ impl CudaProverBuilder {
     /// let prover = ProverClient::builder().cuda().build();
     /// ```
     #[must_use]
-    pub fn build(self) -> CudaProver {
-        let node = block_on(SP1LightNode::with_opts(self.core_opts.unwrap_or_default()));
+    pub fn build(self) -> CudaProver<C> {
+        let node = block_on(SP1LightNode::with_opts(
+            self.machine.expect("Machine should be set"),
+            self.core_opts.unwrap_or_default(),
+        ));
         let cuda_prover = match self.cuda_device_id {
             Some(id) => crate::blocking::block_on(CudaProverImpl::new_with_id(id)),
             None => crate::blocking::block_on(CudaProverImpl::new()),

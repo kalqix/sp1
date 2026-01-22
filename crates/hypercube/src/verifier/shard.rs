@@ -29,7 +29,7 @@ use crate::{
     prover::{CoreProofShape, PcsProof, Record, ZerocheckAir},
     Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier, LogupGkrVerificationError, Machine,
     ShardContext, ShardContextImpl, VerifierConstraintFolder, VerifierPublicValuesConstraintFolder,
-    MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS, SP1SC,
+    MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS,
 };
 
 use super::{MachineVerifyingKey, ShardOpenedValues, ShardProof};

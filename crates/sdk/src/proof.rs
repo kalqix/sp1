@@ -519,8 +519,9 @@ mod tests {
     #[cfg(feature = "slow-tests")]
     async fn test_round_trip_proof_save_load() {
         use crate::{ProveRequest, Prover};
+        use sp1_core_machine::riscv::RiscvAir;
 
-        let prover = crate::CpuProver::new().await;
+        let prover = crate::CpuProver::new(RiscvAir::machine()).await;
         let pk = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF).await.unwrap();
         let proof = prover.prove(&pk, crate::SP1Stdin::new()).compressed().await.unwrap();
 

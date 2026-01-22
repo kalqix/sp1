@@ -8,7 +8,7 @@ use crate::{prover::verify_proof, ProvingKey, SP1VerificationError, StatusCode};
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::types::Elf;
-use sp1_prover::{worker::SP1NodeCore, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
+use sp1_prover::{worker::SP1NodeCore, SP1ProverComponents, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 
 /// The module that exposes the [`ExecuteRequest`] type.
 mod execute;
@@ -24,6 +24,8 @@ use crate::SP1ProofWithPublicValues;
 
 /// The entire user-facing functionality of a prover.
 pub trait Prover: Clone + Send + Sync {
+    /// The prover component configuration.
+    type Components: SP1ProverComponents;
     /// The proving key used for this prover type.
     type ProvingKey: ProvingKey;
 
@@ -36,7 +38,7 @@ pub trait Prover: Clone + Send + Sync {
         Self: 'a;
 
     /// The inner [`SP1NodeCore`] struct used by the prover.
-    fn inner(&self) -> &SP1NodeCore;
+    fn inner(&self) -> &SP1NodeCore<Self::Components>;
 
     /// The version of the current SP1 circuit.
     fn version(&self) -> &str {

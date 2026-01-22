@@ -80,6 +80,7 @@ pub use utils::setup_logger;
 
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::io::SP1PublicValues;
 
     use crate::{utils, MockProver, Prover, ProverClient, SP1Stdin};
@@ -128,7 +129,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_report_variants() {
         utils::setup_logger();
-        let client = MockProver::new().await;
+        let client = MockProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -190,7 +191,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_macro_non_report() {
         utils::setup_logger();
-        let client = MockProver::new().await;
+        let client = MockProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -214,7 +215,7 @@ mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.minimal_trace_chunk_threshold = 1000;
 
-        let client = MockProver::new_with_opts(opts).await;
+        let client = MockProver::new_with_opts(RiscvAir::machine(), opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -258,7 +259,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new().await;
+        let client = CpuProver::new(RiscvAir::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -297,7 +298,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new().await;
+        let client = CpuProver::new(RiscvAir::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();
@@ -321,7 +322,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new().await;
+        let client = CpuProver::new(RiscvAir::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -344,7 +345,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new().await;
+        let client = CpuProver::new(RiscvAir::machine()).await;
         let pk = client.setup(test_artifacts::FIBONACCI_ELF).await.unwrap();
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -358,7 +359,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-        let client = CpuProver::new().await;
+        let client = CpuProver::new(RiscvAir::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();

@@ -4,10 +4,8 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_bn254::Bn254Fr;
-use sp1_hypercube::{
-    koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardContext, ShardProof,
-};
-use sp1_primitives::{io::sha256_hash, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
+use sp1_hypercube::{koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardProof};
+use sp1_primitives::{io::sha256_hash, SP1Field, SP1OuterGlobalContext};
 use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1ShapedWitnessValues, SP1WrapVerifier},

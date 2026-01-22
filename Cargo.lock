@@ -7604,6 +7604,7 @@ dependencies = [
  "backoff",
  "bincode",
  "cfg-if",
+ "derive-where",
  "dirs",
  "eventsource-stream",
  "futures",

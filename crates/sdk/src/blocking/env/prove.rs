@@ -4,14 +4,15 @@ use crate::{
     SP1ProofWithPublicValues,
 };
 use anyhow::Result;
+use sp1_prover::SP1ProverComponents;
 
 /// A prover request for the [`EnvProver`].
-pub struct EnvProveRequest<'a> {
-    pub(crate) base: BaseProveRequest<'a, EnvProver>,
+pub struct EnvProveRequest<'a, C: SP1ProverComponents> {
+    pub(crate) base: BaseProveRequest<'a, EnvProver<C>>,
 }
 
-impl<'a> ProveRequest<'a, EnvProver> for EnvProveRequest<'a> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, EnvProver> {
+impl<'a, C: SP1ProverComponents> ProveRequest<'a, EnvProver<C>> for EnvProveRequest<'a, C> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, EnvProver<C>> {
         &mut self.base
     }
 

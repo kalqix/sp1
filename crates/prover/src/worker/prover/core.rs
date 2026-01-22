@@ -9,12 +9,11 @@ use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
-use sp1_core_machine::{executor::trace_chunk, riscv::RiscvAir};
+use sp1_core_machine::executor::trace_chunk;
 use sp1_hypercube::{
     air::MachineAir,
     prover::{CoreProofShape, ProverSemaphore, ProvingKey},
-    Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
-    SP1PcsProofInner, SP1VerifyingKey, ShardContext,
+    Machine, MachineProof, MachineVerifier, SP1VerifyingKey, ShardContext,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};

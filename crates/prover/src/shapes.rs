@@ -17,14 +17,13 @@ use slop_basefold::FriConfig;
 use sp1_core_executor::{ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
 use sp1_core_machine::{
     bytes::columns::NUM_BYTE_PREPROCESSED_COLS, program::NUM_PROGRAM_PREPROCESSED_COLS,
-    range::columns::NUM_RANGE_PREPROCESSED_COLS, riscv::RiscvAir,
+    range::columns::NUM_RANGE_PREPROCESSED_COLS,
 };
 use sp1_hypercube::{
     air::MachineAir,
     log2_ceil_usize,
     prover::{CoreProofShape, DefaultTraceGenerator, ProverSemaphore, TraceGenerator},
-    Chip, HashableKey, Machine, MachineShape, SP1Pcs, SP1PcsProofInner, SP1VerifyingKey,
-    ShardContext,
+    Chip, HashableKey, Machine, MachineShape, SP1PcsProofInner, SP1VerifyingKey, ShardContext,
 };
 use sp1_primitives::{
     fri_params::{core_fri_config, CORE_LOG_BLOWUP},
@@ -68,7 +67,7 @@ use crate::{
         shrink_program_from_input,
     },
     worker::{AirProverWorker, RecursionVkWorker},
-    CompressAir, CoreProver, CORE_MAX_LOG_ROW_COUNT,
+    CompressAir, CORE_MAX_LOG_ROW_COUNT,
 };
 
 pub const DEFAULT_ARITY: usize = 4;

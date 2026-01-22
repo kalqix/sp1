@@ -11,9 +11,10 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::{air::PublicValues, PROOF_MAX_NUM_PVS};
 use sp1_primitives::types::Elf;
 use sp1_prover::{
-    verify::verify_public_values, worker::SP1NodeCore, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
+    verify::verify_public_values, worker::SP1NodeCore, SP1ProverComponents, SP1VerifyingKey,
+    SP1_CIRCUIT_VERSION,
 };
-use sp1_recursion_compiler::config::InnerConfig;
+use sp1_recursion_executor::RecursionPublicValues;
 use std::{
     borrow::Borrow,
     fmt,
@@ -36,6 +37,8 @@ use crate::{SP1Proof, SP1ProofWithPublicValues};
 
 /// The entire user-facing functionality of a prover.
 pub trait Prover: Clone + Send + Sync {
+    /// The prover component configuration.
+    type Components: SP1ProverComponents;
     /// The proving key used for this prover type.
     type ProvingKey: ProvingKey;
 
@@ -48,7 +51,7 @@ pub trait Prover: Clone + Send + Sync {
         Self: 'a;
 
     /// The inner [`LocalProver`] struct used by the prover.
-    fn inner(&self) -> &SP1NodeCore;
+    fn inner(&self) -> &SP1NodeCore<Self::Components>;
 
     /// The version of the current SP1 circuit.
     fn version(&self) -> &str {
@@ -141,16 +144,12 @@ pub enum SP1VerificationError {
 /// SHA256 and an input i2 for Blake3 that the same hash value. Doing so would require breaking both
 /// algorithms simultaneously.
 pub(crate) fn verify_proof(
-    node: &SP1NodeCore,
+    node: &SP1NodeCore<impl SP1ProverComponents>,
     version: &str,
     bundle: &SP1ProofWithPublicValues,
     vkey: &SP1VerifyingKey,
     status_code: Option<StatusCode>,
-) -> Result<(), SP1VerificationError>
-where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
-        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
-{
+) -> Result<(), SP1VerificationError> {
     let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
 
     // Check that the SP1 version matches the version of the current circuit.
