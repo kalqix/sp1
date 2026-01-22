@@ -20,14 +20,11 @@ use crate::{
         ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
         TaskMetadata, WorkerClient,
     },
-    CoreProver, SP1ProverComponents,
+    SP1ProverComponents,
 };
 
 pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
-    pub machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+    pub machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
@@ -41,10 +38,7 @@ pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
 impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
     pub fn new(
-        machine: Machine<
-            SP1Field,
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     ) -> Self {
         Self::from_worker_client_builder(SP1WorkerBuilder::new(machine))
     }

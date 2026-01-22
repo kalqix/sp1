@@ -297,11 +297,7 @@ mod tests {
         use crate::{prover::ProveRequest, CpuProver};
 
         utils::setup_logger();
-<<<<<<< HEAD
-        let client = CpuProver::new_unsound(vec![]).await;
-=======
         let client = CpuProver::new().await;
->>>>>>> origin/multilinear_v6
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();

@@ -15,7 +15,7 @@ use tracing::instrument;
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{execute_with_options, SP1ExecutorConfig},
-    CoreProver, CpuSP1ProverComponents, SP1CoreProofData, SP1ProverComponents,
+    CpuSP1ProverComponents, SP1CoreProofData, SP1ProverComponents,
 };
 
 struct SP1NodeCoreInner<C: SP1ProverComponents> {

@@ -44,10 +44,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         wrap_air_prover_and_permits: (Arc<C::WrapProver>, ProverSemaphore),
-        machine: Machine<
-            SP1Field,
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,

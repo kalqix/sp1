@@ -7,28 +7,14 @@ use std::pin::Pin;
 use powdr_autoprecompiles::Apc;
 use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
 use sp1_prover::{
-<<<<<<< HEAD
-    components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
-    SP1VerifyingKey,
-=======
     worker::{SP1LightNode, SP1NodeCore},
     Groth16Bn254Proof, PlonkBn254Proof, SP1VerifyingKey,
->>>>>>> origin/multilinear_v6
 };
 
 use crate::{
     proof::verify_mock_public_inputs,
     prover::{BaseProveRequest, ProveRequest},
-<<<<<<< HEAD
-    Prover, SP1Proof, SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
-};
-use sp1_primitives::SP1Field;
-use std::{
-    future::{Future, IntoFuture},
-    sync::Arc,
-=======
     Prover, SP1Proof, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError, StatusCode,
->>>>>>> origin/multilinear_v6
 };
 use sp1_core_executor::SP1CoreOpts;
 use std::future::{Future, IntoFuture};
@@ -42,19 +28,14 @@ pub struct MockProver {
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-<<<<<<< HEAD
     pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
-        Self { inner: CpuProver::new(apcs).await }
-=======
-    pub async fn new() -> Self {
-        Self { inner: SP1LightNode::new().await }
+        Self { inner: SP1LightNode::new(apcs).await }
     }
 
     /// Create a new mock prover with custom options.
     #[must_use]
     pub async fn new_with_opts(opts: SP1CoreOpts) -> Self {
         Self { inner: SP1LightNode::with_opts(opts).await }
->>>>>>> origin/multilinear_v6
     }
 }
 

@@ -37,7 +37,7 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CoreProver, SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness, SP1ProverComponents,
 };
 
 pub struct SetupTask {
@@ -163,7 +163,7 @@ where
         }
 
         let input = shape.dummy_input(vk);
-        let mut program = normalize_program_from_input::<SC>(&self.recursive_verifier, &input);
+        let mut program = normalize_program_from_input(&self.recursive_verifier, &input);
         program.shape = Some(self.reduce_shape.shape.clone());
         let program = Arc::new(program);
         self.cache.push(shape, program.clone());
@@ -173,8 +173,7 @@ where
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
 pub struct CoreWorker<A, W, C: SP1ProverComponents> {
-    normalize_program_compiler:
-        Arc<NormalizeProgramCompiler<<C::CoreProver as CoreProver>::CoreSC>>,
+    normalize_program_compiler: Arc<NormalizeProgramCompiler<C::CoreSC>>,
     opts: SP1CoreOpts,
     artifact_client: A,
     worker_client: W,
@@ -189,9 +188,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        normalize_program_compiler: Arc<
-            NormalizeProgramCompiler<<C::CoreProver as CoreProver>::CoreSC>,
-        >,
+        normalize_program_compiler: Arc<NormalizeProgramCompiler<C::CoreSC>>,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
@@ -214,12 +211,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         }
     }
 
-    fn machine(
-        &self,
-    ) -> &Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    > {
+    fn machine(&self) -> &Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air> {
         self.normalize_program_compiler.machine()
     }
 }
@@ -544,10 +536,11 @@ where
 
         if self.verify_intermediates {
             let parent = tracing::Span::current();
+            let machine = self.machine().clone();
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier(unimplemented!())
+                C::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -608,7 +601,7 @@ where
 
 pub type CoreProvingKey<C> = ProvingKey<
     SP1GlobalContext,
-    <<C as SP1ProverComponents>::CoreProver as CoreProver>::CoreSC,
+    <C as SP1ProverComponents>::CoreSC,
     <C as SP1ProverComponents>::CoreProver,
 >;
 
@@ -754,10 +747,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
-        machine: Machine<
-            SP1Field,
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     ) -> Self {
         // Initialize the normalize program compiler
         let core_verifier = C::core_verifier(machine);

@@ -1,23 +1,42 @@
 use std::sync::Arc;
 
+use slop_challenger::IopCtx;
+use slop_jagged::DefaultJaggedProver;
+use slop_multilinear::MultilinearPcsProver;
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::{
-    prover::{CpuShardProver, ProverSemaphore, ShardProver},
-    SP1VerifyingKey, ShardContext, ShardContextImpl,
+    prover::{AirProver, PcsProof, ProverSemaphore, ShardProver},
+    Machine, SP1VerifyingKey, ShardContext, ShardVerifier,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use sp1_verifier::SP1Proof;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{node::SP1NodeCore, AirProverWorker},
-    CoreProver, CpuSP1ProverComponents, SP1ProverComponents,
+    SP1ProverComponents,
 };
+
+pub trait CoreAirProverFactory<GC: IopCtx, SC: ShardContext<GC>>: AirProver<GC, SC> {
+    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self;
+}
+
+impl<GC, SC, Pcs> CoreAirProverFactory<GC, SC> for ShardProver<GC, SC, Pcs>
+where
+    GC: IopCtx,
+    SC: ShardContext<GC>,
+    Pcs: MultilinearPcsProver<GC, PcsProof<GC, SC>> + DefaultJaggedProver<GC, SC::Config>,
+{
+    fn from_shard_verifier(verifier: ShardVerifier<GC, SC>) -> Self {
+        ShardProver::new(verifier)
+    }
+}
 
 struct SP1LightNodeInner<C: SP1ProverComponents> {
     /// The core node is used to execute the program and verify the proof
     core: SP1NodeCore<C>,
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     /// The core air prover is used to do the setup step
     core_air_prover: Arc<C::CoreProver>,
     /// The permits are used to limit the number of concurrent provers
@@ -34,27 +53,40 @@ impl<C: SP1ProverComponents> Clone for SP1LightNode<C> {
     }
 }
 
-impl<C: SP1ProverComponents> SP1LightNode<C> {
-    pub async fn new() -> Self {
-        Self::with_opts(SP1CoreOpts::default()).await
+impl<C> SP1LightNode<C>
+where
+    C: SP1ProverComponents,
+    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
+{
+    pub async fn new(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> Self {
+        Self::with_opts(machine, SP1CoreOpts::default()).await
     }
 
     /// Create a new light node
-    pub async fn with_opts(opts: SP1CoreOpts) -> Self {
+    pub async fn with_opts(
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        opts: SP1CoreOpts,
+    ) -> Self {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
-        tokio::task::spawn_blocking(|| {
+        tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = C::core_verifier(unimplemented!());
-            let core_air_prover =
-                Arc::new(ShardProver::new(core_verifier.shard_verifier().clone()));
+            let core_verifier = C::core_verifier(machine.clone());
+            let core_air_prover = Arc::new(<C::CoreProver as CoreAirProverFactory<
+                SP1GlobalContext,
+                C::CoreSC,
+            >>::from_shard_verifier(
+                core_verifier.shard_verifier().clone()
+            ));
             let permits = ProverSemaphore::new(1);
 
             // Get a new verifier for the light(( node.
-            let verifier = SP1Verifier::new(VerifierRecursionVks::default(), unimplemented!());
+            let verifier = SP1Verifier::new(VerifierRecursionVks::default(), machine.clone());
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);
 
-            Self { inner: Arc::new(SP1LightNodeInner { core, core_air_prover, permits }) }
+            Self { inner: Arc::new(SP1LightNodeInner { core, machine, core_air_prover, permits }) }
         })
         .await
         .expect("failed to initialize light node")
@@ -64,7 +96,12 @@ impl<C: SP1ProverComponents> SP1LightNode<C> {
         let program = Program::from(elf)
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
         let program = Arc::new(program);
-        let (_, vk) = self.inner.core_air_prover.setup(program, self.inner.permits.clone()).await;
+        let (_, vk) = AirProverWorker::setup(
+            self.inner.core_air_prover.as_ref(),
+            program,
+            self.inner.permits.clone(),
+        )
+        .await;
         let vk = SP1VerifyingKey { vk };
         Ok(vk)
     }
@@ -92,11 +129,15 @@ impl<C: SP1ProverComponents> SP1LightNode<C> {
 
 #[cfg(test)]
 mod tests {
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_core_machine::utils::setup_logger;
     use sp1_hypercube::HashableKey;
     use tracing::Instrument;
 
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+    use crate::{
+        worker::{cpu_worker_builder, SP1LocalNodeBuilder},
+        CpuSP1ProverComponents,
+    };
 
     use super::*;
 
@@ -104,8 +145,9 @@ mod tests {
     async fn test_light_node() {
         setup_logger();
 
-        let light_node =
-            SP1LightNode::new().instrument(tracing::info_span!("initialize light node")).await;
+        let light_node = SP1LightNode::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+            .instrument(tracing::info_span!("initialize light node"))
+            .await;
 
         let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
             .build()

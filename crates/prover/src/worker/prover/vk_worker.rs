@@ -31,13 +31,10 @@ pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
     worker: Arc<RecursionVkWorker<C>>,
     request: RawTaskRequest,
     client: A,
-    machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 ) -> Result<(), TaskError>
 where
-    <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air:
+    <C::CoreSC as ShardContext<SP1GlobalContext>>::Air:
         for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
 {
     let RawTaskRequest { inputs, outputs, .. } = request;

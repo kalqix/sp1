@@ -106,7 +106,7 @@ impl VerifierRecursionVks {
 
 #[derive_where(Clone)]
 pub struct SP1Verifier<C: SP1ProverComponents> {
-    pub core: MachineVerifier<SP1GlobalContext, <C::CoreProver as CoreProver>::CoreSC>,
+    pub core: MachineVerifier<SP1GlobalContext, C::CoreSC>,
     pub compress: MachineVerifier<SP1GlobalContext, RecursionSC>,
     pub shrink: MachineVerifier<SP1GlobalContext, ShrinkSC>,
     pub wrap: MachineVerifier<SP1OuterGlobalContext, WrapSC>,
@@ -118,10 +118,7 @@ pub struct SP1Verifier<C: SP1ProverComponents> {
 impl<C: SP1ProverComponents> SP1Verifier<C> {
     pub fn new(
         recursion_vks: VerifierRecursionVks,
-        machine: Machine<
-            SP1Field,
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     ) -> Self {
         // Get the verifiers from the components.
         let core = C::core_verifier(machine);

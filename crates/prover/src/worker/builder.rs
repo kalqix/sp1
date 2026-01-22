@@ -1,33 +1,28 @@
 use std::sync::Arc;
 
-use slop_air::Air;
-use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::{
-    prover::{CpuShardProver, ProverSemaphore, ShardProver},
-    Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, ShardContext,
-};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-
 use crate::{
     components::SP1ProverComponents,
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{
         LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig, WorkerClient,
     },
-    CoreProver, CpuSP1ProverComponents,
+    CpuSP1ProverComponents,
 };
+use sp1_core_executor::SP1CoreOpts;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::{
+    prover::{ProverSemaphore, ShardProver},
+    Machine, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, ShardContext,
+};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};
 
 pub struct SP1WorkerBuilder<
     C: SP1ProverComponents,
     A = InMemoryArtifactClient,
     W = LocalWorkerClient,
 > {
-    pub machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+    pub machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     config: SP1WorkerConfig,
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
@@ -40,10 +35,7 @@ pub struct SP1WorkerBuilder<
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     #[allow(clippy::new_without_default)]
     pub fn new(
-        machine: Machine<
-            SP1Field,
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     ) -> Self {
         let config = SP1WorkerConfig::default();
 
@@ -323,41 +315,44 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
 }
 
 /// Create a [SP1WorkerBuilder] for a CPU worker.
-pub fn cpu_worker_builder<C: SP1ProverComponents>(
-    machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+pub fn cpu_worker_builder_with_machine<C: SP1ProverComponents>(
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 ) -> SP1WorkerBuilder<C> {
-    // // Create the prover permits, setting it to having 4 provers.
-    // let prover_permits = ProverSemaphore::new(4);
+    SP1WorkerBuilder::new(machine)
+}
 
-    // // Get the core options.
-    // let opts = SP1CoreOpts::default();
+/// Create a [SP1WorkerBuilder] for a CPU worker with default components.
+pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
+    let machine = RiscvAir::machine();
 
-    // let core_verifier = C::core_verifier(machine);
-    // let core_air_prover = Arc::new(ShardProver::new(core_verifier.shard_verifier().clone()));
+    // Create the prover permits, setting it to having 4 provers.
+    let prover_permits = ProverSemaphore::new(4);
 
-    // let recursion_verifier = C::compress_verifier();
-    // let recursion_air_prover =
-    //     Arc::new(ShardProver::new(recursion_verifier.shard_verifier().clone()));
+    // Get the core options.
+    let opts = SP1CoreOpts::default();
 
-    // let shrink_verifier = C::shrink_verifier();
-    // let shrink_prover = Arc::new(ShardProver::new(shrink_verifier.shard_verifier().clone()));
+    let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+    let core_air_prover = Arc::new(ShardProver::new(core_verifier.shard_verifier().clone()));
 
-    // let wrap_verifier = C::wrap_verifier();
-    // let wrap_prover = Arc::new(ShardProver::new(wrap_verifier.shard_verifier().clone()));
+    let recursion_verifier = CpuSP1ProverComponents::compress_verifier();
+    let recursion_air_prover =
+        Arc::new(ShardProver::new(recursion_verifier.shard_verifier().clone()));
 
-    // let artifact_client = InMemoryArtifactClient::new();
-    // let (worker_client, _) = LocalWorkerClient::init();
+    let shrink_verifier = CpuSP1ProverComponents::shrink_verifier();
+    let shrink_prover = Arc::new(ShardProver::new(shrink_verifier.shard_verifier().clone()));
 
-    // SP1WorkerBuilder::new(machine)
-    //     .with_artifact_client(artifact_client)
-    //     .with_worker_client(worker_client)
-    //     .with_core_opts(opts)
-    //     .with_core_air_prover(core_air_prover, prover_permits.clone())
-    //     .with_compress_air_prover(recursion_air_prover, prover_permits.clone())
-    //     .with_shrink_air_prover(shrink_prover, prover_permits.clone())
-    //     .with_wrap_air_prover(wrap_prover, prover_permits)
-    unimplemented!()
+    let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
+    let wrap_prover = Arc::new(ShardProver::new(wrap_verifier.shard_verifier().clone()));
+
+    let artifact_client = InMemoryArtifactClient::new();
+    let (worker_client, _) = LocalWorkerClient::init();
+
+    SP1WorkerBuilder::new(machine)
+        .with_artifact_client(artifact_client)
+        .with_worker_client(worker_client)
+        .with_core_opts(opts)
+        .with_core_air_prover(core_air_prover, prover_permits.clone())
+        .with_compress_air_prover(recursion_air_prover, prover_permits.clone())
+        .with_shrink_air_prover(shrink_prover, prover_permits.clone())
+        .with_wrap_air_prover(wrap_prover, prover_permits)
 }

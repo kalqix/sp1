@@ -355,14 +355,11 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     max_arity: usize,
     merkle_tree_height: usize,
     vk_worker: Arc<RecursionVkWorker<C>>,
-    machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 ) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>)
 where
-    <C::CoreProver as CoreProver>::CoreSC: ShardContext<SP1GlobalContext>,
-    <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air:
+    C::CoreSC: ShardContext<SP1GlobalContext>,
+    <C::CoreSC as ShardContext<SP1GlobalContext>>::Air:
         for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
 {
     let recursion_permits = vk_worker.recursion_permits.clone();
@@ -378,9 +375,7 @@ where
         tokio::sync::mpsc::unbounded_channel::<(usize, [SP1Field; DIGEST_SIZE])>();
     let (shape_tx, shape_rx) = tokio::sync::mpsc::channel::<(
         usize,
-        SP1RecursionProgramShape<
-            <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
+        SP1RecursionProgramShape<<C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
     )>(num_compiler_workers);
     let (program_tx, program_rx) = tokio::sync::mpsc::channel(num_setup_workers);
     let (panic_tx, mut panic_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -433,20 +428,15 @@ where
                             let core_verifier = C::core_verifier(machine);
                             let recursive_core_verifier: RecursiveShardVerifier<
                                 _,
-                                <<C::CoreProver as CoreProver>::CoreSC as ShardContext<
-                                    SP1GlobalContext,
-                                >>::Air,
+                                <C::CoreSC as ShardContext<SP1GlobalContext>>::Air,
                                 _,
                             > = recursive_verifier::<_, _, InnerConfig>(
                                 core_verifier.shard_verifier(),
                             );
                             let witness =
                                 normalize_shape.dummy_input(SP1VerifyingKey { vk: dummy_vk });
-                            let mut program = normalize_program_from_input::<
-                                <C::CoreProver as CoreProver>::CoreSC,
-                            >(
-                                &recursive_core_verifier, &witness
-                            );
+                            let mut program =
+                                normalize_program_from_input(&recursive_core_verifier, &witness);
                             program.shape =
                                 Some(reduce_shape.clone().expect("max arity not supported").shape);
                             (Arc::new(program), false)
@@ -656,10 +646,7 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
 }
 
 pub fn dummy_vk_map<C: SP1ProverComponents>(
-    machine: Machine<
-        SP1Field,
-        <<C::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-    >,
+    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
 ) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
     create_all_input_shapes(C::core_verifier(machine).machine().shape(), DEFAULT_ARITY)
         .iter()
@@ -796,7 +783,7 @@ mod tests {
     #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
-        let client = SP1LightNode::new().await;
+        let client = SP1LightNode::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
 
         let vk_verification = client.inner().vk_verification();
         let allowed_vk_height = client.inner().allowed_vk_height();
@@ -832,18 +819,18 @@ mod tests {
     async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let client = SP1LightNode::new().await;
+        let client = SP1LightNode::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         // let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
         let vk = client.setup(&elf).await?;
 
         let context =
             "Shape is not valid. To fix: From sp1-wip directory, run `cargo test --release -p sp1-prover --features experimental -- test_find_recursion_shape --include-ignored`";
 
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAir::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier();
+        let core_verifier = CpuSP1ProverComponents::core_verifier(RiscvAir::machine());
         let recursive_core_verifier =
             recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
@@ -1014,10 +1001,10 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let client = SP1LightNode::new().await;
+        let client = SP1LightNode::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
         let vk = client.setup(&elf).await.unwrap();
 
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAir::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let allowed_vk_height = client.inner().allowed_vk_height();
         let vk_verification = client.inner().vk_verification();
@@ -1027,13 +1014,12 @@ mod tests {
             |current_shape: &SP1RecursionProofShape| -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
                 dummy_compose_input(&verifier, current_shape, DEFAULT_ARITY, allowed_vk_height)
             };
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
-        let recursive_core_verifier = recursive_verifier::<SP1GlobalContext, _, _, InnerConfig>(
-            core_verifier.shard_verifier(),
-        );
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let recursive_core_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
         let recursive_compress_verifier =
-            recursive_verifier::<SP1GlobalContext, _, _, InnerConfig>(verifier.shard_verifier());
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(verifier.shard_verifier());
         let compose_program =
             |input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>| -> Arc<RecursionProgram<SP1Field>> {
                 Arc::new(compose_program_from_input(

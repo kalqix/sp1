@@ -121,9 +121,6 @@ impl ProverClientBuilder {
     #[cfg(feature = "network")]
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
-<<<<<<< HEAD
-        NetworkProverBuilder::default()
-=======
         NetworkProverBuilder::new()
     }
 
@@ -152,6 +149,5 @@ impl ProverClientBuilder {
             tee_signers: None,
             network_mode: Some(mode),
         }
->>>>>>> origin/multilinear_v6
     }
 }

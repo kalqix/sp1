@@ -1,4 +1,5 @@
 use slop_air::Air;
+use slop_stacked::StackedPcsVerifier;
 use sp1_core_executor::{ExecutionRecord, Program, HEIGHT_THRESHOLD};
 use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
 use sp1_hypercube::{
@@ -46,19 +47,15 @@ pub type ShrinkSC =
 pub type WrapSC =
     ShardContextImpl<SP1OuterGlobalContext, SP1Pcs<SP1OuterGlobalContext>, WrapAir<SP1Field>>;
 
-pub trait CoreProver: AirProver<SP1GlobalContext, Self::CoreSC>
+pub trait CoreProver<SC>: AirProver<SP1GlobalContext, SC>
 where
-    <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air:
-        MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
+    SC: ShardContext<SP1GlobalContext>,
+    SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
 {
-    type CoreSC: ShardContext<SP1GlobalContext>;
-
     /// The default verifier for the core prover.
     ///
     /// The verifier fixes the parameters of the underlying proof system.
-    fn verifier(
-        machine: Machine<SP1Field, <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> MachineVerifier<SP1GlobalContext, Self::CoreSC> {
+    fn verifier(machine: Machine<SP1Field, SC::Air>) -> MachineVerifier<SP1GlobalContext, SC> {
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
 
@@ -73,12 +70,13 @@ where
     }
 }
 
-// impl<SC, C> CoreProver for C
-// where
-//     C: AirProver<SP1GlobalContext, SC>,
-// {
-//     type CoreSC = SC;
-// }
+impl<SC, C> CoreProver<SC> for C
+where
+    SC: ShardContext<SP1GlobalContext>,
+    SC::Air: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
+    C: AirProver<SP1GlobalContext, SC>,
+{
+}
 
 pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
     fn verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
@@ -135,30 +133,28 @@ impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 
 pub trait SP1ProverComponents: Send + Sync + 'static
 where
-    <<Self::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air:
-        for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
-    <<Self::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Config:
-        slop_multilinear::MultilinearPcsVerifier<
+    <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>
+        + MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>,
+    Self::CorePcsVerifier: slop_multilinear::MultilinearPcsVerifier<
             SP1GlobalContext,
             Proof = SP1PcsProofInner,
             VerifierError = <SP1InnerPcs as slop_multilinear::MultilinearPcsVerifier<
                 SP1GlobalContext,
             >>::VerifierError,
-        >,
+        > + crate::recursion::BasefoldFriConfig<SP1GlobalContext>,
 {
+    type CorePcsVerifier: slop_multilinear::MultilinearPcsVerifier<SP1GlobalContext>;
+    type CoreSC: ShardContext<SP1GlobalContext, Config = Self::CorePcsVerifier>;
     /// The prover for making SP1 core proofs.
-    type CoreProver: CoreProver;
+    type CoreProver: CoreProver<Self::CoreSC>;
     /// The prover for making SP1 recursive proofs.
     type RecursionProver: RecursionProver;
     type WrapProver: WrapProver;
 
     fn core_verifier(
-        machine: Machine<
-            SP1Field,
-            <<Self::CoreProver as CoreProver>::CoreSC as ShardContext<SP1GlobalContext>>::Air,
-        >,
-    ) -> MachineVerifier<SP1GlobalContext, <Self::CoreProver as CoreProver>::CoreSC> {
-        <Self::CoreProver as CoreProver>::verifier(machine)
+        machine: Machine<SP1Field, <Self::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    ) -> MachineVerifier<SP1GlobalContext, Self::CoreSC> {
+        <Self::CoreProver as CoreProver<Self::CoreSC>>::verifier(machine)
     }
 
     fn compress_verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
@@ -177,6 +173,8 @@ where
 pub struct CpuSP1ProverComponents;
 
 impl SP1ProverComponents for CpuSP1ProverComponents {
+    type CorePcsVerifier = StackedPcsVerifier<SP1GlobalContext>;
+    type CoreSC = CoreSC;
     type CoreProver = CpuShardProver<
         SP1GlobalContext,
         SP1Pcs<SP1GlobalContext>,

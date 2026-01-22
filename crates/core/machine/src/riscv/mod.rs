@@ -1244,7 +1244,7 @@ pub mod tests {
     #[test]
     fn core_air_complexity_consistency() {
         let complexity = sp1_core_executor::get_complexity_mapping();
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAir::machine();
         for chip in machine.chips() {
             let id = chip.air.id();
             let expected = complexity[id];
@@ -1258,7 +1258,7 @@ pub mod tests {
 
     #[test]
     fn test_interaction_counts() {
-        let interaction_sizes = RiscvAir::<SP1Field>::machine()
+        let interaction_sizes = RiscvAir::machine()
             .chips()
             .iter()
             .flat_map(|chip| {
@@ -1276,7 +1276,7 @@ pub mod tests {
 
     #[test]
     fn test_eval_public_values_interactions() {
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAir::machine();
         let kinds_and_counts = machine.chips().iter().flat_map(|chip| {
             let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.width());
             <<RiscvAir<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
@@ -1314,7 +1314,7 @@ pub mod tests {
 
     #[test]
     fn test_maximum_padding() {
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAir::machine();
         let chip_clusters = &machine.shape().chip_clusters;
 
         for cluster in chip_clusters {
