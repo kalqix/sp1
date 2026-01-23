@@ -16,7 +16,7 @@ use sp1_hypercube::{
     septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind,
+    InteractionKind, Machine,
 };
 use sp1_primitives::consts::split_page_idx;
 use std::sync::Arc;
@@ -170,7 +170,10 @@ impl Program {
     /// # Errors
     ///
     /// This function may return an error if the ELF is not valid.
-    pub fn from(input: &[u8]) -> eyre::Result<Self> {
+    pub fn from<F: Field>(
+        input: &[u8],
+        machine: &Machine<F, impl MachineAir<F, Program = Self>>,
+    ) -> eyre::Result<Self> {
         // Decode the bytes as an ELF.
         let elf = Elf::decode(input)?;
 
@@ -193,8 +196,7 @@ impl Program {
             eyre::bail!("elf has too many instructions");
         }
 
-        // Return the program.
-        Ok(Program {
+        let program = Program {
             instructions,
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
@@ -205,18 +207,10 @@ impl Program {
             enable_untrusted_programs: elf.enable_untrusted_programs,
             function_symbols: elf.function_symbols,
             apcs_by_start_idx: HashMap::new(),
-        })
-    }
+        };
 
-    /// Disassemble a RV64IM ELF to a program that be executed by the VM from a file path.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the file cannot be opened or read.
-    pub fn from_elf(path: &str) -> eyre::Result<Self> {
-        let mut elf_code = Vec::new();
-        File::open(path)?.read_to_end(&mut elf_code)?;
-        Program::from(&elf_code)
+        // Return the program after customization by the machine
+        Ok(machine.customize_program(program))
     }
 
     /// Custom logic for padding the trace to a power of two according to the proof shape.
@@ -310,10 +304,6 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
                 .reduce(|| SepticCurveComplete::Infinity, |a, b| a + b)
                 .point(),
         )
-    }
-
-    fn from_elf(elf: &[u8]) -> Result<Self, String> {
-        Program::from(elf).map_err(|e| e.to_string())
     }
 
     fn enable_untrusted_programs(&self) -> F {

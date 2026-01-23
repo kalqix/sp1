@@ -3,8 +3,8 @@ use std::sync::Arc;
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 
-use sp1_hypercube::SP1VerifyingKey;
-use sp1_primitives::io::SP1PublicValues;
+use sp1_hypercube::{Machine, SP1VerifyingKey, ShardContext};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use sp1_verifier::SP1Proof;
 use tracing::instrument;
 
@@ -34,6 +34,12 @@ impl<C: SP1ProverComponents> SP1NodeCore<C> {
         Self { inner: Arc::new(SP1NodeCoreInner { verifier, opts }) }
     }
 
+    pub fn machine(
+        &self,
+    ) -> &Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air> {
+        self.inner.verifier.core.machine()
+    }
+
     #[instrument(name = "execute_program", skip_all)]
     pub async fn execute(
         &self,
@@ -41,7 +47,7 @@ impl<C: SP1ProverComponents> SP1NodeCore<C> {
         stdin: SP1Stdin,
         context: SP1Context<'static>,
     ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
-        let program = Program::from(elf)
+        let program = Program::from(elf, self.inner.verifier.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
         let (public_values, public_value_digest, report) = execute_with_options(

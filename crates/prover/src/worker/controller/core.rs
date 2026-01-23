@@ -10,10 +10,11 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
-    air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    SP1VerifyingKey, DIGEST_SIZE,
+    air::{MachineAir, ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    Machine, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{network_base_types::ProofMode, Artifact, ArtifactClient, TaskType};
 use tokio::{
     sync::{mpsc, oneshot},
@@ -75,7 +76,7 @@ pub struct CommonProverInput {
     pub nonce: [u32; PROOF_NONCE_NUM_WORDS],
 }
 
-pub struct SP1CoreExecutor<A, W> {
+pub struct SP1CoreExecutor<CoreAir, A, W> {
     splicing_engine: Arc<SplicingEngine<A, W>>,
     global_memory_buffer_size: usize,
     elf: Artifact,
@@ -88,9 +89,10 @@ pub struct SP1CoreExecutor<A, W> {
     artifact_client: A,
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
+    machine: Machine<SP1Field, CoreAir>,
 }
 
-impl<A, W> SP1CoreExecutor<A, W> {
+impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         splicing_engine: Arc<SplicingEngine<A, W>>,
@@ -105,6 +107,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
         artifact_client: A,
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
+        machine: Machine<SP1Field, CoreAir>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -119,14 +122,16 @@ impl<A, W> SP1CoreExecutor<A, W> {
             artifact_client,
             worker_client,
             minimal_executor_cache,
+            machine,
         }
     }
 }
 
-impl<A, W> SP1CoreExecutor<A, W>
+impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W>
 where
     A: ArtifactClient,
     W: WorkerClient,
+    CoreAir: MachineAir<SP1Field, Program = Program>,
 {
     pub async fn execute(self) -> Result<ExecutionOutput, TaskError> {
         let elf_bytes = self.artifact_client.download_program(&self.elf).await?;
@@ -134,7 +139,7 @@ where
         let opts = self.opts.clone();
 
         // Get the program from the elf. TODO: handle errors.
-        let program = Arc::new(Program::from(&elf_bytes).map_err(|e| {
+        let program = Arc::new(Program::from(&elf_bytes, &self.machine).map_err(|e| {
             TaskError::Execution(ExecutionError::Other(format!(
                 "failed to dissassemble program: {}",
                 e

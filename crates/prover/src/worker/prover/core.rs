@@ -248,10 +248,12 @@ where
         let (program, mut record, deferred_record) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
             let opts = self.opts.clone();
+            // TODO: is this expensive?
+            let machine = self.machine().clone();
             move || {
                 let _guard = span.enter();
                 {
-                    let program = Program::from(&elf).map_err(|e| {
+                    let program = Program::from(&elf, &machine).map_err(|e| {
                         TaskError::Fatal(anyhow::anyhow!("failed to disassemble program: {}", e))
                     })?;
                     let program = Arc::new(program);
@@ -637,7 +639,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let elf = self.artifact_client.download_program(&elf).await?;
 
-        let program = Program::from(&elf)?;
+        let program = Program::from(&elf, self.core_prover.machine())?;
         let program = Arc::new(program);
 
         let permits = self.permits.clone();

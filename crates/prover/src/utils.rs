@@ -10,7 +10,7 @@ use rand::{rngs::OsRng, RngCore};
 use itertools::Itertools;
 use slop_symmetric::CryptographicHasher;
 use sp1_core_executor::{Executor, Program, SP1CoreOpts};
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 use sp1_primitives::{poseidon2_hasher, SP1Field};
 use sp1_recursion_circuit::machine::RootPublicValues;
 use sp1_recursion_executor::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
@@ -70,7 +70,8 @@ impl SP1CoreProofData {
 
 /// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
-    let program = Program::from(elf).unwrap();
+    // We pass the vanilla riscv machine, so the execution only uses software
+    let program = Program::from(elf, &RiscvAir::<SP1Field>::machine()).unwrap();
     let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
     runtime.run_fast().unwrap();

@@ -24,6 +24,7 @@ impl<C: SP1ProverComponents> CudaProverBuilder<C>
 where
     C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
 {
+    #[must_use]
     pub fn new_with_opts(
         machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
         core_opts: Option<SP1CoreOpts>,

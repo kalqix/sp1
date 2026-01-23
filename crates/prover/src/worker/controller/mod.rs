@@ -239,6 +239,8 @@ where
             self.artifact_client.clone(),
             self.worker_client.clone(),
             self.minimal_executor_cache.clone(),
+            // TODO: is this expensive?
+            self.verifier.core.machine().clone(),
         );
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
 

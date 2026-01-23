@@ -36,6 +36,7 @@ use crate::{
         program::Sp1Program,
     },
     io::SP1Stdin,
+    riscv::RiscvAir,
 };
 
 const SP1_DEGREE_BOUND: usize = 3;
@@ -94,7 +95,7 @@ pub fn execution_profile_from_guest(
 ) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
-    let program = Arc::new(Program::from(&elf).unwrap());
+    let program = Arc::new(Program::from(&elf, &RiscvAir::<SP1Field>::machine()).unwrap());
 
     execution_profile_from_program(program, sp1_opts, stdin)
 }
@@ -125,7 +126,9 @@ pub struct CompiledProgram {
 
 impl CompiledProgram {
     pub fn new(elf: &[u8], config: PowdrConfig, pgo_config: PgoConfig) -> Self {
-        let program = Sp1Program::from(Arc::new(Program::from(elf).unwrap()));
+        let program = Sp1Program::from(Arc::new(
+            Program::from(elf, &RiscvAir::<SP1Field>::machine()).unwrap(),
+        ));
         let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
         let airs = Sp1InstructionHandler::<SP1Field>::new();

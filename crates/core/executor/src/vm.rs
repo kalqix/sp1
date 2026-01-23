@@ -122,8 +122,12 @@ impl<'a> CoreVM<'a> {
     #[inline]
     pub fn fetch(&mut self) -> Option<&Instruction> {
         // todo: mprotect / kernel mode logic.
-        // TODO: APC support
-        self.program.fetch(self.pc).map(|(i, _)| i)
+        self.program.fetch(self.pc).map(|(i, apc)| {
+            if apc.is_some() {
+                unimplemented!("CoreVM does not support apc yet");
+            };
+            i
+        })
     }
 
     #[inline]
