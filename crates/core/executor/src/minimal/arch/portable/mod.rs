@@ -510,7 +510,8 @@ impl MinimalExecutor {
 
     fn execute_instruction(&mut self) -> bool {
         let program = self.program.clone();
-        let instruction = program.fetch(self.pc).unwrap();
+        let (instruction, apc) = program.fetch(self.pc).unwrap();
+        assert!(apc.is_none(), "MinimalExecutor does not support APCs yet");
         if let Some(sender) = &self.debug_sender {
             sender.send(Some(self.current_state())).expect("Failed to send debug state");
         }

@@ -170,10 +170,7 @@ impl Program {
     /// # Errors
     ///
     /// This function may return an error if the ELF is not valid.
-    pub fn from<F: Field>(
-        input: &[u8],
-        machine: &Machine<F, impl MachineAir<F, Program = Self>>,
-    ) -> eyre::Result<Self> {
+    pub fn from(input: &[u8]) -> eyre::Result<Self> {
         // Decode the bytes as an ELF.
         let elf = Elf::decode(input)?;
 
@@ -196,7 +193,7 @@ impl Program {
             eyre::bail!("elf has too many instructions");
         }
 
-        let program = Program {
+        Ok(Program {
             instructions,
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
@@ -207,10 +204,15 @@ impl Program {
             enable_untrusted_programs: elf.enable_untrusted_programs,
             function_symbols: elf.function_symbols,
             apcs_by_start_idx: HashMap::new(),
-        };
+        })
+    }
 
+    pub fn custom<F: Field>(
+        input: &[u8],
+        machine: &Machine<F, impl MachineAir<F, Program = Self>>,
+    ) -> eyre::Result<Self> {
         // Return the program after customization by the machine
-        Ok(machine.customize_program(program))
+        Self::from(input).map(|p| machine.customize_program(p))
     }
 
     /// Custom logic for padding the trace to a power of two according to the proof shape.

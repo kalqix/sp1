@@ -47,7 +47,7 @@ impl<C: SP1ProverComponents> SP1NodeCore<C> {
         stdin: SP1Stdin,
         context: SP1Context<'static>,
     ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
-        let program = Program::from(elf, self.inner.verifier.core.machine())
+        let program = Program::custom(elf, self.inner.verifier.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
         let (public_values, public_value_digest, report) = execute_with_options(

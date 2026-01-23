@@ -70,7 +70,7 @@ where
     }
 
     pub async fn setup(&self, elf: &[u8]) -> anyhow::Result<SP1VerifyingKey> {
-        let program = Program::from(elf, self.inner.core.machine())
+        let program = Program::custom(elf, self.inner.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
         let program = Arc::new(program);
         let (_, vk) = AirProverWorker::setup(

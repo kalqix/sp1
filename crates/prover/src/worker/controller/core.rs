@@ -139,7 +139,7 @@ where
         let opts = self.opts.clone();
 
         // Get the program from the elf. TODO: handle errors.
-        let program = Arc::new(Program::from(&elf_bytes, &self.machine).map_err(|e| {
+        let program = Arc::new(Program::custom(&elf_bytes, &self.machine).map_err(|e| {
             TaskError::Execution(ExecutionError::Other(format!(
                 "failed to dissassemble program: {}",
                 e
