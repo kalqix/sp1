@@ -7,9 +7,9 @@ use slop_uni_stark::SymbolicAirBuilder;
 use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_hypercube::{
     air::MachineAir,
-    prover::{AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver, ZerocheckAir},
-    InnerSC, Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1InnerPcs,
-    SP1PcsProofInner, ShardVerifier,
+    prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver, ZerocheckAir},
+    Machine, MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
+    ShardVerifier,
 };
 use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
@@ -113,7 +113,6 @@ pub async fn run_test_small_trace(
 //     }
 // }
 
-#[allow(unused_variables)]
 pub async fn run_test_core(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
@@ -156,23 +155,19 @@ where
         max_log_row_count,
         machine.clone(),
     );
-    let prover = CpuShardProver::<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>::new(
+    let shard_prover = CpuShardProver::<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>::new(
         verifier.clone(),
     );
-    let setup_permit = ProverSemaphore::new(1);
+    let prover = SimpleProver::new(verifier, shard_prover);
+
     let (pk, vk) = prover
-        .setup(runtime.program.clone(), setup_permit.clone())
+        .setup(runtime.program.clone())
         .instrument(tracing::debug_span!("setup").or_current())
         .await;
     let pk = unsafe { pk.into_inner() };
-    let challenger = verifier.jagged_pcs_verifier.challenger();
-    let (proof, _) = prove_core::<
-        SP1GlobalContext,
-        InnerSC<_>,
-        CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>,
-    >(
-        verifier.clone(),
-        Arc::new(prover),
+
+    let (proof, _) = prove_core(
+        &prover,
         pk,
         runtime.program.clone(),
         inputs,
@@ -184,8 +179,7 @@ where
     .await
     .unwrap();
 
-    let machine_verifier = MachineVerifier::new(verifier);
-    tracing::debug_span!("verify the proof").in_scope(|| machine_verifier.verify(&vk, &proof))?;
+    prover.verify(&vk, &proof)?;
     Ok(proof)
 }
 

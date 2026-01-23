@@ -65,7 +65,6 @@ pub trait AirProver<GC: IopCtx, SC: ShardContext<GC>>: 'static + Send + Sync + S
         record: Record<GC, SC>,
         vk: Option<MachineVerifyingKey<GC>>,
         prover_permits: ProverSemaphore,
-        challenger: &mut GC::Challenger,
     ) -> impl Future<
         Output = (MachineVerifyingKey<GC>, ShardProof<GC, PcsProof<GC, SC>>, ProverPermit),
     > + Send;
@@ -76,7 +75,6 @@ pub trait AirProver<GC: IopCtx, SC: ShardContext<GC>>: 'static + Send + Sync + S
         pk: Arc<ProvingKey<GC, SC, Self>>,
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
-        challenger: &mut GC::Challenger,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
     /// Get all the chips in the machine.
     fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
@@ -228,7 +226,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
         record: Record<GC, SC>,
         vk: Option<MachineVerifyingKey<GC>>,
         prover_permits: ProverSemaphore,
-        challenger: &mut GC::Challenger,
     ) -> (MachineVerifyingKey<GC>, ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
@@ -266,8 +263,10 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
 
         let pk = Arc::new(pk);
 
+        // Create a challenger.
+        let mut challenger = GC::default_challenger();
         // Observe the preprocessed information.
-        vk.observe_into(challenger);
+        vk.observe_into(&mut challenger);
 
         let shard_data = ShardData { pk, main_trace_data };
 
@@ -285,8 +284,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
         pk: Arc<ProvingKey<GC, SC, Self>>,
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
-        challenger: &mut GC::Challenger,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
+        let mut challenger = GC::default_challenger();
+        pk.vk.observe_into(&mut challenger);
         // Generate the traces.
         let main_trace_data = self
             .trace_generator
@@ -587,7 +587,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
     pub async fn prove_shard_with_data(
         &self,
         data: ShardData<GC, SC, C>,
-        challenger: &mut GC::Challenger,
+        mut challenger: GC::Challenger,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         let ShardData { pk, main_trace_data } = data;
         let MainTraceData { traces, public_values, shard_chips, permit } = main_trace_data;
@@ -656,7 +656,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 public_values.clone(),
                 alpha,
                 beta_seed,
-                challenger,
+                &mut challenger,
             )
             .instrument(tracing::debug_span!("logup gkr proof"))
             .await;
@@ -686,7 +686,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 gkr_opening_batch_challenge,
                 &logup_gkr_proof.logup_evaluations,
                 public_values.clone(),
-                challenger,
+                &mut challenger,
             )
             .instrument(tracing::debug_span!("zerocheck"))
             .await;
@@ -731,7 +731,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 evaluation_point,
                 round_evaluation_claims,
                 round_prover_data,
-                challenger,
+                &mut challenger,
             )
             .instrument(tracing::debug_span!("prove evaluation claims"))
             .await

@@ -1,9 +1,8 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
-use slop_air::{Air, BaseAir};
+use slop_air::Air;
 use slop_algebra::AbstractField;
-use slop_challenger::IopCtx;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
 use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
@@ -11,8 +10,7 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::executor::trace_chunk;
 use sp1_hypercube::{
-    air::MachineAir,
-    prover::{CoreProofShape, ProverSemaphore, ProvingKey},
+    prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     Machine, MachineProof, MachineVerifier, SP1Pcs, SP1VerifyingKey, ShardContext,
 };
 use sp1_jit::TraceChunk;
@@ -440,7 +438,13 @@ where
             let program = program.clone();
             tokio::spawn(
                 async move {
-                    let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
+                    // SplitOpts::new() parses JSON and builds lookup tables - run in spawn_blocking
+                    let program_len = program.instructions.len();
+                    let split_opts = tokio::task::spawn_blocking(move || {
+                        SplitOpts::new(&opts, program_len, false)
+                    })
+                    .await
+                    .map_err(|e| TaskError::Fatal(e.into()))?;
                     let deferred_data =
                         DeferredEvents::defer_record(deferred_record, &artifact_client, split_opts)
                             .await?;
@@ -492,8 +496,6 @@ where
         };
 
         // === Phase 2: Core Proving ===
-        let mut challenger = SP1GlobalContext::default_challenger();
-
         let permits = self.permits.clone();
 
         let (proof, permit) = if let Some(pk_cache) = &self.pk {
@@ -511,9 +513,8 @@ where
                 .await;
 
             tracing::debug!("Using fixed PK");
-            pk.vk.observe_into(&mut challenger);
             self.core_prover
-                .prove_shard_with_pk(pk.clone(), record, permits, &mut challenger)
+                .prove_shard_with_pk(pk.clone(), record, permits)
                 .instrument(tracing::debug_span!("core prove with pk"))
                 .await
         } else {
@@ -525,7 +526,6 @@ where
                     record,
                     Some(common_input.vk.vk.clone()),
                     permits,
-                    &mut challenger,
                 )
                 .instrument(tracing::debug_span!("core setup and prove"))
                 .await;
@@ -805,49 +805,4 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
 
         Self { prove_shard_engine, setup_engine }
     }
-}
-
-/// Given a record, compute the shape of the resulting shard proof.
-fn shape_from_record<SC: ShardContext<SP1GlobalContext>>(
-    verifier: &MachineVerifier<SP1GlobalContext, SC>,
-    record: &<SC::Air as MachineAir<SP1Field>>::Record,
-) -> Option<CoreProofShape<SP1Field, SC::Air>> {
-    let log_stacking_height = verifier.log_stacking_height() as usize;
-    let max_log_row_count = verifier.max_log_row_count();
-    let airs = verifier.machine().chips();
-    let shard_chips: BTreeSet<_> =
-        airs.iter().filter(|air| air.included(record)).cloned().collect();
-    let preprocessed_multiple = shard_chips
-        .iter()
-        .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
-        .sum::<usize>()
-        .div_ceil(1 << log_stacking_height);
-    let main_multiple = shard_chips
-        .iter()
-        .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
-        .sum::<usize>()
-        .div_ceil(1 << log_stacking_height);
-
-    let main_padding_cols = (main_multiple * (1 << log_stacking_height)
-        - shard_chips
-            .iter()
-            .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
-            .sum::<usize>())
-    .div_ceil(1 << max_log_row_count);
-
-    let preprocessed_padding_cols = (preprocessed_multiple * (1 << log_stacking_height)
-        - shard_chips
-            .iter()
-            .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
-            .sum::<usize>())
-    .div_ceil(1 << max_log_row_count);
-
-    let shard_chips = verifier.machine().smallest_cluster(&shard_chips).cloned()?;
-    Some(CoreProofShape {
-        shard_chips,
-        preprocessed_multiple,
-        main_multiple,
-        preprocessed_padding_cols,
-        main_padding_cols,
-    })
 }

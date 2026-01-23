@@ -1,5 +1,8 @@
 use crate::{
-    build::{get_or_create_groth16_artifacts_build_dir, get_or_create_plonk_artifacts_build_dir},
+    build::{
+        get_or_create_groth16_artifacts_dev_build_dir, get_or_create_plonk_artifacts_dev_build_dir,
+        try_install_circuit_artifacts, use_development_mode,
+    },
     recursion::{
         compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
@@ -283,11 +286,9 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
     ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
         let proof = match keys {
             RecursionKeys::Exists(pk, vk) => {
-                let mut challenger = SP1GlobalContext::default_challenger();
-                vk.observe_into(&mut challenger);
                 let (proof, permit) = self
                     .recursion_prover
-                    .prove_shard_with_pk(pk.clone(), record, self.permits.clone(), &mut challenger)
+                    .prove_shard_with_pk(pk.clone(), record, self.permits.clone())
                     .await;
                 let duration = permit.release();
                 metrics.increment_permit_time(duration);
@@ -314,16 +315,9 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
                 SP1RecursionProof { vk, proof, vk_merkle_proof }
             }
             RecursionKeys::Program(program) => {
-                let mut challenger = SP1GlobalContext::default_challenger();
                 let (vk, proof, permit) = self
                     .recursion_prover
-                    .setup_and_prove_shard(
-                        program,
-                        record,
-                        None,
-                        self.permits.clone(),
-                        &mut challenger,
-                    )
+                    .setup_and_prove_shard(program, record, None, self.permits.clone())
                     .await;
                 let duration = permit.release();
                 metrics.increment_permit_time(duration);
@@ -664,10 +658,13 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .instrument(tracing::debug_span!("download wrap proof"))
             .await?;
 
-        let groth16_proof = tokio::task::spawn_blocking(|| {
-            // TODO: Change this after v6.0.0 binary release
-            let build_dir =
-                get_or_create_groth16_artifacts_build_dir(&wrap_proof.vk, &wrap_proof.proof);
+        let build_dir = if use_development_mode() {
+            get_or_create_groth16_artifacts_dev_build_dir(&wrap_proof.vk, &wrap_proof.proof)
+        } else {
+            try_install_circuit_artifacts("groth16").await
+        };
+
+        let groth16_proof = tokio::task::spawn_blocking(move || {
             let SP1WrapProof { vk, proof } = wrap_proof;
             let input = SP1ShapedWitnessValues {
                 vks_and_proofs: vec![(vk, proof.clone())],
@@ -727,10 +724,13 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .instrument(tracing::debug_span!("download wrap proof"))
             .await?;
 
-        let plonk_proof = tokio::task::spawn_blocking(|| {
-            // TODO: Change this after v6.0.0 binary release
-            let build_dir =
-                get_or_create_plonk_artifacts_build_dir(&wrap_proof.vk, &wrap_proof.proof);
+        let build_dir = if use_development_mode() {
+            get_or_create_plonk_artifacts_dev_build_dir(&wrap_proof.vk, &wrap_proof.proof)
+        } else {
+            try_install_circuit_artifacts("plonk").await
+        };
+
+        let plonk_proof = tokio::task::spawn_blocking(move || {
             let SP1WrapProof { vk: wrap_vk, proof: wrap_proof } = wrap_proof;
             let input = SP1ShapedWitnessValues {
                 vks_and_proofs: vec![(wrap_vk.clone(), wrap_proof.clone())],
@@ -999,8 +999,6 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             runtime.record
         };
 
-        let mut challenger = SP1GlobalContext::default_challenger();
-
         let (vk, proof, _permit) = self
             .prover
             .setup_and_prove_shard(
@@ -1008,7 +1006,6 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
                 execution_record,
                 Some(self.verifying_key.clone()),
                 self.permits.clone(),
-                &mut challenger,
             )
             .await;
         let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
@@ -1095,8 +1092,6 @@ impl<C: SP1ProverComponents> WrapProver<C> {
             runtime.record
         };
 
-        let mut challenger = SP1OuterGlobalContext::default_challenger();
-
         let (_, proof, _permit) = self
             .prover
             .setup_and_prove_shard(
@@ -1104,7 +1099,6 @@ impl<C: SP1ProverComponents> WrapProver<C> {
                 execution_record,
                 Some(self.verifying_key.clone()),
                 self.permits.clone(),
-                &mut challenger,
             )
             .await;
 

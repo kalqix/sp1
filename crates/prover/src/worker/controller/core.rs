@@ -89,6 +89,7 @@ pub struct SP1CoreExecutor<CoreAir, A, W> {
     artifact_client: A,
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
+    cycle_limit: Option<u64>,
     machine: Machine<SP1Field, CoreAir>,
 }
 
@@ -107,6 +108,7 @@ impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
         artifact_client: A,
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
+        cycle_limit: Option<u64>,
         machine: Machine<SP1Field, CoreAir>,
     ) -> Self {
         Self {
@@ -122,6 +124,7 @@ impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
             artifact_client,
             worker_client,
             minimal_executor_cache,
+            cycle_limit,
             machine,
         }
     }
@@ -210,6 +213,21 @@ where
                         chunk.num_mem_reads() * std::mem::size_of::<sp1_jit::MemValue>() as u64,
                         minimal_executor.is_done()
                     );
+
+                    // Check the `end_clk` for cycle limit
+                    if let Some(cycle_limit) = self.cycle_limit {
+                        let last_clk = minimal_executor.global_clk();
+                        if last_clk > cycle_limit {
+                            tracing::error!(
+                                "Cycle limit exceeded: last_clk = {}, cycle_limit = {}",
+                                last_clk,
+                                cycle_limit
+                            );
+                            return Err(TaskError::Execution(ExecutionError::ExceededCycleLimit(
+                                cycle_limit,
+                            )));
+                        }
+                    }
 
                     // Create a splicing task
                     let task = SplicingTask {
