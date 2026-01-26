@@ -121,8 +121,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                         F::from_canonical_u16(((pc >> 16) & 0xFFFF) as u16),
                         F::from_canonical_u16(((pc >> 32) & 0xFFFF) as u16),
                     ];
-                    let instruction = &program.instructions[idx];
-                    cols.instruction.populate(instruction);
+                    let instruction = program.instructions[idx];
+                    cols.instruction.populate(&instruction);
                 });
             });
     }

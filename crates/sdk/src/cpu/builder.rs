@@ -21,9 +21,7 @@ pub struct CpuProverBuilder {
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -32,7 +30,7 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
@@ -55,7 +53,7 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
@@ -80,7 +78,7 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())

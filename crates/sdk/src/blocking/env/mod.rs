@@ -40,9 +40,7 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
-    pub fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::from_env_with_opts(None, machine)
     }
 
@@ -86,7 +84,7 @@ impl EnvProver {
 
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine)),
-            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build()),
+            "cuda" => Self::Cuda(CudaProverBuilder::new(machine).build()),
             "mock" => Self::Mock(MockProver::new(machine)),
             "network" => panic!("The network prover is not supported in the blocking client"),
             _ => unreachable!(),

@@ -27,11 +27,7 @@ pub struct CpuProveBuilder<'a> {
 }
 
 impl<'a> CpuProveBuilder<'a> {
-    pub(super) const fn new(
-        prover: &'a CpuProver,
-        pk: &'a SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> Self {
+    pub(super) const fn new(prover: &'a CpuProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self { base: BaseProveRequest::new(prover, pk, stdin) }
     }
 
@@ -84,7 +80,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);

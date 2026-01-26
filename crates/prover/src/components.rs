@@ -159,20 +159,3 @@ impl SP1ProverComponents for CpuSP1ProverComponents {
     type WrapProver =
         CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
 }
-
-// #[derive(Clone, Copy)]
-// pub struct CpuSP1ApcProverComponents;
-
-// impl SP1ProverComponents for CpuSP1ApcProverComponents {
-//     type CoreSC = CoreSCWithApcs;
-//     type CoreProver = CpuShardProver<
-//         SP1GlobalContext,
-//         SP1Pcs<SP1GlobalContext>,
-//         SP1InnerPcsProver,
-//         RiscvAirWithApcs<SP1Field>,
-//     >;
-//     type RecursionProver =
-//         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;
-//     type WrapProver =
-//         CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
-// }

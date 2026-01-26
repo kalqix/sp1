@@ -125,7 +125,7 @@ impl<'a> CoreVM<'a> {
         self.program.fetch(self.pc).map(|(i, apc)| {
             if apc.is_some() {
                 unimplemented!("CoreVM does not support apc yet");
-            };
+            }
             i
         })
     }

@@ -1,5 +1,5 @@
 pub mod build;
-pub mod components;
+mod components;
 pub mod recursion;
 pub mod shapes;
 mod types;

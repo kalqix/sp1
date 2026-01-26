@@ -79,7 +79,9 @@ struct EvalArgs {
     pub author: Option<String>,
 }
 
-pub async fn evaluate_performance(opts: SP1ProverOpts) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn evaluate_performance<C: SP1ProverComponents>(
+    opts: SP1ProverOpts,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("opts: {opts:?}");
 
     let args = EvalArgs::parse();
@@ -106,7 +108,7 @@ pub async fn evaluate_performance(opts: SP1ProverOpts) -> Result<(), Box<dyn std
     for program in &programs {
         println!("Evaluating program: {}", program.name);
         let (elf, stdin) = load_program(program.elf, program.input);
-        let report = run_evaluation::<CpuSP1ProverComponents>(program.name, &elf, &stdin, opts);
+        let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
         reports.push(report);
         println!("Finished Program: {}", program.name);
     }

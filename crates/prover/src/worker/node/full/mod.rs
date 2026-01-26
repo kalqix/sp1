@@ -309,11 +309,11 @@ mod tests {
     use serial_test::serial;
     use sp1_core_machine::{riscv::RiscvAirWithApcs, utils::setup_logger};
 
+    use crate::CpuSP1ProverComponents;
     use slop_algebra::PrimeField32;
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
-    use crate::CpuSP1ProverComponents;
 
     use super::*;
 
@@ -370,8 +370,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
-        let machine = RiscvAirWithApcs::machine();
-        run_e2e_node_test(cpu_worker_builder(machine)).await
+        run_e2e_node_test(cpu_worker_builder(RiscvAirWithApcs::machine())).await
     }
 
     #[tokio::test]
@@ -379,8 +378,8 @@ mod tests {
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        let machine = RiscvAirWithApcs::machine();
-        run_e2e_node_test(cpu_worker_builder(machine).without_vk_verification()).await
+        run_e2e_node_test(cpu_worker_builder(RiscvAirWithApcs::machine()).without_vk_verification())
+            .await
     }
 
     #[tokio::test]
@@ -389,11 +388,12 @@ mod tests {
     async fn make_verifier_vks() -> anyhow::Result<()> {
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine();
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
+            RiscvAirWithApcs::machine(),
+        ))
+        .build()
+        .await
+        .unwrap();
 
         let recursion_vks = client.core().recursion_vks();
 
@@ -455,11 +455,12 @@ mod tests {
     async fn test_node_deferred_compress() -> anyhow::Result<()> {
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine();
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
+            RiscvAirWithApcs::machine(),
+        ))
+        .build()
+        .await
+        .unwrap();
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

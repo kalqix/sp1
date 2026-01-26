@@ -27,9 +27,7 @@ pub struct NetworkProverBuilder {
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
-    pub const fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self {
             private_key: None,
             rpc_url: None,

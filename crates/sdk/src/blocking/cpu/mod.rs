@@ -69,9 +69,7 @@ impl Prover for CpuProver {
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
-    pub fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine)
     }
 
@@ -100,9 +98,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub fn new_experimental(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub fn new_experimental(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine)
     }
 }

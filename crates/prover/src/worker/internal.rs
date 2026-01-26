@@ -20,6 +20,7 @@ struct SP1WorkerInner<A, W, C: SP1ProverComponents> {
 ///
 /// - `A`: The artifact client type.
 /// - `W`: The worker client type.
+/// - `C`: The prover components type.
 pub struct SP1Worker<A, W, C: SP1ProverComponents> {
     inner: Arc<SP1WorkerInner<A, W, C>>,
 }

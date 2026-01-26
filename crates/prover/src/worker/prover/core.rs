@@ -135,6 +135,7 @@ impl NormalizeProgramCompiler {
             RiscvAirWithApcs<SP1Field>,
             InnerConfig,
         >,
+
         reduce_shape: SP1RecursionProofShape,
         machine_verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
     ) -> Self {
@@ -735,6 +736,7 @@ pub struct SP1CoreProverConfig {
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
@@ -763,8 +765,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         let normalize_program_compiler = Arc::new(normalize_program_compiler);
 
         // Create a shared fixed PK cache if enabled
-        let pk_cache: Option<CoreProvingKeyCache<C>> =
-            if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
+        let pk_cache = if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
 
         // Initialize the unified core engine (handles both tracing and proving)
         let core_workers = (0..config.num_core_workers)

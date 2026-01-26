@@ -26,7 +26,7 @@ impl<C: SP1ProverComponents> Clone for RecursionVkWorker<C> {
     }
 }
 
-pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents + 'static>(
+pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
     worker: Arc<RecursionVkWorker<C>>,
     request: RawTaskRequest,
     client: A,

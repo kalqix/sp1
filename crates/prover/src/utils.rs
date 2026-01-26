@@ -70,7 +70,6 @@ impl SP1CoreProofData {
 
 /// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
-    // We pass the vanilla riscv machine, so the execution only uses software
     let program = Program::from(elf).unwrap();
     let mut runtime = Executor::new(Arc::new(program), SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);

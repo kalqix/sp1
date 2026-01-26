@@ -16,7 +16,6 @@ use sp1_primitives::SP1Field;
 ///
 /// Note that the initialization may be slow as it loads necessary proving parameters and sets up
 /// the environment.
-#[derive(Default)]
 pub struct ProverClient;
 
 impl ProverClient {
@@ -36,17 +35,13 @@ impl ProverClient {
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
     #[must_use]
-    pub fn from_env(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> EnvProver {
+    pub fn from_env(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> EnvProver {
         EnvProver::new(machine)
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> ProverClientBuilder {
+    pub fn builder(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> ProverClientBuilder {
         ProverClientBuilder { machine }
     }
 }
@@ -73,7 +68,7 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cpu(&self) -> CpuProverBuilder {
-        CpuProverBuilder::new_with_machine(self.machine.clone())
+        CpuProverBuilder::new(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -92,6 +87,6 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::new().with_machine(self.machine.clone())
+        CudaProverBuilder::new(self.machine.clone())
     }
 }

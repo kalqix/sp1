@@ -16,8 +16,12 @@ use crate::{
     CpuSP1ProverComponents,
 };
 
-pub struct SP1WorkerBuilder<C: SP1ProverComponents, A = InMemoryArtifactClient, W = LocalWorkerClient> {
-    pub machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+pub struct SP1WorkerBuilder<
+    C: SP1ProverComponents,
+    A = InMemoryArtifactClient,
+    W = LocalWorkerClient,
+> {
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     config: SP1WorkerConfig,
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
@@ -29,9 +33,7 @@ pub struct SP1WorkerBuilder<C: SP1ProverComponents, A = InMemoryArtifactClient, 
 
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     #[allow(clippy::new_without_default)]
-    pub fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         let config = SP1WorkerConfig::default();
 
         Self {
@@ -44,6 +46,10 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
             artifact_client: None,
             worker_client: None,
         }
+    }
+
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
+        &self.machine
     }
 }
 
@@ -258,6 +264,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[cfg(feature = "experimental")]
     pub fn with_vk_map_path(self, vk_map_path: String) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
+            machine,
             mut config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -278,6 +285,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             wrap_air_prover_and_permits,
             artifact_client,
             worker_client,
+            machine,
         }
     }
 
@@ -285,6 +293,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[cfg(feature = "experimental")]
     pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
+            machine,
             mut config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -298,6 +307,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             config.prover_config.recursion_prover_config.without_vk_verification();
 
         SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,

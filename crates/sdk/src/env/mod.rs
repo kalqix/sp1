@@ -47,9 +47,7 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::from_env_with_opts(None, machine).await
     }
 
@@ -61,7 +59,7 @@ impl EnvProver {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let mut client =
@@ -94,9 +92,7 @@ impl EnvProver {
 
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine).await),
-            "cuda" => {
-                Self::Cuda(CudaProverBuilder::new_with_opts(machine, core_opts).build().await)
-            }
+            "cuda" => Self::Cuda(CudaProverBuilder::new(machine).build().await),
             "mock" => Self::Mock(MockProver::new(machine).await),
             #[cfg(feature = "network")]
             "network" => {

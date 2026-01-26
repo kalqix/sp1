@@ -4,10 +4,7 @@ use clap::Parser;
 
 use slop_algebra::AbstractField;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::{
-    io::SP1Stdin,
-    riscv::RiscvAirWithApcs,
-};
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAirWithApcs};
 use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{

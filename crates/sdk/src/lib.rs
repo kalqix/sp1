@@ -64,11 +64,9 @@ pub use sp1_core_executor::{
 
 // Re-export the machine/prover primitives.
 pub use sp1_core_machine::io::SP1Stdin;
+pub use sp1_core_machine::riscv::RiscvAirWithApcs;
 pub use sp1_primitives::{io::SP1PublicValues, Elf};
 pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
-
-pub use sp1_core_machine::riscv::RiscvAirWithApcs;
-pub use sp1_prover::components::CpuSP1ProverComponents;
 
 /// A prelude, including all the types and traits that are commonly used.
 pub mod prelude {
@@ -85,6 +83,7 @@ pub use utils::setup_logger;
 mod tests {
     use std::sync::Arc;
 
+    use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
     use anyhow::Result;
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
@@ -95,10 +94,6 @@ mod tests {
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_core_machine::riscv::RiscvAirWithApcs;
     use sp1_primitives::{io::SP1PublicValues, Elf};
-    use crate::{
-        utils, CpuProver, CpuSP1ProverComponents, MockProver, ProveRequest, Prover, ProverClient,
-        SP1Stdin,
-    };
 
     const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
     const GUEST_KECCAK256_SOFTWARE: &str = "../test-artifacts/programs/keccak256-software";
@@ -172,10 +167,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine())
-            .cpu()
-            .build()
-            .await;
+        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -187,10 +179,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine())
-            .cpu()
-            .build()
-            .await;
+        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -204,10 +193,7 @@ mod tests {
     #[ignore = "The cycle limit logic needs to be reimplemented."]
     async fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine())
-            .cpu()
-            .build()
-            .await;
+        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -308,9 +294,7 @@ mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.minimal_trace_chunk_threshold = 1000;
 
-        let client =
-            MockProver::new_with_opts(RiscvAirWithApcs::machine(), opts)
-                .await;
+        let client = MockProver::new_with_opts(RiscvAirWithApcs::machine(), opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -330,10 +314,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_core() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine())
-            .cpu()
-            .build()
-            .await;
+        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();

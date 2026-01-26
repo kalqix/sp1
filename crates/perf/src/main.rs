@@ -84,10 +84,7 @@ async fn main() {
     let performance_reports = match args.mode {
         ProverMode::Cpu => {
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder(RiscvAirWithApcs::machine())
-                    .cpu()
-                    .build()
-                    .await
+                ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await
             })
             .await;
 
@@ -124,10 +121,7 @@ async fn main() {
         }
         ProverMode::Cuda => {
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder(RiscvAirWithApcs::machine())
-                    .cuda()
-                    .build()
-                    .await
+                ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await
             })
             .await;
 

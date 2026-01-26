@@ -463,7 +463,7 @@ mod tests {
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
     use sp1_core_machine::{
         io::SP1Stdin,
-        riscv::RiscvAir,
+        riscv::RiscvAirWithApcs,
         utils::{prove_core, setup_logger},
     };
     use sp1_hypercube::{
@@ -489,7 +489,7 @@ mod tests {
     use sp1_primitives::{SP1Field, SP1GlobalContext};
     type GC = SP1GlobalContext;
     type C = InnerConfig;
-    type A = RiscvAir<SP1Field>;
+    type A = RiscvAirWithApcs<SP1Field>;
 
     #[tokio::test]
     async fn test_verify_shard() {

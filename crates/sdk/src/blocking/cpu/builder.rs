@@ -14,38 +14,14 @@ use sp1_primitives::SP1Field;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Option<Machine<SP1Field, RiscvAirWithApcs<SP1Field>>>,
-}
-
-impl Default for CpuProverBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new() -> Self {
-        Self { core_opts: None, machine: None }
-    }
-
-    /// Creates a builder using the provided machine.
-    #[must_use]
-    pub fn new_with_machine(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
-        Self::new().with_machine(machine)
-    }
-
-    /// Sets the core machine used by the prover.
-    #[must_use]
-    pub fn with_machine(
-        mut self,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
-        self.machine = Some(machine);
-        self
+    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+        Self { core_opts: None, machine }
     }
 
     /// Sets the core options for the prover.
@@ -95,7 +71,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CpuProver {
-        let machine = self.machine.expect("CpuProverBuilder requires a machine");
-        CpuProver::new_with_opts(self.core_opts, machine)
+        CpuProver::new_with_opts(self.core_opts, self.machine)
     }
 }

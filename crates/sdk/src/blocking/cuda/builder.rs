@@ -3,13 +3,14 @@
 //! This module provides a builder for the [`CudaProver`].
 
 use super::CudaProver;
-use crate::blocking::block_on;
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::SP1LightNode;
+
+use crate::blocking::block_on;
 
 /// A builder for the [`CudaProver`].
 ///
@@ -19,30 +20,14 @@ pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Option<Machine<SP1Field, RiscvAirWithApcs<SP1Field>>>,
-}
-
-impl Default for CudaProverBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
 impl CudaProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new() -> Self {
-        Self { cuda_device_id: None, core_opts: None, machine: None }
-    }
-
-    /// Sets the core machine used by the prover.
-    #[must_use]
-    pub fn with_machine(
-        mut self,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
-        self.machine = Some(machine);
-        self
+    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+        Self { cuda_device_id: None, core_opts: None, machine }
     }
 
     /// Sets the CUDA device id.
@@ -96,14 +81,6 @@ impl CudaProverBuilder {
         self.core_opts(opts)
     }
 
-    /// Creates a builder using the provided machine.
-    #[must_use]
-    pub fn new_with_machine(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
-        Self::new().with_machine(machine)
-    }
-
     /// Builds a [`CudaProver`].
     ///
     /// # Details
@@ -117,10 +94,8 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
-        let node = block_on(SP1LightNode::with_opts(
-            self.machine.expect("Machine should be set"),
-            self.core_opts.unwrap_or_default(),
-        ));
+        let node =
+            block_on(SP1LightNode::with_opts(self.machine, self.core_opts.unwrap_or_default()));
         let cuda_prover = match self.cuda_device_id {
             Some(id) => crate::blocking::block_on(CudaProverImpl::new_with_id(id)),
             None => crate::blocking::block_on(CudaProverImpl::new()),

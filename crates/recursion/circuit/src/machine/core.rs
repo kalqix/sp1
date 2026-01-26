@@ -10,7 +10,9 @@ use slop_challenger::IopCtx;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use serde::{Deserialize, Serialize};
-use sp1_hypercube::air::{MachineAir, PublicValues, SP1CorePublicValues};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+
+use sp1_hypercube::air::{PublicValues, SP1CorePublicValues};
 
 use sp1_hypercube::{air::ShardRange, MachineVerifyingKey, ShardProof};
 
@@ -73,46 +75,13 @@ impl<GC: IopCtx, Proof> SP1NormalizeWitnessValues<GC, Proof> {
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
-// <<<<<<< HEAD
-// pub struct SP1RecursiveVerifier<A, C: Config, SC: SP1FieldFriConfig, JC: RecursiveJaggedConfig> {
-//     _phantom: PhantomData<(A, C, SC, JC)>,
-// }
-
-// type InnerVal = <InnerSC as JaggedConfig>::F;
-// type InnerChallenge = <InnerSC as JaggedConfig>::EF;
-
-// impl<A, C, SC, JC> SP1RecursiveVerifier<A, C, SC, JC>
-// where
-//     A: MachineAir<<SC as JaggedConfig>::F> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
-//     SC: SP1FieldConfigVariable<
-//             C,
-//             FriChallengerVariable = DuplexChallengerVariable<C>,
-//             DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],
-//         > + Send
-//         + Sync,
-//     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<SP1Field>>,
-//     JC: RecursiveJaggedConfig<
-//         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-//     >,
-//     SC: SP1FieldConfigVariable<C> + MachineConfig,
-//     JC: RecursiveJaggedConfig<
-//         F = C::F,
-//         EF = C::EF,
-//         Circuit = C,
-//         Commitment = SC::DigestVariable,
-//         Challenger = SC::FriChallengerVariable,
-//         BatchPcsProof = RecursiveBasefoldProof<RecursiveBasefoldConfigImpl<C, SC>>,
-//         BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-//     >,
-// =======
-pub struct SP1RecursiveVerifier<C: Config, A> {
-    _phantom: PhantomData<(C, A)>,
+pub struct SP1RecursiveVerifier<C: Config> {
+    _phantom: PhantomData<C>,
 }
 
-impl<C, A> SP1RecursiveVerifier<C, A>
+impl<C> SP1RecursiveVerifier<C>
 where
     C: CircuitConfig<Bit = Felt<SP1Field>>,
-    A: MachineAir<SP1Field> + for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
     ///
@@ -130,10 +99,10 @@ where
     /// The first shard has some additional constraints for initialization.
     pub fn verify(
         builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<SP1GlobalContext, A, C>,
+        machine: &RecursiveShardVerifier<SP1GlobalContext, RiscvAirWithApcs<SP1Field>, C>,
         input: SP1RecursionWitnessVariable<C, SP1GlobalContext>,
     ) where
-        A: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
+        RiscvAirWithApcs<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
     {
         // Read input.
         let SP1RecursionWitnessVariable {

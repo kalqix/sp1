@@ -26,7 +26,7 @@ async fn main() {
     stdin.write(&execute_prot_should_fail);
     stdin.write(&test_prot_none_fail);
 
-    let sp1_prover = SP1ProverBuilder::new().build().await;
+    let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAirWithApcs::machine()).build().await;
     let opts = LocalProverOpts {
         core_opts: SP1CoreOpts {
             retained_events_presets: [RetainedEventsPreset::Sha256].into(),

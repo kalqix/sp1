@@ -8,9 +8,9 @@ use sp1_core_executor::{
     syscalls::SyscallCode,
     CoreVM, ExecutionError, MinimalExecutor, Program, SP1CoreOpts, UnsafeMemory,
 };
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAirWithApcs};
 use sp1_hypercube::{
-    air::{MachineAir, ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     Machine, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
@@ -76,7 +76,7 @@ pub struct CommonProverInput {
     pub nonce: [u32; PROOF_NONCE_NUM_WORDS],
 }
 
-pub struct SP1CoreExecutor<CoreAir, A, W> {
+pub struct SP1CoreExecutor<A, W> {
     splicing_engine: Arc<SplicingEngine<A, W>>,
     global_memory_buffer_size: usize,
     elf: Artifact,
@@ -90,10 +90,10 @@ pub struct SP1CoreExecutor<CoreAir, A, W> {
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
-    machine: Machine<SP1Field, CoreAir>,
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
-impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
+impl<A, W> SP1CoreExecutor<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         splicing_engine: Arc<SplicingEngine<A, W>>,
@@ -109,7 +109,7 @@ impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
-        machine: Machine<SP1Field, CoreAir>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -130,11 +130,10 @@ impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W> {
     }
 }
 
-impl<CoreAir, A, W> SP1CoreExecutor<CoreAir, A, W>
+impl<A, W> SP1CoreExecutor<A, W>
 where
     A: ArtifactClient,
     W: WorkerClient,
-    CoreAir: MachineAir<SP1Field, Program = Program>,
 {
     pub async fn execute(self) -> Result<ExecutionOutput, TaskError> {
         let elf_bytes = self.artifact_client.download_program(&self.elf).await?;

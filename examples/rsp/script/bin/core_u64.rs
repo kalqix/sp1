@@ -48,7 +48,7 @@ async fn main() {
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
-    let sp1_prover = SP1ProverBuilder::new().build().await;
+    let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAirWithApcs::new()).build().await;
     let opts = LocalProverOpts {
         core_opts: SP1CoreOpts {
             retained_events_presets: [RetainedEventsPreset::Sha256].into(),

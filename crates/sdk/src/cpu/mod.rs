@@ -99,9 +99,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub async fn new_experimental(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub async fn new_experimental(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine).await
     }
 }

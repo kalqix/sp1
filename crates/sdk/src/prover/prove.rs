@@ -43,7 +43,7 @@ where
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{
-    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1ProofMode,
+    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1ProofMode,
     ///     SP1Stdin,
     /// };
     ///
@@ -74,7 +74,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -104,7 +104,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -132,7 +132,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -160,7 +160,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -188,7 +188,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -221,7 +221,7 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);

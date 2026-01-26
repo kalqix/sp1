@@ -68,12 +68,7 @@ impl SP1LightNode {
         let program = Program::custom(elf, self.inner.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
         let program = Arc::new(program);
-        let (_, vk) = AirProverWorker::setup(
-            self.inner.core_air_prover.as_ref(),
-            program,
-            self.inner.permits.clone(),
-        )
-        .await;
+        let (_, vk) = self.inner.core_air_prover.setup(program, self.inner.permits.clone()).await;
         let vk = SP1VerifyingKey { vk };
         Ok(vk)
     }

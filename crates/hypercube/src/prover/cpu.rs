@@ -1,14 +1,14 @@
 use slop_algebra::extension::BinomialExtensionField;
 use slop_challenger::IopCtx;
 use slop_jagged::{DefaultJaggedProver, JaggedProver};
-use slop_multilinear::{MultilinearPcsProver, MultilinearPcsVerifier};
+use slop_multilinear::MultilinearPcsVerifier;
 use slop_stacked::StackedPcsProver;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use super::{DefaultTraceGenerator, ShardProver, SimpleProver, ZerocheckAir};
 use crate::{
-    prover::{PcsProof, SP1MerkleTreeProver},
-    GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs, ShardContextImpl, ShardVerifier,
+    prover::SP1MerkleTreeProver, GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs,
+    ShardContextImpl, ShardVerifier,
 };
 
 type SC<GC, Verifier, A> = ShardContextImpl<GC, Verifier, A>;
@@ -25,13 +25,12 @@ impl<GC, Verifier, A, PcsComponents> CpuShardProver<GC, Verifier, PcsComponents,
 where
     GC: IopCtx,
     Verifier: MultilinearPcsVerifier<GC>,
+    PcsComponents: DefaultJaggedProver<GC, Verifier>,
     A: ZerocheckAir<GC::F, GC::EF>,
-    PcsComponents: MultilinearPcsProver<GC, PcsProof<GC, SC<GC, Verifier, A>>>
-        + DefaultJaggedProver<GC, Verifier>,
 {
     /// Create a new CPU prover.
     #[must_use]
-    pub fn new(verifier: ShardVerifier<GC, SC<GC, Verifier, A>>) -> Self {
+    pub fn new(verifier: ShardVerifier<GC, ShardContextImpl<GC, Verifier, A>>) -> Self {
         // Construct the shard prover.
         let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
         let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);

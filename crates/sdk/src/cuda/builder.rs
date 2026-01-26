@@ -4,8 +4,8 @@
 
 use super::CudaProver;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::SP1LightNode;
@@ -22,12 +22,10 @@ pub struct CudaProverBuilder {
 }
 
 impl CudaProverBuilder {
+    /// Creates a new builder from a machine.
     #[must_use]
-    pub fn new_with_opts(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-        core_opts: Option<SP1CoreOpts>,
-    ) -> Self {
-        Self { machine, cuda_device_id: None, core_opts }
+    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+        Self { machine, cuda_device_id: None, core_opts: None }
     }
 
     /// Sets the CUDA device id.
@@ -38,7 +36,7 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///     .cuda()
@@ -56,7 +54,7 @@ impl CudaProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
@@ -79,7 +77,7 @@ impl CudaProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
@@ -103,7 +101,7 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///     .cuda()

@@ -25,11 +25,7 @@ pub struct CpuProveBuilder<'a> {
 }
 
 impl<'a> CpuProveBuilder<'a> {
-    pub(super) const fn new(
-        prover: &'a CpuProver,
-        pk: &'a SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> Self {
+    pub(super) const fn new(prover: &'a CpuProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self { base: BaseProveRequest::new(prover, pk, stdin) }
     }
 }

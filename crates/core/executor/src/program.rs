@@ -207,6 +207,7 @@ impl Program {
         })
     }
 
+    /// Create a program and customize it with a machine. This means that the apcs of the machine are added to the program to be available during execution.
     pub fn custom<F: Field>(
         input: &[u8],
         machine: &Machine<F, impl MachineAir<F, Program = Self>>,

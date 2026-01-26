@@ -25,7 +25,8 @@ use sp1_recursion_circuit::{
         SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1DeferredVerifier,
         SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1RecursiveVerifier,
     },
-    shard::RecursiveShardVerifier, witness::Witnessable,
+    shard::RecursiveShardVerifier,
+    witness::Witnessable,
     CircuitConfig, SP1FieldConfigVariable, WrapConfig as CircuitWrapConfig,
 };
 use sp1_recursion_compiler::{
@@ -66,11 +67,12 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
-        let num_shapes =
-            create_all_input_shapes(RiscvAirWithApcs::machine().shape(), max_compose_arity)
-                .into_iter()
-                .collect::<BTreeSet<_>>()
-                .len();
+        // TODO: use apcs here
+        let machine = RiscvAirWithApcs::machine();
+        let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .len();
 
         let added_len = num_shapes.saturating_sub(map.len());
         let prev_len = map.len();
@@ -184,11 +186,7 @@ pub fn normalize_program_from_input(
     let builder_span = tracing::debug_span!("build recursion program").entered();
     let mut builder = Builder::<InnerConfig>::default();
     let input_variable = input.read(&mut builder);
-    SP1RecursiveVerifier::<InnerConfig, RiscvAirWithApcs<SP1Field>>::verify(
-        &mut builder,
-        recursive_verifier,
-        input_variable,
-    );
+    SP1RecursiveVerifier::<InnerConfig>::verify(&mut builder, recursive_verifier, input_variable);
     let block = builder.into_root_block();
     // SAFETY: The circuit is well-formed. It does not use synchronization primitives
     // (or possibly other means) to violate the invariants.

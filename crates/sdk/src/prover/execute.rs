@@ -35,7 +35,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -77,7 +77,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -109,7 +109,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -143,7 +143,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{CpuSP1ProverComponents, Elf, Prover, ProverClient, RiscvAir, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);

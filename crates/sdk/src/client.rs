@@ -26,7 +26,7 @@ impl ProverClient {
     /// # Usage
     /// ```no_run
     /// use sp1_sdk::{
-    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
     /// };
     ///
     /// tokio_test::block_on(async {
@@ -42,17 +42,13 @@ impl ProverClient {
     /// });
     /// ```
     #[must_use]
-    pub async fn from_env(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> EnvProver {
+    pub async fn from_env(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> EnvProver {
         EnvProver::new(machine).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> ProverClientBuilder {
+    pub fn builder(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> ProverClientBuilder {
         ProverClientBuilder::new(machine)
     }
 }
@@ -72,7 +68,7 @@ impl ProverClientBuilder {
     /// # Usage
     /// ```no_run
     /// use sp1_sdk::{
-    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
     /// };
     ///
     /// tokio_test::block_on(async {
@@ -97,7 +93,7 @@ impl ProverClientBuilder {
     /// # Example
     /// ```no_run
     /// use sp1_sdk::{
-    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
     /// };
     ///
     /// tokio_test::block_on(async {
@@ -114,7 +110,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::new_with_opts(self.machine.clone(), None)
+        CudaProverBuilder::new(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
@@ -122,7 +118,7 @@ impl ProverClientBuilder {
     /// # Example
     /// ```no_run
     /// use sp1_sdk::{
-    ///     CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, RiscvAir, SP1Stdin,
+    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
     /// };
     ///
     /// tokio_test::block_on(async {

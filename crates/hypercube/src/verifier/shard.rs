@@ -28,8 +28,8 @@ use crate::{
     air::MachineAir,
     prover::{CoreProofShape, PcsProof, Record, ZerocheckAir},
     Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier, LogupGkrVerificationError, Machine,
-    ShardContext, ShardContextImpl, SP1SC, VerifierConstraintFolder,
-    VerifierPublicValuesConstraintFolder, MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS,
+    ShardContext, ShardContextImpl, VerifierConstraintFolder, VerifierPublicValuesConstraintFolder,
+    MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS, SP1SC,
 };
 
 use super::{MachineVerifyingKey, ShardOpenedValues, ShardProof};
@@ -792,9 +792,8 @@ where {
     }
 }
 
-impl<GC, A> ShardVerifier<GC, SP1SC<GC, A>>
+impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, A> ShardVerifier<GC, SP1SC<GC, A>>
 where
-    GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     A: ZerocheckAir<GC::F, GC::EF>,
     GC::F: PrimeField32,
 {

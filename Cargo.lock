@@ -7375,7 +7375,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "clap",
- "derive-where",
  "dirs",
  "downloader",
  "either",

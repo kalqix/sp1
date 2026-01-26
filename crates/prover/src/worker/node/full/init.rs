@@ -25,17 +25,9 @@ pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
     pub channels: LocalWorkerClientChannels,
 }
 
-// impl<C: SP1ProverComponents> Default for SP1LocalNodeBuilder<C> {
-//     fn default() -> Self {
-//         Self::new()
-//     }
-// }
-
 impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
-    pub fn new(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::from_worker_client_builder(SP1WorkerBuilder::new(machine))
     }
 
@@ -43,12 +35,10 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     ///
     /// This method can be used to initialize a node from a worker client builder that has already
     /// been configured with the desired prover components.
-    pub fn from_worker_client_builder(
-        builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
-    ) -> Self {
+    pub fn from_worker_client_builder(builder: SP1WorkerBuilder<C>) -> Self {
         let artifact_client = InMemoryArtifactClient::new();
         let (worker_client, channels) = LocalWorkerClient::init();
-        let machine = builder.machine.clone();
+        let machine = builder.machine().clone();
         let worker_builder =
             builder.with_artifact_client(artifact_client).with_worker_client(worker_client);
         Self { machine, worker_builder, channels }

@@ -9,6 +9,7 @@ use std::{
 };
 
 use hashbrown::HashSet;
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use slop_air::BaseAir;
 use slop_algebra::AbstractField;
@@ -35,7 +36,6 @@ use sp1_recursion_circuit::{
         SP1CompressWithVKeyWitnessValues, SP1MerkleProofWitnessValues, SP1NormalizeWitnessValues,
         SP1ShapedWitnessValues,
     },
-    shard::RecursiveShardVerifier,
 };
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{
@@ -65,7 +65,7 @@ use crate::{
         shrink_program_from_input,
     },
     worker::{AirProverWorker, RecursionVkWorker},
-    CompressAir, CpuSP1ProverComponents, CORE_MAX_LOG_ROW_COUNT,
+    CompressAir, CORE_MAX_LOG_ROW_COUNT,
 };
 
 pub const DEFAULT_ARITY: usize = 4;
@@ -80,7 +80,7 @@ pub struct SP1NormalizeInputShape {
     pub log_stacking_height: usize,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum SP1RecursionProgramShape {
     // The program that verifies a core shard proof.
     Normalize(CoreProofShape<SP1Field, RiscvAirWithApcs<SP1Field>>),
@@ -132,7 +132,7 @@ impl SP1NormalizeInputShape {
 }
 
 pub struct SP1NormalizeCache {
-    lru: Arc<Mutex<lru::LruCache<SP1NormalizeInputShape, Arc<RecursionProgram<SP1Field>>>>>,
+    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape, Arc<RecursionProgram<SP1Field>>>>>,
     total_calls: AtomicUsize,
     hits: AtomicUsize,
 }
@@ -140,7 +140,7 @@ pub struct SP1NormalizeCache {
 impl SP1NormalizeCache {
     pub fn new(size: usize) -> Self {
         let size = NonZero::new(size).expect("size must be non-zero");
-        let lru = lru::LruCache::new(size);
+        let lru = LruCache::new(size);
         let lru = Arc::new(Mutex::new(lru));
         Self { lru, total_calls: AtomicUsize::new(0), hits: AtomicUsize::new(0) }
     }
@@ -315,7 +315,11 @@ impl SP1RecursionProofShape {
     }
 
     #[allow(dead_code)]
-    async fn max_arity<C: SP1ProverComponents>(&self, vk_verification: bool, height: usize) -> usize {
+    async fn max_arity<C: SP1ProverComponents>(
+        &self,
+        vk_verification: bool,
+        height: usize,
+    ) -> usize {
         let mut arity = 0;
         let compress_verifier = C::compress_verifier();
         let recursive_compress_verifier =
@@ -336,6 +340,7 @@ impl SP1RecursionProofShape {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     dummy: bool,
     num_compiler_workers: usize,
@@ -350,7 +355,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     let recursion_prover = vk_worker.recursion_prover.clone();
     let shrink_prover = vk_worker.shrink_prover.clone();
     if dummy {
-        let dummy_set = dummy_vk_map(machine).into_keys().collect();
+        let dummy_set = dummy_vk_map::<C>(machine).into_keys().collect();
         return (dummy_set, vec![]);
     }
 
@@ -408,11 +413,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                             };
                             let dummy_vk = dummy_vk();
                             let core_verifier = C::core_verifier(machine);
-                            let recursive_core_verifier: RecursiveShardVerifier<
-                                _,
-                                RiscvAirWithApcs<SP1Field>,
-                                _,
-                            > = recursive_verifier::<_, _, InnerConfig>(
+                            let recursive_core_verifier = recursive_verifier::<_, _, InnerConfig>(
                                 core_verifier.shard_verifier(),
                             );
                             let witness =
@@ -627,13 +628,10 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
     (max_preprocessed_multiple, max_main_multiple, num_shapes)
 }
 
-pub fn dummy_vk_map(
+pub fn dummy_vk_map<C: SP1ProverComponents>(
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 ) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
-    create_all_input_shapes(
-        CpuSP1ProverComponents::core_verifier(machine).machine().shape(),
-        DEFAULT_ARITY,
-    )
+    create_all_input_shapes(C::core_verifier(machine).machine().shape(), DEFAULT_ARITY)
         .iter()
         .enumerate()
         .map(|(i, _)| ([SP1Field::from_canonical_usize(i); DIGEST_SIZE], i))
@@ -759,7 +757,7 @@ mod tests {
     #[cfg(feature = "experimental")]
     use sp1_core_executor::SP1Context;
 
-    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
+    use sp1_core_machine::utils::setup_logger;
     use sp1_recursion_executor::RecursionAirEventCount;
 
     use super::*;
@@ -804,18 +802,18 @@ mod tests {
     async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let client = SP1LightNode::new(RiscvAirWithApcs::machine()).await;
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LightNode::new(machine.clone()).await;
         // let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
         let vk = client.setup(&elf).await?;
 
         let context =
             "Shape is not valid. To fix: From sp1-wip directory, run `cargo test --release -p sp1-prover --features experimental -- test_find_recursion_shape --include-ignored`";
 
-        let machine = RiscvAirWithApcs::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier(RiscvAirWithApcs::machine());
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
         let recursive_core_verifier =
             recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
@@ -907,10 +905,11 @@ mod tests {
         let _ = std::fs::remove_file(&vk_map_path);
 
         let machine = RiscvAirWithApcs::machine();
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine.clone()))
-            .build()
-            .await
-            .unwrap();
+        let node =
+            SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine.clone()))
+                .build()
+                .await
+                .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
 
@@ -924,8 +923,10 @@ mod tests {
 
         // Create all circuit shapes.
         let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
-        let shapes =
-            create_all_input_shapes(core_verifier.shard_verifier().machine().shape(), DEFAULT_ARITY);
+        let shapes = create_all_input_shapes(
+            core_verifier.shard_verifier().machine().shape(),
+            DEFAULT_ARITY,
+        );
 
         // Determine the indices in `shapes` of the shapes appear in the proof.
         let mut shape_indices = vec![];
@@ -936,8 +937,7 @@ mod tests {
         };
 
         for proof in &core_proof {
-            let shape =
-                SP1RecursionProgramShape::Normalize(core_verifier.shape_from_proof(proof));
+            let shape = SP1RecursionProgramShape::Normalize(core_verifier.shape_from_proof(proof));
 
             shape_indices.push(shapes.iter().position(|s| s == &shape).unwrap());
         }
@@ -956,7 +956,7 @@ mod tests {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder(RiscvAirWithApcs::machine())
+            cpu_worker_builder(machine.clone())
                 .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
         .build()
@@ -986,10 +986,10 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let client = SP1LightNode::new(RiscvAirWithApcs::machine()).await;
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LightNode::new(machine.clone()).await;
         let vk = client.setup(&elf).await.unwrap();
 
-        let machine = RiscvAirWithApcs::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let allowed_vk_height = client.inner().allowed_vk_height();
         let vk_verification = client.inner().vk_verification();
