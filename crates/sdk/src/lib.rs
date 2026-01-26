@@ -91,7 +91,6 @@ mod tests {
     use sp1_core_machine::autoprecompiles::{
         build_elf, execution_profile_from_guest, sp1_powdr_config, CompiledProgram,
     };
-    use sp1_core_machine::riscv::RiscvAir;
     use sp1_core_machine::riscv::RiscvAirWithApcs;
     use sp1_primitives::{io::SP1PublicValues, Elf};
 
