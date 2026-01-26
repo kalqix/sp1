@@ -20,7 +20,7 @@ use crate::{
         ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError, TaskId,
         WorkerClient,
     },
-    SP1CircuitWitness, SP1CompressWitness,
+    SP1CircuitWitness, SP1CompressWitness, SP1ProverComponents,
 };
 
 pub struct CompressTask {
@@ -140,11 +140,11 @@ impl RangeProofs {
         self.shard_range
     }
 
-    pub async fn download_witness(
+    pub async fn download_witness<C: SP1ProverComponents>(
         &self,
         is_complete: bool,
         artifact_client: &impl ArtifactClient,
-        recursion_data: &RecursionProverData,
+        recursion_data: &RecursionProverData<C>,
     ) -> Result<SP1CircuitWitness, TaskError> {
         // Download the proofs
         let proofs = try_join_all(self.proofs.iter().map(|proof| async {

@@ -44,7 +44,7 @@ use crate::{
     recursion::RecursionVks,
     utils::words_to_bytes,
     worker::DEFAULT_MAX_COMPOSE_ARITY,
-    WrapSC, SP1_CIRCUIT_VERSION,
+    SP1_CIRCUIT_VERSION,
 };
 
 pub(crate) fn get_or_create_plonk_artifacts_dev_build_dir(
@@ -284,7 +284,7 @@ fn build_outer_circuit(
     let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
     let wrap_verifier = wrap_verifier.shard_verifier();
     let recursive_wrap_verifier =
-        crate::recursion::recursive_verifier::<_, WrapSC, OuterConfig>(wrap_verifier);
+        crate::recursion::recursive_verifier::<_, _, OuterConfig>(wrap_verifier);
 
     let wrap_span = tracing::debug_span!("build wrap circuit").entered();
     let mut builder = Builder::<OuterConfig>::default();

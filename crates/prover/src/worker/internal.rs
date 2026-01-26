@@ -5,11 +5,12 @@ use sp1_prover_types::ArtifactClient;
 use crate::{
     verify::SP1Verifier,
     worker::{SP1Controller, SP1ProverEngine, WorkerClient},
+    SP1ProverComponents,
 };
 
-struct SP1WorkerInner<A, W> {
+struct SP1WorkerInner<A, W, C: SP1ProverComponents> {
     controller: SP1Controller<A, W>,
-    prover_engine: SP1ProverEngine<A, W>,
+    prover_engine: SP1ProverEngine<A, W, C>,
     verifier: SP1Verifier,
 }
 
@@ -19,21 +20,21 @@ struct SP1WorkerInner<A, W> {
 ///
 /// - `A`: The artifact client type.
 /// - `W`: The worker client type.
-pub struct SP1Worker<A, W> {
-    inner: Arc<SP1WorkerInner<A, W>>,
+pub struct SP1Worker<A, W, C: SP1ProverComponents> {
+    inner: Arc<SP1WorkerInner<A, W, C>>,
 }
 
-impl<A, W> Clone for SP1Worker<A, W> {
+impl<A, W, C: SP1ProverComponents> Clone for SP1Worker<A, W, C> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl<A: ArtifactClient, W: WorkerClient> SP1Worker<A, W> {
+impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1Worker<A, W, C> {
     /// Create a new worker.
     pub fn new(
         controller: SP1Controller<A, W>,
-        prover_engine: SP1ProverEngine<A, W>,
+        prover_engine: SP1ProverEngine<A, W, C>,
         verifier: SP1Verifier,
     ) -> Self {
         Self { inner: Arc::new(SP1WorkerInner { controller, prover_engine, verifier }) }
@@ -47,7 +48,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1Worker<A, W> {
 
     /// Get a reference to the underlying prover engine.
     #[inline]
-    pub fn prover_engine(&self) -> &SP1ProverEngine<A, W> {
+    pub fn prover_engine(&self) -> &SP1ProverEngine<A, W, C> {
         &self.inner.prover_engine
     }
 

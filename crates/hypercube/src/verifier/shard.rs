@@ -28,8 +28,8 @@ use crate::{
     air::MachineAir,
     prover::{CoreProofShape, PcsProof, Record, ZerocheckAir},
     Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier, LogupGkrVerificationError, Machine,
-    ShardContext, ShardContextImpl, VerifierConstraintFolder, VerifierPublicValuesConstraintFolder,
-    MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS,
+    ShardContext, ShardContextImpl, SP1SC, VerifierConstraintFolder,
+    VerifierPublicValuesConstraintFolder, MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS,
 };
 
 use super::{MachineVerifyingKey, ShardOpenedValues, ShardProof};
@@ -792,11 +792,10 @@ where {
     }
 }
 
-impl<GC, SC> ShardVerifier<GC, SC>
+impl<GC, A> ShardVerifier<GC, SP1SC<GC, A>>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    SC: ShardContext<GC, Config = SP1Pcs<GC>>,
-    SC::Air: ZerocheckAir<GC::F, GC::EF>,
+    A: ZerocheckAir<GC::F, GC::EF>,
     GC::F: PrimeField32,
 {
     /// Create a shard verifier from basefold parameters.
@@ -805,7 +804,7 @@ where
         fri_config: FriConfig<GC::F>,
         log_stacking_height: u32,
         max_log_row_count: usize,
-        machine: Machine<GC::F, SC::Air>,
+        machine: Machine<GC::F, A>,
     ) -> Self {
         let pcs_verifier = JaggedPcsVerifier::<GC, SP1Pcs<GC>>::new_from_basefold_params(
             fri_config,

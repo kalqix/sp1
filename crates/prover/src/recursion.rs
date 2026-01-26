@@ -4,16 +4,14 @@ use std::{
     path::PathBuf,
 };
 
-use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_basefold::FriConfig;
 use slop_challenger::IopCtx;
 use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_hypercube::{
-    air::{MachineAir, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
+    air::{POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     prover::ZerocheckAir,
     verify_merkle_proof, HashableKey, MachineVerifier, MachineVerifyingKey, MerkleProof,
-    SP1InnerPcs, SP1Pcs, SP1PcsProofInner, ShardContext, ShardVerifier,
+    SP1InnerPcs, SP1PcsProofInner, ShardVerifier, SP1SC,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_recursion_circuit::{
@@ -27,9 +25,7 @@ use sp1_recursion_circuit::{
         SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1DeferredVerifier,
         SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1RecursiveVerifier,
     },
-    shard::RecursiveShardVerifier,
-    witness::Witnessable,
-    zerocheck::RecursiveVerifierConstraintFolder,
+    shard::RecursiveShardVerifier, witness::Witnessable,
     CircuitConfig, SP1FieldConfigVariable, WrapConfig as CircuitWrapConfig,
 };
 use sp1_recursion_compiler::{
@@ -38,16 +34,6 @@ use sp1_recursion_compiler::{
     ir::{Builder, DslIrProgram},
 };
 use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
-
-pub trait BasefoldFriConfig<GC: IopCtx> {
-    fn fri_config(&self) -> &FriConfig<GC::F>;
-}
-
-impl<GC: IopCtx> BasefoldFriConfig<GC> for SP1Pcs<GC> {
-    fn fri_config(&self) -> &FriConfig<GC::F> {
-        &self.basefold_verifier.fri_config
-    }
-}
 
 use crate::{
     shapes::{create_all_input_shapes, SP1RecursionProofShape},
@@ -186,18 +172,19 @@ impl RecursionVks {
 
 /// The program that proves the correct execution of the verifier of a single shard of the core
 /// (RISC-V) machine.
-pub fn normalize_program_from_input<A>(
-    recursive_verifier: &RecursiveShardVerifier<SP1GlobalContext, A, InnerConfig>,
+pub fn normalize_program_from_input(
+    recursive_verifier: &RecursiveShardVerifier<
+        SP1GlobalContext,
+        RiscvAirWithApcs<SP1Field>,
+        InnerConfig,
+    >,
     input: &SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner>,
-) -> RecursionProgram<SP1Field>
-where
-    A: MachineAir<SP1Field> + for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
-{
+) -> RecursionProgram<SP1Field> {
     // Get the operations.
     let builder_span = tracing::debug_span!("build recursion program").entered();
     let mut builder = Builder::<InnerConfig>::default();
     let input_variable = input.read(&mut builder);
-    SP1RecursiveVerifier::<InnerConfig, _>::verify(
+    SP1RecursiveVerifier::<InnerConfig, RiscvAirWithApcs<SP1Field>>::verify(
         &mut builder,
         recursive_verifier,
         input_variable,
@@ -418,20 +405,19 @@ pub(crate) fn dummy_deferred_input(
     }
 }
 
-pub(crate) fn recursive_verifier<GC, SC: ShardContext<GC>, C>(
-    shard_verifier: &ShardVerifier<GC, SC>,
-) -> RecursiveShardVerifier<GC, SC::Air, C>
+pub(crate) fn recursive_verifier<GC, A, C>(
+    shard_verifier: &ShardVerifier<GC, SP1SC<GC, A>>,
+) -> RecursiveShardVerifier<GC, A, C>
 where
     GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + SP1FieldConfigVariable<C>,
-    SC::Air: ZerocheckAir<SP1Field, SP1ExtensionField>,
-    SC::Config: BasefoldFriConfig<GC>,
+    A: ZerocheckAir<SP1Field, SP1ExtensionField>,
     C: CircuitConfig,
 {
     let log_stacking_height = shard_verifier.log_stacking_height();
     let max_log_row_count = shard_verifier.max_log_row_count();
     let machine = shard_verifier.machine().clone();
     let pcs_verifier = RecursiveBasefoldVerifier {
-        fri_config: shard_verifier.jagged_pcs_verifier.pcs_verifier.fri_config().clone(),
+        fri_config: shard_verifier.jagged_pcs_verifier.pcs_verifier.basefold_verifier.fri_config,
         tcs: RecursiveMerkleTreeTcs::<C, GC>(PhantomData),
     };
     let recursive_verifier = RecursiveStackedPcsVerifier::new(pcs_verifier, log_stacking_height);

@@ -1,20 +1,16 @@
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
-use slop_air::Air;
-use slop_algebra::extension::BinomialExtensionField;
 use slop_basefold::FriConfig;
-use slop_uni_stark::SymbolicAirBuilder;
-use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
+use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
 use sp1_hypercube::{
-    air::MachineAir,
-    prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver, ZerocheckAir},
+    prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver},
     Machine, MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
     ShardVerifier,
 };
 use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
 
-use crate::{io::SP1Stdin, riscv::RiscvAir};
+use crate::{io::SP1Stdin, riscv::RiscvAirWithApcs};
 
 use super::prove_core;
 
@@ -24,15 +20,10 @@ use super::prove_core;
 //     Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
-pub async fn run_test_with_machine_opts<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
->(
+pub async fn run_test_with_machine_opts(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     opts: SP1CoreOpts,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     let mut runtime = Executor::new(program, opts);
@@ -44,15 +35,10 @@ pub async fn run_test_with_machine_opts<
     Ok(public_values)
 }
 
-pub async fn run_test_with_machine<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
->(
+pub async fn run_test_with_machine(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
 }
@@ -133,22 +119,16 @@ pub async fn run_test_core(
 }
 
 #[allow(unused_variables)]
-pub async fn run_test_core_with_machine<A>(
+pub async fn run_test_core_with_machine(
     runtime: Executor<'static>,
     inputs: SP1Stdin,
     log_stacking_height: u32,
     max_log_row_count: usize,
-    machine: Machine<SP1Field, A>,
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 ) -> Result<
     MachineProof<SP1GlobalContext, SP1PcsProofInner>,
     MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
->
-where
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>,
-{
+> {
     let verifier = ShardVerifier::from_basefold_parameters(
         FriConfig::default_fri_config(),
         log_stacking_height,

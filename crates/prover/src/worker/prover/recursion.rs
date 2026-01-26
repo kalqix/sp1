@@ -12,7 +12,7 @@ use crate::{
         CommonProverInput, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext, TaskError,
         TaskMetadata,
     },
-    CpuSP1ProverComponents, RecursionSC, SP1CircuitWitness, SP1ProverComponents,
+    RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
@@ -52,10 +52,6 @@ use std::{
 };
 use tokio::sync::oneshot;
 use tracing::Instrument;
-
-type RecursionAirProver =
-    <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
-type WrapAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::WrapProver;
 
 /// Configuration for the recursion prover.
 #[derive(Debug, Clone)]
@@ -150,13 +146,14 @@ impl ReduceTaskRequest {
     }
 }
 
-pub struct PrepareReduceTaskWorker<A> {
-    prover_data: Arc<RecursionProverData>,
+pub struct PrepareReduceTaskWorker<A, C: SP1ProverComponents> {
+    prover_data: Arc<RecursionProverData<C>>,
     artifact_client: A,
 }
 
-impl<A: ArtifactClient> AsyncWorker<ReduceTaskRequest, Result<RecursionTask, TaskError>>
-    for PrepareReduceTaskWorker<A>
+impl<A: ArtifactClient, C: SP1ProverComponents>
+    AsyncWorker<ReduceTaskRequest, Result<RecursionTask, TaskError>>
+    for PrepareReduceTaskWorker<A, C>
 {
     #[tracing::instrument(level = "trace", name = "prepare_reduce_task", skip(self, input))]
     async fn call(&self, input: ReduceTaskRequest) -> Result<RecursionTask, TaskError> {
@@ -169,8 +166,9 @@ impl<A: ArtifactClient> AsyncWorker<ReduceTaskRequest, Result<RecursionTask, Tas
             )),
         )?;
 
-        let witness =
-            range_proofs.download_witness(is_complete, &self.artifact_client, &self.prover_data).await?;
+        let witness = range_proofs
+            .download_witness::<C>(is_complete, &self.artifact_client, &self.prover_data)
+            .await?;
 
         let metrics = ProverMetrics::new();
         Ok(RecursionTask {
@@ -191,18 +189,19 @@ pub struct RecursionTask {
     metrics: ProverMetrics,
 }
 
-pub struct RecursionExecutorWorker {
+pub struct RecursionExecutorWorker<C: SP1ProverComponents> {
     compress_verifier: MachineVerifier<SP1GlobalContext, RecursionSC>,
-    prover_data: Arc<RecursionProverData>,
+    prover_data: Arc<RecursionProverData<C>>,
 }
 
-impl BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask, TaskError>>
-    for RecursionExecutorWorker
+impl<C: SP1ProverComponents>
+    BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask<C>, TaskError>>
+    for RecursionExecutorWorker<C>
 {
     fn call(
         &self,
         input: Result<RecursionTask, TaskError>,
-    ) -> Result<ProveRecursionTask, TaskError> {
+    ) -> Result<ProveRecursionTask<C>, TaskError> {
         let RecursionTask { program, witness, output, metrics, range_proofs_to_cleanup } = input?;
 
         // Execute the runtime.
@@ -254,33 +253,34 @@ impl BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask,
     }
 }
 
-pub type CompressProvingKey = ProvingKey<SP1GlobalContext, RecursionSC, RecursionAirProver>;
+pub type CompressProvingKey<C> =
+    ProvingKey<SP1GlobalContext, RecursionSC, <C as SP1ProverComponents>::RecursionProver>;
 
-enum RecursionKeys {
-    Exists(Arc<CompressProvingKey>, MachineVerifyingKey<SP1GlobalContext>),
+enum RecursionKeys<C: SP1ProverComponents> {
+    Exists(Arc<CompressProvingKey<C>>, MachineVerifyingKey<SP1GlobalContext>),
     Program(Arc<RecursionProgram<SP1Field>>),
 }
 
-pub struct ProveRecursionTask {
+pub struct ProveRecursionTask<C: SP1ProverComponents> {
     record: ExecutionRecord<SP1Field>,
-    keys: RecursionKeys,
+    keys: RecursionKeys<C>,
     output: Artifact,
     metrics: ProverMetrics,
     range_proofs_to_cleanup: Option<RangeProofs>,
 }
 
-pub struct RecursionProverWorker<A> {
-    recursion_prover: Arc<RecursionAirProver>,
+pub struct RecursionProverWorker<A, C: SP1ProverComponents> {
+    recursion_prover: Arc<C::RecursionProver>,
     permits: ProverSemaphore,
     artifact_client: A,
     verify_intermediates: bool,
-    prover_data: Arc<RecursionProverData>,
+    prover_data: Arc<RecursionProverData<C>>,
 }
 
-impl<A: ArtifactClient> RecursionProverWorker<A> {
+impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
     async fn prove_shard(
         &self,
-        keys: RecursionKeys,
+        keys: RecursionKeys<C>,
         record: ExecutionRecord<SP1Field>,
         metrics: ProverMetrics,
     ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
@@ -299,7 +299,7 @@ impl<A: ArtifactClient> RecursionProverWorker<A> {
                     let parent = tracing::Span::current();
                     tokio::task::spawn_blocking(move || {
                         let _guard = parent.enter();
-                        CpuSP1ProverComponents::compress_verifier()
+                        C::compress_verifier()
                             .verify(&vk, &MachineProof::from(vec![proof]))
                             .map_err(|e| {
                                 TaskError::Retryable(anyhow::anyhow!(
@@ -327,7 +327,7 @@ impl<A: ArtifactClient> RecursionProverWorker<A> {
                     let parent = tracing::Span::current();
                     tokio::task::spawn_blocking(move || {
                         let _guard = parent.enter();
-                        CpuSP1ProverComponents::compress_verifier()
+                        C::compress_verifier()
                             .verify(&vk, &MachineProof::from(vec![proof.clone()]))
                             .map_err(|e| {
                                 TaskError::Retryable(anyhow::anyhow!(
@@ -347,13 +347,13 @@ impl<A: ArtifactClient> RecursionProverWorker<A> {
     }
 }
 
-impl<A: ArtifactClient>
-    AsyncWorker<Result<ProveRecursionTask, TaskError>, Result<TaskMetadata, TaskError>>
-    for RecursionProverWorker<A>
+impl<A: ArtifactClient, C: SP1ProverComponents>
+    AsyncWorker<Result<ProveRecursionTask<C>, TaskError>, Result<TaskMetadata, TaskError>>
+    for RecursionProverWorker<A, C>
 {
     async fn call(
         &self,
-        input: Result<ProveRecursionTask, TaskError>,
+        input: Result<ProveRecursionTask<C>, TaskError>,
     ) -> Result<TaskMetadata, TaskError> {
         // Get the input or return an error
         let ProveRecursionTask { record, keys, output, metrics, range_proofs_to_cleanup } = input?;
@@ -373,42 +373,43 @@ impl<A: ArtifactClient>
     }
 }
 
-type ExecutorEngine = Arc<
+type ExecutorEngine<C> = Arc<
     BlockingEngine<
         Result<RecursionTask, TaskError>,
-        Result<ProveRecursionTask, TaskError>,
-        RecursionExecutorWorker,
+        Result<ProveRecursionTask<C>, TaskError>,
+        RecursionExecutorWorker<C>,
     >,
 >;
 
-type RecursionProverEngine<A> = Arc<
+type RecursionProverEngine<A, C> = Arc<
     AsyncEngine<
-        Result<ProveRecursionTask, TaskError>,
+        Result<ProveRecursionTask<C>, TaskError>,
         Result<TaskMetadata, TaskError>,
-        RecursionProverWorker<A>,
+        RecursionProverWorker<A, C>,
     >,
 >;
 
-type PrepareReduceEngine<A> =
-    Arc<AsyncEngine<ReduceTaskRequest, Result<RecursionTask, TaskError>, PrepareReduceTaskWorker<A>>>;
+type PrepareReduceEngine<A, C> = Arc<
+    AsyncEngine<ReduceTaskRequest, Result<RecursionTask, TaskError>, PrepareReduceTaskWorker<A, C>>,
+>;
 
-type RecursionProvePipeline<A> = Chain<ExecutorEngine, RecursionProverEngine<A>>;
+type RecursionProvePipeline<A, C> = Chain<ExecutorEngine<C>, RecursionProverEngine<A, C>>;
 
-type ReducePipeline<A> = Chain<PrepareReduceEngine<A>, Arc<RecursionProvePipeline<A>>>;
+type ReducePipeline<A, C> = Chain<PrepareReduceEngine<A, C>, Arc<RecursionProvePipeline<A, C>>>;
 
-pub type RecursionProveSubmitHandle<A> = SubmitHandle<RecursionProvePipeline<A>>;
+pub type RecursionProveSubmitHandle<A, C> = SubmitHandle<RecursionProvePipeline<A, C>>;
 
-pub type ReduceSubmitHandle<A> = SubmitHandle<ReducePipeline<A>>;
+pub type ReduceSubmitHandle<A, C> = SubmitHandle<ReducePipeline<A, C>>;
 
-pub struct SP1RecursionProver<A> {
-    reduce_pipeline: Arc<ReducePipeline<A>>,
-    pub shrink_prover: Arc<ShrinkProver>,
-    pub wrap_prover: Arc<WrapProver>,
-    pub prover_data: Arc<RecursionProverData>,
+pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
+    reduce_pipeline: Arc<ReducePipeline<A, C>>,
+    pub shrink_prover: Arc<ShrinkProver<C>>,
+    pub wrap_prover: Arc<WrapProver<C>>,
+    pub prover_data: Arc<RecursionProverData<C>>,
     artifact_client: A,
 }
 
-impl<A: Clone> Clone for SP1RecursionProver<A> {
+impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
     fn clone(&self) -> Self {
         Self {
             reduce_pipeline: self.reduce_pipeline.clone(),
@@ -420,13 +421,13 @@ impl<A: Clone> Clone for SP1RecursionProver<A> {
     }
 }
 
-impl<A: ArtifactClient> SP1RecursionProver<A> {
+impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     pub async fn new(
         config: SP1RecursionProverConfig,
         artifact_client: A,
-        (compress_prover, compress_prover_permits): (Arc<RecursionAirProver>, ProverSemaphore),
-        (shrink_prover, shrink_prover_permits): (Arc<RecursionAirProver>, ProverSemaphore),
-        (wrap_prover, wrap_prover_permits): (Arc<WrapAirProver>, ProverSemaphore),
+        (compress_prover, compress_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
+        (shrink_prover, shrink_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
+        (wrap_prover, wrap_prover_permits): (Arc<C::WrapProver>, ProverSemaphore),
     ) -> Self {
         tokio::task::spawn_blocking(move || {
             // Get the reduce shape.
@@ -441,17 +442,18 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
             let vk_map_path = config.vk_map_file.as_ref().map(std::path::PathBuf::from);
 
             let recursion_vks =
-                RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
+RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
 
             let recursion_vks_height = recursion_vks.height();
 
-            let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+            let compress_verifier = C::compress_verifier();
             let recursive_compress_verifier =
-                recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
+                recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
             for arity in 1..=config.max_compose_arity {
-                let dummy_input = dummy_compose_input(&reduce_shape, arity, recursion_vks_height);
+                let dummy_input =
+                    dummy_compose_input::<C>(&reduce_shape, arity, recursion_vks_height);
                 let mut program = compose_program_from_input(
                     &recursive_compress_verifier,
                     config.vk_verification,
@@ -510,7 +512,7 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
                 deferred_keys: Some(deferred_keys),
             });
 
-            let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+            let compress_verifier = C::compress_verifier();
 
             // Initialize the prepare reduce engine.
             let prepare_reduce_workers = (0..config.num_prepare_reduce_workers)
@@ -577,7 +579,7 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
         .unwrap()
     }
 
-    pub fn recursion_prover_pipeline(&self) -> &Arc<RecursionProvePipeline<A>> {
+    pub fn recursion_prover_pipeline(&self) -> &Arc<RecursionProvePipeline<A, C>> {
         self.reduce_pipeline.second()
     }
 
@@ -587,7 +589,7 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
         witness: SP1CircuitWitness,
         output: Artifact,
         metrics: ProverMetrics,
-    ) -> Result<RecursionProveSubmitHandle<A>, SubmitError> {
+    ) -> Result<RecursionProveSubmitHandle<A, C>, SubmitError> {
         self.recursion_prover_pipeline()
             .submit(Ok(RecursionTask {
                 program,
@@ -602,7 +604,7 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
     pub async fn submit_recursion_reduce(
         &self,
         request: RawTaskRequest,
-    ) -> Result<ReduceSubmitHandle<A>, TaskError> {
+    ) -> Result<ReduceSubmitHandle<A, C>, TaskError> {
         let input = ReduceTaskRequest::from_raw(request)?;
         let handle = self.reduce_pipeline.submit(input).await?;
         Ok(handle)
@@ -819,21 +821,21 @@ impl<A: ArtifactClient> SP1RecursionProver<A> {
     }
 }
 
-type CompressKeys = (
-    Arc<ProvingKey<SP1GlobalContext, RecursionSC, RecursionAirProver>>,
+type CompressKeys<C> = (
+    Arc<ProvingKey<SP1GlobalContext, RecursionSC, <C as SP1ProverComponents>::RecursionProver>>,
     MachineVerifyingKey<SP1GlobalContext>,
 );
 
-pub struct RecursionProverData {
+pub struct RecursionProverData<C: SP1ProverComponents> {
     recursion_vks: RecursionVks,
     reduce_shape: SP1RecursionProofShape,
     compose_programs: BTreeMap<usize, Arc<RecursionProgram<SP1Field>>>,
-    compose_keys: BTreeMap<usize, CompressKeys>,
+    compose_keys: BTreeMap<usize, CompressKeys<C>>,
     deferred_program: Arc<RecursionProgram<SP1Field>>,
-    deferred_keys: Option<CompressKeys>,
+    deferred_keys: Option<CompressKeys<C>>,
 }
 
-impl RecursionProverData {
+impl<C: SP1ProverComponents> RecursionProverData<C> {
     pub fn vk_verification(&self) -> bool {
         self.recursion_vks.vk_verification()
     }
@@ -901,12 +903,12 @@ impl RecursionProverData {
     }
 }
 
-fn dummy_compose_input(
+fn dummy_compose_input<C: SP1ProverComponents>(
     shape: &SP1RecursionProofShape,
     arity: usize,
     height: usize,
 ) -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
-    let verifier = CpuSP1ProverComponents::compress_verifier();
+    let verifier = C::compress_verifier();
     shape.dummy_input(
         arity,
         height,
@@ -917,23 +919,23 @@ fn dummy_compose_input(
     )
 }
 
-pub struct ShrinkProver {
-    prover: Arc<RecursionAirProver>,
+pub struct ShrinkProver<C: SP1ProverComponents> {
+    prover: Arc<C::RecursionProver>,
     permits: ProverSemaphore,
     program: Arc<RecursionProgram<SP1Field>>,
     pub verifying_key: MachineVerifyingKey<SP1GlobalContext>,
-    prover_data: Arc<RecursionProverData>,
+    prover_data: Arc<RecursionProverData<C>>,
     pub shrink_shape: BTreeMap<String, usize>,
 }
 
-impl ShrinkProver {
+impl<C: SP1ProverComponents> ShrinkProver<C> {
     fn new(
-        prover: Arc<RecursionAirProver>,
+        prover: Arc<C::RecursionProver>,
         permits: ProverSemaphore,
-        prover_data: Arc<RecursionProverData>,
+        prover_data: Arc<RecursionProverData<C>>,
         config: SP1RecursionProverConfig,
     ) -> Self {
-        let verifier = CpuSP1ProverComponents::compress_verifier();
+        let verifier = C::compress_verifier();
         let input = prover_data.reduce_shape.dummy_input(
             1,
             prover_data.recursion_vks.height(),
@@ -959,7 +961,9 @@ impl ShrinkProver {
         let shrink_shape = {
             let (tx, rx) = oneshot::channel();
             tokio::task::spawn(async move {
-                let heights = <RecursionAirProver as AirProver<SP1GlobalContext, _>>::preprocessed_table_heights(pk.pk)
+                let heights = <C::RecursionProver as AirProver<
+                    SP1GlobalContext,_
+                >>::preprocessed_table_heights(pk.pk)
                 .await;
                 tx.send(heights).ok();
             });
@@ -1015,7 +1019,7 @@ impl ShrinkProver {
         let SP1RecursionProof { vk, proof, vk_merkle_proof } = shrink_proof;
         let mut challenger = SP1GlobalContext::default_challenger();
         vk.observe_into(&mut challenger);
-        CpuSP1ProverComponents::shrink_verifier()
+        C::shrink_verifier()
             .verify_shard(vk, proof, &mut challenger)
             .map_err(|e| TaskError::Fatal(e.into()))?;
 
@@ -1023,23 +1027,23 @@ impl ShrinkProver {
     }
 }
 
-pub struct WrapProver {
-    prover: Arc<WrapAirProver>,
+pub struct WrapProver<C: SP1ProverComponents> {
+    prover: Arc<C::WrapProver>,
     permits: ProverSemaphore,
     program: Arc<RecursionProgram<SP1Field>>,
     pub verifying_key: MachineVerifyingKey<SP1OuterGlobalContext>,
-    prover_data: Arc<RecursionProverData>,
+    prover_data: Arc<RecursionProverData<C>>,
 }
 
-impl WrapProver {
+impl<C: SP1ProverComponents> WrapProver<C> {
     pub fn new(
-        prover: Arc<WrapAirProver>,
+        prover: Arc<C::WrapProver>,
         permits: ProverSemaphore,
-        prover_data: Arc<RecursionProverData>,
+        prover_data: Arc<RecursionProverData<C>>,
         config: SP1RecursionProverConfig,
         shrink_shape: BTreeMap<String, usize>,
     ) -> Self {
-        let verifier = CpuSP1ProverComponents::shrink_verifier();
+        let verifier = C::shrink_verifier();
         let shrink_proof_shape =
             SP1RecursionProofShape { shape: RecursionShape::new(shrink_shape) };
         let wrap_input = shrink_proof_shape.dummy_input(
@@ -1108,7 +1112,7 @@ impl WrapProver {
         let SP1WrapProof { vk, proof } = wrapped_proof;
         let mut challenger = SP1OuterGlobalContext::default_challenger();
         vk.observe_into(&mut challenger);
-        CpuSP1ProverComponents::wrap_verifier()
+        C::wrap_verifier()
             .verify_shard(vk, proof, &mut challenger)
             .map_err(|e| TaskError::Fatal(e.into()))
     }

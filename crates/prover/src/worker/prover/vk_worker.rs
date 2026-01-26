@@ -6,20 +6,17 @@ use sp1_prover_types::ArtifactClient;
 use crate::{
     shapes::build_vk_map,
     worker::{RawTaskRequest, ShrinkProver, TaskError, VkeyMapChunkInput, VkeyMapChunkOutput},
-    CpuSP1ProverComponents, SP1ProverComponents,
+    SP1ProverComponents,
 };
 use std::sync::Arc;
 
-type RecursionAirProver =
-    <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
-
-pub struct RecursionVkWorker {
-    pub recursion_prover: Arc<RecursionAirProver>,
+pub struct RecursionVkWorker<C: SP1ProverComponents> {
+    pub recursion_prover: Arc<C::RecursionProver>,
     pub recursion_permits: ProverSemaphore,
-    pub shrink_prover: Arc<ShrinkProver>,
+    pub shrink_prover: Arc<ShrinkProver<C>>,
 }
 
-impl Clone for RecursionVkWorker {
+impl<C: SP1ProverComponents> Clone for RecursionVkWorker<C> {
     fn clone(&self) -> Self {
         Self {
             recursion_prover: self.recursion_prover.clone(),
@@ -29,8 +26,8 @@ impl Clone for RecursionVkWorker {
     }
 }
 
-pub async fn run_vk_generation<A: ArtifactClient>(
-    worker: Arc<RecursionVkWorker>,
+pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents + 'static>(
+    worker: Arc<RecursionVkWorker<C>>,
     request: RawTaskRequest,
     client: A,
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
@@ -40,7 +37,7 @@ pub async fn run_vk_generation<A: ArtifactClient>(
     let VkeyMapChunkInput { indices, reduce_batch_size, total_inputs } =
         client.download(&inputs[0]).await?;
 
-    let (vk_set, panic_indices) = build_vk_map::<A>(
+    let (vk_set, panic_indices) = build_vk_map::<A, C>(
         false,
         1,
         1,

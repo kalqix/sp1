@@ -16,22 +16,18 @@ use crate::{
     CpuSP1ProverComponents,
 };
 
-type CoreAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
-type RecursionAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
-type WrapAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::WrapProver;
-
-pub struct SP1WorkerBuilder<A = InMemoryArtifactClient, W = LocalWorkerClient> {
+pub struct SP1WorkerBuilder<C: SP1ProverComponents, A = InMemoryArtifactClient, W = LocalWorkerClient> {
     pub machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     config: SP1WorkerConfig,
-    core_air_prover_and_permits: Option<(Arc<CoreAirProver>, ProverSemaphore)>,
-    compress_air_prover_and_permits: Option<(Arc<RecursionAirProver>, ProverSemaphore)>,
-    shrink_air_prover_and_permits: Option<(Arc<RecursionAirProver>, ProverSemaphore)>,
-    wrap_air_prover_and_permits: Option<(Arc<WrapAirProver>, ProverSemaphore)>,
+    core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
+    compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
+    shrink_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
+    wrap_air_prover_and_permits: Option<(Arc<C::WrapProver>, ProverSemaphore)>,
     artifact_client: Option<A>,
     worker_client: Option<W>,
 }
 
-impl SP1WorkerBuilder {
+impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     #[allow(clippy::new_without_default)]
     pub fn new(
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
@@ -51,13 +47,13 @@ impl SP1WorkerBuilder {
     }
 }
 
-impl<A, W> SP1WorkerBuilder<A, W> {
+impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     /// Set the artifact client.
     #[must_use]
     pub fn with_artifact_client<B: ArtifactClient>(
         self,
         artifact_client: B,
-    ) -> SP1WorkerBuilder<B, W> {
+    ) -> SP1WorkerBuilder<C, B, W> {
         let SP1WorkerBuilder {
             machine,
             config,
@@ -86,7 +82,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     pub fn with_worker_client<V: WorkerClient>(
         self,
         worker_client: V,
-    ) -> SP1WorkerBuilder<A, V> {
+    ) -> SP1WorkerBuilder<C, A, V> {
         let SP1WorkerBuilder {
             machine,
             config,
@@ -114,7 +110,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     #[must_use]
     pub fn with_core_air_prover(
         mut self,
-        core_air_prover: Arc<CoreAirProver>,
+        core_air_prover: Arc<C::CoreProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.core_air_prover_and_permits = Some((core_air_prover, permit));
@@ -125,7 +121,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     #[must_use]
     pub fn with_compress_air_prover(
         mut self,
-        compress_air_prover: Arc<RecursionAirProver>,
+        compress_air_prover: Arc<C::RecursionProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.compress_air_prover_and_permits = Some((compress_air_prover, permit));
@@ -136,7 +132,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     #[must_use]
     pub fn with_shrink_air_prover(
         mut self,
-        shrink_air_prover: Arc<RecursionAirProver>,
+        shrink_air_prover: Arc<C::RecursionProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.shrink_air_prover_and_permits = Some((shrink_air_prover, permit));
@@ -147,7 +143,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     #[must_use]
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<WrapAirProver>,
+        wrap_air_prover: Arc<C::WrapProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.wrap_air_prover_and_permits = Some((wrap_air_prover, permit));
@@ -174,7 +170,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     }
 
     /// Build the worker.
-    pub async fn build(self) -> anyhow::Result<SP1Worker<A, W>>
+    pub async fn build(self) -> anyhow::Result<SP1Worker<A, W, C>>
     where
         A: ArtifactClient,
         W: WorkerClient,
@@ -260,7 +256,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
     /// Set the path to the vk map. By default, the prover will use `prover/vk_map.bin` and this
     /// should only be changed for testing purposes.
     #[cfg(feature = "experimental")]
-    pub fn with_vk_map_path(self, vk_map_path: String) -> SP1WorkerBuilder<A, W> {
+    pub fn with_vk_map_path(self, vk_map_path: String) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
             mut config,
             core_air_prover_and_permits,
@@ -287,7 +283,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
 
     /// Turn off vk verification for recursion proofs.
     #[cfg(feature = "experimental")]
-    pub fn without_vk_verification(self) -> SP1WorkerBuilder<A, W> {
+    pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
             mut config,
             core_air_prover_and_permits,
@@ -316,7 +312,7 @@ impl<A, W> SP1WorkerBuilder<A, W> {
 /// Create a [SP1WorkerBuilder] for a CPU worker with default components.
 pub fn cpu_worker_builder(
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-) -> SP1WorkerBuilder {
+) -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     // Create the prover permits, setting it to having 4 provers.
     let prover_permits = ProverSemaphore::new(4);
 

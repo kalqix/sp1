@@ -315,9 +315,9 @@ impl SP1RecursionProofShape {
     }
 
     #[allow(dead_code)]
-    async fn max_arity(&self, vk_verification: bool, height: usize) -> usize {
+    async fn max_arity<C: SP1ProverComponents>(&self, vk_verification: bool, height: usize) -> usize {
         let mut arity = 0;
-        let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+        let compress_verifier = C::compress_verifier();
         let recursive_compress_verifier =
             recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
         for possible_arity in 1.. {
@@ -336,14 +336,14 @@ impl SP1RecursionProofShape {
     }
 }
 
-pub async fn build_vk_map<A: ArtifactClient>(
+pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     dummy: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
     max_arity: usize,
     merkle_tree_height: usize,
-    vk_worker: Arc<RecursionVkWorker>,
+    vk_worker: Arc<RecursionVkWorker<C>>,
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 ) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>) {
     let recursion_permits = vk_worker.recursion_permits.clone();
@@ -368,10 +368,8 @@ pub async fn build_vk_map<A: ArtifactClient>(
 
     // Generate all the possible shape inputs we encounter in recursion. This may span normalize,
     // compose (of any arity), deferred, shrink, etc.
-    let all_shapes = create_all_input_shapes(
-        CpuSP1ProverComponents::core_verifier(machine.clone()).machine().shape(),
-        max_arity,
-    );
+    let all_shapes =
+        create_all_input_shapes(C::core_verifier(machine.clone()).machine().shape(), max_arity);
 
     let num_shapes = all_shapes.len();
 
@@ -392,7 +390,7 @@ pub async fn build_vk_map<A: ArtifactClient>(
         set.spawn(async move {
             while let Some((i, shape)) = shape_rx.lock().await.recv().await {
                 // eprintln!("shape: {:?}", shape);
-                let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+                let compress_verifier = C::compress_verifier();
                 let recursive_compress_verifier =
                     recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
                 // Spawn on another thread to handle panics.
@@ -409,7 +407,7 @@ pub async fn build_vk_map<A: ArtifactClient>(
                                 log_stacking_height: CORE_LOG_STACKING_HEIGHT as usize,
                             };
                             let dummy_vk = dummy_vk();
-                            let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
+                            let core_verifier = C::core_verifier(machine);
                             let recursive_core_verifier: RecursiveShardVerifier<
                                 _,
                                 RiscvAirWithApcs<SP1Field>,
@@ -445,7 +443,7 @@ pub async fn build_vk_map<A: ArtifactClient>(
                         }
                         SP1RecursionProgramShape::Deferred => {
                             let dummy_input = dummy_deferred_input(
-                                &CpuSP1ProverComponents::compress_verifier(),
+                                &C::compress_verifier(),
                                 &reduce_shape.clone().expect("max arity not supported"),
                                 height,
                             );
@@ -462,7 +460,7 @@ pub async fn build_vk_map<A: ArtifactClient>(
                         }
                         SP1RecursionProgramShape::Shrink => {
                             let dummy_input = dummy_compose_input(
-                                &CpuSP1ProverComponents::compress_verifier(),
+                                &C::compress_verifier(),
                                 &reduce_shape.clone().expect("max arity not supported"),
                                 1,
                                 height,
@@ -779,7 +777,7 @@ mod tests {
             .expect("default arity shape should be valid");
 
         let arity = reduce_shape
-            .max_arity(vk_verification, allowed_vk_height)
+            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
             .await;
 
         tracing::info!("arity: {}", arity);
@@ -838,7 +836,7 @@ mod tests {
         let reduce_shape =
             SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY).unwrap();
         let arity = reduce_shape
-            .max_arity(vk_verification, allowed_vk_height)
+            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
             .await;
         if arity != DEFAULT_ARITY {
             return Err(ShapeError::WrongArity(arity)).context(context);
@@ -863,7 +861,7 @@ mod tests {
                 new_reduce_shape.shape.insert_with_name(chip, height - 32);
 
                 if !(new_reduce_shape
-                    .max_arity(vk_verification, allowed_vk_height)
+                    .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
                     .await
                     < DEFAULT_ARITY
                     || new_reduce_shape.shape.height_of_name(chip).unwrap()

@@ -16,16 +16,12 @@ use crate::{
         ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
         TaskMetadata, WorkerClient,
     },
-    CpuSP1ProverComponents, SP1ProverComponents,
+    SP1ProverComponents,
 };
 
-type CoreAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
-type RecursionAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
-type WrapAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::WrapProver;
-
-pub struct SP1LocalNodeBuilder {
+pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
     pub machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    pub worker_builder: SP1WorkerBuilder<InMemoryArtifactClient, LocalWorkerClient>,
+    pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
 
@@ -35,7 +31,7 @@ pub struct SP1LocalNodeBuilder {
 //     }
 // }
 
-impl SP1LocalNodeBuilder {
+impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
     pub fn new(
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
@@ -48,7 +44,7 @@ impl SP1LocalNodeBuilder {
     /// This method can be used to initialize a node from a worker client builder that has already
     /// been configured with the desired prover components.
     pub fn from_worker_client_builder(
-        builder: SP1WorkerBuilder<InMemoryArtifactClient, LocalWorkerClient>,
+        builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     ) -> Self {
         let artifact_client = InMemoryArtifactClient::new();
         let (worker_client, channels) = LocalWorkerClient::init();
@@ -61,7 +57,7 @@ impl SP1LocalNodeBuilder {
     /// Sets the core air prover to the worker client builder.
     pub fn with_core_air_prover(
         mut self,
-        core_air_prover: Arc<CoreAirProver>,
+        core_air_prover: Arc<C::CoreProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_core_air_prover(core_air_prover, permit);
@@ -71,7 +67,7 @@ impl SP1LocalNodeBuilder {
     /// Sets the compress air prover to the worker client builder.
     pub fn with_compress_air_prover(
         mut self,
-        compress_air_prover: Arc<RecursionAirProver>,
+        compress_air_prover: Arc<C::RecursionProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder =
@@ -82,7 +78,7 @@ impl SP1LocalNodeBuilder {
     /// Sets the shrink air prover to the worker client builder.
     pub fn with_shrink_air_prover(
         mut self,
-        shrink_air_prover: Arc<RecursionAirProver>,
+        shrink_air_prover: Arc<C::RecursionProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_shrink_air_prover(shrink_air_prover, permit);
@@ -92,7 +88,7 @@ impl SP1LocalNodeBuilder {
     /// Sets the wrap air prover to the worker client builder.
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<WrapAirProver>,
+        wrap_air_prover: Arc<C::WrapProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_wrap_air_prover(wrap_air_prover, permit);

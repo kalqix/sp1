@@ -7,7 +7,11 @@ use slack_rust::{
     chat::post_message::{post_message, PostMessageRequest},
     http_client::default_client,
 };
-use sp1_prover::{utils::get_cycles, SP1Prover};
+use sp1_prover::{
+    components::{CpuSP1ProverComponents, SP1ProverComponents},
+    utils::get_cycles,
+    SP1Prover,
+};
 use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_hypercube::SP1ProverOpts;
 use std::time::{Duration, Instant};
@@ -102,7 +106,7 @@ pub async fn evaluate_performance(opts: SP1ProverOpts) -> Result<(), Box<dyn std
     for program in &programs {
         println!("Evaluating program: {}", program.name);
         let (elf, stdin) = load_program(program.elf, program.input);
-        let report = run_evaluation(program.name, &elf, &stdin, opts);
+        let report = run_evaluation::<CpuSP1ProverComponents>(program.name, &elf, &stdin, opts);
         reports.push(report);
         println!("Finished Program: {}", program.name);
     }
@@ -161,7 +165,7 @@ pub struct PerformanceReport {
     success: bool,
 }
 
-fn run_evaluation(
+fn run_evaluation<C: SP1ProverComponents>(
     program_name: &str,
     elf: &[u8],
     stdin: &SP1Stdin,
@@ -169,7 +173,7 @@ fn run_evaluation(
 ) -> PerformanceReport {
     let cycles = get_cycles(elf, stdin);
 
-    let prover = SP1Prover::new();
+    let prover = SP1Prover::<C>::new();
     let (_, pk_d, program, vk) = prover.setup(elf);
 
     let context = SP1Context::default();

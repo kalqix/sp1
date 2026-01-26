@@ -313,10 +313,13 @@ mod tests {
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
+    use crate::CpuSP1ProverComponents;
 
     use super::*;
 
-    async fn run_e2e_node_test(builder: SP1WorkerBuilder) -> anyhow::Result<()> {
+    async fn run_e2e_node_test(
+        builder: SP1WorkerBuilder<CpuSP1ProverComponents>,
+    ) -> anyhow::Result<()> {
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Compressed;

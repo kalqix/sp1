@@ -33,10 +33,8 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CpuSP1ProverComponents, SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness, SP1ProverComponents,
 };
-
-type CoreAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
 
 pub struct SetupTask {
     pub id: TaskId,
@@ -172,30 +170,30 @@ impl NormalizeProgramCompiler {
 }
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
-pub struct CoreWorker<A, W> {
+pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     normalize_program_compiler: Arc<NormalizeProgramCompiler>,
     opts: SP1CoreOpts,
     artifact_client: A,
     worker_client: W,
-    core_prover: Arc<CoreAirProver>,
-    recursion_prover: SP1RecursionProver<A>,
+    core_prover: Arc<C::CoreProver>,
+    recursion_prover: SP1RecursionProver<A, C>,
     permits: ProverSemaphore,
     /// Optional fixed PK cache shared across workers.
-    pk: Option<CoreProvingKeyCache>,
+    pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
 }
 
-impl<A, W> CoreWorker<A, W> {
+impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
     #[allow(clippy::too_many_arguments)]
     fn new(
         normalize_program_compiler: Arc<NormalizeProgramCompiler>,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
-        core_prover: Arc<CoreAirProver>,
-        recursion_prover: SP1RecursionProver<A>,
+        core_prover: Arc<C::CoreProver>,
+        recursion_prover: SP1RecursionProver<A, C>,
         permits: ProverSemaphore,
-        pk: Option<CoreProvingKeyCache>,
+        pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
     ) -> Self {
         Self {
@@ -216,10 +214,11 @@ impl<A, W> CoreWorker<A, W> {
     }
 }
 
-impl<A, W> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W>
+impl<A, W, C> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W, C>
 where
     A: ArtifactClient,
     W: WorkerClient,
+    C: SP1ProverComponents,
 {
     async fn call(&self, input: CoreProvingTask) -> Result<TaskMetadata, TaskError> {
         // === Phase 1: Tracing ===
@@ -543,7 +542,7 @@ where
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                CpuSP1ProverComponents::core_verifier(machine)
+                C::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -602,30 +601,33 @@ where
     }
 }
 
-pub type CoreProvingKey = ProvingKey<SP1GlobalContext, CoreSC, CoreAirProver>;
+pub type CoreProvingKey<C> =
+    ProvingKey<SP1GlobalContext, CoreSC, <C as SP1ProverComponents>::CoreProver>;
 
 /// The Core Proving Key cache is initialized once and shared across all CoreAndNormalizeWorkers.
-pub type CoreProvingKeyCache = Arc<OnceCell<Arc<CoreProvingKey>>>;
+pub type CoreProvingKeyCache<C> = Arc<OnceCell<Arc<CoreProvingKey<C>>>>;
 
 /// Worker for handling setup tasks only.
-pub struct CoreAndNormalizeWorker<A> {
+pub struct CoreAndNormalizeWorker<A, C: SP1ProverComponents> {
     artifact_client: A,
-    core_prover: Arc<CoreAirProver>,
+    core_prover: Arc<C::CoreProver>,
     permits: ProverSemaphore,
+    _marker: std::marker::PhantomData<C>,
 }
 
-impl<A> CoreAndNormalizeWorker<A> {
+impl<A, C: SP1ProverComponents> CoreAndNormalizeWorker<A, C> {
     pub fn new(
         artifact_client: A,
-        core_prover: Arc<CoreAirProver>,
+        core_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
     ) -> Self {
-        Self { artifact_client, core_prover, permits }
+        Self { artifact_client, core_prover, permits, _marker: std::marker::PhantomData }
     }
 }
 
-impl<A: ArtifactClient> AsyncWorker<SetupTask, Result<(TaskId, TaskMetadata), TaskError>>
-    for CoreAndNormalizeWorker<A>
+impl<A: ArtifactClient, C: SP1ProverComponents>
+    AsyncWorker<SetupTask, Result<(TaskId, TaskMetadata), TaskError>>
+    for CoreAndNormalizeWorker<A, C>
 {
     async fn call(&self, input: SetupTask) -> Result<(TaskId, TaskMetadata), TaskError> {
         let SetupTask { id, elf, output } = input;
@@ -648,23 +650,24 @@ impl<A: ArtifactClient> AsyncWorker<SetupTask, Result<(TaskId, TaskMetadata), Ta
     }
 }
 
-pub type SetupEngine<A> =
-    Arc<AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A>>>;
+pub type SetupEngine<A, C> = Arc<
+    AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A, C>>,
+>;
 
 /// Unified engine that handles both tracing and core proving in a single async task.
-pub type SP1CoreEngine<A, W> =
-    Arc<AsyncEngine<CoreProvingTask, Result<TaskMetadata, TaskError>, CoreWorker<A, W>>>;
+pub type SP1CoreEngine<A, W, C> =
+    Arc<AsyncEngine<CoreProvingTask, Result<TaskMetadata, TaskError>, CoreWorker<A, W, C>>>;
 
-pub type CoreProveSubmitHandle<A, W> = SubmitHandle<SP1CoreEngine<A, W>>;
+pub type CoreProveSubmitHandle<A, W, C> = SubmitHandle<SP1CoreEngine<A, W, C>>;
 
-pub type SetupSubmitHandle<A> = SubmitHandle<SetupEngine<A>>;
+pub type SetupSubmitHandle<A, C> = SubmitHandle<SetupEngine<A, C>>;
 
-pub struct SP1CoreProver<A, W> {
-    prove_shard_engine: SP1CoreEngine<A, W>,
-    setup_engine: SetupEngine<A>,
+pub struct SP1CoreProver<A, W, C: SP1ProverComponents> {
+    prove_shard_engine: SP1CoreEngine<A, W, C>,
+    setup_engine: SetupEngine<A, C>,
 }
 
-impl<A: ArtifactClient, W: WorkerClient> Clone for SP1CoreProver<A, W> {
+impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> Clone for SP1CoreProver<A, W, C> {
     fn clone(&self) -> Self {
         Self {
             prove_shard_engine: self.prove_shard_engine.clone(),
@@ -673,11 +676,11 @@ impl<A: ArtifactClient, W: WorkerClient> Clone for SP1CoreProver<A, W> {
     }
 }
 
-impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
+impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
     pub async fn submit_prove_shard(
         &self,
         task: RawTaskRequest,
-    ) -> Result<CoreProveSubmitHandle<A, W>, TaskError> {
+    ) -> Result<CoreProveSubmitHandle<A, W, C>, TaskError> {
         let task = ProveShardTaskRequest::from_raw(task)?;
         let ProveShardTaskRequest {
             elf,
@@ -707,7 +710,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
     pub async fn submit_setup(
         &self,
         task: SetupTask,
-    ) -> Result<SetupSubmitHandle<A>, SubmitError> {
+    ) -> Result<SetupSubmitHandle<A, C>, SubmitError> {
         self.setup_engine.submit(task).await
     }
 }
@@ -731,19 +734,19 @@ pub struct SP1CoreProverConfig {
     pub verify_intermediates: bool,
 }
 
-impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
+impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
-        air_prover: Arc<CoreAirProver>,
+        air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
-        recursion_prover: SP1RecursionProver<A>,
+        recursion_prover: SP1RecursionProver<A, C>,
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
+        let core_verifier = C::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 
@@ -760,7 +763,8 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
         let normalize_program_compiler = Arc::new(normalize_program_compiler);
 
         // Create a shared fixed PK cache if enabled
-        let pk_cache = if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
+        let pk_cache: Option<CoreProvingKeyCache<C>> =
+            if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
 
         // Initialize the unified core engine (handles both tracing and proving)
         let core_workers = (0..config.num_core_workers)

@@ -8,8 +8,7 @@ use sp1_primitives::{SP1Field, SP1GlobalContext};
 use super::{DefaultTraceGenerator, ShardProver, SimpleProver, ZerocheckAir};
 use crate::{
     prover::{PcsProof, SP1MerkleTreeProver},
-    GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs, ShardContext, ShardContextImpl,
-    ShardVerifier,
+    GkrProverImpl, InnerSC, LogupGkrCpuTraceGenerator, SP1Pcs, ShardContextImpl, ShardVerifier,
 };
 
 type SC<GC, Verifier, A> = ShardContextImpl<GC, Verifier, A>;
@@ -22,16 +21,17 @@ pub type CpuShardProver<GC, Verifier, PcsComponents, A> =
 pub type CpuSimpleProver<GC, Verifier, PcsComponents, A> =
     SimpleProver<GC, SC<GC, Verifier, A>, CpuShardProver<GC, Verifier, PcsComponents, A>>;
 
-impl<GC, SC, C> ShardProver<GC, SC, C>
+impl<GC, Verifier, A, PcsComponents> CpuShardProver<GC, Verifier, PcsComponents, A>
 where
     GC: IopCtx,
-    SC: ShardContext<GC>,
-    SC::Config: MultilinearPcsVerifier<GC>,
-    C: MultilinearPcsProver<GC, PcsProof<GC, SC>> + DefaultJaggedProver<GC, SC::Config>,
+    Verifier: MultilinearPcsVerifier<GC>,
+    A: ZerocheckAir<GC::F, GC::EF>,
+    PcsComponents: MultilinearPcsProver<GC, PcsProof<GC, SC<GC, Verifier, A>>>
+        + DefaultJaggedProver<GC, Verifier>,
 {
     /// Create a new CPU prover.
     #[must_use]
-    pub fn new(verifier: ShardVerifier<GC, SC>) -> Self {
+    pub fn new(verifier: ShardVerifier<GC, SC<GC, Verifier, A>>) -> Self {
         // Construct the shard prover.
         let ShardVerifier { jagged_pcs_verifier: pcs_verifier, machine } = verifier;
         let pcs_prover = JaggedProver::from_verifier(&pcs_verifier);
