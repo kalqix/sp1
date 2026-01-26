@@ -19,27 +19,28 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{Elf, SP1Field, SP1GlobalContext};
-use sp1_prover::{worker::SP1NodeCore, SP1ProverComponents};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
+use sp1_prover::worker::SP1NodeCore;
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum EnvProver<C: SP1ProverComponents> {
+pub enum EnvProver {
     /// A mock prover that does not prove anything.
-    Mock(MockProver<C>),
+    Mock(MockProver),
     /// A CPU prover.
-    Cpu(CpuProver<C>),
+    Cpu(CpuProver),
     /// A CUDA prover.
-    Cuda(CudaProver<C>),
+    Cuda(CudaProver),
     /// A network prover.
     #[cfg(feature = "network")]
-    Network(NetworkProver<C>),
+    Network(NetworkProver),
 }
 
-impl<C: SP1ProverComponents> EnvProver<C> {
+impl EnvProver {
     /// Creates a new [`EnvProver`] from the environment.
     ///
     /// This method will read from the `SP1_PROVER` environment variable to determine which prover
@@ -47,7 +48,7 @@ impl<C: SP1ProverComponents> EnvProver<C> {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self::from_env_with_opts(None, machine).await
     }
@@ -64,13 +65,13 @@ impl<C: SP1ProverComponents> EnvProver<C> {
     ///
     /// tokio_test::block_on(async {
     ///     let mut client =
-    ///         ProverClient::<CpuSP1ProverComponents>::from_env(RiscvAir::machine()).await;
+    ///         ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     ///     let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
     ///     client = client.with_opts(opts).await;
     /// });
     /// ```
     pub async fn with_opts(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
         Self::from_env_with_opts(Some(opts), machine).await
@@ -84,7 +85,7 @@ impl<C: SP1ProverComponents> EnvProver<C> {
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn from_env_with_opts(
         core_opts: Option<SP1CoreOpts>,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
@@ -115,16 +116,12 @@ impl<C: SP1ProverComponents> EnvProver<C> {
     }
 }
 
-impl<C: SP1ProverComponents> Prover for EnvProver<C>
-where
-    C::CoreProver: sp1_prover::CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
-{
-    type Components = C;
+impl Prover for EnvProver {
     type Error = anyhow::Error;
     type ProvingKey = EnvProvingKey;
-    type ProveRequest<'a> = prove::EnvProveRequest<'a, C>;
+    type ProveRequest<'a> = prove::EnvProveRequest<'a>;
 
-    fn inner(&self) -> &SP1NodeCore<C> {
+    fn inner(&self) -> &SP1NodeCore {
         match self {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),

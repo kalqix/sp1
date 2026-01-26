@@ -2,11 +2,9 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use std::marker::PhantomData;
-
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::SP1ProverComponents;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
 
@@ -20,11 +18,9 @@ use crate::network::{builder::NetworkProverBuilder, NetworkMode};
 ///
 /// Note that the initialization may be slow as it loads necessary proving parameters and sets up
 /// the environment.
-pub struct ProverClient<C> {
-    _marker: PhantomData<C>,
-}
+pub struct ProverClient;
 
-impl<C: SP1ProverComponents> ProverClient<C> {
+impl ProverClient {
     /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -36,7 +32,7 @@ impl<C: SP1ProverComponents> ProverClient<C> {
     /// tokio_test::block_on(async {
     ///     std::env::set_var("SP1_PROVER", "network");
     ///     std::env::set_var("NETWORK_PRIVATE_KEY", "...");
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::from_env(RiscvAir::machine()).await;
+    ///     let prover = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     ///
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
@@ -47,27 +43,27 @@ impl<C: SP1ProverComponents> ProverClient<C> {
     /// ```
     #[must_use]
     pub async fn from_env(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> EnvProver<C> {
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> EnvProver {
         EnvProver::new(machine).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
     pub fn builder(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> ProverClientBuilder<C> {
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> ProverClientBuilder {
         ProverClientBuilder::new(machine)
     }
 }
 
 /// A builder to define which proving client to use.
-pub struct ProverClientBuilder<C: SP1ProverComponents> {
-    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+pub struct ProverClientBuilder {
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
-impl<C: SP1ProverComponents> ProverClientBuilder<C> {
-    fn new(machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>) -> Self {
+impl ProverClientBuilder {
+    fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self { machine }
     }
 
@@ -83,7 +79,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -92,7 +88,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// });
     /// ```
     #[must_use]
-    pub fn cpu(&self) -> CpuProverBuilder<C> {
+    pub fn cpu(&self) -> CpuProverBuilder {
         CpuProverBuilder::new(self.machine.clone())
     }
 
@@ -108,7 +104,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cuda()
     ///         .build()
     ///         .await;
@@ -117,7 +113,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// });
     /// ```
     #[must_use]
-    pub fn cuda(&self) -> CudaProverBuilder<C> {
+    pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder::new_with_opts(self.machine.clone(), None)
     }
 
@@ -133,7 +129,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .network()
     ///         .build()
     ///         .await;
@@ -143,7 +139,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[cfg(feature = "network")]
     #[must_use]
-    pub fn network(&self) -> NetworkProverBuilder<C> {
+    pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder::new(self.machine.clone())
     }
 
@@ -160,7 +156,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .network_for(NetworkMode::Mainnet)
     ///         .build()
     ///         .await;
@@ -170,7 +166,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[cfg(feature = "network")]
     #[must_use]
-    pub fn network_for(&self, mode: NetworkMode) -> NetworkProverBuilder<C> {
+    pub fn network_for(&self, mode: NetworkMode) -> NetworkProverBuilder {
         NetworkProverBuilder {
             private_key: None,
             signer: None,

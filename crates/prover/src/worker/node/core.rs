@@ -2,41 +2,39 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-
-use sp1_hypercube::{Machine, SP1VerifyingKey, ShardContext};
-use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::{Machine, SP1VerifyingKey};
+use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 use tracing::instrument;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{execute_with_options, SP1ExecutorConfig},
-    SP1CoreProofData, SP1ProverComponents,
+    SP1CoreProofData,
 };
 
-struct SP1NodeCoreInner<C: SP1ProverComponents> {
-    verifier: SP1Verifier<C>,
+struct SP1NodeCoreInner {
+    verifier: SP1Verifier,
     opts: SP1CoreOpts,
 }
 
-pub struct SP1NodeCore<C: SP1ProverComponents> {
-    inner: Arc<SP1NodeCoreInner<C>>,
+pub struct SP1NodeCore {
+    inner: Arc<SP1NodeCoreInner>,
 }
 
-impl<C: SP1ProverComponents> Clone for SP1NodeCore<C> {
+impl Clone for SP1NodeCore {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl<C: SP1ProverComponents> SP1NodeCore<C> {
-    pub fn new(verifier: SP1Verifier<C>, opts: SP1CoreOpts) -> Self {
+impl SP1NodeCore {
+    pub fn new(verifier: SP1Verifier, opts: SP1CoreOpts) -> Self {
         Self { inner: Arc::new(SP1NodeCoreInner { verifier, opts }) }
     }
 
-    pub fn machine(
-        &self,
-    ) -> &Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air> {
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
         self.inner.verifier.core.machine()
     }
 

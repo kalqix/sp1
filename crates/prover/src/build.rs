@@ -457,7 +457,7 @@ pub async fn download_file(
 #[cfg(test)]
 mod tests {
     use sp1_core_executor::SP1Context;
-    use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAirWithApcs, utils::setup_logger};
     use sp1_prover_types::network_base_types::ProofMode;
 
     use crate::{
@@ -473,7 +473,8 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
             .unwrap();
@@ -501,7 +502,8 @@ mod tests {
         setup_logger();
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
             .unwrap();

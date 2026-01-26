@@ -4,7 +4,10 @@ use clap::Parser;
 
 use slop_algebra::AbstractField;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+use sp1_core_machine::{
+    io::SP1Stdin,
+    riscv::RiscvAirWithApcs,
+};
 use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
@@ -12,7 +15,7 @@ use sp1_prover::{
         CommonProverInput, ProofId, RequesterId, SP1CoreExecutor, SplicingEngine, SplicingWorker,
         TaskContext, TrivialWorkerClient,
     },
-    CpuSP1ProverComponents, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 use sp1_prover_types::{network_base_types::ProofMode, ArtifactClient, InMemoryArtifactClient};
 use sp1_sdk::{setup_logger, MockProver, Prover};
@@ -119,7 +122,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         worker_client,
         None,
         args.cycle_limit,
-        RiscvAir::machine(),
+        RiscvAirWithApcs::machine(),
     );
 
     let counter_handle = tokio::task::spawn(async move {
@@ -147,7 +150,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
 // Executes a program while measuring gas and prints the gas report.
 async fn execute_gas(elf: Vec<u8>, stdin: SP1Stdin) {
-    let prover = MockProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+    let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
 
     let now = std::time::Instant::now();
     let (_, report) = prover

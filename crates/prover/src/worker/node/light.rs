@@ -2,60 +2,55 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{prover::ProverSemaphore, Machine, SP1VerifyingKey, ShardContext};
-use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::{
+    prover::{CpuShardProver, ProverSemaphore},
+    Machine, SP1VerifyingKey,
+};
+use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{node::SP1NodeCore, AirProverWorker},
-    CoreAirProverFactory, SP1ProverComponents,
+    CpuSP1ProverComponents, SP1ProverComponents,
 };
 
-struct SP1LightNodeInner<C: SP1ProverComponents> {
+struct SP1LightNodeInner {
     /// The core node is used to execute the program and verify the proof
-    core: SP1NodeCore<C>,
+    core: SP1NodeCore,
     /// The core air prover is used to do the setup step
-    core_air_prover: Arc<C::CoreProver>,
+    core_air_prover: Arc<<CpuSP1ProverComponents as SP1ProverComponents>::CoreProver>,
     /// The permits are used to limit the number of concurrent provers
     permits: ProverSemaphore,
 }
 
-pub struct SP1LightNode<C: SP1ProverComponents> {
-    inner: Arc<SP1LightNodeInner<C>>,
+pub struct SP1LightNode {
+    inner: Arc<SP1LightNodeInner>,
 }
 
-impl<C: SP1ProverComponents> Clone for SP1LightNode<C> {
+impl Clone for SP1LightNode {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl<C> SP1LightNode<C>
-where
-    C: SP1ProverComponents,
-{
-    pub async fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> Self {
+impl SP1LightNode {
+    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::with_opts(machine, SP1CoreOpts::default()).await
     }
 
     /// Create a new light node
     pub async fn with_opts(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
         tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = C::core_verifier(machine.clone());
-            let core_air_prover = Arc::new(<C::CoreProver as CoreAirProverFactory<
-                SP1GlobalContext,
-                C::CoreSC,
-            >>::from_shard_verifier(
-                core_verifier.shard_verifier().clone()
-            ));
+            let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+            let core_air_prover =
+                Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
             // Get a new verifier for the light(( node.
@@ -99,22 +94,18 @@ where
     }
 
     #[inline]
-    pub fn inner(&self) -> &SP1NodeCore<C> {
+    pub fn inner(&self) -> &SP1NodeCore {
         &self.inner.core
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::riscv::RiscvAir;
     use sp1_core_machine::utils::setup_logger;
     use sp1_hypercube::HashableKey;
     use tracing::Instrument;
 
-    use crate::{
-        worker::{cpu_worker_builder, SP1LocalNodeBuilder},
-        CpuSP1ProverComponents,
-    };
+    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
 
     use super::*;
 
@@ -122,11 +113,12 @@ mod tests {
     async fn test_light_node() {
         setup_logger();
 
-        let light_node = SP1LightNode::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+        let machine = RiscvAirWithApcs::machine();
+        let light_node = SP1LightNode::new(machine.clone())
             .instrument(tracing::info_span!("initialize light node"))
             .await;
 
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .instrument(tracing::info_span!("initialize full node"))
             .await

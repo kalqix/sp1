@@ -15,19 +15,18 @@ use crate::{
     utils::proof_mode,
     SP1ProofWithPublicValues, SP1ProvingKey,
 };
-use sp1_prover::SP1ProverComponents;
 
 /// A builder for proving a program on the CPU.
 ///
 /// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
 /// used for only the [`crate::cpu::CpuProver`] client type.
-pub struct CpuProveBuilder<'a, C: SP1ProverComponents> {
-    pub(crate) base: BaseProveRequest<'a, CpuProver<C>>,
+pub struct CpuProveBuilder<'a> {
+    pub(crate) base: BaseProveRequest<'a, CpuProver>,
 }
 
-impl<'a, C: SP1ProverComponents> CpuProveBuilder<'a, C> {
+impl<'a> CpuProveBuilder<'a> {
     pub(super) const fn new(
-        prover: &'a CpuProver<C>,
+        prover: &'a CpuProver,
         pk: &'a SP1ProvingKey,
         stdin: SP1Stdin,
     ) -> Self {
@@ -35,8 +34,8 @@ impl<'a, C: SP1ProverComponents> CpuProveBuilder<'a, C> {
     }
 }
 
-impl<'a, C: SP1ProverComponents> ProveRequest<'a, CpuProver<C>> for CpuProveBuilder<'a, C> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, CpuProver<C>> {
+impl<'a> ProveRequest<'a, CpuProver> for CpuProveBuilder<'a> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, CpuProver> {
         &mut self.base
     }
 

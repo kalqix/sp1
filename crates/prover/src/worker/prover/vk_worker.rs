@@ -1,23 +1,25 @@
-use slop_air::Air;
-use sp1_hypercube::{log2_ceil_usize, prover::ProverSemaphore, Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::{log2_ceil_usize, prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover_types::ArtifactClient;
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
 
 use crate::{
     shapes::build_vk_map,
     worker::{RawTaskRequest, ShrinkProver, TaskError, VkeyMapChunkInput, VkeyMapChunkOutput},
-    SP1ProverComponents,
+    CpuSP1ProverComponents, SP1ProverComponents,
 };
 use std::sync::Arc;
 
-pub struct RecursionVkWorker<C: SP1ProverComponents> {
-    pub recursion_prover: Arc<C::RecursionProver>,
+type RecursionAirProver =
+    <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
+
+pub struct RecursionVkWorker {
+    pub recursion_prover: Arc<RecursionAirProver>,
     pub recursion_permits: ProverSemaphore,
-    pub shrink_prover: Arc<ShrinkProver<C>>,
+    pub shrink_prover: Arc<ShrinkProver>,
 }
 
-impl<C: SP1ProverComponents> Clone for RecursionVkWorker<C> {
+impl Clone for RecursionVkWorker {
     fn clone(&self) -> Self {
         Self {
             recursion_prover: self.recursion_prover.clone(),
@@ -27,22 +29,18 @@ impl<C: SP1ProverComponents> Clone for RecursionVkWorker<C> {
     }
 }
 
-pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
-    worker: Arc<RecursionVkWorker<C>>,
+pub async fn run_vk_generation<A: ArtifactClient>(
+    worker: Arc<RecursionVkWorker>,
     request: RawTaskRequest,
     client: A,
-    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-) -> Result<(), TaskError>
-where
-    <C::CoreSC as ShardContext<SP1GlobalContext>>::Air:
-        for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
-{
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+) -> Result<(), TaskError> {
     let RawTaskRequest { inputs, outputs, .. } = request;
 
     let VkeyMapChunkInput { indices, reduce_batch_size, total_inputs } =
         client.download(&inputs[0]).await?;
 
-    let (vk_set, panic_indices) = build_vk_map::<A, C>(
+    let (vk_set, panic_indices) = build_vk_map::<A>(
         false,
         1,
         1,

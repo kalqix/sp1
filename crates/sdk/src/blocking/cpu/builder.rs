@@ -4,37 +4,36 @@
 
 use super::CpuProver;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::SP1ProverComponents;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 /// A builder for the [`CpuProver`].
 ///
 /// The builder is used to configure the [`CpuProver`] before it is built.
-pub struct CpuProverBuilder<C: SP1ProverComponents> {
+pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Option<Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>>,
-    _marker: std::marker::PhantomData<C>,
+    machine: Option<Machine<SP1Field, RiscvAirWithApcs<SP1Field>>>,
 }
 
-impl<C: SP1ProverComponents> Default for CpuProverBuilder<C> {
+impl Default for CpuProverBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C: SP1ProverComponents> CpuProverBuilder<C> {
+impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
     pub const fn new() -> Self {
-        Self { core_opts: None, machine: None, _marker: std::marker::PhantomData }
+        Self { core_opts: None, machine: None }
     }
 
     /// Creates a builder using the provided machine.
     #[must_use]
     pub fn new_with_machine(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self::new().with_machine(machine)
     }
@@ -43,7 +42,7 @@ impl<C: SP1ProverComponents> CpuProverBuilder<C> {
     #[must_use]
     pub fn with_machine(
         mut self,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         self.machine = Some(machine);
         self
@@ -95,7 +94,7 @@ impl<C: SP1ProverComponents> CpuProverBuilder<C> {
     /// let prover = ProverClient::builder().cpu().build();
     /// ```
     #[must_use]
-    pub fn build(self) -> CpuProver<C> {
+    pub fn build(self) -> CpuProver {
         let machine = self.machine.expect("CpuProverBuilder requires a machine");
         CpuProver::new_with_opts(self.core_opts, machine)
     }

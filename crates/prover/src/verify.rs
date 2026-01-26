@@ -1,22 +1,22 @@
 use crate::{
     build::{groth16_bn254_artifacts_dev_dir, plonk_bn254_artifacts_dev_dir, use_development_mode},
     utils::{is_recursion_public_values_valid, is_root_public_values_valid},
-    RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
+    CoreSC, CpuSP1ProverComponents, RecursionSC, SP1ProverComponents, ShrinkSC, WrapSC,
 };
 use anyhow::{anyhow, Result};
-use derive_where::derive_where;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, PrimeField};
 use slop_challenger::IopCtx;
 use sp1_core_executor::SP1RecursionProof;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     koalabears_to_bn254, verify_merkle_proof, HashableKey, Machine, MachineVerifier,
     MachineVerifierConfigError, MachineVerifierError, MachineVerifyingKey, MerkleProof,
     SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner, SP1PcsProofOuter, SP1VerifyingKey, SP1WrapProof,
-    ShardContext, PROOF_MAX_NUM_PVS,
+    PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
@@ -103,9 +103,9 @@ impl VerifierRecursionVks {
     }
 }
 
-#[derive_where(Clone)]
-pub struct SP1Verifier<C: SP1ProverComponents> {
-    pub core: MachineVerifier<SP1GlobalContext, C::CoreSC>,
+#[derive(Clone)]
+pub struct SP1Verifier {
+    pub core: MachineVerifier<SP1GlobalContext, CoreSC>,
     pub compress: MachineVerifier<SP1GlobalContext, RecursionSC>,
     pub shrink: MachineVerifier<SP1GlobalContext, ShrinkSC>,
     pub wrap: MachineVerifier<SP1OuterGlobalContext, WrapSC>,
@@ -114,16 +114,16 @@ pub struct SP1Verifier<C: SP1ProverComponents> {
     pub wrap_vk: MachineVerifyingKey<SP1OuterGlobalContext>,
 }
 
-impl<C: SP1ProverComponents> SP1Verifier<C> {
+impl SP1Verifier {
     pub fn new(
         recursion_vks: VerifierRecursionVks,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         // Get the verifiers from the components.
-        let core = C::core_verifier(machine);
-        let compress = C::compress_verifier();
-        let shrink = C::shrink_verifier();
-        let wrap = C::wrap_verifier();
+        let core = CpuSP1ProverComponents::core_verifier(machine);
+        let compress = CpuSP1ProverComponents::compress_verifier();
+        let shrink = CpuSP1ProverComponents::shrink_verifier();
+        let wrap = CpuSP1ProverComponents::wrap_verifier();
 
         // Get the wrap vk from the associated constant.
         let wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();

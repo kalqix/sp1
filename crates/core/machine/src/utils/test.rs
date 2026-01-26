@@ -61,7 +61,7 @@ pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    run_test_with_machine(program, inputs, RiscvAir::machine()).await
+    run_test_with_machine(program, inputs, RiscvAirWithApcs::machine()).await
 }
 
 /// This function tests cases where `max_log_row_count` is potentially larger than the `log(trace)`.
@@ -127,7 +127,7 @@ pub async fn run_test_core(
         inputs,
         log_stacking_height,
         max_log_row_count,
-        RiscvAir::machine(),
+        RiscvAirWithApcs::machine(),
     )
     .await
 }

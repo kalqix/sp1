@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, B256};
 use anyhow::Result;
-use sp1_prover::SP1ProverComponents;
 
 use crate::{
     prover::BaseProveRequest, utils::sp1_dump, NetworkProver, ProveRequest,
@@ -21,8 +20,8 @@ use std::{
 };
 
 /// A builder for creating a proof request to the network.
-pub struct NetworkProveBuilder<'a, C: SP1ProverComponents> {
-    pub(crate) base: BaseProveRequest<'a, NetworkProver<C>>,
+pub struct NetworkProveBuilder<'a> {
+    pub(crate) base: BaseProveRequest<'a, NetworkProver>,
     pub(crate) timeout: Option<Duration>,
     pub(crate) strategy: FulfillmentStrategy,
     pub(crate) skip_simulation: bool,
@@ -39,7 +38,7 @@ pub struct NetworkProveBuilder<'a, C: SP1ProverComponents> {
     pub(crate) auction_timeout: Option<Duration>,
 }
 
-impl<C: SP1ProverComponents> NetworkProveBuilder<'_, C> {
+impl NetworkProveBuilder<'_> {
     /// Set the timeout for the proof's generation.
     ///
     /// # Details
@@ -499,13 +498,13 @@ impl<C: SP1ProverComponents> NetworkProveBuilder<'_, C> {
     }
 }
 
-impl<'a, C: SP1ProverComponents> ProveRequest<'a, NetworkProver<C>> for NetworkProveBuilder<'a, C> {
-    fn base(&mut self) -> &mut BaseProveRequest<'a, NetworkProver<C>> {
+impl<'a> ProveRequest<'a, NetworkProver> for NetworkProveBuilder<'a> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, NetworkProver> {
         &mut self.base
     }
 }
 
-impl<'a, C: SP1ProverComponents> IntoFuture for NetworkProveBuilder<'a, C> {
+impl<'a> IntoFuture for NetworkProveBuilder<'a> {
     type Output = Result<SP1ProofWithPublicValues>;
 
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;

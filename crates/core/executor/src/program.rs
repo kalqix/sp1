@@ -1,6 +1,6 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{fs::File, io::Read, str::FromStr};
+use std::str::FromStr;
 
 use crate::{
     disassembler::{transpile, Elf},

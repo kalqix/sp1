@@ -8,7 +8,7 @@ use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_basefold::FriConfig;
 use slop_challenger::IopCtx;
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_hypercube::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     prover::ZerocheckAir,
@@ -80,10 +80,11 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
-        let num_shapes = create_all_input_shapes(RiscvAir::machine().shape(), max_compose_arity)
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .len();
+        let num_shapes =
+            create_all_input_shapes(RiscvAirWithApcs::machine().shape(), max_compose_arity)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+                .len();
 
         let added_len = num_shapes.saturating_sub(map.len());
         let prev_len = map.len();

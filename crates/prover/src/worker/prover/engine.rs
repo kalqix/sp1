@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::{prover::ProverSemaphore, Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::{prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{Artifact, ArtifactClient};
 
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
         SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
         SetupTask, TaskError, TaskId, WorkerClient,
     },
-    SP1ProverComponents,
+    CpuSP1ProverComponents, SP1ProverComponents,
 };
 
 #[derive(Clone)]
@@ -23,25 +24,32 @@ pub struct SP1ProverConfig {
     pub deferred_prover_config: SP1DeferredProverConfig,
 }
 
-pub struct SP1ProverEngine<A, W, C: SP1ProverComponents> {
-    pub core_prover: SP1CoreProver<A, W, C>,
-    pub recursion_prover: SP1RecursionProver<A, C>,
-    pub deferred_prover: SP1DeferredProver<A, C>,
-    pub vk_worker: RecursionVkWorker<C>,
+type CoreAirProver =
+    <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
+type RecursionAirProver =
+    <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
+type WrapAirProver =
+    <CpuSP1ProverComponents as SP1ProverComponents>::WrapProver;
+
+pub struct SP1ProverEngine<A, W> {
+    pub core_prover: SP1CoreProver<A, W>,
+    pub recursion_prover: SP1RecursionProver<A>,
+    pub deferred_prover: SP1DeferredProver<A>,
+    pub vk_worker: RecursionVkWorker,
 }
 
-impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine<A, W, C> {
+impl<A: ArtifactClient, W: WorkerClient> SP1ProverEngine<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SP1ProverConfig,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
-        core_prover_and_permits: (Arc<C::CoreProver>, ProverSemaphore),
-        recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
-        shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
-        wrap_air_prover_and_permits: (Arc<C::WrapProver>, ProverSemaphore),
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        core_prover_and_permits: (Arc<CoreAirProver>, ProverSemaphore),
+        recursion_prover_and_permits: (Arc<RecursionAirProver>, ProverSemaphore),
+        shrink_air_prover_and_permits: (Arc<RecursionAirProver>, ProverSemaphore),
+        wrap_air_prover_and_permits: (Arc<WrapAirProver>, ProverSemaphore),
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,
@@ -81,7 +89,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
     pub async fn submit_prove_core_shard(
         &self,
         request: RawTaskRequest,
-    ) -> Result<CoreProveSubmitHandle<A, W, C>, TaskError> {
+    ) -> Result<CoreProveSubmitHandle<A, W>, TaskError> {
         self.core_prover.submit_prove_shard(request).await
     }
 
@@ -90,7 +98,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         id: TaskId,
         elf: Artifact,
         output: Artifact,
-    ) -> Result<SetupSubmitHandle<A, C>, SubmitError> {
+    ) -> Result<SetupSubmitHandle<A>, SubmitError> {
         let handle = self.core_prover.submit_setup(SetupTask { id, elf, output }).await?;
         Ok(handle)
     }
@@ -98,14 +106,14 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
     pub async fn submit_recursion_reduce(
         &self,
         request: RawTaskRequest,
-    ) -> Result<ReduceSubmitHandle<A, C>, TaskError> {
+    ) -> Result<ReduceSubmitHandle<A>, TaskError> {
         self.recursion_prover.submit_recursion_reduce(request).await
     }
 
     pub async fn submit_prove_deferred(
         &self,
         request: RawTaskRequest,
-    ) -> Result<SP1DeferredSubmitHandle<A, C>, TaskError> {
+    ) -> Result<SP1DeferredSubmitHandle<A>, TaskError> {
         self.deferred_prover.submit(request).await
     }
 

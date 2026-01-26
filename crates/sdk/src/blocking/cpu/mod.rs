@@ -11,12 +11,12 @@ use anyhow::Result;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{Elf, SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::{
-    cpu_worker_builder_with_machine, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
+    cpu_worker_builder, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
 };
-use sp1_prover::{CpuSP1ProverComponents, SP1ProverComponents};
 
 use crate::blocking::prover::Prover;
 use crate::SP1ProvingKey;
@@ -25,8 +25,8 @@ use thiserror::Error;
 
 /// A prover that uses the CPU to execute and prove programs.
 #[derive(Clone)]
-pub struct CpuProver<C: SP1ProverComponents> {
-    pub(crate) prover: Arc<SP1LocalNode<C>>,
+pub struct CpuProver {
+    pub(crate) prover: Arc<SP1LocalNode>,
 }
 
 /// An error occurred while proving.
@@ -45,13 +45,12 @@ pub enum CPUProverError {
     Unexpected(#[from] anyhow::Error),
 }
 
-impl<C: SP1ProverComponents> Prover for CpuProver<C> {
-    type Components = C;
+impl Prover for CpuProver {
     type ProvingKey = SP1ProvingKey;
     type Error = CPUProverError;
-    type ProveRequest<'a> = CpuProveBuilder<'a, C>;
+    type ProveRequest<'a> = CpuProveBuilder<'a>;
 
-    fn inner(&self) -> &SP1NodeCore<C> {
+    fn inner(&self) -> &SP1NodeCore {
         self.prover.core()
     }
 
@@ -67,11 +66,11 @@ impl<C: SP1ProverComponents> Prover for CpuProver<C> {
     }
 }
 
-impl<C: SP1ProverComponents> CpuProver<C> {
+impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
     pub fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self::new_with_opts(None, machine)
     }
@@ -80,10 +79,10 @@ impl<C: SP1ProverComponents> CpuProver<C> {
     #[must_use]
     pub fn new_with_opts(
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         let worker_builder =
-            cpu_worker_builder_with_machine(machine).with_core_opts(core_opts.unwrap_or_default());
+            cpu_worker_builder(machine).with_core_opts(core_opts.unwrap_or_default());
         let prover = Arc::new(
             crate::blocking::block_on(
                 SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build(),
@@ -102,7 +101,7 @@ impl<C: SP1ProverComponents> CpuProver<C> {
     #[cfg(feature = "experimental")]
     #[must_use]
     pub fn new_experimental(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self::new_with_opts(None, machine)
     }

@@ -24,28 +24,27 @@ use crate::{
         LocalWorkerClient, ProofId, RawTaskRequest, RequesterId, SP1NodeCore, TaskContext,
         VkeyMapControllerInput, VkeyMapControllerOutput, WorkerClient,
     },
-    SP1ProverComponents,
 };
 
-pub(crate) struct SP1NodeInner<C: SP1ProverComponents> {
+pub(crate) struct SP1NodeInner {
     artifact_client: InMemoryArtifactClient,
     worker_client: LocalWorkerClient,
-    core: SP1NodeCore<C>,
+    core: SP1NodeCore,
     _tasks: JoinSet<()>,
 }
 
-pub struct SP1LocalNode<C: SP1ProverComponents> {
-    inner: Arc<SP1NodeInner<C>>,
+pub struct SP1LocalNode {
+    inner: Arc<SP1NodeInner>,
 }
 
-impl<C: SP1ProverComponents> Clone for SP1LocalNode<C> {
+impl Clone for SP1LocalNode {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl<C: SP1ProverComponents> SP1LocalNode<C> {
-    pub fn core(&self) -> &SP1NodeCore<C> {
+impl SP1LocalNode {
+    pub fn core(&self) -> &SP1NodeCore {
         &self.inner.core
     }
 
@@ -308,9 +307,8 @@ impl<C: SP1ProverComponents> SP1LocalNode<C> {
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use sp1_core_machine::utils::setup_logger;
+    use sp1_core_machine::{riscv::RiscvAirWithApcs, utils::setup_logger};
 
-    use crate::CpuSP1ProverComponents;
     use slop_algebra::PrimeField32;
     use sp1_hypercube::HashableKey;
 
@@ -318,9 +316,7 @@ mod tests {
 
     use super::*;
 
-    async fn run_e2e_node_test(
-        builder: SP1WorkerBuilder<CpuSP1ProverComponents>,
-    ) -> anyhow::Result<()> {
+    async fn run_e2e_node_test(builder: SP1WorkerBuilder) -> anyhow::Result<()> {
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Compressed;
@@ -371,7 +367,8 @@ mod tests {
     #[serial]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder()).await
+        let machine = RiscvAirWithApcs::machine();
+        run_e2e_node_test(cpu_worker_builder(machine)).await
     }
 
     #[tokio::test]
@@ -379,7 +376,8 @@ mod tests {
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder().without_vk_verification()).await
+        let machine = RiscvAirWithApcs::machine();
+        run_e2e_node_test(cpu_worker_builder(machine).without_vk_verification()).await
     }
 
     #[tokio::test]
@@ -388,7 +386,8 @@ mod tests {
     async fn make_verifier_vks() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
             .unwrap();
@@ -410,7 +409,8 @@ mod tests {
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Groth16;
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
             .unwrap();
@@ -452,7 +452,8 @@ mod tests {
     async fn test_node_deferred_compress() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+        let machine = RiscvAirWithApcs::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
             .unwrap();

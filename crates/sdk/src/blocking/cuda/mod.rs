@@ -14,22 +14,20 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::{CudaClientError, CudaProver as CudaProverImpl, CudaProvingKey};
 use sp1_primitives::Elf;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
-use sp1_prover::SP1ProverComponents;
 
 /// A prover that uses the CPU for execution and the CUDA for proving.
 #[derive(Clone)]
-pub struct CudaProver<C: SP1ProverComponents> {
-    pub(crate) node: SP1LightNode<C>,
+pub struct CudaProver {
+    pub(crate) node: SP1LightNode,
     pub(crate) prover: CudaProverImpl,
 }
 
-impl<C: SP1ProverComponents> Prover for CudaProver<C> {
-    type Components = C;
+impl Prover for CudaProver {
     type ProvingKey = CudaProvingKey;
     type Error = CudaClientError;
-    type ProveRequest<'a> = CudaProveRequest<'a, C>;
+    type ProveRequest<'a> = CudaProveRequest<'a>;
 
-    fn inner(&self) -> &SP1NodeCore<C> {
+    fn inner(&self) -> &SP1NodeCore {
         self.node.inner()
     }
 

@@ -13,7 +13,7 @@ use crate::{
         CommonProverInput, ProverMetrics, RawTaskRequest, SP1DeferredData, SP1RecursionProver,
         TaskContext, TaskError, TaskMetadata,
     },
-    SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness,
 };
 
 #[derive(Clone)]
@@ -24,28 +24,28 @@ pub struct SP1DeferredProverConfig {
     pub deferred_buffer_size: usize,
 }
 
-pub type SP1DeferredEngine<A, C> = AsyncEngine<
+pub type SP1DeferredEngine<A> = AsyncEngine<
     RecursionDeferredTaskRequest,
     Result<TaskMetadata, TaskError>,
-    SP1DeferredWorker<A, C>,
+    SP1DeferredWorker<A>,
 >;
 
-pub type SP1DeferredSubmitHandle<A, C> = SubmitHandle<SP1DeferredEngine<A, C>>;
+pub type SP1DeferredSubmitHandle<A> = SubmitHandle<SP1DeferredEngine<A>>;
 
-pub struct SP1DeferredProver<A, C: SP1ProverComponents> {
-    engine: Arc<SP1DeferredEngine<A, C>>,
+pub struct SP1DeferredProver<A> {
+    engine: Arc<SP1DeferredEngine<A>>,
 }
 
-impl<A, C: SP1ProverComponents> Clone for SP1DeferredProver<A, C> {
+impl<A> Clone for SP1DeferredProver<A> {
     fn clone(&self) -> Self {
         Self { engine: self.engine.clone() }
     }
 }
 
-impl<A: ArtifactClient, C: SP1ProverComponents> SP1DeferredProver<A, C> {
+impl<A: ArtifactClient> SP1DeferredProver<A> {
     pub fn new(
         config: SP1DeferredProverConfig,
-        recursion_prover: SP1RecursionProver<A, C>,
+        recursion_prover: SP1RecursionProver<A>,
         artifact_client: A,
     ) -> Self {
         let deferred_workers = (0..config.num_deferred_workers)
@@ -61,15 +61,15 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1DeferredProver<A, C> {
     pub(super) async fn submit(
         &self,
         task: RawTaskRequest,
-    ) -> Result<SP1DeferredSubmitHandle<A, C>, TaskError> {
+    ) -> Result<SP1DeferredSubmitHandle<A>, TaskError> {
         let task = RecursionDeferredTaskRequest::from_raw(task)?;
         let handle = self.engine.submit(task).await?;
         Ok(handle)
     }
 }
 
-pub struct SP1DeferredWorker<A, C: SP1ProverComponents> {
-    recursion_prover: SP1RecursionProver<A, C>,
+pub struct SP1DeferredWorker<A> {
+    recursion_prover: SP1RecursionProver<A>,
     artifact_client: A,
 }
 
@@ -105,9 +105,9 @@ impl RecursionDeferredTaskRequest {
     }
 }
 
-impl<A: ArtifactClient, C: SP1ProverComponents>
+impl<A: ArtifactClient>
     AsyncWorker<RecursionDeferredTaskRequest, Result<TaskMetadata, TaskError>>
-    for SP1DeferredWorker<A, C>
+    for SP1DeferredWorker<A>
 {
     async fn call(&self, input: RecursionDeferredTaskRequest) -> Result<TaskMetadata, TaskError> {
         let RecursionDeferredTaskRequest { common_input, deferred_data, output, .. } = input;

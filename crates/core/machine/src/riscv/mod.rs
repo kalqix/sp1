@@ -963,7 +963,19 @@ pub enum RiscvAirWithApcs<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAirWithApcs<F> {
-    pub fn machine(apcs: Vec<Arc<Apc<F, Sp1Instruction>>>) -> Machine<F, Self> {
+    /// Returns the id of the air if it is not an apc air. Otherwise, panics.
+    pub fn id(&self) -> RiscvAirId {
+        match self {
+            RiscvAirWithApcs::Riscv(air) => air.id(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn machine() -> Machine<F, Self> {
+        Self::machine_with_apcs(vec![])
+    }
+
+    pub fn machine_with_apcs(apcs: Vec<Arc<Apc<F, Sp1Instruction>>>) -> Machine<F, Self> {
         let apcs_len = apcs.len();
 
         use RiscvAirDiscriminants::*;
@@ -1449,7 +1461,7 @@ pub mod tests {
         let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
         let program = program.with_apcs(apc_range_and_costs);
         let stdin = SP1Stdin::new();
-        run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine(apcs))
+        run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine_with_apcs(apcs))
             .await
             .unwrap();
     }
@@ -1479,9 +1491,14 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.sharding_threshold =
             ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        run_test_with_machine_opts(Arc::new(program), stdin, RiscvAirWithApcs::machine(apcs), opts)
-            .await
-            .unwrap();
+        run_test_with_machine_opts(
+            Arc::new(program),
+            stdin,
+            RiscvAirWithApcs::machine_with_apcs(apcs),
+            opts,
+        )
+        .await
+        .unwrap();
     }
 
     #[test]
@@ -1669,7 +1686,7 @@ pub mod tests {
     //     let log_blowup = 1;
     //     let log_stacking_height = 21;
     //     let max_log_row_count = 21;
-    //     let machine = RiscvAir::machine();
+    //     let machine = RiscvAirWithApcs::machine();
     //     let verifier = ShardVerifier::from_basefold_parameters(
     //         log_blowup,
     //         log_stacking_height,
@@ -1710,7 +1727,7 @@ pub mod tests {
     //     let log_blowup = 1;
     //     let log_stacking_height = 21;
     //     let max_log_row_count = 21;
-    //     let machine = RiscvAir::machine();
+    //     let machine = RiscvAirWithApcs::machine();
     //     let verifier = ShardVerifier::from_basefold_parameters(
     //         log_blowup,
     //         log_stacking_height,

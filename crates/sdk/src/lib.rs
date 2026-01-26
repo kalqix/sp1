@@ -67,7 +67,7 @@ pub use sp1_core_machine::io::SP1Stdin;
 pub use sp1_primitives::{io::SP1PublicValues, Elf};
 pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 
-pub use sp1_core_machine::riscv::RiscvAir;
+pub use sp1_core_machine::riscv::RiscvAirWithApcs;
 pub use sp1_prover::components::CpuSP1ProverComponents;
 
 /// A prelude, including all the types and traits that are commonly used.
@@ -95,8 +95,6 @@ mod tests {
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_core_machine::riscv::RiscvAirWithApcs;
     use sp1_primitives::{io::SP1PublicValues, Elf};
-    use sp1_prover::components::CpuSP1ApcProverComponents;
-
     use crate::{
         utils, CpuProver, CpuSP1ProverComponents, MockProver, ProveRequest, Prover, ProverClient,
         SP1Stdin,
@@ -158,13 +156,12 @@ mod tests {
 
         utils::setup_logger();
 
-        let machine = RiscvAirWithApcs::machine(apcs);
+        let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
         let core_opts = SP1CoreOpts {
             retained_events_presets: [RetainedEventsPreset::Sha256].into(),
             ..Default::default()
         };
-        let client =
-            CpuProver::<CpuSP1ApcProverComponents>::new_with_opts(Some(core_opts), machine).await;
+        let client = CpuProver::new_with_opts(Some(core_opts), machine).await;
         let pk = client.setup(elf).await?;
         let proof = client.prove(&pk, stdin).core().await?;
         client.verify(&proof, &pk.vk, None)?;
@@ -175,7 +172,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+        let client = ProverClient::builder(RiscvAirWithApcs::machine())
             .cpu()
             .build()
             .await;
@@ -190,7 +187,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+        let client = ProverClient::builder(RiscvAirWithApcs::machine())
             .cpu()
             .build()
             .await;
@@ -207,7 +204,7 @@ mod tests {
     #[ignore = "The cycle limit logic needs to be reimplemented."]
     async fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+        let client = ProverClient::builder(RiscvAirWithApcs::machine())
             .cpu()
             .build()
             .await;
@@ -225,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_report_variants() {
         utils::setup_logger();
-        let client = MockProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = MockProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -287,7 +284,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_macro_non_report() {
         utils::setup_logger();
-        let client = MockProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = MockProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -312,7 +309,8 @@ mod tests {
         opts.minimal_trace_chunk_threshold = 1000;
 
         let client =
-            MockProver::<CpuSP1ProverComponents>::new_with_opts(RiscvAir::machine(), opts).await;
+            MockProver::new_with_opts(RiscvAirWithApcs::machine(), opts)
+                .await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -332,7 +330,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_core() {
         utils::setup_logger();
-        let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+        let client = ProverClient::builder(RiscvAirWithApcs::machine())
             .cpu()
             .build()
             .await;
@@ -357,7 +355,7 @@ mod tests {
         use sp1_core_executor::StatusCode;
 
         utils::setup_logger();
-        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -379,7 +377,7 @@ mod tests {
     // #[tokio::test]
     // async fn test_e2e_io_override() {
     //     utils::setup_logger();
-    //     let client = ProverClient::builder(RiscvAir::machine()).cpu().build().await;
+    //     let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
     //     let elf = test_artifacts::HELLO_WORLD_ELF;
 
     //     let mut stdout = Vec::new();
@@ -394,7 +392,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_compressed() {
         utils::setup_logger();
-        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();
@@ -416,7 +414,7 @@ mod tests {
         use sp1_core_executor::StatusCode;
 
         utils::setup_logger();
-        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -437,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_plonk() {
         utils::setup_logger();
-        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
         let pk = client.setup(test_artifacts::FIBONACCI_ELF).await.unwrap();
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -449,7 +447,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_groth16() {
         utils::setup_logger();
-        let client = CpuProver::<CpuSP1ProverComponents>::new(RiscvAir::machine()).await;
+        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
         let elf = test_artifacts::FIBONACCI_ELF;
         let pk = client.setup(elf).await.unwrap();
         let mut stdin = SP1Stdin::new();

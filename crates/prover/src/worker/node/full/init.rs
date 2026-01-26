@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use slop_futures::pipeline::TaskJoinError;
-use sp1_hypercube::{prover::ProverSemaphore, Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::{prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{
     ArtifactClient, ArtifactType, InMemoryArtifactClient, TaskStatus, TaskType,
 };
@@ -15,12 +16,16 @@ use crate::{
         ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
         TaskMetadata, WorkerClient,
     },
-    SP1ProverComponents,
+    CpuSP1ProverComponents, SP1ProverComponents,
 };
 
-pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
-    pub machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
+type CoreAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
+type RecursionAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::RecursionProver;
+type WrapAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::WrapProver;
+
+pub struct SP1LocalNodeBuilder {
+    pub machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    pub worker_builder: SP1WorkerBuilder<InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
 
@@ -30,10 +35,10 @@ pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
 //     }
 // }
 
-impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
+impl SP1LocalNodeBuilder {
     /// Creates a new local node builder with a default worker client builder.
     pub fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self::from_worker_client_builder(SP1WorkerBuilder::new(machine))
     }
@@ -42,7 +47,9 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     ///
     /// This method can be used to initialize a node from a worker client builder that has already
     /// been configured with the desired prover components.
-    pub fn from_worker_client_builder(builder: SP1WorkerBuilder<C>) -> Self {
+    pub fn from_worker_client_builder(
+        builder: SP1WorkerBuilder<InMemoryArtifactClient, LocalWorkerClient>,
+    ) -> Self {
         let artifact_client = InMemoryArtifactClient::new();
         let (worker_client, channels) = LocalWorkerClient::init();
         let machine = builder.machine.clone();
@@ -54,7 +61,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Sets the core air prover to the worker client builder.
     pub fn with_core_air_prover(
         mut self,
-        core_air_prover: Arc<C::CoreProver>,
+        core_air_prover: Arc<CoreAirProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_core_air_prover(core_air_prover, permit);
@@ -64,7 +71,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Sets the compress air prover to the worker client builder.
     pub fn with_compress_air_prover(
         mut self,
-        compress_air_prover: Arc<C::RecursionProver>,
+        compress_air_prover: Arc<RecursionAirProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder =
@@ -75,7 +82,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Sets the shrink air prover to the worker client builder.
     pub fn with_shrink_air_prover(
         mut self,
-        shrink_air_prover: Arc<C::RecursionProver>,
+        shrink_air_prover: Arc<RecursionAirProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_shrink_air_prover(shrink_air_prover, permit);
@@ -85,14 +92,14 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Sets the wrap air prover to the worker client builder.
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<C::WrapProver>,
+        wrap_air_prover: Arc<WrapAirProver>,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_wrap_air_prover(wrap_air_prover, permit);
         self
     }
 
-    pub async fn build(self) -> anyhow::Result<SP1LocalNode<C>> {
+    pub async fn build(self) -> anyhow::Result<SP1LocalNode> {
         // Destructure the builder.
         let Self { machine, worker_builder, mut channels } = self;
         // Get the core options from the worker builder.
@@ -245,7 +252,8 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                     tokio::select! {
                         Some((id, request)) = core_prover_rx.recv() => {
                             let proof_id = request.context.proof_id.clone();
-                        let handle = run_vk_generation::<_,_>(vk_worker, request, worker.artifact_client().clone(), machine.clone());
+                        let handle =
+                            run_vk_generation(vk_worker, request, worker.artifact_client().clone(), machine.clone());
                             let tx = task_tx.clone();
                             let task_id = id;
                             task_set.spawn(async move {

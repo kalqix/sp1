@@ -3,9 +3,9 @@
 //! This module provides a builder for the [`NetworkProver`].
 
 use alloy_primitives::Address;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::SP1ProverComponents;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 use crate::{
     network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
@@ -15,20 +15,20 @@ use crate::{
 /// A builder for the [`NetworkProver`].
 ///
 /// The builder is used to configure the [`NetworkProver`] before it is built.
-pub struct NetworkProverBuilder<C: SP1ProverComponents> {
+pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
-    pub(crate) machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    pub(crate) machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
-impl<C: SP1ProverComponents> NetworkProverBuilder<C> {
+impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
     pub const fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self {
             private_key: None,
@@ -172,7 +172,7 @@ impl<C: SP1ProverComponents> NetworkProverBuilder<C> {
     /// # }
     /// ```
     #[must_use]
-    pub async fn build(self) -> NetworkProver<C> {
+    pub async fn build(self) -> NetworkProver {
         let signer = if let Some(provided_signer) = self.signer {
             provided_signer
         } else {

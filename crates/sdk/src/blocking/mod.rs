@@ -85,6 +85,7 @@ mod tests {
     #[rstest::fixture]
     #[once]
     fn client() -> CpuProver {
-        ProverClient::builder().cpu().build()
+        let machine = sp1_core_machine::riscv::RiscvAirWithApcs::machine();
+        ProverClient::builder(machine).cpu().build()
     }
 }

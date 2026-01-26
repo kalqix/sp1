@@ -2,9 +2,9 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::SP1ProverComponents;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 use super::CpuProver;
 use sp1_core_executor::SP1CoreOpts;
@@ -12,17 +12,17 @@ use sp1_core_executor::SP1CoreOpts;
 /// A builder for the [`CpuProver`].
 ///
 /// The builder is used to configure the [`CpuProver`] before it is built.
-pub struct CpuProverBuilder<C: SP1ProverComponents> {
+pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
-impl<C: SP1ProverComponents> CpuProverBuilder<C> {
+impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
     pub const fn new(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         Self { core_opts: None, machine }
     }
@@ -37,7 +37,7 @@ impl<C: SP1ProverComponents> CpuProverBuilder<C> {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .core_opts(opts)
     ///         .build()
@@ -60,7 +60,7 @@ impl<C: SP1ProverComponents> CpuProverBuilder<C> {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .with_opts(opts)
     ///         .build()
@@ -83,14 +83,14 @@ impl<C: SP1ProverComponents> CpuProverBuilder<C> {
     /// use sp1_sdk::{CpuSP1ProverComponents, ProverClient, RiscvAir};
     ///
     /// tokio_test::block_on(async {
-    ///     let prover = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;
     /// });
     /// ```
     #[must_use]
-    pub async fn build(self) -> CpuProver<C> {
+    pub async fn build(self) -> CpuProver {
         CpuProver::new_with_opts(self.core_opts, self.machine).await
     }
 }

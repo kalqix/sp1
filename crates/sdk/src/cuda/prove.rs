@@ -15,36 +15,22 @@ use crate::{
     utils::proof_mode,
     SP1ProofWithPublicValues,
 };
-use sp1_primitives::SP1GlobalContext;
-use sp1_prover::{CoreAirProverFactory, SP1ProverComponents};
 
 /// A builder for proving a program on the CUDA.
 ///
 /// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
 /// used for only the [`crate::cuda::CudaProver`] client type.
-pub struct CudaProveRequest<'a, C>
-where
-    C: SP1ProverComponents,
-    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
-{
-    pub(crate) base: BaseProveRequest<'a, CudaProver<C>>,
+pub struct CudaProveRequest<'a> {
+    pub(crate) base: BaseProveRequest<'a, CudaProver>,
 }
 
-impl<'a, C> ProveRequest<'a, CudaProver<C>> for CudaProveRequest<'a, C>
-where
-    C: SP1ProverComponents,
-    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
-{
-    fn base(&mut self) -> &mut BaseProveRequest<'a, CudaProver<C>> {
+impl<'a> ProveRequest<'a, CudaProver> for CudaProveRequest<'a> {
+    fn base(&mut self) -> &mut BaseProveRequest<'a, CudaProver> {
         &mut self.base
     }
 }
 
-impl<'a, C> IntoFuture for CudaProveRequest<'a, C>
-where
-    C: SP1ProverComponents,
-    C::CoreProver: CoreAirProverFactory<SP1GlobalContext, C::CoreSC>,
-{
+impl<'a> IntoFuture for CudaProveRequest<'a> {
     type Output = Result<SP1ProofWithPublicValues, CudaClientError>;
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 

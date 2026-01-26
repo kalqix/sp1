@@ -33,32 +33,32 @@ use anyhow::{Context, Result};
 use sp1_build::Elf;
 use sp1_core_executor::{SP1Context, StatusCode};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover::{
     worker::{SP1LightNode, SP1NodeCore},
-    SP1ProverComponents, SP1_CIRCUIT_VERSION,
+    SP1_CIRCUIT_VERSION,
 };
 
 use tokio::time::sleep;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 #[derive(Clone)]
-pub struct NetworkProver<C: SP1ProverComponents> {
+pub struct NetworkProver {
     pub(crate) client: NetworkClient,
-    pub(crate) node: SP1LightNode<C>,
+    pub(crate) node: SP1LightNode,
     pub(crate) tee_signers: Vec<Address>,
     pub(crate) network_mode: NetworkMode,
 }
 
-impl<C: SP1ProverComponents> Prover for NetworkProver<C> {
-    type Components = C;
+impl Prover for NetworkProver {
     // todo!(n): Remove usage of anyhow.
     type ProvingKey = SP1ProvingKey;
     type Error = anyhow::Error;
-    type ProveRequest<'a> = NetworkProveBuilder<'a, C>;
+    type ProveRequest<'a> = NetworkProveBuilder<'a>;
 
-    fn inner(&self) -> &SP1NodeCore<C> {
+    fn inner(&self) -> &SP1NodeCore {
         self.node.inner()
     }
 
@@ -109,7 +109,7 @@ impl<C: SP1ProverComponents> Prover for NetworkProver<C> {
     }
 }
 
-impl<C: SP1ProverComponents> NetworkProver<C> {
+impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given signer and network mode.
     ///
     /// # Details
@@ -141,7 +141,7 @@ impl<C: SP1ProverComponents> NetworkProver<C> {
         signer: impl Into<NetworkSigner>,
         rpc_url: &str,
         network_mode: NetworkMode,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();

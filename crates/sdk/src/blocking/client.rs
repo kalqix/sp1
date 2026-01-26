@@ -2,15 +2,12 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use std::marker::PhantomData;
-
 use crate::blocking::{
     cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
 };
-use derive_where::derive_where;
-use sp1_hypercube::{Machine, ShardContext};
-use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_prover::SP1ProverComponents;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
@@ -19,12 +16,10 @@ use sp1_prover::SP1ProverComponents;
 ///
 /// Note that the initialization may be slow as it loads necessary proving parameters and sets up
 /// the environment.
-#[derive_where(Default)]
-pub struct ProverClient<C> {
-    _marker: PhantomData<C>,
-}
+#[derive(Default)]
+pub struct ProverClient;
 
-impl<C: SP1ProverComponents> ProverClient<C> {
+impl ProverClient {
     /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -42,25 +37,26 @@ impl<C: SP1ProverComponents> ProverClient<C> {
     /// ```
     #[must_use]
     pub fn from_env(
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
-    ) -> EnvProver<C> {
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> EnvProver {
         EnvProver::new(machine)
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder() -> ProverClientBuilder<C> {
-        ProverClientBuilder::default()
+    pub fn builder(
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> ProverClientBuilder {
+        ProverClientBuilder { machine }
     }
 }
 
 /// A builder to define which proving client to use.
-#[derive_where(Default)]
-pub struct ProverClientBuilder<C> {
-    _marker: PhantomData<C>,
+pub struct ProverClientBuilder {
+    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
-impl<C: SP1ProverComponents> ProverClientBuilder<C> {
+impl ProverClientBuilder {
     /// Builds a [`CpuProver`] specifically for local CPU proving.
     ///
     /// # Usage
@@ -76,8 +72,8 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[must_use]
     #[allow(clippy::unused_self)]
-    pub fn cpu(&self) -> CpuProverBuilder<C> {
-        CpuProverBuilder::new()
+    pub fn cpu(&self) -> CpuProverBuilder {
+        CpuProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -95,7 +91,7 @@ impl<C: SP1ProverComponents> ProverClientBuilder<C> {
     /// ```
     #[must_use]
     #[allow(clippy::unused_self)]
-    pub fn cuda(&self) -> CudaProverBuilder<C> {
-        CudaProverBuilder::new()
+    pub fn cuda(&self) -> CudaProverBuilder {
+        CudaProverBuilder::new().with_machine(self.machine.clone())
     }
 }

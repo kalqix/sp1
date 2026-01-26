@@ -41,7 +41,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -83,7 +83,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -115,7 +115,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -149,7 +149,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
     ///         .cpu()
     ///         .build()
     ///         .await;

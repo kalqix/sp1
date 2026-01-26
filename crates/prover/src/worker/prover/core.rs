@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use slop_air::Air;
 use slop_algebra::AbstractField;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
 use sp1_core_executor::{
@@ -9,24 +8,24 @@ use sp1_core_executor::{
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
 use sp1_core_machine::executor::trace_chunk;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
-    Machine, MachineProof, MachineVerifier, SP1Pcs, SP1VerifyingKey, ShardContext,
+    Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
     await_scoped_vec, network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType,
 };
-use sp1_recursion_circuit::{
-    shard::RecursiveShardVerifier, zerocheck::RecursiveVerifierConstraintFolder,
-};
+use sp1_recursion_circuit::shard::RecursiveShardVerifier;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::RecursionProgram;
 use tokio::sync::OnceCell;
 use tracing::Instrument;
 
 use crate::{
+    components::CoreSC,
     recursion::{normalize_program_from_input, recursive_verifier},
     shapes::{SP1NormalizeCache, SP1NormalizeInputShape, SP1RecursionProofShape},
     worker::{
@@ -34,8 +33,10 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    SP1CircuitWitness, SP1ProverComponents,
+    CpuSP1ProverComponents, SP1CircuitWitness, SP1ProverComponents,
 };
+
+type CoreAirProver = <CpuSP1ProverComponents as SP1ProverComponents>::CoreProver;
 
 pub struct SetupTask {
     pub id: TaskId,
@@ -120,37 +121,36 @@ pub struct CoreProvingTask {
     pub metrics: ProverMetrics,
 }
 
-struct NormalizeProgramCompiler<
-    SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>,
-> {
-    cache: SP1NormalizeCache<SC::Air>,
-    recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, SC::Air, InnerConfig>,
+struct NormalizeProgramCompiler {
+    cache: SP1NormalizeCache,
+    recursive_verifier:
+        RecursiveShardVerifier<SP1GlobalContext, RiscvAirWithApcs<SP1Field>, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
-    verifier: MachineVerifier<SP1GlobalContext, SC>,
+    verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
 }
 
-impl<SC: ShardContext<SP1GlobalContext, Config = SP1Pcs<SP1GlobalContext>>>
-    NormalizeProgramCompiler<SC>
-where
-    SC::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
-{
+impl NormalizeProgramCompiler {
     pub fn new(
-        cache: SP1NormalizeCache<SC::Air>,
-        recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, SC::Air, InnerConfig>,
+        cache: SP1NormalizeCache,
+        recursive_verifier: RecursiveShardVerifier<
+            SP1GlobalContext,
+            RiscvAirWithApcs<SP1Field>,
+            InnerConfig,
+        >,
         reduce_shape: SP1RecursionProofShape,
-        machine_verifier: MachineVerifier<SP1GlobalContext, SC>,
+        machine_verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
     ) -> Self {
         Self { cache, recursive_verifier, reduce_shape, verifier: machine_verifier }
     }
 
-    pub fn machine(&self) -> &Machine<SP1Field, SC::Air> {
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
         self.verifier.machine()
     }
 
     pub fn get_program(
         &self,
         vk: SP1VerifyingKey,
-        proof_shape: &CoreProofShape<SP1Field, SC::Air>,
+        proof_shape: &CoreProofShape<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Arc<RecursionProgram<SP1Field>> {
         let shape = SP1NormalizeInputShape {
             proof_shapes: vec![proof_shape.clone()],
@@ -172,30 +172,30 @@ where
 }
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
-pub struct CoreWorker<A, W, C: SP1ProverComponents> {
-    normalize_program_compiler: Arc<NormalizeProgramCompiler<C::CoreSC>>,
+pub struct CoreWorker<A, W> {
+    normalize_program_compiler: Arc<NormalizeProgramCompiler>,
     opts: SP1CoreOpts,
     artifact_client: A,
     worker_client: W,
-    core_prover: Arc<C::CoreProver>,
-    recursion_prover: SP1RecursionProver<A, C>,
+    core_prover: Arc<CoreAirProver>,
+    recursion_prover: SP1RecursionProver<A>,
     permits: ProverSemaphore,
     /// Optional fixed PK cache shared across workers.
-    pk: Option<CoreProvingKeyCache<C>>,
+    pk: Option<CoreProvingKeyCache>,
     verify_intermediates: bool,
 }
 
-impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
+impl<A, W> CoreWorker<A, W> {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        normalize_program_compiler: Arc<NormalizeProgramCompiler<C::CoreSC>>,
+        normalize_program_compiler: Arc<NormalizeProgramCompiler>,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
-        core_prover: Arc<C::CoreProver>,
-        recursion_prover: SP1RecursionProver<A, C>,
+        core_prover: Arc<CoreAirProver>,
+        recursion_prover: SP1RecursionProver<A>,
         permits: ProverSemaphore,
-        pk: Option<CoreProvingKeyCache<C>>,
+        pk: Option<CoreProvingKeyCache>,
         verify_intermediates: bool,
     ) -> Self {
         Self {
@@ -211,16 +211,15 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         }
     }
 
-    fn machine(&self) -> &Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air> {
+    fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
         self.normalize_program_compiler.machine()
     }
 }
 
-impl<A, W, C> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W, C>
+impl<A, W> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W>
 where
     A: ArtifactClient,
     W: WorkerClient,
-    C: SP1ProverComponents,
 {
     async fn call(&self, input: CoreProvingTask) -> Result<TaskMetadata, TaskError> {
         // === Phase 1: Tracing ===
@@ -544,7 +543,7 @@ where
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier(machine)
+                CpuSP1ProverComponents::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -603,36 +602,30 @@ where
     }
 }
 
-pub type CoreProvingKey<C> = ProvingKey<
-    SP1GlobalContext,
-    <C as SP1ProverComponents>::CoreSC,
-    <C as SP1ProverComponents>::CoreProver,
->;
+pub type CoreProvingKey = ProvingKey<SP1GlobalContext, CoreSC, CoreAirProver>;
 
 /// The Core Proving Key cache is initialized once and shared across all CoreAndNormalizeWorkers.
-pub type CoreProvingKeyCache<C> = Arc<OnceCell<Arc<CoreProvingKey<C>>>>;
+pub type CoreProvingKeyCache = Arc<OnceCell<Arc<CoreProvingKey>>>;
 
 /// Worker for handling setup tasks only.
-pub struct CoreAndNormalizeWorker<A, C: SP1ProverComponents> {
+pub struct CoreAndNormalizeWorker<A> {
     artifact_client: A,
-    core_prover: Arc<C::CoreProver>,
+    core_prover: Arc<CoreAirProver>,
     permits: ProverSemaphore,
-    _marker: std::marker::PhantomData<C>,
 }
 
-impl<A, C: SP1ProverComponents> CoreAndNormalizeWorker<A, C> {
+impl<A> CoreAndNormalizeWorker<A> {
     pub fn new(
         artifact_client: A,
-        core_prover: Arc<C::CoreProver>,
+        core_prover: Arc<CoreAirProver>,
         permits: ProverSemaphore,
     ) -> Self {
-        Self { artifact_client, core_prover, permits, _marker: std::marker::PhantomData }
+        Self { artifact_client, core_prover, permits }
     }
 }
 
-impl<A: ArtifactClient, C: SP1ProverComponents>
-    AsyncWorker<SetupTask, Result<(TaskId, TaskMetadata), TaskError>>
-    for CoreAndNormalizeWorker<A, C>
+impl<A: ArtifactClient> AsyncWorker<SetupTask, Result<(TaskId, TaskMetadata), TaskError>>
+    for CoreAndNormalizeWorker<A>
 {
     async fn call(&self, input: SetupTask) -> Result<(TaskId, TaskMetadata), TaskError> {
         let SetupTask { id, elf, output } = input;
@@ -655,27 +648,23 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
     }
 }
 
-pub type SetupEngine<A, P> = Arc<
-    AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A, P>>,
->;
+pub type SetupEngine<A> =
+    Arc<AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A>>>;
 
 /// Unified engine that handles both tracing and core proving in a single async task.
-pub type SP1CoreEngine<A, W, C> =
-    Arc<AsyncEngine<CoreProvingTask, Result<TaskMetadata, TaskError>, CoreWorker<A, W, C>>>;
+pub type SP1CoreEngine<A, W> =
+    Arc<AsyncEngine<CoreProvingTask, Result<TaskMetadata, TaskError>, CoreWorker<A, W>>>;
 
-pub type CoreProveSubmitHandle<A, W, C> = SubmitHandle<SP1CoreEngine<A, W, C>>;
+pub type CoreProveSubmitHandle<A, W> = SubmitHandle<SP1CoreEngine<A, W>>;
 
-pub type SetupSubmitHandle<A, C> = SubmitHandle<SetupEngine<A, C>>;
+pub type SetupSubmitHandle<A> = SubmitHandle<SetupEngine<A>>;
 
-pub struct SP1CoreProver<A, W, C>
-where
-    C: SP1ProverComponents,
-{
-    prove_shard_engine: SP1CoreEngine<A, W, C>,
-    setup_engine: SetupEngine<A, C>,
+pub struct SP1CoreProver<A, W> {
+    prove_shard_engine: SP1CoreEngine<A, W>,
+    setup_engine: SetupEngine<A>,
 }
 
-impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> Clone for SP1CoreProver<A, W, C> {
+impl<A: ArtifactClient, W: WorkerClient> Clone for SP1CoreProver<A, W> {
     fn clone(&self) -> Self {
         Self {
             prove_shard_engine: self.prove_shard_engine.clone(),
@@ -684,11 +673,11 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> Clone for SP1Co
     }
 }
 
-impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
     pub async fn submit_prove_shard(
         &self,
         task: RawTaskRequest,
-    ) -> Result<CoreProveSubmitHandle<A, W, C>, TaskError> {
+    ) -> Result<CoreProveSubmitHandle<A, W>, TaskError> {
         let task = ProveShardTaskRequest::from_raw(task)?;
         let ProveShardTaskRequest {
             elf,
@@ -718,7 +707,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
     pub async fn submit_setup(
         &self,
         task: SetupTask,
-    ) -> Result<SetupSubmitHandle<A, C>, SubmitError> {
+    ) -> Result<SetupSubmitHandle<A>, SubmitError> {
         self.setup_engine.submit(task).await
     }
 }
@@ -742,19 +731,19 @@ pub struct SP1CoreProverConfig {
     pub verify_intermediates: bool,
 }
 
-impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+impl<A: ArtifactClient, W: WorkerClient> SP1CoreProver<A, W> {
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
         artifact_client: A,
         worker_client: W,
-        air_prover: Arc<C::CoreProver>,
+        air_prover: Arc<CoreAirProver>,
         permits: ProverSemaphore,
-        recursion_prover: SP1RecursionProver<A, C>,
-        machine: Machine<SP1Field, <C::CoreSC as ShardContext<SP1GlobalContext>>::Air>,
+        recursion_prover: SP1RecursionProver<A>,
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier(machine);
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

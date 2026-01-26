@@ -14,7 +14,7 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{executor::MachineExecutor, io::SP1Stdin};
 use sp1_hypercube::{
-    prover::{MachineProverComponents, MachineProvingKey, MemoryPermit, Record},
+    prover::{MachineProvingKey, MemoryPermit, Record},
     MachineVerifierConfigError, MachineVerifyingKey, SP1CoreJaggedConfig, ShardProof,
     VerifierConstraintFolder,
 };
@@ -43,9 +43,8 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::Instrument;
 
 use crate::{
-    components::SP1ProverComponents, error::SP1ProverError, recursion::SP1RecursionProver, CoreSC,
-    HashableKey, OuterSC, SP1CircuitWitness, SP1CoreProof, SP1CoreProofData, SP1Prover,
-    SP1VerifyingKey,
+    error::SP1ProverError, recursion::SP1RecursionProver, CoreSC, HashableKey, OuterSC,
+    SP1CircuitWitness, SP1CoreProof, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
 };
 
 #[derive(Debug, Clone)]
@@ -92,20 +91,20 @@ impl Default for LocalProverOpts {
     }
 }
 
-pub struct LocalProver<C: SP1ProverComponents> {
-    prover: SP1Prover<C>,
-    executor: MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air>,
+pub struct LocalProver {
+    prover: SP1Prover,
+    executor: MachineExecutor<SP1Field, RiscvAirWithApcs<SP1Field>>,
     compose_batch_size: usize,
     normalize_batch_size: usize,
     num_recursion_executors: usize,
 }
 
-impl<C: SP1ProverComponents> LocalProver<C>
+impl LocalProver
 where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+    RiscvAirWithApcs<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
-    pub fn new(prover: SP1Prover<C>, opts: LocalProverOpts) -> Self {
+    pub fn new(prover: SP1Prover, opts: LocalProverOpts) -> Self {
         let executor = MachineExecutor::new(
             opts.records_buffer_size,
             opts.num_record_workers,
@@ -161,7 +160,7 @@ where
     /// Get a reference to the underlying [SP1Prover]
     #[inline]
     #[must_use]
-    pub fn prover(&self) -> &SP1Prover<C> {
+    pub fn prover(&self) -> &SP1Prover {
         &self.prover
     }
 
@@ -170,7 +169,7 @@ where
     #[must_use]
     pub fn executor(
         &self,
-    ) -> &MachineExecutor<SP1Field, <C::CoreComponents as MachineProverComponents>::Air> {
+    ) -> &MachineExecutor<SP1Field, RiscvAirWithApcs<SP1Field>> {
         &self.executor
     }
 
@@ -178,7 +177,7 @@ where
     /// the core prover. Uses the provided context.
     pub async fn prove_core(
         self: Arc<Self>,
-        pk: Arc<MachineProvingKey<C::CoreComponents>>,
+        pk: Arc<MachineProvingKey<CoreSC>>,
         program: Arc<Program>,
         stdin: SP1Stdin,
         mut context: SP1Context<'static>,
@@ -188,7 +187,7 @@ where
         context.subproof_verifier = Some(Arc::new(self.clone()));
 
         let (records_tx, mut records_rx) =
-            mpsc::unbounded_channel::<(Record<C::CoreComponents>, Option<MemoryPermit>)>();
+            mpsc::unbounded_channel::<(Record<CoreSC>, Option<MemoryPermit>)>();
 
         let prover = self.clone();
 
@@ -285,7 +284,7 @@ where
         let (compress_tree_tx, mut compress_tree_rx) = mpsc::unbounded_channel::<RecursionProof>();
 
         // Spawn the executor workers
-        let (prove_task_tx, mut prove_task_rx) = mpsc::unbounded_channel::<ProveTask<C>>();
+        let (prove_task_tx, mut prove_task_rx) = mpsc::unbounded_channel::<ProveTask>();
 
         let mut recursion_executors = Vec::new();
         for _ in 0..self.num_recursion_executors {
@@ -646,7 +645,7 @@ where
                 is_page_protect_active,
             });
 
-            deferred_digest = SP1RecursionProver::<C>::hash_deferred_proofs(deferred_digest, batch);
+            deferred_digest = SP1RecursionProver::hash_deferred_proofs(deferred_digest, batch);
         }
         (deferred_inputs, deferred_digest)
     }
@@ -677,9 +676,9 @@ where
     }
 }
 
-impl<C: SP1ProverComponents> SubproofVerifier for LocalProver<C>
+impl SubproofVerifier for LocalProver
 where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+    RiscvAirWithApcs<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
         + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
 {
     fn verify_deferred_proof(
@@ -890,8 +889,8 @@ struct ExecuteTask {
 }
 
 #[allow(clippy::type_complexity)]
-struct ProveTask<C: SP1ProverComponents> {
-    keys: Option<(Arc<MachineProvingKey<C::RecursionComponents>>, MachineVerifyingKey<InnerSC>)>,
+struct ProveTask {
+    keys: Option<(Arc<MachineProvingKey<InnerSC>>, MachineVerifyingKey<InnerSC>)>,
     range: Range<usize>,
     record: RecursionRecord<SP1Field>,
 }
@@ -908,7 +907,6 @@ pub mod tests {
 
     use crate::{
         build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev},
-        components::CpuSP1ProverComponents,
         SP1ProverBuilder,
     };
 
@@ -930,17 +928,16 @@ pub mod tests {
         OnChain,
     }
 
-    pub async fn test_e2e_prover<C: SP1ProverComponents>(
-        prover: Arc<LocalProver<C>>,
+    pub async fn test_e2e_prover(
+        prover: Arc<LocalProver>,
         elf: &[u8],
         stdin: SP1Stdin,
         test_kind: Test,
     ) -> Result<()>
     where
-        <C::CoreComponents as MachineProverComponents>::Air: for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
+        RiscvAirWithApcs<SP1Field>: for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
             + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
-        <C::CoreComponents as MachineProverComponents>::Air:
-            MachineAir<<CoreSC as JaggedConfig>::F, Program = Program>,
+        RiscvAirWithApcs<SP1Field>: MachineAir<<CoreSC as JaggedConfig>::F, Program = Program>,
     {
         let (pk, program, vk) = prover
             .prover()
@@ -1030,7 +1027,7 @@ pub mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+        let sp1_prover = SP1ProverBuilder::new(RiscvAirWithApcs::machine())
             .without_vk_verification()
             .build()
             .await;
@@ -1051,7 +1048,7 @@ pub mod tests {
     async fn test_deferred_compress() -> Result<()> {
         setup_logger();
 
-        let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
+        let sp1_prover = SP1ProverBuilder::new(RiscvAirWithApcs::machine())
             .without_vk_verification()
             .build()
             .await;

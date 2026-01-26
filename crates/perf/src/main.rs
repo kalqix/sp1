@@ -6,13 +6,13 @@ use std::{
 use async_scoped::TokioScope;
 use clap::Parser;
 use sp1_core_executor::ExecutionError;
+use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_cuda::CudaClientError;
 use sp1_prover::ProverMode;
 use sp1_sdk::{
     cpu::CPUProverError,
     network::{signer::NetworkSigner, FulfillmentStrategy, NetworkMode},
-    CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient, ProvingKey, RiscvAir,
-    SP1Stdin, SP1VerificationError,
+    Elf, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin, SP1VerificationError,
 };
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -84,7 +84,7 @@ async fn main() {
     let performance_reports = match args.mode {
         ProverMode::Cpu => {
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+                ProverClient::builder(RiscvAirWithApcs::machine())
                     .cpu()
                     .build()
                     .await
@@ -124,7 +124,7 @@ async fn main() {
         }
         ProverMode::Cuda => {
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+                ProverClient::builder(RiscvAirWithApcs::machine())
                     .cuda()
                     .build()
                     .await
@@ -167,7 +167,7 @@ async fn main() {
                 .expect("NETWORK_PRIVATE_KEY environment variable must be set");
             let signer = NetworkSigner::local(&private_key).expect("failed to create signer");
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::<CpuSP1ProverComponents>::builder(RiscvAir::machine())
+                ProverClient::builder(RiscvAirWithApcs::machine())
                     .network_for(NetworkMode::Mainnet)
                     .rpc_url("https://rpc.sepolia.succinct.xyz")
                     .signer(signer)
