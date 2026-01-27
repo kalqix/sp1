@@ -1104,7 +1104,7 @@ pub mod tests {
             .apcs_and_stats
             .into_iter()
             .map(|a| a.into_parts())
-            .map(|(apc, _)| apc)
+            .map(|(apc, _, _)| apc)
             .collect();
 
         setup_logger();

@@ -3,8 +3,10 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    bus_map::BusType, expression::AlgebraicReference, powdr::UniqueReferences,
-    SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
+    bus_map::BusType,
+    expression::AlgebraicReference,
+    powdr::UniqueReferences,
+    symbolic_machine::{SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine},
 };
 use powdr_constraint_solver::grouped_expression::GroupedExpression;
 use powdr_expression::{

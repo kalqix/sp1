@@ -6,11 +6,14 @@ use crate::{
             air_to_symbolic_machine, constrain_is_trusted_to_one, sort_memory_interactions,
         },
         instruction::Sp1Instruction,
+        DEFAULT_DEGREE_BOUND,
     },
     riscv::RiscvAir,
 };
 use itertools::Itertools;
-use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
+use powdr_autoprecompiles::{
+    evaluation::AirStats, symbolic_machine::SymbolicMachine, DegreeBound, InstructionHandler,
+};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, Register, RiscvAirId};
 use sp1_hypercube::air::MachineAir;
@@ -258,6 +261,10 @@ impl<F: PrimeField32> InstructionHandler for Sp1InstructionHandler<F> {
                 | Opcode::JAL
                 | Opcode::JALR
         )
+    }
+
+    fn degree_bound(&self) -> DegreeBound {
+        DEFAULT_DEGREE_BOUND
     }
 }
 

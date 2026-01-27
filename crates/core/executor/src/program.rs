@@ -41,10 +41,29 @@ pub struct Program {
     pub memory_image: HashMap<u64, u64>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
+    /// The data about the apcs
+    pub apcs: Apcs,
+}
+
+/// Data about the apcs of this program, used during execution
+#[derive(Debug, Clone, Default, Serialize, Deserialize, deepsize2::DeepSizeOf)]
+pub struct Apcs {
     /// The ranges of instructions that have APC chips. The values are indices in `apc_by_index`
     pub apc_indices_by_start_idx: HashMap<usize, Vec<usize>>,
     /// The details of each APC
     pub apc_by_index: Vec<Apc>,
+}
+
+impl Apcs {
+    fn add(&mut self, apc: Apc) {
+        let index = self.apc_by_index.len();
+        self.apc_indices_by_start_idx.entry(apc.start_pc_idx).or_default().push(index);
+        self.apc_by_index.push(apc);
+    }
+
+    fn get(&self, index: usize) -> Option<&[usize]> {
+        self.apc_indices_by_start_idx.get(&index).map(std::vec::Vec::as_slice)
+    }
 }
 
 /// Represents an APC in the program, which is a range for which the prover can choose to run an
@@ -155,10 +174,7 @@ impl Program {
     /// Add an APC range to the program.
     #[must_use]
     pub fn add_apc(mut self, apc: Apc) -> Self {
-        // TODO: put in the same data structure
-        let index = self.apc_by_index.len();
-        self.apc_indices_by_start_idx.entry(apc.start_pc_idx).or_default().push(index);
-        self.apc_by_index.push(apc);
+        self.apcs.add(apc);
         self
     }
 
@@ -172,8 +188,7 @@ impl Program {
             pc_base,
             memory_image: HashMap::new(),
             preprocessed_shape: None,
-            apc_indices_by_start_idx: HashMap::new(),
-            apc_by_index: Vec::new(),
+            apcs: Apcs::default(),
         }
     }
 
@@ -201,8 +216,7 @@ impl Program {
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
             preprocessed_shape: None,
-            apc_by_index: vec![],
-            apc_indices_by_start_idx: HashMap::default(),
+            apcs: Apcs::default(),
         })
     }
 
@@ -232,10 +246,7 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
-            Some((
-                &self.instructions[idx],
-                self.apc_indices_by_start_idx.get(&idx).map(std::vec::Vec::as_slice),
-            ))
+            Some((&self.instructions[idx], self.apcs.get(idx)))
         } else {
             None
         }

@@ -5,7 +5,7 @@ use std::{
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    blocks::Program as _,
+    blocks::PcStep,
     expression::{AlgebraicExpression, AlgebraicReference},
     Substitution,
 };
@@ -27,8 +27,8 @@ use sp1_hypercube::{
 
 use crate::{
     autoprecompiles::{
+        instruction::Sp1Instruction,
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
-        program::Sp1Program,
         Sp1Apc,
     },
     riscv::RiscvAir,
@@ -446,8 +446,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {
         let range = ApcRange::new(
-            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
-                as usize,
+            ((self.apc().start_pc() - program.pc_base) / Sp1Instruction::pc_step() as u64) as usize,
             self.apc().block.statements.len(),
         );
         let apc = sp1_core_executor::Apc {

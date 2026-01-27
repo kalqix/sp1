@@ -183,7 +183,7 @@ pub fn create_apcs(
     apc_ranges
         .into_iter()
         .map(|range| {
-            use powdr_autoprecompiles::blocks::{BasicBlock, Program};
+            use powdr_autoprecompiles::blocks::{BasicBlock, PcStep};
 
             let instructions = program.instructions
                 [range.start().unwrap()..range.end().unwrap() + 1]
@@ -192,8 +192,7 @@ pub fn create_apcs(
                 .map(Sp1Instruction::from)
                 .collect();
 
-            // TODO: turn `pc_step` into a constant in the `Program` trait
-            let pc_step = Sp1Program::default().pc_step() as u64;
+            let pc_step = Sp1Instruction::pc_step() as u64;
             let start_pc = (range.start().unwrap() as u64) * pc_step + program.pc_base;
 
             // Create a dummy basic block with the original instructions

@@ -132,6 +132,11 @@ impl powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
     fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
         self.memory.registers.get(*addr).map(|e| e.value).unwrap_or_default()
     }
+
+    fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
+        // SP1 uses 16-bit limbs
+        value >> (limb_index * 16) & 0xffff
+    }
 }
 
 /// An executor for the SP1 RISC-V zkVM.
@@ -497,12 +502,12 @@ impl<'a> Executor<'a> {
             .collect();
 
         let apc_costs =
-            program.apc_by_index.iter().enumerate().map(|(id, apc)| (id, apc.cost)).collect();
+            program.apcs.apc_by_index.iter().enumerate().map(|(id, apc)| (id, apc.cost)).collect();
 
         // Create the candidate tracker for this executor based on the available apcs
         // This currently requires cloning due to the fact the apcs are in the program, which we
         // keep around as well
-        let apc_candidates = Sp1ApcCandidates::new(program.apc_by_index.clone());
+        let apc_candidates = Sp1ApcCandidates::new(program.apcs.apc_by_index.clone());
 
         Self {
             record: Box::new(record),
@@ -2756,7 +2761,6 @@ impl<'a> Executor<'a> {
             if !maximal_size_reached {
                 self.state.shard_finished = true;
                 // Check the state a last time, as some candidates may have just finished
-                // TODO: should we bother with this? It's a niche condition
                 self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
                     record: ExecutionRecordSnapshot::from(self.record.as_ref()),
                     local_counts: self.local_counts.clone(),
@@ -3659,12 +3663,14 @@ mod tests {
 
         let program_without_apcs = Program::new(original_instructions, 0, 0);
 
-        // A failling constraint that `x3 == 123`
+        // A failling constraint that `x3[0] == 123`
         let failing_optimistic_constraints = || {
             OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
                 left: OptimisticExpression::Literal(OptimisticLiteral {
                     instr_idx: 0,
-                    val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Register(3),
+                    val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::RegisterLimb(
+                        3, 0,
+                    ),
                 }),
                 right: OptimisticExpression::Number(123),
             }])
