@@ -22,7 +22,7 @@ pub struct ExecutionSnapshot {
     pub local_counts: LocalCounts,
     pub report: ExecutionReport,
     pub pc: u64,
-    /// The global_clk value at the time of the snapshot. Used for APC overlap detection.
+    /// The `global_clk` value at the time of the snapshot. Used for APC overlap detection.
     pub global_clk: u64,
 }
 

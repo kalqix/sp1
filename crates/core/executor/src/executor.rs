@@ -1922,6 +1922,7 @@ impl<'a> Executor<'a> {
     /// Modify the records to turn software records into apc records for a series of candidates
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
+    #[allow(clippy::too_many_lines)]
     fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<ExecutionSnapshot>>) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
@@ -2787,7 +2788,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Handle a state bump event by aborting all in-progress APC candidates.
-    /// Records state_bump_error for each aborted candidate.
+    /// Records `state_bump_error` for each aborted candidate.
     fn bump_state(&mut self, clk: u64, increment: u64, bump2: bool, next_pc: u64) {
         self.record.bump_state_events.push((clk, increment, bump2, next_pc));
         for apc_id in self.apc_candidates.abort_in_progress() {
@@ -2801,7 +2802,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Handle a memory bump event by aborting all in-progress APC candidates.
-    /// Records memory_bump_error for each aborted candidate.
+    /// Records `memory_bump_error` for each aborted candidate.
     fn bump_memory(&mut self, x: MemoryRecordEnum, op: u64) {
         self.record.bump_memory_events.push((x, op));
         for apc_id in self.apc_candidates.abort_in_progress() {
@@ -3444,7 +3445,7 @@ mod tests {
 
     use crate::utils::add_halt;
 
-    use crate::{Register, ShardingThreshold, SP1Context, SP1CoreOpts, Simple, Trace};
+    use crate::{Register, SP1Context, SP1CoreOpts, ShardingThreshold, Simple, Trace};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -3865,7 +3866,8 @@ mod tests {
         // Set very small sharding thresholds so segmentation happens early
         // This should trigger segmentation around instruction 16 while APC is still in progress
         let mut opts = SP1CoreOpts::default();
-        opts.sharding_threshold = ShardingThreshold { element_threshold: 1000, height_threshold: 16 };
+        opts.sharding_threshold =
+            ShardingThreshold { element_threshold: 1000, height_threshold: 16 };
 
         let mut runtime = Executor::new(Arc::new(program), opts);
         runtime.run::<Trace>().unwrap();
