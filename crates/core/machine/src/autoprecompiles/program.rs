@@ -1,19 +1,21 @@
 use std::sync::Arc;
 
 use crate::autoprecompiles::instruction::Sp1Instruction;
-use powdr_autoprecompiles::blocks::Program;
+use powdr_autoprecompiles::blocks::{PcStep, Program};
 
 #[derive(Default)]
 pub struct Sp1Program(Arc<sp1_core_executor::Program>);
 
+impl PcStep for Sp1Instruction {
+    fn pc_step() -> u32 {
+        // See [Program::fetch]
+        4
+    }
+}
+
 impl Program<Sp1Instruction> for Sp1Program {
     fn base_pc(&self) -> u64 {
         self.0.pc_base
-    }
-
-    fn pc_step(&self) -> u32 {
-        // See [Program::fetch]
-        4
     }
 
     fn instructions(&self) -> Box<dyn Iterator<Item = Sp1Instruction> + '_> {

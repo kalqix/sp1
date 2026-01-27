@@ -59,7 +59,7 @@ impl ApcEvents {
     #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
-        self.events.len()
+        self.events.values().map(|events| events.count).sum()
     }
 
     /// Get all the precompile events for a given apc id.

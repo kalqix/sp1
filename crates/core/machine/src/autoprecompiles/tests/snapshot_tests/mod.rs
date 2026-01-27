@@ -1,4 +1,7 @@
-use powdr_autoprecompiles::{blocks::BasicBlock, build, evaluation::evaluate_apc};
+use powdr_autoprecompiles::{
+    blocks::BasicBlock, build, empirical_constraints::EmpiricalConstraints,
+    evaluation::evaluate_apc,
+};
 use pretty_assertions::assert_eq;
 use sp1_core_executor::Instruction;
 use sp1_primitives::SP1Field;
@@ -21,7 +24,15 @@ fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_
         statements: basic_block.iter().cloned().map(Into::into).collect(),
     };
 
-    let apc = build::<Sp1ApcAdapter>(block.clone(), vm_config, DEFAULT_DEGREE_BOUND, None).unwrap();
+    let empirical_constraints = EmpiricalConstraints::default();
+    let apc = build::<Sp1ApcAdapter>(
+        block.clone(),
+        vm_config,
+        DEFAULT_DEGREE_BOUND,
+        None,
+        &empirical_constraints,
+    )
+    .unwrap();
 
     let basic_block_str = basic_block
         .iter()
@@ -29,11 +40,11 @@ fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_
         .map(|(i, inst)| format!("  {i:>3}: {inst:?}"))
         .collect::<Vec<_>>()
         .join("\n");
-    let evaluation = evaluate_apc(&block.statements, &instruction_handler, &apc.machine);
+    let apc_with_stats = evaluate_apc::<Sp1ApcAdapter>(block, &instruction_handler, apc);
     let actual = format!(
         "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
-        evaluation,
-        apc.machine.render(&sp1_bus_map())
+        apc_with_stats.evaluation_result(),
+        apc_with_stats.apc().machine.render(&sp1_bus_map())
     );
 
     let expected_path = Path::new(env!("CARGO_MANIFEST_DIR"))

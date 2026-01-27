@@ -46,7 +46,7 @@ impl EnvProver {
     /// This method will read from the `SP1_PROVER` environment variable to determine which prover
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
-    /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
+    /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.s
     pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::from_env_with_opts(None, machine).await
     }

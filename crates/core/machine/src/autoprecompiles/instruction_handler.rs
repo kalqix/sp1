@@ -6,11 +6,14 @@ use crate::{
             air_to_symbolic_machine, constrain_is_trusted_to_one, sort_memory_interactions,
         },
         instruction::Sp1Instruction,
+        DEFAULT_DEGREE_BOUND,
     },
     riscv::RiscvAir,
 };
 use itertools::Itertools;
-use powdr_autoprecompiles::{evaluation::AirStats, InstructionHandler, SymbolicMachine};
+use powdr_autoprecompiles::{
+    evaluation::AirStats, symbolic_machine::SymbolicMachine, DegreeBound, InstructionHandler,
+};
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{Opcode, Register, RiscvAirId};
 use sp1_hypercube::air::MachineAir;
@@ -93,15 +96,15 @@ impl<F: PrimeField32> Sp1InstructionHandler<F> {
     pub fn get_instruction_air_and_stats(
         &self,
         instruction: &Sp1Instruction,
-    ) -> Option<&(SymbolicMachine<F>, AirStats)> {
+    ) -> Option<(usize, &(SymbolicMachine<F>, AirStats))> {
         let instruction_type = InstructionType::from(instruction.0);
 
         let idx = self.instruction_to_air_idx.get(&instruction_type)?;
-        Some(&self.airs[*idx])
+        Some((*idx, &self.airs[*idx]))
     }
 
     pub fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<&AirStats> {
-        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats)
+        self.get_instruction_air_and_stats(instruction).map(|(_, (_, stats))| stats)
     }
 
     #[cfg(test)]
@@ -218,20 +221,34 @@ fn is_load_opcode(opcode: Opcode) -> bool {
     )
 }
 
-impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHandler<F> {
-    fn get_instruction_air(&self, instruction: &Sp1Instruction) -> Option<&SymbolicMachine<F>> {
-        self.get_instruction_air_and_stats(instruction).map(|(machine, _)| machine)
+impl<F: PrimeField32> InstructionHandler for Sp1InstructionHandler<F> {
+    type Field = F;
+
+    type Instruction = Sp1Instruction;
+
+    type AirId = usize;
+
+    fn get_instruction_air_and_id(
+        &self,
+        instruction: &Sp1Instruction,
+    ) -> (usize, &SymbolicMachine<F>) {
+        self.get_instruction_air_and_stats(instruction)
+            .map(|(id, (machine, _))| (id, machine))
+            .unwrap()
     }
 
-    fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> Option<AirStats> {
-        self.get_instruction_air_and_stats(instruction).map(|(_, stats)| stats).copied()
+    fn get_instruction_air_stats(&self, instruction: &Sp1Instruction) -> AirStats {
+        self.get_instruction_air_and_stats(instruction)
+            .map(|(_, (_, stats))| stats)
+            .copied()
+            .unwrap()
     }
 
-    fn is_allowed(&self, instruction: &Sp1Instruction) -> bool {
+    fn is_allowed(&self, instruction: &Self::Instruction) -> bool {
         !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
     }
 
-    fn is_branching(&self, instruction: &Sp1Instruction) -> bool {
+    fn is_branching(&self, instruction: &Self::Instruction) -> bool {
         // We define the branch opcodes manually
         matches!(
             instruction.0.opcode,
@@ -244,6 +261,10 @@ impl<F: PrimeField32> InstructionHandler<F, Sp1Instruction> for Sp1InstructionHa
                 | Opcode::JAL
                 | Opcode::JALR
         )
+    }
+
+    fn degree_bound(&self) -> DegreeBound {
+        DEFAULT_DEGREE_BOUND
     }
 }
 

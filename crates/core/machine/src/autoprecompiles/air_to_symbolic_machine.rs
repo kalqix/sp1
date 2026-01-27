@@ -3,8 +3,10 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    bus_map::BusType, expression::AlgebraicReference, powdr::UniqueReferences,
-    SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine,
+    bus_map::BusType,
+    expression::AlgebraicReference,
+    powdr::UniqueReferences,
+    symbolic_machine::{SymbolicBusInteraction, SymbolicConstraint, SymbolicMachine},
 };
 use powdr_constraint_solver::grouped_expression::GroupedExpression;
 use powdr_expression::{
@@ -65,7 +67,8 @@ pub fn sort_memory_interactions<F: PrimeField32>(
     for (_send, receive) in &memory_interaction_pairs {
         let clk_high = receive.args[0].clone();
         let clk_low = to_grouped_expr(&receive.args[1]);
-        let (quadratic, linear, _offset) = clk_low.components();
+        let quadratic = clk_low.quadratic_components();
+        let linear = clk_low.linear_components();
 
         // Assert that apart from the offset, all clocks are the same.
         let quadratic = quadratic.to_vec();
@@ -86,7 +89,7 @@ pub fn sort_memory_interactions<F: PrimeField32>(
         .into_iter()
         .sorted_by_key(move |(_send, receive)| {
             let clk_low = to_grouped_expr(&receive.args[1]);
-            let (_quadratic, _linear, offset) = clk_low.components();
+            let offset = clk_low.constant_offset();
             offset.to_degree()
         })
         .flat_map(|(send, receive)| [send, receive])
@@ -95,6 +98,7 @@ pub fn sort_memory_interactions<F: PrimeField32>(
     SymbolicMachine {
         constraints: machine.constraints,
         bus_interactions: other_interactions.into_iter().chain(memory_bus_interactions).collect(),
+        derived_columns: machine.derived_columns,
     }
 }
 
@@ -168,7 +172,8 @@ pub fn air_to_symbolic_machine<
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let mut machine = SymbolicMachine { constraints, bus_interactions };
+    let mut machine =
+        SymbolicMachine { constraints, bus_interactions, derived_columns: Vec::new() };
     // In some machines, not all references are used, so we add dummy constraints for the ones
     // that are not
     let referenced: BTreeSet<u64> = machine.unique_references().map(|r| r.id).collect();

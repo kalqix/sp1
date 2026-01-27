@@ -36,10 +36,8 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
-use sp1_prover::{
-    worker::{SP1LightNode, SP1NodeCore},
-    SP1_CIRCUIT_VERSION,
-};
+use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
+use sp1_prover::SP1_CIRCUIT_VERSION;
 
 use tokio::time::sleep;
 

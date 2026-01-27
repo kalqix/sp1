@@ -2,9 +2,9 @@ use std::{collections::HashMap, path::Path};
 
 use crate::autoprecompiles::{adapter::Sp1ApcAdapter, instruction::Sp1Instruction};
 use powdr_autoprecompiles::{
-    adapter::{Adapter, AdapterApc, AdapterApcWithStats, AdapterVmConfig, ApcWithStats},
+    adapter::{Adapter, AdapterApcWithStats},
     blocks::BasicBlock,
-    evaluation::{AirStats, EvaluationResult},
+    evaluation::EvaluationResult,
     pgo::{ApcCandidateJsonExport, Candidate, KnapsackItem},
 };
 
@@ -13,22 +13,22 @@ use serde::{Deserialize, Serialize};
 /// A candidate for the SP1 autoprecompiles.
 /// Currently does not use pgo data and instead is ranked by the start index of the block.
 pub struct Sp1Candidate<A: Adapter> {
-    apc: AdapterApc<A>,
+    apc_with_stats: AdapterApcWithStats<A>,
     execution_frequency: usize,
-    stats: EvaluationResult,
 }
 
 impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     fn cost(&self) -> usize {
         // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
         // account too.
-        self.stats.after.main_columns
+        self.apc_with_stats.evaluation_result().after.main_columns
     }
 
     fn value(&self) -> usize {
         // TODO: Figure out a better cost model & take #constraints and #bus_interactions into
         // account too.
-        let cells_saved_per_row = self.stats.before.main_columns - self.stats.after.main_columns;
+        let cells_saved_per_row = self.apc_with_stats.evaluation_result().before.main_columns
+            - self.apc_with_stats.evaluation_result().after.main_columns;
 
         let value = self.execution_frequency.checked_mul(cells_saved_per_row).unwrap();
 
@@ -38,60 +38,49 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     }
 
     fn tie_breaker(&self) -> usize {
-        self.apc.block.start_pc.try_into().unwrap()
+        self.apc_with_stats.apc().block.start_pc.try_into().unwrap()
     }
 }
 
 impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
     fn create(
-        apc: AdapterApc<Sp1ApcAdapter>,
+        apc_with_stats: AdapterApcWithStats<Sp1ApcAdapter>,
         pgo_program_pc_count: &HashMap<u64, u32>,
-        vm_config: AdapterVmConfig<Sp1ApcAdapter>,
-        _max_degree: usize,
     ) -> Self {
-        let stats_before = apc
-            .block
-            .statements
-            .iter()
-            .map(|s| *vm_config.instruction_handler.get_instruction_air_stats(s).unwrap())
-            .sum();
-        let stats_after = AirStats::new(apc.machine());
-
-        let stats = EvaluationResult { before: stats_before, after: stats_after };
-
         let execution_frequency =
-            *pgo_program_pc_count.get(&apc.block.start_pc).unwrap_or(&0) as usize;
+            *pgo_program_pc_count.get(&apc_with_stats.apc().block.start_pc).unwrap_or(&0) as usize;
 
-        Sp1Candidate { apc, execution_frequency, stats }
+        Sp1Candidate { apc_with_stats, execution_frequency }
     }
 
     fn to_json_export(&self, apc_candidates_dir_path: &Path) -> ApcCandidateJsonExport {
         ApcCandidateJsonExport {
             execution_frequency: self.execution_frequency,
             original_block: BasicBlock {
-                start_pc: self.apc.block.start_pc,
+                start_pc: self.apc_with_stats.apc().block.start_pc,
                 statements: self
-                    .apc
+                    .apc_with_stats
+                    .apc()
                     .block
                     .statements
                     .iter()
                     .map(|instr| instr.to_string())
                     .collect(),
             },
-            stats: self.stats,
+            stats: self.apc_with_stats.evaluation_result(),
             apc_candidate_file: apc_candidates_dir_path
-                .join(format!("apc_{}.cbor", self.apc.start_pc()))
+                .join(format!("apc_{}.cbor", self.apc_with_stats.apc().start_pc()))
                 .display()
                 .to_string(),
-            width_before: self.stats.before.main_columns,
+            width_before: self.apc_with_stats.stats().before.main_columns,
             value: self.value(),
-            cost_before: self.stats.before.main_columns as f64,
-            cost_after: self.stats.after.main_columns as f64,
+            cost_before: self.apc_with_stats.stats().before.main_columns as f64,
+            cost_after: self.apc_with_stats.stats().after.main_columns as f64,
         }
     }
 
     fn into_apc_and_stats(self) -> AdapterApcWithStats<Sp1ApcAdapter> {
-        ApcWithStats::from(self.apc).with_stats(self.stats)
+        self.apc_with_stats
     }
 }
 

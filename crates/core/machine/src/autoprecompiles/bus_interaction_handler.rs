@@ -121,7 +121,7 @@ impl RangeConstraintHandler<KoalaBearField> for Sp1BusInteractionHandler {
                         let zero = RangeConstraint::from_value(KoalaBearField::zero());
                         let byte = RangeConstraint::from_mask(0xffu64);
                         Some(
-                            [(a.clone(), zero), (b.clone(), byte.clone()), (c.clone(), byte)]
+                            [(a.clone(), zero), (b.clone(), byte), (c.clone(), byte)]
                                 .into_iter()
                                 .collect(),
                         )
@@ -238,10 +238,7 @@ impl Sp1BusInteractionHandler {
                 repeat_n(bit16_constraint(), 4)
             };
 
-            [clk_high.clone(), clk_low.clone(), addr1.clone(), addr2.clone(), addr3.clone()]
-                .into_iter()
-                .chain(data)
-                .collect()
+            [*clk_high, *clk_low, *addr1, *addr2, *addr3].into_iter().chain(data).collect()
         } else {
             // Otherwise, we can't make any assumptions.
             payload.to_vec()
@@ -364,7 +361,7 @@ impl Sp1BusInteractionHandler {
                 (a, b, c)
             }
         };
-        vec![opcode.clone(), a, b, c]
+        vec![*opcode, a, b, c]
     }
 }
 

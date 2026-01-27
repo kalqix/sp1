@@ -11,7 +11,7 @@ use crate::{
 };
 use expect_test::{expect, Expect};
 use powdr_autoprecompiles::{
-    blocks::{collect_basic_blocks, Program as PowdrProgram},
+    blocks::{collect_basic_blocks, PcStep, Program as PowdrProgram},
     evaluation::AirStats,
     InstructionHandler, PgoConfig,
 };
@@ -43,7 +43,8 @@ fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
     assert!(*pc_min >= sp1_program.base_pc());
     assert!(
         *pc_max
-            <= sp1_program.base_pc() + sp1_program.length() as u64 * sp1_program.pc_step() as u64
+            <= sp1_program.base_pc()
+                + sp1_program.length() as u64 * Sp1Instruction::pc_step() as u64
     );
 }
 
@@ -110,7 +111,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
         .apcs_and_stats
         .into_iter()
         .map(|a| a.into_parts())
-        .map(|(_, s)| (s.as_ref().unwrap().before, s.as_ref().unwrap().after))
+        .map(|(_, _, s)| (s.before, s.after))
         .unzip();
 
     // Currently just sum up the before and after stats for each APC, but APC-level analysis is also
