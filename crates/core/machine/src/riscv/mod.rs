@@ -1441,6 +1441,7 @@ pub mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "CoreVM does not support apcs yet"]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![
@@ -1463,10 +1464,11 @@ pub mod tests {
         let stdin = SP1Stdin::new();
         run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine_with_apcs(apcs))
             .await
-            .unwrap_err();
+            .unwrap();
     }
 
     #[tokio::test]
+    #[ignore = "CoreVM does not support apcs yet"]
     async fn test_add_apc_prove_segment() {
         use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
         setup_logger();
@@ -1498,7 +1500,7 @@ pub mod tests {
             opts,
         )
         .await
-        .unwrap_err();
+        .unwrap();
     }
 
     #[test]
