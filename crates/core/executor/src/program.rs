@@ -162,11 +162,11 @@ impl Program {
         apc_ranges_and_costs
             .into_iter()
             .map(|(r, c, conditions)| (r.into(), c, conditions))
-            .map(|(range, cost, conditions)| Apc {
+            .map(|(range, cost, execution_constraints)| Apc {
                 start_pc_idx: range.start().unwrap(),
                 cycle_count: range.len(),
                 cost,
-                execution_constraints: conditions,
+                execution_constraints,
             })
             .fold(self, Program::add_apc)
     }
