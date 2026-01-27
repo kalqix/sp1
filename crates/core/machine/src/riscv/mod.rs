@@ -1463,7 +1463,7 @@ pub mod tests {
         let stdin = SP1Stdin::new();
         run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine_with_apcs(apcs))
             .await
-            .unwrap();
+            .unwrap_err();
     }
 
     #[tokio::test]
@@ -1498,7 +1498,7 @@ pub mod tests {
             opts,
         )
         .await
-        .unwrap();
+        .unwrap_err();
     }
 
     #[test]

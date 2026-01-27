@@ -120,18 +120,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 15579,
-            constraints: 10823,
-            bus_interactions: 7673,
+            main_columns: 15265,
+            constraints: 9603,
+            bus_interactions: 7327,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 3163,
-            constraints: 542,
-            bus_interactions: 2014,
+            main_columns: 3182,
+            constraints: 568,
+            bus_interactions: 2020,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
@@ -153,7 +153,7 @@ fn test_collect_basic_blocks_keccak256_software() {
     test_collect_basic_blocks(
         GUEST_KECCAK256_SOFTWARE,
         expect![[r#"
-            1963
+            1887
         "#]],
     );
 }

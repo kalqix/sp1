@@ -264,9 +264,9 @@ Instructions:
   262: bne        %x28       %x10       -1048     
 
 APC advantage:
-  - Main columns: 13999 -> 2781 (5.03x reduction)
-  - Bus interactions: 6829 -> 1749 (3.90x reduction)
-  - Constraints: 9654 -> 342 (28.23x reduction)
+  - Main columns: 13693 -> 2781 (4.92x reduction)
+  - Bus interactions: 6523 -> 1749 (3.73x reduction)
+  - Constraints: 8559 -> 342 (25.03x reduction)
 
 Symbolic machine using 2781 unique main columns:
   state__clk_high_0
