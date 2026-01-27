@@ -2013,7 +2013,7 @@ impl<'a> Executor<'a> {
 
         // Given an existing report and a list of outputs, modify the report so that it represents
         // the same execution except for the output ranges being turned into apcs
-        fn update_report(report: &mut ExecutionReport, outputs: Vec<ApcCall<ExecutionSnapshot>>) {
+        fn update_report(report: &mut ExecutionReport, outputs: &[ApcCall<ExecutionSnapshot>]) {
             for output in outputs {
                 let mut delta = output.to.report.clone();
                 delta -= output.from.report.clone();
@@ -2293,10 +2293,24 @@ impl<'a> Executor<'a> {
 
         // update the report
         if self.print_report {
-            update_report(&mut self.report, calls);
+            update_report(&mut self.report, &calls);
         }
 
         tracing::trace!("APC candidate completed");
+
+        // update the counts
+        // WARNING: Note that this happens even if the APC was cancelled. The reason is that
+        // we don't know whether memory or state bump events have occurred unless we're in
+        // trace mode.
+        if !E::UNCONSTRAINED {
+            let local_mem = self.local_counts.local_mem;
+            for call in calls {
+                self.local_counts = call.from.local_counts;
+                // add 1 to this apc
+                *self.local_counts.event_counts.apc.entry(call.apc_id).or_default() += 1;
+            }
+            self.local_counts.local_mem = local_mem;
+        }
     }
 
     /// Execute an ALU instruction.
