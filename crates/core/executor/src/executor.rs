@@ -392,9 +392,8 @@ impl LocalCounts {
         debug_assert_eq!(from.state_bump_counts, to.state_bump_counts);
         debug_assert_eq!(from.syscalls_sent, to.syscalls_sent);
         debug_assert_eq!(from.page_prot, to.page_prot);
-        // There can be new local memory events, and they are kept
+        // There can be new local memory events. We do not remove them from `self`, because they still need to happen if we're running apc.
         debug_assert!(from.local_mem <= to.local_mem);
-        self.local_mem = to.local_mem;
         debug_assert_eq!(from.local_page_prot, to.local_page_prot);
         debug_assert_eq!(from.local_instruction_fetch, to.local_instruction_fetch);
         debug_assert_eq!(from.shard_distinct_instructions, to.shard_distinct_instructions);
