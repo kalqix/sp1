@@ -11,7 +11,7 @@ use crate::{
     Apc, ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
     HALT_PC, M64,
 };
-use powdr_autoprecompiles::execution::{ApcCandidates, ExecutionState, Snapshot};
+use powdr_autoprecompiles::execution::{ApcCall, ApcCandidates, ExecutionState, Snapshot};
 use sp1_hypercube::air::{PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_jit::{MemReads, MinimalTrace};
 use std::{mem::MaybeUninit, num::Wrapping, ptr::addr_of_mut, sync::Arc};
@@ -170,13 +170,30 @@ impl<'a, S: Snapshot> CoreVM<'a, S> {
 
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch(&mut self) -> Option<&Instruction> {
+    pub fn fetch(
+        &mut self,
+        state: impl Into<S> + Clone + Copy, // TODO: restrict to some trait, maybe Snapshot
+    ) -> Option<(&Instruction, Vec<ApcCall<S>>)> {
+        self.apc_candidates.check_conditions(
+            &CoreExecutionState { pc: self.pc, registers: self.registers },
+            || state.clone().into(),
+        );
+
+        let outputs = self.apc_candidates.extract_calls();
+
         // todo: mprotect / kernel mode logic.
-        self.program.fetch(self.pc).map(|(i, apc)| {
-            if apc.is_some() {
-                unimplemented!("CoreVM does not support apc yet");
+        self.program.fetch(self.pc).map(|(i, apc_indices)| {
+            if let Some(apc_indices) = apc_indices {
+                // We are at the start of an APC range, so we add it as a candidate
+                for apc in apc_indices {
+                    let _ = self.apc_candidates.try_insert(
+                        &CoreExecutionState { pc: self.pc, registers: self.registers },
+                        *apc,
+                        || state.into(),
+                    );
+                }
             }
-            i
+            (i, outputs)
         })
     }
 
