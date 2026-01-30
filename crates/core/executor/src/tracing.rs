@@ -4,12 +4,11 @@ use std::{
 };
 
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::ApcCall;
 use sp1_hypercube::air::{PublicValues, PROOF_NONCE_NUM_WORDS};
 use sp1_jit::MinimalTrace;
 
 use crate::{
-    autoprecompiles::ExecutionRecordSnapshot,
+    autoprecompiles::ExecutionRecordSnapshotWithPc,
     events::{
         AluEvent, BranchEvent, IntoMemoryRecord, JumpEvent, MemInstrEvent, MemoryLocalEvent,
         MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, PrecompileEvent,
@@ -31,7 +30,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionRecord`].
 pub struct TracingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a, ExecutionRecordSnapshot>,
+    pub core: CoreVM<'a, ExecutionRecordSnapshotWithPc>,
     /// The local memory access for the CPU.
     pub local_memory_access: LocalMemoryAccess,
     /// The local memory access for any deferred precompiles.
@@ -67,13 +66,13 @@ impl TracingVM<'_> {
         }
     }
 
-    fn apply_calls(&mut self, calls: &[ApcCall<ExecutionRecordSnapshot>]) {
-        // TODO: go through the calls and for each, modify self.record to rollback all software stuff which happened within the call, and add a new record for this apc
-    }
-
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&|| ExecutionRecordSnapshot::from(&*self.record));
+        // TODO: is there a way to avoid this call? It is needed now so that `next_pc` is set correctly in the apc record
+        let pc = self.core.pc();
+        let instruction = self
+            .core
+            .fetch(&|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -82,7 +81,7 @@ impl TracingVM<'_> {
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
 
-        self.apply_calls(&calls);
+        self.record.apply_calls(&calls);
 
         match instruction.opcode {
             Opcode::ADD
@@ -427,7 +426,7 @@ impl<'a> TracingVM<'a> {
 
         // Actually execute the ecall.
         let EcallResult { a: _, a_record, b, b_record, c, c_record } =
-            CoreVM::<'a, ExecutionRecordSnapshot>::execute_ecall(self, instruction, code)?;
+            CoreVM::<'a, ExecutionRecordSnapshotWithPc>::execute_ecall(self, instruction, code)?;
 
         self.local_memory_access.insert_record(Register::X11 as u64, c_record);
         self.local_memory_access.insert_record(Register::X10 as u64, b_record);
@@ -765,7 +764,7 @@ impl TracingVM<'_> {
 
 impl<'a> SyscallRuntime<'a> for TracingVM<'a> {
     const TRACING: bool = true;
-    type Snapshot = ExecutionRecordSnapshot;
+    type Snapshot = ExecutionRecordSnapshotWithPc;
 
     fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core

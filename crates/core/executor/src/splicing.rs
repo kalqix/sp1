@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use powdr_autoprecompiles::execution::ApcCall;
 use serde::Serialize;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};

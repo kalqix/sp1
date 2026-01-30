@@ -11,7 +11,7 @@ use std::{fs::File, io::BufWriter};
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use crate::{
-    autoprecompiles::{ExecutionRecordSnapshot, ExecutionSnapshot, Sp1ApcCandidates},
+    autoprecompiles::{ExecutionRecordSnapshotWithPc, ExecutionSnapshot, Sp1ApcCandidates},
     estimator::RecordEstimator,
     events::{
         ByteLookupEvent, InstructionDecodeEvent, InstructionFetchEvent, MemoryRecordEnum,
@@ -2084,16 +2084,21 @@ impl<'a> Executor<'a> {
             let mut extracted = vec![];
             for (from, to) in outputs {
                 let mut diff = HashMap::new();
-                for (event, to_count) in &to.record.byte_lookups {
-                    let from_count =
-                        from.record.byte_lookups.get(event).copied().unwrap_or_default();
+                for (event, to_count) in &to.record_with_pc.record.byte_lookups {
+                    let from_count = from
+                        .record_with_pc
+                        .record
+                        .byte_lookups
+                        .get(event)
+                        .copied()
+                        .unwrap_or_default();
                     let delta = *to_count - from_count;
                     if delta != 0 {
                         diff.insert(*event, delta);
                     }
                 }
-                for (event, from_count) in &from.record.byte_lookups {
-                    if !to.record.byte_lookups.contains_key(event) {
+                for (event, from_count) in &from.record_with_pc.record.byte_lookups {
+                    if !to.record_with_pc.record.byte_lookups.contains_key(event) {
                         let delta = -*from_count;
                         if delta != 0 {
                             diff.insert(*event, delta);
@@ -2134,16 +2139,20 @@ impl<'a> Executor<'a> {
                     extract(
                         &mut v.$field,
                         outputs.iter().map(|output| {
-                            (output.from.record.$len_field, output.to.record.$len_field)
+                            (
+                                output.from.record_with_pc.record.$len_field,
+                                output.to.record_with_pc.record.$len_field,
+                            )
                         }),
                     )
                 };
                 (empty $len_field:ident) => {
-                    extract_empty(
-                        outputs.iter().map(|output| {
-                            (output.from.record.$len_field, output.to.record.$len_field)
-                        }),
-                    )
+                    extract_empty(outputs.iter().map(|output| {
+                        (
+                            output.from.record_with_pc.record.$len_field,
+                            output.to.record_with_pc.record.$len_field,
+                        )
+                    }))
                 };
             }
 
@@ -2203,8 +2212,8 @@ impl<'a> Executor<'a> {
                 &mut v.global_interaction_event_count,
                 outputs.iter().map(|output| {
                     (
-                        output.from.record.global_interaction_event_count,
-                        output.to.record.global_interaction_event_count,
+                        output.from.record_with_pc.record.global_interaction_event_count,
+                        output.to.record_with_pc.record.global_interaction_event_count,
                     )
                 }),
             );
@@ -2213,14 +2222,17 @@ impl<'a> Executor<'a> {
             let cpu_event_count = extract_diff(
                 &mut v.cpu_event_count,
                 outputs.iter().map(|output| {
-                    (output.from.record.cpu_event_count, output.to.record.cpu_event_count)
+                    (
+                        output.from.record_with_pc.record.cpu_event_count,
+                        output.to.record_with_pc.record.cpu_event_count,
+                    )
                 }),
             );
             let byte_lookups = extract_byte_lookups(
                 &mut v.byte_lookups,
                 outputs.iter().map(|output| (&output.from, &output.to)),
             );
-            let next_pc = outputs.iter().map(|output| output.to.pc);
+            let next_pc = outputs.iter().map(|output| output.to.record_with_pc.pc);
             let apc_ids = outputs.iter().map(|output| output.apc_id as u64);
             izip!(
                 apc_ids,
@@ -2777,10 +2789,12 @@ impl<'a> Executor<'a> {
         self.log::<E>(&instruction);
 
         self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
-            record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+            record_with_pc: ExecutionRecordSnapshotWithPc {
+                record: self.record.snapshot(),
+                pc: self.state.pc,
+            },
             local_counts: self.local_counts.clone(),
             report: self.report.clone(),
-            pc: self.state.pc,
         });
 
         let outputs = self.apc_candidates.extract_calls();
@@ -2791,10 +2805,12 @@ impl<'a> Executor<'a> {
             // We are at the start of an APC range, so we add it as a candidate
             for apc in apc_indices {
                 let _ = self.apc_candidates.try_insert(&self.state, apc, || ExecutionSnapshot {
-                    record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                    record_with_pc: ExecutionRecordSnapshotWithPc {
+                        record: self.record.snapshot(),
+                        pc: self.state.pc,
+                    },
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
-                    pc: self.state.pc,
                 });
             }
         }
@@ -2858,10 +2874,12 @@ impl<'a> Executor<'a> {
                 self.state.shard_finished = true;
                 // Check the state a last time, as some candidates may have just finished
                 self.apc_candidates.check_conditions(&self.state, || ExecutionSnapshot {
-                    record: ExecutionRecordSnapshot::from(self.record.as_ref()),
+                    record_with_pc: ExecutionRecordSnapshotWithPc {
+                        pc: self.state.pc,
+                        record: self.record.snapshot(),
+                    },
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
-                    pc: self.state.pc,
                 });
 
                 // If an apc candidate was being run, report a segmentation error.
