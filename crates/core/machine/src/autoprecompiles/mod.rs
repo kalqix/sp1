@@ -56,7 +56,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
-pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u64, u64>;
+pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
@@ -177,7 +177,7 @@ impl CompiledProgram {
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u64, u64>)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u8, u64>)>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges

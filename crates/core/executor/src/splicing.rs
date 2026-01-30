@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use powdr_autoprecompiles::execution::ApcCall;
 use serde::Serialize;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
@@ -72,7 +73,7 @@ impl SplicingVM<'_> {
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
 
-        assert!(calls.is_empty(), "unimplemented");
+        self.shape_checker.apply_apc_calls(&calls);
 
         match instruction.opcode {
             Opcode::ADD
@@ -177,13 +178,12 @@ impl<'a> SplicingVM<'a> {
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
         opts: SP1CoreOpts,
     ) -> Self {
-        let program_len = program.instructions.len() as u64;
         let sharding_threshold = opts.sharding_threshold;
         Self {
-            core: CoreVM::new(trace, program, opts, proof_nonce),
+            core: CoreVM::new(trace, program.clone(), opts, proof_nonce),
             touched_addresses,
             hint_lens_idx: 0,
-            shape_checker: ShapeChecker::new(program_len, trace.clk_start(), sharding_threshold),
+            shape_checker: ShapeChecker::new(program, trace.clk_start(), sharding_threshold),
         }
     }
 

@@ -1,4 +1,10 @@
-use std::{collections::BTreeMap, num::Wrapping, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    num::Wrapping,
+    ops::{Index, IndexMut},
+    str::FromStr,
+    sync::Arc,
+};
 #[cfg(feature = "profiling")]
 use std::{fs::File, io::BufWriter};
 
@@ -104,6 +110,42 @@ where
     }
 }
 
+impl<T> Index<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    type Output = u64;
+
+    fn index(&self, index: T) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl<T> IndexMut<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+impl Index<RiscvAirId> for EventCosts {
+    type Output = u64;
+
+    fn index(&self, index: RiscvAirId) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl IndexMut<RiscvAirId> for EventCosts {
+    fn index_mut(&mut self, index: RiscvAirId) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
 /// The costs of the program.
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct EventCosts {
@@ -125,7 +167,7 @@ impl From<bool> for DeferredProofVerification {
 }
 
 impl powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
-    type RegisterAddress = u64;
+    type RegisterAddress = u8;
 
     type Value = u64;
 
@@ -134,7 +176,7 @@ impl powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
     }
 
     fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
-        self.memory.registers.get(*addr).map(|e| e.value).unwrap_or_default()
+        self.memory.registers.get(*addr as u64).map(|e| e.value).unwrap_or_default()
     }
 
     fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {

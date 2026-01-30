@@ -1,11 +1,13 @@
 use enum_map::EnumMap;
 use hashbrown::HashMap;
+use itertools::Itertools;
+use powdr_autoprecompiles::execution::ApcCall;
 
 use crate::{
-    syscalls::SyscallCode, vm::memory::CompressedMemory, Instruction, Opcode, RiscvAirId,
-    ShardingThreshold, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    syscalls::SyscallCode, vm::memory::CompressedMemory, EventCosts, EventCounts, Instruction,
+    Opcode, Program, RiscvAirId, ShardingThreshold, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 /// The maximum trace area from padding with next multiple of 32.
 /// The correctness of this value is checked in the test `test_maximum_padding`.
@@ -16,7 +18,8 @@ pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
 pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 18;
 
 pub struct ShapeChecker {
-    program_len: u64,
+    // TODO: we typically don't need the entire program, just the costs of the apcs and the length of the program
+    program: Arc<Program>,
     trace_area: u64,
     max_height: u64,
     pub(crate) syscall_sent: bool,
@@ -25,9 +28,9 @@ pub struct ShapeChecker {
     /// The maximum trace size and table height to allow.
     sharding_threshold: ShardingThreshold,
     /// The heights (number) of each air id seen.
-    heights: EnumMap<RiscvAirId, u64>,
+    heights: EventCounts<RiscvAirId>,
     /// The costs (trace area) of  of each air id seen.
-    costs: EnumMap<RiscvAirId, u64>,
+    costs: EventCosts,
     // The number of local memory accesses during this cycle.
     pub(crate) local_mem_counts: u64,
     /// Whether the last read was external, ie: it was read from a deferred precompile.
@@ -35,30 +38,44 @@ pub struct ShapeChecker {
 }
 
 pub struct ShapeCheckerSnapshot {
-    /// The heights (number) of each air id seen.
-    heights: EnumMap<RiscvAirId, u64>,
-    /// The costs (trace area) of  of each air id seen.
-    costs: EnumMap<RiscvAirId, u64>,
+    /// The heights (number) of each core air id seen.
+    core_heights: EnumMap<RiscvAirId, u64>,
 }
 
 impl ShapeChecker {
-    pub fn new(program_len: u64, shard_start_clk: u64, elem_threshold: ShardingThreshold) -> Self {
-        let costs: HashMap<String, usize> =
+    pub fn new(
+        program: Arc<Program>,
+        shard_start_clk: u64,
+        elem_threshold: ShardingThreshold,
+    ) -> Self {
+        let program_len = program.instructions.len() as u64;
+        let core_costs: HashMap<String, usize> =
             serde_json::from_str(include_str!("../artifacts/rv64im_costs.json")).unwrap();
-        let costs: EnumMap<RiscvAirId, u64> =
-            costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64)).collect();
+        let costs = EventCosts {
+            core: core_costs
+                .into_iter()
+                .map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64))
+                .collect(),
+            apc: program
+                .apcs
+                .apc_by_index
+                .iter()
+                .enumerate()
+                .map(|(id, apc)| (id, apc.cost))
+                .collect(),
+        };
 
         let preprocessed_trace_area = program_len.next_multiple_of(32) * costs[RiscvAirId::Program]
             + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
         Self {
-            program_len,
+            program,
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
             max_height: 0,
             syscall_sent: false,
             shard_start_clk,
-            heights: EnumMap::default(),
+            heights: EventCounts::default(),
             sharding_threshold: elem_threshold,
             costs,
             // Assume that all registers will be touched in each shard.
@@ -68,7 +85,13 @@ impl ShapeChecker {
     }
 
     pub fn snapshot(&self) -> ShapeCheckerSnapshot {
-        ShapeCheckerSnapshot { heights: self.heights, costs: self.costs }
+        ShapeCheckerSnapshot { core_heights: self.heights.core }
+    }
+
+    pub fn apply_apc_calls(&mut self, calls: &[ApcCall<ShapeCheckerSnapshot>]) {
+        for call in calls {
+            self.apply_apc_call(call);
+        }
     }
 
     #[inline]
@@ -112,7 +135,7 @@ impl ShapeChecker {
     /// Set the start clock of the shard.
     #[inline]
     pub fn reset(&mut self, clk: u64) {
-        *self = Self::new(self.program_len, clk, self.sharding_threshold);
+        *self = Self::new(self.program.clone(), clk, self.sharding_threshold);
     }
 
     /// Check if the shard limit has been reached.
@@ -192,6 +215,21 @@ impl ShapeChecker {
             self.heights[RiscvAirId::SyscallCore] += 1;
             self.max_height = self.max_height.max(self.heights[RiscvAirId::SyscallCore]);
         }
+    }
+
+    pub(crate) fn apply_apc_call(&mut self, call: &ApcCall<ShapeCheckerSnapshot>) {
+        // For each core air, reduce the height by the amount it increased by during the call
+        for (l, (from, to)) in self
+            .heights
+            .core
+            .values_mut()
+            .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
+        {
+            *l -= to - from;
+        }
+
+        // Increase the height of this apc by 1
+        *self.heights.apc.entry(call.apc_id).or_default() += 1;
     }
 }
 

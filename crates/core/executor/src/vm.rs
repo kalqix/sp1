@@ -91,25 +91,6 @@ impl ExecutionState for CoreExecutionState {
     }
 }
 
-impl powdr_autoprecompiles::execution::Apc<CoreExecutionState> for Apc {
-    fn optimistic_constraints(
-        &self,
-    ) -> &powdr_autoprecompiles::execution::OptimisticConstraints<
-        <CoreExecutionState as ExecutionState>::RegisterAddress,
-        <CoreExecutionState as ExecutionState>::Value,
-    > {
-        todo!()
-    }
-
-    fn cycle_count(&self) -> usize {
-        todo!()
-    }
-
-    fn priority(&self) -> usize {
-        todo!()
-    }
-}
-
 impl<'a, S> CoreVM<'a, S> {
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
@@ -782,6 +763,9 @@ impl<S> CoreVM<'_, S> {
         }
 
         tracing::trace!("register refresh to: {}", self.clk - 1);
+
+        // APCs are not compatible with register refreshing, so we abort all in progress candidates
+        self.apc_candidates.abort_in_progress();
 
         let mut out = [MaybeUninit::uninit(); 32];
         for (i, record) in out.iter_mut().enumerate() {

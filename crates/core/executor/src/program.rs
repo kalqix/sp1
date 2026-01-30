@@ -85,10 +85,10 @@ pub struct Apc {
     /// The cost for this APC
     pub cost: ApcCost,
     /// The execution constraints for this APC
-    pub execution_constraints: OptimisticConstraints<u64, u64>,
+    pub execution_constraints: OptimisticConstraints<u8, u64>,
 }
 
-impl<S: ExecutionState<RegisterAddress = u64, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
+impl<S: ExecutionState<RegisterAddress = u8, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
     for Apc
 {
     fn cycle_count(&self) -> usize {
@@ -100,7 +100,7 @@ impl<S: ExecutionState<RegisterAddress = u64, Value = u64>> powdr_autoprecompile
         1
     }
 
-    fn optimistic_constraints(&self) -> &OptimisticConstraints<u64, u64> {
+    fn optimistic_constraints(&self) -> &OptimisticConstraints<u8, u64> {
         &self.execution_constraints
     }
 }
@@ -167,7 +167,7 @@ impl Program {
     #[must_use]
     pub fn with_apcs<R: Into<ApcRange>>(
         self,
-        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, OptimisticConstraints<u64, u64>)>,
+        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, OptimisticConstraints<u8, u64>)>,
     ) -> Self {
         apc_ranges_and_costs
             .into_iter()

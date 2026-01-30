@@ -4,6 +4,7 @@ use std::{
 };
 
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::ApcCall;
 use sp1_hypercube::air::{PublicValues, PROOF_NONCE_NUM_WORDS};
 use sp1_jit::MinimalTrace;
 
@@ -66,6 +67,10 @@ impl TracingVM<'_> {
         }
     }
 
+    fn apply_calls(&mut self, calls: &[ApcCall<ExecutionRecordSnapshot>]) {
+        // TODO: go through the calls and for each, modify self.record to rollback all software stuff which happened within the call, and add a new record for this apc
+    }
+
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
         let instruction = self.core.fetch(&|| ExecutionRecordSnapshot::from(&*self.record));
@@ -77,7 +82,7 @@ impl TracingVM<'_> {
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
 
-        assert!(calls.is_empty(), "call extraction unimplemented");
+        self.apply_calls(&calls);
 
         match instruction.opcode {
             Opcode::ADD
