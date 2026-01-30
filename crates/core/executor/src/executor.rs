@@ -383,6 +383,33 @@ pub struct LocalCounts {
     pub shard_distinct_instructions: HashSet<u32>,
 }
 
+impl LocalCounts {
+    /// Removes all software events between `from` and `to` from `self`.
+    /// Panics if anything else happened between the two instances other than
+    /// software and memory events.
+    fn remove_diff(&mut self, from: &Self, to: &Self) {
+        debug_assert_eq!(from.event_counts.apc, to.event_counts.apc);
+        for (l, (from, to)) in self
+            .event_counts
+            .core
+            .values_mut()
+            .zip_eq(from.event_counts.core.values().zip_eq(to.event_counts.core.values()))
+        {
+            *l -= to - from;
+        }
+        debug_assert_eq!(from.retained_precompile_counts, to.retained_precompile_counts);
+        self.load_x0_counts -= to.load_x0_counts - from.load_x0_counts;
+        debug_assert_eq!(from.state_bump_counts, to.state_bump_counts);
+        debug_assert_eq!(from.syscalls_sent, to.syscalls_sent);
+        debug_assert_eq!(from.page_prot, to.page_prot);
+        // There can be new local memory events. We do not remove them from `self`, because they still need to happen if we're running apc.
+        debug_assert!(from.local_mem <= to.local_mem);
+        debug_assert_eq!(from.local_page_prot, to.local_page_prot);
+        debug_assert_eq!(from.local_instruction_fetch, to.local_instruction_fetch);
+        debug_assert_eq!(from.shard_distinct_instructions, to.shard_distinct_instructions);
+    }
+}
+
 /// Errors that the [``Executor``] can throw.
 #[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
@@ -1953,7 +1980,7 @@ impl<'a> Executor<'a> {
     /// The candidates are assumed to be non overlapping and sorted in increasing chronological
     /// order
     #[allow(clippy::too_many_lines)]
-    fn add_apc_events<E: ExecutorConfig>(&mut self, calls: Vec<ApcCall<ExecutionSnapshot>>) {
+    fn add_apc_events<E: ExecutorConfig>(&mut self, calls: &[ApcCall<ExecutionSnapshot>]) {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         // Extracts events from vector `v` at the given (from, to) index ranges.
@@ -2306,7 +2333,7 @@ impl<'a> Executor<'a> {
         }
 
         if E::MODE == ExecutorMode::Trace {
-            let apc_records = extract_records(&mut self.record, &calls);
+            let apc_records = extract_records(&mut self.record, calls);
 
             // Add the apc event to the record.
             // TODO: we could merge directly into the cummulative record inside
@@ -2324,7 +2351,7 @@ impl<'a> Executor<'a> {
 
         // update the report
         if self.print_report {
-            update_report(&mut self.report, &calls);
+            update_report(&mut self.report, calls);
         }
 
         tracing::trace!("APC candidate completed");
@@ -2334,13 +2361,12 @@ impl<'a> Executor<'a> {
         // we don't know whether memory or state bump events have occurred unless we're in
         // trace mode.
         if !E::UNCONSTRAINED {
-            let local_mem = self.local_counts.local_mem;
             for call in calls {
-                self.local_counts = call.from.local_counts;
+                // undo the diff that happened between the start and the end of the call
+                self.local_counts.remove_diff(&call.from.local_counts, &call.to.local_counts);
                 // add 1 to this apc
                 *self.local_counts.event_counts.apc.entry(call.apc_id).or_default() += 1;
             }
-            self.local_counts.local_mem = local_mem;
         }
     }
 
@@ -2714,7 +2740,7 @@ impl<'a> Executor<'a> {
 
         let outputs = self.apc_candidates.extract_calls();
 
-        self.add_apc_events::<E>(outputs);
+        self.add_apc_events::<E>(&outputs);
 
         if let Some(apc_indices) = apc_indices {
             // We are at the start of an APC range, so we add it as a candidate
@@ -2809,7 +2835,7 @@ impl<'a> Executor<'a> {
                 // assumption that their cost will be lower than the software version, so we do not
                 // go over the segment threshold in cost.
                 let calls = self.apc_candidates.extract_calls();
-                self.add_apc_events::<E>(calls);
+                self.add_apc_events::<E>(&calls);
                 self.state.initial_timestamp = self.state.clk;
                 if E::MODE == ExecutorMode::Trace {
                     for register in 0..NUM_REGISTERS {
