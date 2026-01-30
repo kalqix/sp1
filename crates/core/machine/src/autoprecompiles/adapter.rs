@@ -1,13 +1,18 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use crate::autoprecompiles::{
     bus_interaction_handler::Sp1BusInteractionHandler, bus_map::Sp1SpecificBuses,
     instruction::Sp1Instruction, instruction_handler::Sp1InstructionHandler,
     memory_bus_interaction::Sp1MemoryBusInteraction, program::Sp1Program,
 };
-use powdr_autoprecompiles::{adapter::Adapter, blocks::BasicBlock, evaluation::EvaluationResult};
+use powdr_autoprecompiles::{
+    adapter::{Adapter, AdapterApc},
+    blocks::BasicBlock,
+    evaluation::{AirStats, EvaluationResult},
+};
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
+use sp1_core_executor::ExecutionState;
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
@@ -22,6 +27,8 @@ impl Adapter for Sp1ApcAdapter {
     type MemoryBusInteraction<V: Ord + Clone + Eq + Display + Hash> = Sp1MemoryBusInteraction<V>;
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;
+    type AirId = usize;
+    type ExecutionState = ExecutionState;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
         Self::Field::from_canonical_u32(e.to_integer().try_into_u32().unwrap())
@@ -34,5 +41,20 @@ impl Adapter for Sp1ApcAdapter {
     fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
         // Skip blocks with more than 1000 instructions
         block.statements.len() > 1000
+    }
+
+    fn apc_stats(
+        apc: Arc<AdapterApc<Self>>,
+        instruction_handler: &Self::InstructionHandler,
+    ) -> Self::ApcStats {
+        let stats_before = apc
+            .block
+            .statements
+            .iter()
+            .map(|s| *instruction_handler.get_instruction_air_stats(s).unwrap())
+            .sum();
+        let stats_after = AirStats::new(apc.machine());
+
+        EvaluationResult { before: stats_before, after: stats_after }
     }
 }

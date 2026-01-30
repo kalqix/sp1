@@ -17,9 +17,8 @@ pub mod pk;
 /// The module that defines the prove request for the [`EnvProver`].
 pub mod prove;
 pub use pk::EnvProvingKey;
-use powdr_autoprecompiles::Apc;
 use prove::EnvProveRequest;
-use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
+use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{components::CpuSP1ApcProverComponents, local::LocalProver};
 use std::sync::Arc;
@@ -46,7 +45,7 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub async fn new(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         Self::from_env_with_opts(None, apcs).await
     }
 
@@ -76,7 +75,7 @@ impl EnvProver {
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn from_env_with_opts(
         core_opts: Option<SP1CoreOpts>,
-        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+        apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
     ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,

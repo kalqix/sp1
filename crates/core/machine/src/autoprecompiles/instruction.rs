@@ -23,23 +23,19 @@ impl fmt::Display for Sp1Instruction {
 }
 
 impl Instruction<SP1Field> for Sp1Instruction {
-    fn pc_lookup_row(&self, pc: Option<u64>) -> Vec<Option<SP1Field>> {
+    fn pc_lookup_row(&self, pc: u64) -> Vec<SP1Field> {
         // The PC lookup row has the following structure:
         // [pc_0, pc_1, pc_2, ...instruction_cols]
+
+        // The PC is represented as three 16-bit limbs, in little-endian order.
+        let pc_limbs = vec![
+            SP1Field::from_canonical_u64(pc & 0xFFFF),
+            SP1Field::from_canonical_u64((pc >> 16) & 0xFFFF),
+            SP1Field::from_canonical_u64((pc >> 32) & 0xFFFF),
+        ];
+
         let mut instruction_cols = InstructionCols::<SP1Field>::default();
         instruction_cols.populate(&self.0);
-        let instruction_cols = instruction_cols.into_iter().map(Some);
-
-        let pc_limbs = if let Some(pc) = pc {
-            // The PC is represented as three 16-bit limbs, in little-endian order.
-            [
-                Some(SP1Field::from_canonical_u64(pc & 0xFFFF)),
-                Some(SP1Field::from_canonical_u64((pc >> 16) & 0xFFFF)),
-                Some(SP1Field::from_canonical_u64((pc >> 32) & 0xFFFF)),
-            ]
-        } else {
-            [None, None, None]
-        };
 
         pc_limbs.into_iter().chain(instruction_cols).collect()
     }

@@ -5,8 +5,7 @@
 use std::sync::Arc;
 
 use alloy_primitives::Address;
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_primitives::SP1Field;
 
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
@@ -19,7 +18,7 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
-    apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+    apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
 }
 
 impl NetworkProverBuilder {
@@ -74,7 +73,7 @@ impl NetworkProverBuilder {
 
     /// Adds any autoprecompiles (APCs) that should be supported by the prover.
     #[must_use]
-    pub fn apcs(mut self, apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub fn apcs(mut self, apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         self.apcs = apcs;
         self
     }

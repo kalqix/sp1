@@ -12,18 +12,26 @@ pub mod program;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+use powdr_autoprecompiles::{adapter::AdapterApc, execution::OptimisticConstraints};
 use powdr_autoprecompiles::{
-    adapter::{AdapterApc, AdapterApcWithStats, PgoAdapter},
-    blocks::{collect_basic_blocks, BasicBlock, Program as _},
+    adapter::{AdapterApcWithStats, PgoAdapter},
+    blocks::collect_basic_blocks,
+    empirical_constraints::EmpiricalConstraints,
     execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
-use sp1_core_executor::{ApcRange, Executor, Program, SP1CoreOpts};
+#[cfg(test)]
+use sp1_core_executor::ApcRange;
+use sp1_core_executor::{Executor, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     autoprecompiles::{
@@ -48,6 +56,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
+pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u64, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
@@ -151,23 +160,31 @@ impl CompiledProgram {
         };
 
         // Generate APC
-        let apcs_and_stats =
-            pgo_adapter.filter_blocks_and_create_apcs_with_pgo(blocks, &config, vm_config);
+        let apcs_and_stats = pgo_adapter.filter_blocks_and_create_apcs_with_pgo(
+            blocks,
+            &config,
+            vm_config,
+            BTreeMap::new(),
+            EmpiricalConstraints::default(),
+        );
 
         Self { apcs_and_stats }
     }
 }
 
 /// Create APCs from the given program and ranges.
+#[cfg(test)]
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u64, u64>)>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges
         .into_iter()
         .map(|range| {
+            use powdr_autoprecompiles::blocks::{BasicBlock, PcStep};
+
             let instructions = program.instructions
                 [range.start().unwrap()..range.end().unwrap() + 1]
                 .iter()
@@ -175,25 +192,27 @@ pub fn create_apcs(
                 .map(Sp1Instruction::from)
                 .collect();
 
-            // TODO: turn `pc_step` into a constant in the `Program` trait
-            let pc_step = Sp1Program::default().pc_step() as u64;
+            let pc_step = Sp1Instruction::pc_step() as u64;
             let start_pc = (range.start().unwrap() as u64) * pc_step + program.pc_base;
 
             // Create a dummy basic block with the original instructions
             let block = BasicBlock { start_pc, statements: instructions };
 
             // Build the APC from the block
+            let empirical_constraints = EmpiricalConstraints::default();
             let apc = powdr_autoprecompiles::build::<Sp1ApcAdapter>(
                 block,
                 sp1_vm_config(&Sp1InstructionHandler::<SP1Field>::new()),
                 DEFAULT_DEGREE_BOUND,
                 None,
+                &empirical_constraints,
             )
             .expect("Failed to build APC");
 
             let apc_cost = apc.machine.main_columns().count() as u64;
+            let optimistic_constraints = apc.optimistic_constraints.clone();
 
-            (Arc::new(apc), (range, apc_cost))
+            (Arc::new(apc), (range, apc_cost, optimistic_constraints))
         })
         .unzip()
 }

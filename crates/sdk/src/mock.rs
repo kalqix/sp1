@@ -4,8 +4,8 @@
 
 use std::pin::Pin;
 
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::{autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin};
+use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin};
+use sp1_primitives::SP1Field;
 use sp1_prover::{
     components::CpuSP1ApcProverComponents, local::LocalProver, Groth16Bn254Proof, PlonkBn254Proof,
     SP1VerifyingKey,
@@ -16,7 +16,6 @@ use crate::{
     prover::{BaseProveRequest, ProveRequest},
     Prover, SP1Proof, SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
 };
-use sp1_primitives::SP1Field;
 use std::{
     future::{Future, IntoFuture},
     sync::Arc,
@@ -31,7 +30,7 @@ pub struct MockProver {
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub async fn new(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         Self { inner: CpuProver::new(apcs).await }
     }
 }

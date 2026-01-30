@@ -8,12 +8,9 @@ pub mod prove;
 use std::sync::Arc;
 
 use anyhow::Result;
-use powdr_autoprecompiles::Apc;
 use prove::CpuProveBuilder;
 use sp1_core_executor::{ExecutionError, Program, SP1Context};
-use sp1_core_machine::{
-    autoprecompiles::instruction::Sp1Instruction, io::SP1Stdin, riscv::RiscvAirWithApcs,
-};
+use sp1_core_machine::{autoprecompiles::Sp1Apc, io::SP1Stdin, riscv::RiscvAirWithApcs};
 use sp1_hypercube::prover::MachineProvingKey;
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
@@ -107,7 +104,7 @@ impl Prover for CpuProver {
 
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
-    pub async fn new(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub async fn new(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         Self::new_with_opts(None, apcs).await
     }
 
@@ -115,7 +112,7 @@ impl CpuProver {
     #[must_use]
     pub async fn new_with_opts(
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
-        apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>,
+        apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
     ) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
@@ -141,7 +138,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "unsound")]
     #[must_use]
-    pub async fn new_unsound(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> Self {
+    pub async fn new_unsound(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
         let prover =
             SP1ProverBuilder::<CpuSP1ApcProverComponents>::new(RiscvAirWithApcs::machine(apcs))
                 .without_vk_verification()

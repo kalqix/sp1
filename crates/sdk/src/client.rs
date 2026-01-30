@@ -4,8 +4,7 @@
 
 use std::sync::Arc;
 
-use powdr_autoprecompiles::Apc;
-use sp1_core_machine::autoprecompiles::instruction::Sp1Instruction;
+use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_primitives::SP1Field;
 
 use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
@@ -46,7 +45,7 @@ impl ProverClient {
 
     /// Like `from_env`, but allows you to specify the APCs to use.
     #[must_use]
-    pub async fn from_env_with_apcs(apcs: Vec<Arc<Apc<SP1Field, Sp1Instruction>>>) -> EnvProver {
+    pub async fn from_env_with_apcs(apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> EnvProver {
         EnvProver::new(apcs).await
     }
 

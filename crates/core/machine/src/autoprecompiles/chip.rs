@@ -5,9 +5,9 @@ use std::{
 
 use itertools::Itertools;
 use powdr_autoprecompiles::{
-    blocks::Program as _,
+    blocks::PcStep,
     expression::{AlgebraicExpression, AlgebraicReference},
-    Apc,
+    Substitution,
 };
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
@@ -29,7 +29,7 @@ use crate::{
     autoprecompiles::{
         instruction::Sp1Instruction,
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
-        program::Sp1Program,
+        Sp1Apc,
     },
     riscv::RiscvAir,
     utils::{next_multiple_of_32, zeroed_f_vec},
@@ -38,7 +38,7 @@ use crate::{
 #[derive(Debug)]
 struct CachedApc<F: PrimeField32> {
     /// The APC
-    apc: Arc<Apc<F, Sp1Instruction>>,
+    apc: Arc<Sp1Apc<F>>,
     /// The cached columns of the APC.
     columns: Vec<AlgebraicReference>,
 }
@@ -50,8 +50,8 @@ impl<F: PrimeField32> CachedApc<F> {
     }
 }
 
-impl<F: PrimeField32> From<Arc<Apc<F, Sp1Instruction>>> for CachedApc<F> {
-    fn from(apc: Arc<Apc<F, Sp1Instruction>>) -> Self {
+impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
+    fn from(apc: Arc<Sp1Apc<F>>) -> Self {
         let columns = apc.machine.main_columns().collect();
         Self { apc, columns }
     }
@@ -68,11 +68,11 @@ pub struct ApcChip<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> ApcChip<F> {
-    pub fn new(apc: Arc<Apc<F, Sp1Instruction>>, id: usize) -> Self {
+    pub fn new(apc: Arc<Sp1Apc<F>>, id: usize) -> Self {
         Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
     }
 
-    pub fn apc(&self) -> &Arc<Apc<F, Sp1Instruction>> {
+    pub fn apc(&self) -> &Arc<Sp1Apc<F>> {
         &self.cached_apc.apc
     }
 
@@ -186,16 +186,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .subs
             .iter()
             .enumerate()
-            .map(|(instruction_index, sub)| {
+            .map(|(instruction_index, substitutions)| {
                 // build a map only of the (dummy_index -> apc_index) pairs
                 let mut map = HashMap::new();
-                for (dummy_index, poly_id) in sub.iter().enumerate() {
-                    if let Some(apc_index) = apc_poly_id_to_index.get(poly_id) {
-                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
-                        map.insert(dummy_index, *apc_index);
-                    } else {
-                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}");
-                    }
+                for sub in substitutions {
+                    let Substitution { original_poly_index, apc_poly_id } = sub;
+                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
+                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
+                    map.insert(*original_poly_index, *apc_index);
                 }
                 tracing::trace!("Map for instruction {instruction_index}: {map:?}");
                 map
@@ -341,16 +339,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .subs
             .iter()
             .enumerate()
-            .map(|(instruction_index, sub)| {
+            .map(|(instruction_index, substitutions)| {
                 // build a map only of the (dummy_index -> apc_index) pairs
                 let mut map = HashMap::new();
-                for (dummy_index, poly_id) in sub.iter().enumerate() {
-                    if let Some(apc_index) = apc_poly_id_to_index.get(poly_id) {
-                        tracing::trace!("Mapping dummy_index {dummy_index} to apc_index {apc_index} for instruction {instruction_index}");
-                        map.insert(dummy_index, *apc_index);
-                    } else {
-                        tracing::trace!("Poly ID {poly_id} not found in APC columns (usually due to optimization) for instruction {instruction_index}");
-                    }
+                for sub in substitutions {
+                    let Substitution { original_poly_index, apc_poly_id } = sub;
+                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
+                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
+                    map.insert(*original_poly_index, *apc_index);
                 }
                 tracing::trace!("Map for instruction {instruction_index}: {map:?}");
                 map
@@ -450,12 +446,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {
         let range = ApcRange::new(
-            ((self.apc().start_pc() - program.pc_base) / Sp1Program::default().pc_step() as u64)
-                as usize,
+            ((self.apc().start_pc() - program.pc_base) / Sp1Instruction::pc_step() as u64) as usize,
             self.apc().block.statements.len(),
         );
-        let apc =
-            sp1_core_executor::Apc { id: self.id, range, cost: self.cached_apc.width() as u64 };
+        let apc = sp1_core_executor::Apc {
+            start_pc_idx: range.start().unwrap(),
+            cycle_count: range.len(),
+            cost: self.cached_apc.width() as u64,
+            execution_constraints: self.apc().optimistic_constraints.clone(),
+        };
         program.add_apc(apc)
     }
 }
@@ -485,21 +484,20 @@ where
         }
 
         for interaction in &self.cached_apc.apc.machine().bus_interactions {
-            let powdr_autoprecompiles::SymbolicBusInteraction { mult, args, id } = interaction;
-
-            let mult = witness_evaluator.eval_expr(mult);
-            let args = args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
+            let mult = witness_evaluator.eval_expr(&interaction.mult);
+            let args =
+                interaction.args.iter().map(|arg| witness_evaluator.eval_expr(arg)).collect_vec();
 
             // All instruction AIRs only use the four buses below.
-            let interaction_kind = match id {
-                id if *id == InteractionKind::Memory as u64 => InteractionKind::Memory,
-                id if *id == InteractionKind::Program as u64 => InteractionKind::Program,
-                id if *id == InteractionKind::Byte as u64 => InteractionKind::Byte,
-                id if *id == InteractionKind::State as u64 => InteractionKind::State,
-                id if *id == InteractionKind::InstructionFetch as u64 => {
+            let interaction_kind = match interaction.id {
+                id if id == InteractionKind::Memory as u64 => InteractionKind::Memory,
+                id if id == InteractionKind::Program as u64 => InteractionKind::Program,
+                id if id == InteractionKind::Byte as u64 => InteractionKind::Byte,
+                id if id == InteractionKind::State as u64 => InteractionKind::State,
+                id if id == InteractionKind::InstructionFetch as u64 => {
                     InteractionKind::InstructionFetch
                 }
-                _ => unreachable!("Unexpected bus ID: {id}"),
+                _ => unreachable!("Unexpected bus ID: {}", interaction.id),
             };
 
             let air_interaction = AirInteraction::new(args, mult, interaction_kind);

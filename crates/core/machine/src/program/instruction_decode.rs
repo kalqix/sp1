@@ -634,7 +634,7 @@ mod tests {
     use sp1_primitives::SP1Field;
 
     use slop_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_core_executor::{Apcs, ExecutionRecord, Instruction, Opcode, Program};
     use sp1_hypercube::air::MachineAir;
 
     use crate::program::InstructionDecodeChip;
@@ -658,7 +658,7 @@ mod tests {
                 pc_base: 0,
                 memory_image: HashMap::new(),
                 preprocessed_shape: None,
-                apcs_by_start_idx: HashMap::new(),
+                apcs: Apcs::default(),
             }),
             ..Default::default()
         };
