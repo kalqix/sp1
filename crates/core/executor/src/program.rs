@@ -5,10 +5,10 @@ use std::str::FromStr;
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    ExecutionState, RiscvAirId,
+    RiscvAirId,
 };
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::OptimisticConstraints;
+use powdr_autoprecompiles::execution::{ExecutionState, OptimisticConstraints};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -88,7 +88,9 @@ pub struct Apc {
     pub execution_constraints: OptimisticConstraints<u64, u64>,
 }
 
-impl powdr_autoprecompiles::execution::Apc<ExecutionState> for Apc {
+impl<S: ExecutionState<RegisterAddress = u64, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
+    for Apc
+{
     fn cycle_count(&self) -> usize {
         self.cycle_count
     }

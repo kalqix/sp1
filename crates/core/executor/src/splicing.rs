@@ -5,6 +5,7 @@ use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
 
 use crate::{
+    autoprecompiles::LocalCountsSnapshot,
     events::{MemoryReadRecord, MemoryWriteRecord},
     syscalls::SyscallCode,
     vm::{
@@ -24,7 +25,7 @@ use crate::{
 /// Note that this is the only time we account for trace area throught the execution pipeline.
 pub struct SplicingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, LocalCountsSnapshot>,
     /// The shape checker, responsible for cutting the execution when a shard limit is reached.
     pub shape_checker: ShapeChecker,
     /// The addresses that have been touched.
@@ -257,7 +258,7 @@ impl<'a> SplicingVM<'a> {
             }
         }
 
-        let _ = CoreVM::execute_ecall(self, instruction, code)?;
+        let _ = CoreVM::<LocalCountsSnapshot>::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
@@ -269,12 +270,13 @@ impl<'a> SplicingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for SplicingVM<'a> {
     const TRACING: bool = false;
+    type Snapshot = LocalCountsSnapshot;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, Self::Snapshot> {
         &mut self.core
     }
 

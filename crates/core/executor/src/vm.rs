@@ -8,9 +8,10 @@ use crate::{
         },
         syscall::{sp1_ecall_handler, SyscallRuntime},
     },
-    ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
+    Apc, ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
     HALT_PC, M64,
 };
+use powdr_autoprecompiles::execution::{ApcCandidates, ExecutionState, Snapshot};
 use sp1_hypercube::air::{PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_jit::{MemReads, MinimalTrace};
 use std::{mem::MaybeUninit, num::Wrapping, ptr::addr_of_mut, sync::Arc};
@@ -27,7 +28,7 @@ const CLK_BUMP: u64 = 8;
 const PC_BUMP: u64 = 4;
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to oracle memory access.
-pub struct CoreVM<'a> {
+pub struct CoreVM<'a, S> {
     registers: [MemoryRecord; 32],
     /// The current clock of the VM.
     clk: u64,
@@ -57,9 +58,54 @@ pub struct CoreVM<'a> {
     pub public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
     /// The nonce associated with the proof.
     pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+    /// The candidate tracker
+    pub apc_candidates: ApcCandidates<CoreExecutionState, Apc, S>,
 }
 
-impl<'a> CoreVM<'a> {
+pub struct CoreExecutionState {
+    pc: u64,
+    registers: [MemoryRecord; 32],
+}
+
+impl ExecutionState for CoreExecutionState {
+    type RegisterAddress = u8;
+
+    type Value = u64;
+
+    fn pc(&self) -> Self::Value {
+        self.pc
+    }
+
+    fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
+        self.registers[*addr as usize].value
+    }
+
+    fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
+        // SP1 uses 16-bit limbs
+        value >> (limb_index * 16) & 0xffff
+    }
+}
+
+impl powdr_autoprecompiles::execution::Apc<CoreExecutionState> for Apc {
+    fn optimistic_constraints(
+        &self,
+    ) -> &powdr_autoprecompiles::execution::OptimisticConstraints<
+        <CoreExecutionState as ExecutionState>::RegisterAddress,
+        <CoreExecutionState as ExecutionState>::Value,
+    > {
+        todo!()
+    }
+
+    fn cycle_count(&self) -> usize {
+        todo!()
+    }
+
+    fn priority(&self) -> usize {
+        todo!()
+    }
+}
+
+impl<'a, S: Snapshot> CoreVM<'a, S> {
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
@@ -99,6 +145,9 @@ impl<'a> CoreVM<'a> {
             assert_eq!(trace.pc_start(), program.pc_start_abs);
         }
 
+        let apc_candidates: ApcCandidates<CoreExecutionState, Apc, S> =
+            ApcCandidates::new(program.apcs.apc_by_index.clone());
+
         Self {
             registers,
             global_clk: 0,
@@ -115,6 +164,7 @@ impl<'a> CoreVM<'a> {
             clk_end: trace.clk_end(),
             public_value_digest: [0; PV_DIGEST_NUM_WORDS],
             proof_nonce,
+            apc_candidates,
         }
     }
 
@@ -567,7 +617,7 @@ impl<'a> CoreVM<'a> {
     }
 }
 
-impl CoreVM<'_> {
+impl<S: Snapshot> CoreVM<'_, S> {
     /// Read the next required memory read from the trace.
     #[inline]
     fn mr(&mut self, addr: u64) -> MemoryReadRecord {
@@ -687,7 +737,7 @@ impl CoreVM<'_> {
 
     /// Touch all the registers in the VM, bumping thier clock to `self.clk - 1`.
     pub fn register_refresh(&mut self) -> [MemoryReadRecord; 32] {
-        fn bump_register(vm: &mut CoreVM, register: usize) -> MemoryReadRecord {
+        fn bump_register<SS>(vm: &mut CoreVM<SS>, register: usize) -> MemoryReadRecord {
             let prev_record = vm.registers[register];
             let new_record = MemoryRecord { timestamp: vm.clk - 1, value: prev_record.value };
 
@@ -743,7 +793,7 @@ impl CoreVM<'_> {
     }
 }
 
-impl CoreVM<'_> {
+impl<S> CoreVM<'_, S> {
     /// Get the current timestamp for a given memory access position.
     #[inline]
     #[must_use]
@@ -775,7 +825,7 @@ impl CoreVM<'_> {
     }
 }
 
-impl<'a> CoreVM<'a> {
+impl<'a, S> CoreVM<'a, S> {
     #[inline]
     #[must_use]
     /// Get the current clock, this clock is incremented by [`CLK_BUMP`] each cycle.

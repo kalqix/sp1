@@ -8,6 +8,7 @@ use sp1_hypercube::air::{PublicValues, PROOF_NONCE_NUM_WORDS};
 use sp1_jit::MinimalTrace;
 
 use crate::{
+    autoprecompiles::ExecutionRecordSnapshot,
     events::{
         AluEvent, BranchEvent, IntoMemoryRecord, JumpEvent, MemInstrEvent, MemoryLocalEvent,
         MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, PrecompileEvent,
@@ -29,7 +30,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionRecord`].
 pub struct TracingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, ExecutionRecordSnapshot>,
     /// The local memory access for the CPU.
     pub local_memory_access: LocalMemoryAccess,
     /// The local memory access for any deferred precompiles.
@@ -418,7 +419,7 @@ impl<'a> TracingVM<'a> {
 
         // Actually execute the ecall.
         let EcallResult { a: _, a_record, b, b_record, c, c_record } =
-            CoreVM::<'a>::execute_ecall(self, instruction, code)?;
+            CoreVM::<'a, ExecutionRecordSnapshot>::execute_ecall(self, instruction, code)?;
 
         self.local_memory_access.insert_record(Register::X11 as u64, c_record);
         self.local_memory_access.insert_record(Register::X10 as u64, b_record);
@@ -756,12 +757,13 @@ impl TracingVM<'_> {
 
 impl<'a> SyscallRuntime<'a> for TracingVM<'a> {
     const TRACING: bool = true;
+    type Snapshot = ExecutionRecordSnapshot;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, Self::Snapshot> {
         &mut self.core
     }
 

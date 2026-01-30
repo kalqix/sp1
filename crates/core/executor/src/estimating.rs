@@ -3,6 +3,7 @@ use sp1_jit::MinimalTrace;
 use std::sync::Arc;
 
 use crate::{
+    autoprecompiles::ExecutionReportSnapshot,
     events::{MemoryReadRecord, MemoryWriteRecord},
     syscalls::SyscallCode,
     vm::{
@@ -20,7 +21,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionReport`].
 pub struct GasEstimatingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, ExecutionReportSnapshot>,
     /// The gas calculator for the VM.
     pub gas_calculator: ReportGenerator,
     /// The index of the hint lens the next shard will use.
@@ -257,7 +258,7 @@ impl<'a> GasEstimatingVM<'a> {
     pub fn execute_ecall(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let code = self.core.read_code();
 
-        let result = CoreVM::execute_ecall(self, instruction, code)?;
+        let result = CoreVM::<ExecutionReportSnapshot>::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
@@ -288,12 +289,13 @@ impl<'a> GasEstimatingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for GasEstimatingVM<'a> {
     const TRACING: bool = false;
+    type Snapshot = ExecutionReportSnapshot;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, Self::Snapshot> {
         &mut self.core
     }
 

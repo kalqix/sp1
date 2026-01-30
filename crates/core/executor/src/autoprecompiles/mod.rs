@@ -26,6 +26,26 @@ pub struct ExecutionSnapshot {
     pub global_clk: u64,
 }
 
+pub struct LocalCountsSnapshot {
+    pub local_counts: LocalCounts,
+}
+
+impl Snapshot for LocalCountsSnapshot {
+    fn instret(&self) -> usize {
+        todo!()
+    }
+}
+
+pub struct ExecutionReportSnapshot {
+    pub execution_report: ExecutionReport,
+}
+
+impl Snapshot for ExecutionReportSnapshot {
+    fn instret(&self) -> usize {
+        todo!()
+    }
+}
+
 #[derive(Debug)]
 pub struct ExecutionRecordSnapshot {
     pub cpu_event_count: u32,
@@ -68,6 +88,12 @@ pub struct ExecutionRecordSnapshot {
     pub global_interaction_event_count: u32,
     pub bump_memory_events_len: usize,
     pub bump_state_events_len: usize,
+}
+
+impl Snapshot for ExecutionRecordSnapshot {
+    fn instret(&self) -> usize {
+        todo!()
+    }
 }
 
 impl From<&ExecutionRecord> for ExecutionRecordSnapshot {
