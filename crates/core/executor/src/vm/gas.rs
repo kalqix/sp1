@@ -26,6 +26,10 @@ pub struct ReportGenerator {
     exit_code: u64,
 }
 
+pub struct ReportGeneratorSnapshot {
+    pub opcode_counts: EnumMap<Opcode, u64>,
+}
+
 impl ReportGenerator {
     pub fn new(shard_start_clk: u64) -> Self {
         let costs: HashMap<String, usize> =
@@ -46,6 +50,10 @@ impl ReportGenerator {
             exit_code: 0,
             apc_counts: Box::default(),
         }
+    }
+
+    pub fn snapshot(&self) -> ReportGeneratorSnapshot {
+        ReportGeneratorSnapshot { opcode_counts: self.opcode_counts }
     }
 
     /// Set the start clock of the shard.

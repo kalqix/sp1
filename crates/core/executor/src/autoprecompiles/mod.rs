@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::{ApcCandidates, Snapshot};
+use powdr_autoprecompiles::execution::ApcCandidates;
 
 use crate::{
     events::ByteLookupEvent, Apc, ExecutionRecord, ExecutionReport, ExecutionState, LocalCounts,
@@ -7,43 +7,12 @@ use crate::{
 
 pub type Sp1ApcCandidates = ApcCandidates<ExecutionState, Apc, ExecutionSnapshot>;
 
-impl Snapshot for ExecutionSnapshot {
-    fn instret(&self) -> usize {
-        // Use global_clk for APC overlap detection. global_clk is always incremented
-        // regardless of execution mode, making it suitable for tracking instruction
-        // boundaries in both Checkpoint and Trace modes.
-        self.global_clk as usize
-    }
-}
-
 #[derive(Debug)]
 pub struct ExecutionSnapshot {
     pub record: ExecutionRecordSnapshot,
     pub local_counts: LocalCounts,
     pub report: ExecutionReport,
     pub pc: u64,
-    /// The `global_clk` value at the time of the snapshot. Used for APC overlap detection.
-    pub global_clk: u64,
-}
-
-pub struct LocalCountsSnapshot {
-    pub local_counts: LocalCounts,
-}
-
-impl Snapshot for LocalCountsSnapshot {
-    fn instret(&self) -> usize {
-        todo!()
-    }
-}
-
-pub struct ExecutionReportSnapshot {
-    pub execution_report: ExecutionReport,
-}
-
-impl Snapshot for ExecutionReportSnapshot {
-    fn instret(&self) -> usize {
-        todo!()
-    }
 }
 
 #[derive(Debug)]
@@ -88,12 +57,6 @@ pub struct ExecutionRecordSnapshot {
     pub global_interaction_event_count: u32,
     pub bump_memory_events_len: usize,
     pub bump_state_events_len: usize,
-}
-
-impl Snapshot for ExecutionRecordSnapshot {
-    fn instret(&self) -> usize {
-        todo!()
-    }
 }
 
 impl From<&ExecutionRecord> for ExecutionRecordSnapshot {

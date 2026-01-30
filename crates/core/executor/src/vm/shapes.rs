@@ -34,6 +34,13 @@ pub struct ShapeChecker {
     is_last_read_external: CompressedMemory,
 }
 
+pub struct ShapeCheckerSnapshot {
+    /// The heights (number) of each air id seen.
+    heights: EnumMap<RiscvAirId, u64>,
+    /// The costs (trace area) of  of each air id seen.
+    costs: EnumMap<RiscvAirId, u64>,
+}
+
 impl ShapeChecker {
     pub fn new(program_len: u64, shard_start_clk: u64, elem_threshold: ShardingThreshold) -> Self {
         let costs: HashMap<String, usize> =
@@ -58,6 +65,10 @@ impl ShapeChecker {
             local_mem_counts: 32,
             is_last_read_external: CompressedMemory::new(),
         }
+    }
+
+    pub fn snapshot(&self) -> ShapeCheckerSnapshot {
+        ShapeCheckerSnapshot { heights: self.heights, costs: self.costs }
     }
 
     #[inline]

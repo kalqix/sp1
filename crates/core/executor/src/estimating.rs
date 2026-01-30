@@ -3,11 +3,10 @@ use sp1_jit::MinimalTrace;
 use std::sync::Arc;
 
 use crate::{
-    autoprecompiles::ExecutionReportSnapshot,
     events::{MemoryReadRecord, MemoryWriteRecord},
     syscalls::SyscallCode,
     vm::{
-        gas::ReportGenerator,
+        gas::{ReportGenerator, ReportGeneratorSnapshot},
         results::{
             AluResult, BranchResult, CycleResult, JumpResult, LoadResult, MaybeImmediate,
             StoreResult, UTypeResult,
@@ -21,7 +20,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionReport`].
 pub struct GasEstimatingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a, ExecutionReportSnapshot>,
+    pub core: CoreVM<'a, ReportGeneratorSnapshot>,
     /// The gas calculator for the VM.
     pub gas_calculator: ReportGenerator,
     /// The index of the hint lens the next shard will use.
@@ -47,17 +46,18 @@ impl GasEstimatingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&self.gas_calculator);
+        let instruction = self.core.fetch(&|| self.gas_calculator.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = *instruction;
 
         assert!(calls.is_empty(), "unimplemented");
 
-        match &instruction.opcode {
+        match instruction.opcode {
             Opcode::ADD
             | Opcode::ADDI
             | Opcode::SUB
@@ -260,7 +260,7 @@ impl<'a> GasEstimatingVM<'a> {
     pub fn execute_ecall(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let code = self.core.read_code();
 
-        let result = CoreVM::<ExecutionReportSnapshot>::execute_ecall(self, instruction, code)?;
+        let result = CoreVM::<ReportGeneratorSnapshot>::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
@@ -291,7 +291,7 @@ impl<'a> GasEstimatingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for GasEstimatingVM<'a> {
     const TRACING: bool = false;
-    type Snapshot = ExecutionReportSnapshot;
+    type Snapshot = ReportGeneratorSnapshot;
 
     fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core

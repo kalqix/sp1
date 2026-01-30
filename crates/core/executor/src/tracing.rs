@@ -68,17 +68,18 @@ impl TracingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&self.record);
+        let instruction = self.core.fetch(&|| ExecutionRecordSnapshot::from(&*self.record));
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = *instruction;
 
         assert!(calls.is_empty(), "call extraction unimplemented");
 
-        match &instruction.opcode {
+        match instruction.opcode {
             Opcode::ADD
             | Opcode::ADDI
             | Opcode::SUB

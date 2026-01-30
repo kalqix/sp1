@@ -5,13 +5,12 @@ use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
 
 use crate::{
-    autoprecompiles::LocalCountsSnapshot,
     events::{MemoryReadRecord, MemoryWriteRecord},
     syscalls::SyscallCode,
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
-        shapes::ShapeChecker,
+        shapes::{ShapeChecker, ShapeCheckerSnapshot},
         syscall::SyscallRuntime,
         CoreVM,
     },
@@ -25,7 +24,7 @@ use crate::{
 /// Note that this is the only time we account for trace area throught the execution pipeline.
 pub struct SplicingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a, LocalCountsSnapshot>,
+    pub core: CoreVM<'a, ShapeCheckerSnapshot>,
     /// The shape checker, responsible for cutting the execution when a shard limit is reached.
     pub shape_checker: ShapeChecker,
     /// The addresses that have been touched.
@@ -64,17 +63,18 @@ impl SplicingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&self.shape_checker);
+        let instruction = self.core.fetch(&|| self.shape_checker.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
         let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = *instruction;
 
         assert!(calls.is_empty(), "unimplemented");
 
-        match &instruction.opcode {
+        match instruction.opcode {
             Opcode::ADD
             | Opcode::ADDI
             | Opcode::SUB
@@ -260,7 +260,7 @@ impl<'a> SplicingVM<'a> {
             }
         }
 
-        let _ = CoreVM::<LocalCountsSnapshot>::execute_ecall(self, instruction, code)?;
+        let _ = CoreVM::<ShapeCheckerSnapshot>::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
@@ -272,7 +272,7 @@ impl<'a> SplicingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for SplicingVM<'a> {
     const TRACING: bool = false;
-    type Snapshot = LocalCountsSnapshot;
+    type Snapshot = ShapeCheckerSnapshot;
 
     fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core

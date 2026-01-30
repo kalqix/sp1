@@ -81,7 +81,7 @@ pub use utils::setup_logger;
 
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
-    use std::sync::Arc;
+    
 
     use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
     use anyhow::Result;
@@ -145,7 +145,7 @@ mod tests {
             .apcs_and_stats
             .into_iter()
             .map(ApcWithStats::into_parts)
-            .map(|(apc, _)| Arc::new(apc))
+            .map(|(apc, _, _)| apc)
             .collect();
 
         utils::setup_logger();

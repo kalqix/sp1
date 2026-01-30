@@ -5,7 +5,6 @@ use crate::{
     syscalls::SyscallCode,
     ExecutionRecord,
 };
-use powdr_autoprecompiles::execution::Snapshot;
 use sp1_curves::{
     edwards::ed25519::Ed25519,
     weierstrass::{
@@ -30,7 +29,7 @@ mod uint256_ops;
 
 pub trait SyscallRuntime<'a> {
     const TRACING: bool;
-    type Snapshot: Snapshot;
+    type Snapshot;
 
     fn core(&self) -> &CoreVM<'a, Self::Snapshot>;
 
@@ -134,7 +133,7 @@ pub trait SyscallRuntime<'a> {
     }
 }
 
-impl<'a, S: Snapshot> SyscallRuntime<'a> for CoreVM<'a, S> {
+impl<'a, S> SyscallRuntime<'a> for CoreVM<'a, S> {
     const TRACING: bool = false;
     type Snapshot = S;
 

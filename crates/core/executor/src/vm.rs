@@ -11,7 +11,7 @@ use crate::{
     Apc, ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
     HALT_PC, M64,
 };
-use powdr_autoprecompiles::execution::{ApcCall, ApcCandidates, ExecutionState, Snapshot};
+use powdr_autoprecompiles::execution::{ApcCall, ApcCandidates, ExecutionState};
 use sp1_hypercube::air::{PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_jit::{MemReads, MinimalTrace};
 use std::{mem::MaybeUninit, num::Wrapping, ptr::addr_of_mut, sync::Arc};
@@ -65,6 +65,7 @@ pub struct CoreVM<'a, S> {
 pub struct CoreExecutionState {
     pc: u64,
     registers: [MemoryRecord; 32],
+    global_clk: u64,
 }
 
 impl ExecutionState for CoreExecutionState {
@@ -83,6 +84,10 @@ impl ExecutionState for CoreExecutionState {
     fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
         // SP1 uses 16-bit limbs
         value >> (limb_index * 16) & 0xffff
+    }
+
+    fn global_clk(&self) -> usize {
+        self.global_clk as usize
     }
 }
 
@@ -105,7 +110,7 @@ impl powdr_autoprecompiles::execution::Apc<CoreExecutionState> for Apc {
     }
 }
 
-impl<'a, S: Snapshot> CoreVM<'a, S> {
+impl<'a, S> CoreVM<'a, S> {
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
@@ -170,13 +175,17 @@ impl<'a, S: Snapshot> CoreVM<'a, S> {
 
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch(
-        &mut self,
-        state: impl Into<S> + Clone + Copy, // TODO: restrict to some trait, maybe Snapshot
-    ) -> Option<(&Instruction, Vec<ApcCall<S>>)> {
+    pub fn fetch<'b>(
+        &'b mut self,
+        snapshot_callback: &impl Fn() -> S, // TODO: restrict to some trait, maybe Snapshot
+    ) -> Option<(&'b Instruction, Vec<ApcCall<S>>)> {
         self.apc_candidates.check_conditions(
-            &CoreExecutionState { pc: self.pc, registers: self.registers },
-            || state.clone().into(),
+            &CoreExecutionState {
+                pc: self.pc,
+                registers: self.registers,
+                global_clk: self.global_clk,
+            },
+            snapshot_callback,
         );
 
         let outputs = self.apc_candidates.extract_calls();
@@ -187,9 +196,13 @@ impl<'a, S: Snapshot> CoreVM<'a, S> {
                 // We are at the start of an APC range, so we add it as a candidate
                 for apc in apc_indices {
                     let _ = self.apc_candidates.try_insert(
-                        &CoreExecutionState { pc: self.pc, registers: self.registers },
+                        &CoreExecutionState {
+                            pc: self.pc,
+                            registers: self.registers,
+                            global_clk: self.global_clk,
+                        },
                         *apc,
-                        || state.into(),
+                        snapshot_callback,
                     );
                 }
             }
@@ -634,7 +647,7 @@ impl<'a, S: Snapshot> CoreVM<'a, S> {
     }
 }
 
-impl<S: Snapshot> CoreVM<'_, S> {
+impl<S> CoreVM<'_, S> {
     /// Read the next required memory read from the trace.
     #[inline]
     fn mr(&mut self, addr: u64) -> MemoryReadRecord {

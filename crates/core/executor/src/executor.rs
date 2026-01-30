@@ -141,6 +141,10 @@ impl powdr_autoprecompiles::execution::ExecutionState for ExecutionState {
         // SP1 uses 16-bit limbs
         value >> (limb_index * 16) & 0xffff
     }
+
+    fn global_clk(&self) -> usize {
+        self.global_clk as usize
+    }
 }
 
 /// An executor for the SP1 RISC-V zkVM.
@@ -2735,7 +2739,6 @@ impl<'a> Executor<'a> {
             local_counts: self.local_counts.clone(),
             report: self.report.clone(),
             pc: self.state.pc,
-            global_clk: self.state.global_clk,
         });
 
         let outputs = self.apc_candidates.extract_calls();
@@ -2750,7 +2753,6 @@ impl<'a> Executor<'a> {
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
                     pc: self.state.pc,
-                    global_clk: self.state.global_clk,
                 });
             }
         }
@@ -2818,7 +2820,6 @@ impl<'a> Executor<'a> {
                     local_counts: self.local_counts.clone(),
                     report: self.report.clone(),
                     pc: self.state.pc,
-                    global_clk: self.state.global_clk,
                 });
 
                 // If an apc candidate was being run, report a segmentation error.
