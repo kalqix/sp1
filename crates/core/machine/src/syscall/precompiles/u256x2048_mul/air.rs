@@ -11,8 +11,7 @@ use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteRecord, FieldOperation, MemoryRecordEnum, PrecompileEvent},
-    syscalls::SyscallCode,
-    ExecutionRecord, Program, Register,
+    ExecutionRecord, Program, Register, SyscallCode,
 };
 use sp1_curves::{
     params::{Limbs, NumLimbs, NumWords},
@@ -166,8 +165,18 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
 
                         cols.lo_ptr_memory
                             .populate(lo_ptr_memory_record, &mut new_byte_lookup_events);
+                        cols.lo_ptr_memory_value = [
+                            F::from_canonical_u16((event.lo_ptr & 0xFFFF) as u16),
+                            F::from_canonical_u16(((event.lo_ptr >> 16) & 0xFFFF) as u16),
+                            F::from_canonical_u16(((event.lo_ptr >> 32) & 0xFFFF) as u16),
+                        ];
                         cols.hi_ptr_memory
                             .populate(hi_ptr_memory_record, &mut new_byte_lookup_events);
+                        cols.hi_ptr_memory_value = [
+                            F::from_canonical_u16((event.hi_ptr & 0xFFFF) as u16),
+                            F::from_canonical_u16(((event.hi_ptr >> 16) & 0xFFFF) as u16),
+                            F::from_canonical_u16(((event.hi_ptr >> 32) & 0xFFFF) as u16),
+                        ];
 
                         // Populate memory columns.
                         for i in 0..WORDS_FIELD_ELEMENT {

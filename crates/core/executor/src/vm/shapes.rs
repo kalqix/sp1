@@ -1,13 +1,18 @@
-use enum_map::EnumMap;
+use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use powdr_autoprecompiles::execution::ApcCall;
 
 use crate::{
-    syscalls::SyscallCode, vm::memory::CompressedMemory, EventCosts, EventCounts, Instruction,
-    Opcode, Program, RiscvAirId, ShardingThreshold, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    vm::memory::CompressedMemory, Instruction, Opcode, Program, RiscvAirId, ShardingThreshold,
+    SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
-use std::{str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    ops::{Index, IndexMut},
+    str::FromStr,
+    sync::Arc,
+};
 
 /// The maximum trace area from padding with next multiple of 32.
 /// The correctness of this value is checked in the test `test_maximum_padding`.
@@ -35,6 +40,90 @@ pub struct ShapeChecker {
     pub(crate) local_mem_counts: u64,
     /// Whether the last read was external, ie: it was read from a deferred precompile.
     is_last_read_external: CompressedMemory,
+}
+
+/// The number of events/instructions executed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// The number of core instructions executed.
+    pub core: EnumMap<T, u64>,
+    /// The number of APCs executed, indexed by contiguous APC id.
+    pub apc: BTreeMap<usize, u64>,
+}
+
+impl<T> EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// Compute the maximum height of all airs
+    fn max(&self) -> u64 {
+        *self.core.values().chain(self.apc.values()).max().unwrap()
+    }
+}
+
+// Deriving `Default` requires `T: Default`, which isn't true for `Opcode` and `RiscvAirId`.
+impl<T: EnumArray<u64>> Default for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn default() -> Self {
+        Self {
+            core: EnumMap::default(), // Doesn't require `T: Default`
+            apc: BTreeMap::new(),
+        }
+    }
+}
+
+impl<T> Index<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    type Output = u64;
+
+    fn index(&self, index: T) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl<T> IndexMut<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+impl Index<RiscvAirId> for EventCosts {
+    type Output = u64;
+
+    fn index(&self, index: RiscvAirId) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl IndexMut<RiscvAirId> for EventCosts {
+    fn index_mut(&mut self, index: RiscvAirId) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+/// The costs of the program.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct EventCosts {
+    /// The costs of the core instructions, mostly calculated as the number of columns but
+    /// different for syscall instructions.
+    pub core: EnumMap<RiscvAirId, u64>,
+    /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
+    pub apc: BTreeMap<usize, u64>,
 }
 
 pub struct ShapeCheckerSnapshot {
@@ -88,10 +177,20 @@ impl ShapeChecker {
         ShapeCheckerSnapshot { core_heights: self.heights.core }
     }
 
+    #[cfg(test)]
+    pub fn count_apc_events(&self) -> u64 {
+        self.heights.apc.values().sum::<u64>()
+    }
+
     pub fn apply_apc_calls(&mut self, calls: &[ApcCall<ShapeCheckerSnapshot>]) {
+        if calls.is_empty() {
+            return;
+        }
         for call in calls {
             self.apply_apc_call(call);
         }
+        // Recompute the max height
+        self.max_height = self.heights.max();
     }
 
     #[inline]
@@ -219,17 +318,23 @@ impl ShapeChecker {
 
     pub(crate) fn apply_apc_call(&mut self, call: &ApcCall<ShapeCheckerSnapshot>) {
         // For each core air, reduce the height by the amount it increased by during the call
-        for (l, (from, to)) in self
+        for ((air_id, l), (from, to)) in self
             .heights
             .core
-            .values_mut()
+            .iter_mut()
             .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
         {
-            *l -= to - from;
+            let rows_to_remove = to - from;
+            // Reduce the height
+            *l -= rows_to_remove;
+            // Reduce the trace area
+            self.trace_area -= rows_to_remove * self.costs[air_id];
         }
 
         // Increase the height of this apc by 1
         *self.heights.apc.entry(call.apc_id).or_default() += 1;
+        // Increate the trace area by a row whose width is the cost of the apc
+        self.trace_area += self.costs.apc[&call.apc_id];
     }
 }
 

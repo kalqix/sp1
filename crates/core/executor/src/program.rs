@@ -24,6 +24,8 @@ use std::sync::Arc;
 
 /// Cost of APC, currently defined as number of columns.
 pub type ApcCost = u64;
+/// The maximum number of instructions in a program.
+pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
 /// A program that can be executed by the SP1 zkVM.
 ///

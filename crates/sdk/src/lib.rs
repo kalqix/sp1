@@ -58,9 +58,7 @@ pub use prover::{ProveRequest, Prover, ProvingKey, SP1ProvingKey, SP1Verificatio
 
 // Re-export the build utilities and executor primitives.
 pub use sp1_build::include_elf;
-pub use sp1_core_executor::{
-    ExecutionReport, Executor, HookEnv, SP1Context, SP1ContextBuilder, StatusCode,
-};
+pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder, StatusCode};
 
 // Re-export the machine/prover primitives.
 pub use sp1_core_machine::io::SP1Stdin;
@@ -81,7 +79,6 @@ pub use utils::setup_logger;
 
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
-    
 
     use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
     use anyhow::Result;
@@ -134,11 +131,11 @@ mod tests {
     async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
         let elf: Elf = build_elf(guest).into();
 
-        let execution_profile =
-            execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
+        // let execution_profile = execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
 
         let config = sp1_powdr_config(apc_count, apc_skip);
-        let pgo_config = PgoConfig::Instruction(execution_profile);
+        // let pgo_config = PgoConfig::Instruction(execution_profile);
+        let pgo_config = PgoConfig::None;
         let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
 
         let apcs = compiled_program
@@ -440,21 +437,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_apc_fibonacci() {
-        assert!(test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await.is_err());
-        // TODO: Remove this once apcs are supported
+        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_apc_keccak_100() {
-        assert!(test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0)
-            .await
-            .is_err()); // TODO: Remove this once apcs are supported
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_apc_keccak_200() {
-        assert!(test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0)
-            .await
-            .is_err()); // TODO: Remove this once apcs are supported
+        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0).await.unwrap();
     }
 }

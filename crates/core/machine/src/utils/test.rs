@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use slop_basefold::FriConfig;
-use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts, Trace};
+use sp1_core_executor::{MinimalExecutor, Program, SP1Context, SP1CoreOpts};
 use sp1_hypercube::{
     prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver},
     Machine, MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
@@ -26,12 +26,15 @@ pub async fn run_test_with_machine_opts(
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     opts: SP1CoreOpts,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    let mut runtime = Executor::new(program, opts);
-    runtime.write_vecs(&inputs.buffer);
-    runtime.run::<Trace>().unwrap();
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+    // Run MinimalExecutor to get public values
+    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    for buf in &inputs.buffer {
+        executor.with_input(buf);
+    }
+    while executor.execute_chunk().is_some() {}
+    let public_values = SP1PublicValues::from(executor.public_values_stream());
 
-    let _ = run_test_core_with_machine(runtime, inputs, 21, 22, machine).await?;
+    let _ = run_test_core(program, inputs, 21, 22).await?;
     Ok(public_values)
 }
 
@@ -55,12 +58,15 @@ pub async fn run_test_small_trace(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    let mut runtime = Executor::new(program, SP1CoreOpts::default());
-    runtime.write_vecs(&inputs.buffer);
-    runtime.run::<Trace>().unwrap();
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+    // Run MinimalExecutor to get public values
+    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    for buf in &inputs.buffer {
+        executor.with_input(buf);
+    }
+    while executor.execute_chunk().is_some() {}
+    let public_values = SP1PublicValues::from(executor.public_values_stream());
 
-    let _ = run_test_core(runtime, inputs, 20, 23).await?;
+    let _ = run_test_core(program, inputs, 20, 23).await?;
     Ok(public_values)
 }
 
@@ -100,7 +106,7 @@ pub async fn run_test_small_trace(
 // }
 
 pub async fn run_test_core(
-    runtime: Executor<'static>,
+    program: Arc<Program>,
     inputs: SP1Stdin,
     log_stacking_height: u32,
     max_log_row_count: usize,
@@ -109,7 +115,7 @@ pub async fn run_test_core(
     MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
 > {
     run_test_core_with_machine(
-        runtime,
+        program,
         inputs,
         log_stacking_height,
         max_log_row_count,
@@ -120,7 +126,7 @@ pub async fn run_test_core(
 
 #[allow(unused_variables)]
 pub async fn run_test_core_with_machine(
-    runtime: Executor<'static>,
+    program: Arc<Program>,
     inputs: SP1Stdin,
     log_stacking_height: u32,
     max_log_row_count: usize,
@@ -140,16 +146,14 @@ pub async fn run_test_core_with_machine(
     );
     let prover = SimpleProver::new(verifier, shard_prover);
 
-    let (pk, vk) = prover
-        .setup(runtime.program.clone())
-        .instrument(tracing::debug_span!("setup").or_current())
-        .await;
+    let (pk, vk) =
+        prover.setup(program.clone()).instrument(tracing::debug_span!("setup").or_current()).await;
     let pk = unsafe { pk.into_inner() };
 
     let (proof, _) = prove_core(
         &prover,
         pk,
-        runtime.program.clone(),
+        program,
         inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),

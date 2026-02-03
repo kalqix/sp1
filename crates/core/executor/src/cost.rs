@@ -1,4 +1,7 @@
-use crate::{EventCosts, EventCounts, RiscvAirId};
+use crate::{
+    vm::shapes::{EventCosts, EventCounts},
+    RiscvAirId,
+};
 
 /// The number of rows in the `ByteChip`.
 pub const BYTE_NUM_ROWS: u64 = 1 << 16;

@@ -6,7 +6,6 @@ use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
 
 use crate::{
     events::{MemoryReadRecord, MemoryWriteRecord},
-    syscalls::SyscallCode,
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
@@ -14,7 +13,7 @@ use crate::{
         syscall::SyscallRuntime,
         CoreVM,
     },
-    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts,
+    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, SyscallCode,
 };
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
@@ -462,9 +461,15 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::{iter::repeat_n, sync::Arc};
+
+    use powdr_autoprecompiles::execution::OptimisticConstraints;
     use sp1_jit::MemValue;
 
     use super::*;
+    use crate::{
+        utils::add_halt, Instruction, MinimalExecutor, Opcode, Program, SP1Context, SP1CoreOpts,
+    };
 
     #[test]
     fn test_serialize_spliced_minimal_trace() {
@@ -494,5 +499,47 @@ mod tests {
         };
 
         assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    fn test_apc_segmentation_error() {
+        // This test verifies that when segmentation occurs while an APC is in progress,
+        // the APC is properly aborted and a segmentation_error is recorded.
+        //
+        // Note: This complements `test_add_apc_prove_segment` in riscv/mod.rs which tests
+        // small APCs that complete before segmentation. This test specifically verifies
+        // that large APCs are properly aborted when segmentation interrupts them.
+
+        // Create a program of 100 instructions, each of which increases the height by 1
+        let mut instructions: Vec<Instruction> =
+            repeat_n(Instruction::new(Opcode::ADDI, 29, 0, 5, false, true), 100).collect();
+
+        add_halt(&mut instructions);
+
+        let program_without_apcs = Program::new(instructions, 0, 0);
+
+        // Create a large APC covering instructions 0..100
+        let apc_range_and_cost =
+            vec![(&(0, 100), 1, OptimisticConstraints::from_constraints(vec![]))];
+
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
+
+        let program = Arc::new(program);
+        let mut minimal = MinimalExecutor::tracing(program.clone(), 256);
+        let chunk = minimal.execute_chunk().expect("trace chunk");
+
+        let proof_nonce = SP1Context::default().proof_nonce;
+        let mut opts = SP1CoreOpts::default();
+
+        // Force the trace to end early so the APC is interrupted mid-execution. The whole block would require 100 rows in the ADDI table but we segment at 90.
+        opts.sharding_threshold =
+            crate::ShardingThreshold { element_threshold: 10000000, height_threshold: 90 };
+
+        let mut touched_addresses = CompressedMemory::new();
+        let mut vm = SplicingVM::new(&chunk, program, &mut touched_addresses, proof_nonce, opts);
+        let status = vm.execute().unwrap();
+
+        assert!(status.is_shard_boundry(), "Expected trace end to stop execution");
+        assert_eq!(vm.shape_checker.count_apc_events(), 0);
     }
 }

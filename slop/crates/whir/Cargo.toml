@@ -1,5 +1,6 @@
 [package]
 name = "slop-whir"
+description = "TODO"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -37,4 +38,3 @@ slop-baby-bear = { workspace = true }
 slop-basefold = { workspace = true }
 bincode = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt"] }

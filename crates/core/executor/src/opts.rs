@@ -1,6 +1,6 @@
 use crate::{
-    cost_and_height_per_syscall, rv64im_costs, syscalls::SyscallCode, utils::trunc_32,
-    RetainedEventsPreset, RiscvAirId, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    cost_and_height_per_syscall, rv64im_costs, utils::trunc_32, RetainedEventsPreset, RiscvAirId,
+    SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
 use enum_map::EnumMap;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use std::{collections::HashSet, env};
 const MAX_SHARD_SIZE: usize = 1 << 24;
 
 /// The trace area threshold for a shard.
-pub const ELEMENT_THRESHOLD: u64 = (1 << 28) + (1 << 27);
+pub const ELEMENT_THRESHOLD: u64 = (1 << 28) + (1 << 27) - (1 << 21);
 /// The height threshold for a shard.
 pub const HEIGHT_THRESHOLD: u64 = 1 << 22;
 /// The maximum size of a minimal trace chunk in terms of memory entries.

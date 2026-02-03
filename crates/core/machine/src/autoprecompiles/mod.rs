@@ -18,7 +18,6 @@ use powdr_autoprecompiles::{
     adapter::{AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
-    execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
 };
@@ -26,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
 #[cfg(test)]
 use sp1_core_executor::ApcRange;
-use sp1_core_executor::{Executor, Program, SP1CoreOpts};
+use sp1_core_executor::{Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},

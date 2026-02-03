@@ -87,7 +87,7 @@ eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 derive-where.workspace = true
 
 [dev-dependencies]
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-test = { workspace = true }
 rstest = { workspace = true }
@@ -114,7 +114,6 @@ network = [
   "dep:backoff",
   "dep:zstd",
 ]
-native-cuda = ["sp1-cuda/native"]
 tee-2fa = []
 reserved-capacity = ["network"]
 cuda = []

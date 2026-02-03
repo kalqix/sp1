@@ -1,16 +1,6 @@
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::ApcCandidates;
 
-use crate::{events::ByteLookupEvent, Apc, ExecutionReport, ExecutionState, LocalCounts};
-
-pub type Sp1ApcCandidates = ApcCandidates<ExecutionState, Apc, ExecutionSnapshot>;
-
-#[derive(Debug)]
-pub struct ExecutionSnapshot {
-    pub report: ExecutionReport,
-    pub local_counts: LocalCounts,
-    pub record_with_pc: ExecutionRecordSnapshotWithPc,
-}
+use crate::events::ByteLookupEvent;
 
 #[derive(Debug)]
 pub struct ExecutionRecordSnapshotWithPc {
