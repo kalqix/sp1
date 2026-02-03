@@ -131,11 +131,10 @@ mod tests {
     async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
         let elf: Elf = build_elf(guest).into();
 
-        // let execution_profile = execution_profile_from_guest(guest, SP1CoreOpts::default(), Some(stdin.clone()));
+        let execution_profile = execution_profile_from_guest(guest, Some(stdin.clone()));
 
         let config = sp1_powdr_config(apc_count, apc_skip);
-        // let pgo_config = PgoConfig::Instruction(execution_profile);
-        let pgo_config = PgoConfig::None;
+        let pgo_config = PgoConfig::Instruction(execution_profile);
         let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
 
         let apcs = compiled_program

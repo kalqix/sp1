@@ -2,7 +2,6 @@ use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use metrics_tracing_context::MetricsLayer;
 use powdr_autoprecompiles::{pgo::pgo_config, PgoType};
-use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::{
     autoprecompiles::{
         compile_guest, execution_profile_from_guest, sp1_powdr_config, CompiledProgram,
@@ -64,8 +63,7 @@ fn run_command(command: Commands) {
             if let Some(apc_candidates_dir) = apc_candidates_dir {
                 config = config.with_apc_candidates_dir(apc_candidates_dir);
             }
-            let execution_profile =
-                execution_profile_from_guest(&guest, SP1CoreOpts::default(), stdin_from(input));
+            let execution_profile = execution_profile_from_guest(&guest, stdin_from(input));
             let pgo_config = pgo_config(pgo, None, execution_profile);
             let program = compile_guest(&guest, config, pgo_config);
             // `cbor` file written to the guest folder

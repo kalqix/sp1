@@ -32,6 +32,8 @@ mod hook;
 mod instruction;
 mod tracing;
 pub use tracing::TracingVM;
+mod frequency_map;
+pub use frequency_map::execute_for_frequency_map;
 mod vm;
 pub use vm::{
     gas::get_complexity_mapping,

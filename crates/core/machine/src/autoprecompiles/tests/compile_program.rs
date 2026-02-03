@@ -30,12 +30,11 @@ fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
     setup_logger();
 
     let elf = build_elf(guest_path);
-    let sp1_opts = SP1CoreOpts::default();
 
     let program = Arc::new(Program::from(&elf).unwrap());
     let sp1_program = Sp1Program::from(program.clone());
 
-    let execution_profile = execution_profile_from_program(program, sp1_opts, stdin);
+    let execution_profile = execution_profile_from_program(program, stdin);
 
     // Check that all executed pc are within the program's range
     let pc_min = execution_profile.keys().min().unwrap();
@@ -96,11 +95,8 @@ fn test_compile_program_keccak256_software() {
 fn test_compile_program_keccak256_software_cell_pgo() {
     setup_logger();
 
-    let execution_profile = execution_profile_from_guest(
-        GUEST_KECCAK256_SOFTWARE,
-        SP1CoreOpts::default(),
-        Some(keccak256_software_stdin()),
-    );
+    let execution_profile =
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, Some(keccak256_software_stdin()));
 
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);

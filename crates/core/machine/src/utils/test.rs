@@ -34,7 +34,7 @@ pub async fn run_test_with_machine_opts(
     while executor.execute_chunk().is_some() {}
     let public_values = SP1PublicValues::from(executor.public_values_stream());
 
-    let _ = run_test_core(program, inputs, 21, 22).await?;
+    let _ = run_test_core_with_machine(program, inputs, 21, 22, machine, opts).await?;
     Ok(public_values)
 }
 
@@ -120,6 +120,7 @@ pub async fn run_test_core(
         log_stacking_height,
         max_log_row_count,
         RiscvAirWithApcs::machine(),
+        SP1CoreOpts::default(),
     )
     .await
 }
@@ -131,6 +132,7 @@ pub async fn run_test_core_with_machine(
     log_stacking_height: u32,
     max_log_row_count: usize,
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    opts: SP1CoreOpts,
 ) -> Result<
     MachineProof<SP1GlobalContext, SP1PcsProofInner>,
     MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
@@ -150,18 +152,10 @@ pub async fn run_test_core_with_machine(
         prover.setup(program.clone()).instrument(tracing::debug_span!("setup").or_current()).await;
     let pk = unsafe { pk.into_inner() };
 
-    let (proof, _) = prove_core(
-        &prover,
-        pk,
-        program,
-        inputs,
-        SP1CoreOpts::default(),
-        SP1Context::default(),
-        machine,
-    )
-    .instrument(tracing::debug_span!("prove core"))
-    .await
-    .unwrap();
+    let (proof, _) = prove_core(&prover, pk, program, inputs, opts, SP1Context::default(), machine)
+        .instrument(tracing::debug_span!("prove core"))
+        .await
+        .unwrap();
 
     prover.verify(&vk, &proof)?;
     Ok(proof)

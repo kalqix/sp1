@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
 #[cfg(test)]
 use sp1_core_executor::ApcRange;
-use sp1_core_executor::{Program, SP1CoreOpts};
+use sp1_core_executor::{execute_for_frequency_map, Program, SP1CoreOpts};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -97,29 +97,23 @@ pub fn compile_guest(
 
 pub fn execution_profile_from_guest(
     guest_path: &str,
-    sp1_opts: SP1CoreOpts,
     stdin: Option<SP1Stdin>,
 ) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
     let program = Arc::new(Program::from(&elf).unwrap());
 
-    execution_profile_from_program(program, sp1_opts, stdin)
+    execution_profile_from_program(program, stdin)
 }
 
 pub fn execution_profile_from_program(
     program: Arc<Program>,
-    sp1_opts: SP1CoreOpts,
     stdin: Option<SP1Stdin>,
 ) -> HashMap<u64, u32> {
-    let mut executor = Executor::new(program.clone(), sp1_opts);
-    if let Some(input) = stdin {
-        executor.write_vecs(&input.buffer)
-    }
-
-    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program), || {
-        executor.run_fast().unwrap();
-    })
+    execute_for_frequency_map(&program, stdin.unwrap().buffer.iter().map(|v| v.as_slice()))
+        .unwrap()
+        .into_iter()
+        .collect()
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
