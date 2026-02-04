@@ -126,6 +126,7 @@ pub struct EventCosts {
     pub apc: BTreeMap<usize, u64>,
 }
 
+#[derive(Debug)]
 pub struct ShapeCheckerSnapshot {
     /// The heights (number) of each core air id seen.
     core_heights: EnumMap<RiscvAirId, u64>,

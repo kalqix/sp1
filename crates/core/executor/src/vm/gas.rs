@@ -26,6 +26,7 @@ pub struct ReportGenerator {
     exit_code: u64,
 }
 
+#[derive(Debug)]
 pub struct ReportGeneratorSnapshot {
     pub opcode_counts: EnumMap<Opcode, u64>,
 }

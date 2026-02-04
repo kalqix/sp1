@@ -77,10 +77,8 @@ impl TracingVM<'_> {
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
-
-        self.record.apply_calls(&calls);
 
         match instruction.opcode {
             Opcode::ADD
@@ -139,7 +137,14 @@ impl TracingVM<'_> {
             }
         }
 
-        Ok(self.core.advance())
+        let next_pc = self.core.next_pc();
+        let (res, calls) = self.core.advance(&|| ExecutionRecordSnapshotWithPc {
+            record: self.record.snapshot(),
+            pc: next_pc,
+        });
+        self.record.apply_calls(&calls);
+
+        Ok(res)
     }
 
     fn postprocess(&mut self) {

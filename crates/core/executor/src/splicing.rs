@@ -68,10 +68,8 @@ impl SplicingVM<'_> {
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
-
-        self.shape_checker.apply_apc_calls(&calls);
 
         match instruction.opcode {
             Opcode::ADD
@@ -137,7 +135,10 @@ impl SplicingVM<'_> {
             self.core.needs_state_bump(&instruction),
         );
 
-        Ok(self.core.advance())
+        let (res, calls) = self.core.advance(&|| self.shape_checker.snapshot());
+        self.shape_checker.apply_apc_calls(&calls);
+
+        Ok(res)
     }
 
     /// Splice a minimal trace, outputting a minimal trace for the NEXT shard.

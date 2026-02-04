@@ -157,18 +157,7 @@ impl<'a, S> CoreVM<'a, S> {
     pub fn fetch<'b>(
         &'b mut self,
         snapshot_callback: &impl Fn() -> S, // TODO: restrict to some trait, maybe Snapshot
-    ) -> Option<(&'b Instruction, Vec<ApcCall<S>>)> {
-        self.apc_candidates.check_conditions(
-            &CoreExecutionState {
-                pc: self.pc,
-                registers: self.registers,
-                global_clk: self.global_clk,
-            },
-            snapshot_callback,
-        );
-
-        let outputs = self.apc_candidates.extract_calls();
-
+    ) -> Option<&'b Instruction> {
         // todo: mprotect / kernel mode logic.
         self.program.fetch(self.pc).map(|(i, apc_indices)| {
             if let Some(apc_indices) = apc_indices {
@@ -185,14 +174,17 @@ impl<'a, S> CoreVM<'a, S> {
                     );
                 }
             }
-            (i, outputs)
+            i
         })
     }
 
     #[inline]
     /// Increment the state of the VM by one cycle.
     /// Calling this method will update the pc and the clk to the next cycle.
-    pub fn advance(&mut self) -> CycleResult {
+    pub fn advance(
+        &mut self,
+        snapshot_callback: &impl Fn() -> S,
+    ) -> (CycleResult, Vec<ApcCall<S>>) {
         self.clk = self.next_clk;
         self.pc = self.next_pc;
 
@@ -201,18 +193,29 @@ impl<'a, S> CoreVM<'a, S> {
         self.next_pc = self.pc.wrapping_add(PC_INC);
         self.global_clk = self.global_clk.wrapping_add(1);
 
+        self.apc_candidates.check_conditions(
+            &CoreExecutionState {
+                pc: self.pc,
+                registers: self.registers,
+                global_clk: self.global_clk,
+            },
+            snapshot_callback,
+        );
+
+        let outputs = self.apc_candidates.extract_calls();
+
         // Check if the program has halted.
         if self.pc == HALT_PC {
-            return CycleResult::Done(true);
+            return (CycleResult::Done(true), outputs);
         }
 
         // Check if the shard limit has been reached.
         if self.is_trace_end() {
-            return CycleResult::TraceEnd;
+            return (CycleResult::TraceEnd, outputs);
         }
 
         // Return that the program is still running.
-        CycleResult::Done(false)
+        (CycleResult::Done(false), outputs)
     }
 
     /// Execute a load instruction.

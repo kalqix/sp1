@@ -52,10 +52,8 @@ impl GasEstimatingVM<'_> {
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let (instruction, calls) = unsafe { instruction.unwrap_unchecked() };
+        let instruction = unsafe { instruction.unwrap_unchecked() };
         let instruction = *instruction;
-
-        assert!(calls.is_empty(), "unimplemented");
 
         match instruction.opcode {
             Opcode::ADD
@@ -114,7 +112,11 @@ impl GasEstimatingVM<'_> {
             }
         }
 
-        Ok(self.core.advance())
+        let (res, calls) = self.core.advance(&|| self.gas_calculator.snapshot());
+
+        assert!(calls.is_empty(), "unimplemented");
+
+        Ok(res)
     }
 }
 
