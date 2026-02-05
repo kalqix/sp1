@@ -578,6 +578,15 @@ impl ExecutionRecord {
     #[must_use]
     /// Create a snapshot of this record
     pub fn snapshot(&self) -> ExecutionRecordSnapshot {
+        // Only clone byte_lookups if non-empty to avoid copying huge preallocated capacity.
+        // In practice, byte_lookups is always empty here: it's only populated during trace
+        // generation, not during TracingVM execution when snapshot() is called.
+        let byte_lookups = if self.byte_lookups.is_empty() {
+            HashMap::new()
+        } else {
+            self.byte_lookups.clone()
+        };
+
         ExecutionRecordSnapshot {
             cpu_event_count: self.cpu_event_count,
             add_events_len: self.add_events.len(),
@@ -604,7 +613,7 @@ impl ExecutionRecord {
             branch_events_len: self.branch_events.len(),
             jal_events_len: self.jal_events.len(),
             jalr_events_len: self.jalr_events.len(),
-            byte_lookups: self.byte_lookups.clone(),
+            byte_lookups,
             precompile_events_len: self.precompile_events.len(),
             global_memory_initialize_events_len: self.global_memory_initialize_events.len(),
             global_memory_finalize_events_len: self.global_memory_finalize_events.len(),
