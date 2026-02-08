@@ -114,7 +114,10 @@ impl GasEstimatingVM<'_> {
 
         let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
 
-        assert!(calls.is_empty(), "unimplemented");
+        assert!(
+            calls.is_empty(),
+            "Apc call application is not implemented for the `GasEstimatingVM`"
+        );
 
         Ok(res)
     }
