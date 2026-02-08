@@ -16,7 +16,7 @@ use powdr_autoprecompiles::{
     InstructionHandler, PgoConfig,
 };
 use rand::{distributions::Distribution, rngs::StdRng, Rng, SeedableRng};
-use sp1_core_executor::{Program, SP1CoreOpts};
+use sp1_core_executor::Program;
 
 const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";

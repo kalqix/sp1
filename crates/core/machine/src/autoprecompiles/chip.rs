@@ -60,7 +60,7 @@ impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
 #[derive(Debug)]
 pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
-    id: u64,
+    id: usize,
     /// The name of this APC
     name: String,
     /// The cached APC.
@@ -72,7 +72,7 @@ pub struct ApcChip<F: PrimeField32> {
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<Sp1Apc<F>>, id: usize) -> Self {
         Self {
-            id: id as u64,
+            id,
             name: format!("APC_{id}"),
             cached_apc: apc.into(),
             machine: RiscvAirWithApcs::machine(),
@@ -83,7 +83,7 @@ impl<F: PrimeField32> ApcChip<F> {
         &self.cached_apc.apc
     }
 
-    pub fn id(&self) -> u64 {
+    pub fn id(&self) -> usize {
         self.id
     }
 }

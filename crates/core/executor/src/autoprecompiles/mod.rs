@@ -1,7 +1,3 @@
-use hashbrown::HashMap;
-
-use crate::events::ByteLookupEvent;
-
 #[derive(Debug)]
 pub struct ExecutionRecordSnapshotWithPc {
     pub record: ExecutionRecordSnapshot,
@@ -40,7 +36,6 @@ pub struct ExecutionRecordSnapshot {
     pub global_page_prot_initialize_events_len: usize,
     pub global_page_prot_finalize_events_len: usize,
     pub cpu_local_page_prot_access_len: usize,
-    pub byte_lookups: HashMap<ByteLookupEvent, isize>,
     pub precompile_events_len: usize,
     pub global_memory_initialize_events_len: usize,
     pub global_memory_finalize_events_len: usize,

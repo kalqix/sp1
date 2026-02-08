@@ -496,7 +496,7 @@ impl ExecutionRecord {
     /// Get all the apc events for an apc id.
     #[inline]
     #[must_use]
-    pub fn get_apc_events(&self, apc_id: u64) -> Option<&ApcEventsForId> {
+    pub fn get_apc_events(&self, apc_id: usize) -> Option<&ApcEventsForId> {
         self.apc_events.get_events(apc_id)
     }
 
@@ -578,14 +578,11 @@ impl ExecutionRecord {
     #[must_use]
     /// Create a snapshot of this record
     pub fn snapshot(&self) -> ExecutionRecordSnapshot {
-        // Only clone byte_lookups if non-empty to avoid copying huge preallocated capacity.
-        // In practice, byte_lookups is always empty here: it's only populated during trace
-        // generation, not during TracingVM execution when snapshot() is called.
-        let byte_lookups = if self.byte_lookups.is_empty() {
-            HashMap::new()
-        } else {
-            self.byte_lookups.clone()
-        };
+        assert!(
+            self.byte_lookups.is_empty(),
+            "byte_lookups should always be empty here: it's only populated during trace
+        // generation, not during TracingVM execution when snapshot() is called."
+        );
 
         ExecutionRecordSnapshot {
             cpu_event_count: self.cpu_event_count,
@@ -613,7 +610,6 @@ impl ExecutionRecord {
             branch_events_len: self.branch_events.len(),
             jal_events_len: self.jal_events.len(),
             jalr_events_len: self.jalr_events.len(),
-            byte_lookups,
             precompile_events_len: self.precompile_events.len(),
             global_memory_initialize_events_len: self.global_memory_initialize_events.len(),
             global_memory_finalize_events_len: self.global_memory_finalize_events.len(),
@@ -657,7 +653,7 @@ impl ExecutionRecord {
     fn extract_records(
         &mut self,
         calls: &[ApcCall<ExecutionRecordSnapshotWithPc>],
-    ) -> Vec<(u64, ExecutionRecord)> {
+    ) -> Vec<(usize, ExecutionRecord)> {
         // Go through the candidates in reverse order and split them off from the end of the record
 
         // Extracts events from vector `v` at the given (from, to) index ranges.
@@ -686,7 +682,6 @@ impl ExecutionRecord {
             apc_records
         }
 
-        // TODO: check off by one error
         fn extract_diff(v: &mut u32, outputs: impl Iterator<Item = (u32, u32)>) -> Vec<u32> {
             let (apc_records, total_removed) =
                 outputs.fold((Vec::new(), 0), |(mut records, removed), (from, to)| {
@@ -706,42 +701,6 @@ impl ExecutionRecord {
                 assert_eq!(from, to);
                 T::default()
             })
-        }
-
-        fn extract_byte_lookups<'a>(
-            v: &mut HashMap<ByteLookupEvent, isize>,
-            outputs: impl Iterator<Item = (&'a ExecutionRecordSnapshot, &'a ExecutionRecordSnapshot)>,
-        ) -> Vec<HashMap<ByteLookupEvent, isize>> {
-            let mut extracted = vec![];
-            for (from, to) in outputs {
-                let mut diff = HashMap::new();
-                for (event, to_count) in &to.byte_lookups {
-                    let from_count = from.byte_lookups.get(event).copied().unwrap_or_default();
-                    let delta = *to_count - from_count;
-                    if delta != 0 {
-                        diff.insert(*event, delta);
-                    }
-                }
-                for (event, from_count) in &from.byte_lookups {
-                    if !to.byte_lookups.contains_key(event) {
-                        let delta = -*from_count;
-                        if delta != 0 {
-                            diff.insert(*event, delta);
-                        }
-                    }
-                }
-                extracted.push(diff);
-            }
-
-            for diff in &extracted {
-                for (event, delta) in diff {
-                    let entry = v.entry(*event).or_insert(0);
-                    *entry -= *delta;
-                }
-            }
-            v.retain(|_, count| *count != 0);
-
-            extracted
         }
 
         macro_rules! extract_vec {
@@ -826,12 +785,8 @@ impl ExecutionRecord {
                 (output.from.record.cpu_event_count, output.to.record.cpu_event_count)
             }),
         );
-        let byte_lookups = extract_byte_lookups(
-            &mut self.byte_lookups,
-            calls.iter().map(|output| (&output.from.record, &output.to.record)),
-        );
         let next_pc = calls.iter().map(|output| output.to.pc);
-        let apc_ids = calls.iter().map(|output| output.apc_id as u64);
+        let apc_ids = calls.iter().map(|output| output.apc_id);
         izip!(
             apc_ids,
             add,
@@ -873,7 +828,6 @@ impl ExecutionRecord {
             precompile_events,
             apc_events,
             cpu_event_count,
-            byte_lookups,
             next_pc,
         )
         .map(
@@ -918,7 +872,6 @@ impl ExecutionRecord {
                 precompile_events,
                 apc_events,
                 cpu_event_count,
-                byte_lookups,
                 next_pc,
             )| {
                 (
@@ -961,11 +914,11 @@ impl ExecutionRecord {
                         bump_state_events,
                         program: self.program.clone(),
                         cpu_event_count,
-                        byte_lookups,
+                        byte_lookups: Default::default(),
                         precompile_events,
                         apc_events,
-                        global_interaction_events: Vec::default(), // Same as before
-                        global_cumulative_sum: self.global_cumulative_sum.clone(), // Same as before,
+                        global_interaction_events: Vec::default(),
+                        global_cumulative_sum: self.global_cumulative_sum.clone(),
                         global_interaction_event_count,
                         public_values: self.public_values,
                         next_nonce: self.next_nonce,

@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
 #[cfg(test)]
 use sp1_core_executor::ApcRange;
-use sp1_core_executor::{execute_for_frequency_map, Program, SP1CoreOpts};
+use sp1_core_executor::{execute_for_frequency_map, Program};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},
