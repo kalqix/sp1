@@ -650,6 +650,9 @@ impl ExecutionRecord {
     }
 
     /// Extract the records related to each call so they are ready to be added as apc events
+    /// TODO: Maybe this is not required and instead we can keep the record append-only and store the snapshots in the apc events
+    /// During tracegen, all events are currently accessible to all chips, so in software tracegen, we could ignore the software events that are in the range of any apc call
+    #[allow(clippy::too_many_lines)]
     fn extract_records(
         &mut self,
         calls: &[ApcCall<ExecutionRecordSnapshotWithPc>],
@@ -914,7 +917,7 @@ impl ExecutionRecord {
                         bump_state_events,
                         program: self.program.clone(),
                         cpu_event_count,
-                        byte_lookups: Default::default(),
+                        byte_lookups: HashMap::default(),
                         precompile_events,
                         apc_events,
                         global_interaction_events: Vec::default(),

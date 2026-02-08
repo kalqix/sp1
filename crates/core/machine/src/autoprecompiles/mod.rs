@@ -95,10 +95,7 @@ pub fn compile_guest(
     CompiledProgram::new(&elf, config, pgo_config)
 }
 
-pub fn execution_profile_from_guest(
-    guest_path: &str,
-    stdin: Option<SP1Stdin>,
-) -> HashMap<u64, u32> {
+pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
     let program = Arc::new(Program::from(&elf).unwrap());
@@ -106,11 +103,8 @@ pub fn execution_profile_from_guest(
     execution_profile_from_program(program, stdin)
 }
 
-pub fn execution_profile_from_program(
-    program: Arc<Program>,
-    stdin: Option<SP1Stdin>,
-) -> HashMap<u64, u32> {
-    execute_for_frequency_map(&program, stdin.unwrap().buffer.iter().map(|v| v.as_slice()))
+pub fn execution_profile_from_program(program: Arc<Program>, stdin: SP1Stdin) -> HashMap<u64, u32> {
+    execute_for_frequency_map(&program, stdin.buffer.iter().map(|v| v.as_slice()))
         .unwrap()
         .into_iter()
         .collect()

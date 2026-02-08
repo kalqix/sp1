@@ -520,13 +520,15 @@ mod tests {
     use sp1_gpu_utils::{Ext, Felt, TestGC};
     use sp1_primitives::fri_params::core_fri_config;
     use sp1_primitives::SP1GlobalContext;
+    use sp1_sdk::RiscvAirWithApcs;
 
     use super::*;
 
     #[test]
     fn test_basefold() {
+        let machine = RiscvAirWithApcs::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (machine, record, program) = rt.block_on(tracegen_setup::setup());
+        let (record, program) = rt.block_on(tracegen_setup::setup(machine.clone()));
 
         run_sync_in_place(|scope| {
             let verifier = BasefoldVerifier::<SP1GlobalContext>::new(core_fri_config(), 2);

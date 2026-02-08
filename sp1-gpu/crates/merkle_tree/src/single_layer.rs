@@ -386,12 +386,15 @@ mod tests {
     use sp1_gpu_jagged_tracegen::{full_tracegen, CORE_MAX_TRACE_SIZE};
     use sp1_gpu_utils::Felt;
 
+    use sp1_core_machine::riscv::RiscvAirWithApcs;
+
     use super::*;
     use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 
     #[tokio::test]
     async fn test_poseidon2_koala_bear_16() {
-        let (machine, record, program) = tracegen_setup::setup().await;
+        let machine = RiscvAirWithApcs::machine();
+        let (record, program) = tracegen_setup::setup(machine.clone()).await;
 
         run_in_place(|scope| async move {
             let old_prover = slop_merkle_tree::Poseidon2KoalaBear16Prover::default();

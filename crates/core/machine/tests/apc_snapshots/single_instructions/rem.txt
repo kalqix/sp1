@@ -4,7 +4,7 @@ Instructions:
 APC advantage:
   - Main columns: 246 -> 181 (1.36x reduction)
   - Bus interactions: 135 -> 124 (1.09x reduction)
-  - Constraints: 348 -> 170 (2.05x reduction)
+  - Constraints: 348 -> 165 (2.11x reduction)
 
 Symbolic machine using 181 unique main columns:
   state__clk_high_0
@@ -389,13 +389,9 @@ is_overflow_0 - is_overflow_b__is_diff_zero__result_0 * is_overflow_c__is_diff_z
 b_neg_not_overflow_0 - b_msb__msb_0 * (1 - is_overflow_0) = 0
 (b_msb__msb_0 - 1 * is_valid) * (1 - is_overflow_0) + b_not_neg_not_overflow_0 = 0
 is_overflow_0 * (quotient__0__0_0 - adapter__op_b_memory__prev_value__0__0_0) = 0
-is_overflow_0 * a__0__0_0 = 0
 is_overflow_0 * (quotient__0__1_0 - adapter__op_b_memory__prev_value__0__1_0) = 0
-is_overflow_0 * a__0__1_0 = 0
 is_overflow_0 * (quotient__0__2_0 - adapter__op_b_memory__prev_value__0__2_0) = 0
-is_overflow_0 * a__0__2_0 = 0
 is_overflow_0 * (quotient__0__3_0 - adapter__op_b_memory__prev_value__0__3_0) = 0
-is_overflow_0 * a__0__3_0 = 0
 (is_overflow_0 - 1) * (adapter__op_b_memory__prev_value__0__0_0 + 65536 * carry__0_0 - (a__0__0_0 + c_times_quotient__0_0)) = 0
 (is_overflow_0 - 1) * (adapter__op_b_memory__prev_value__0__1_0 + 65536 * carry__1_0 - (a__0__1_0 + c_times_quotient__1_0 + carry__0_0)) = 0
 (is_overflow_0 - 1) * (adapter__op_b_memory__prev_value__0__2_0 + 65536 * carry__2_0 - (a__0__2_0 + c_times_quotient__2_0 + carry__1_0)) = 0
@@ -404,8 +400,6 @@ is_overflow_0 * a__0__3_0 = 0
 (is_overflow_0 - 1) * (65536 * carry__5_0 + 65535 * b_msb__msb_0 - (c_times_quotient__5_0 + carry__4_0 + 65535 * rem_msb__msb_0)) = 0
 (is_overflow_0 - 1) * (65536 * carry__6_0 + 65535 * b_msb__msb_0 - (c_times_quotient__6_0 + carry__5_0 + 65535 * rem_msb__msb_0)) = 0
 (is_overflow_0 - 1) * (65536 * carry__7_0 + 65535 * b_msb__msb_0 - (c_times_quotient__7_0 + carry__6_0 + 65535 * rem_msb__msb_0)) = 0
-rem_msb__msb_0 * (b_msb__msb_0 - 1) = 0
-(a__0__0_0 + a__0__1_0 + a__0__2_0 + a__0__3_0) * ((1 - rem_msb__msb_0) * b_msb__msb_0) = 0
 1 * is_valid - (is_c_0__is_zero_limb__0__inverse_0 * adapter__op_c_memory__prev_value__0__0_0 + is_c_0__is_zero_limb__0__result_0) = 0
 is_c_0__is_zero_limb__0__result_0 * (is_c_0__is_zero_limb__0__result_0 - 1) = 0
 is_c_0__is_zero_limb__0__result_0 * adapter__op_c_memory__prev_value__0__0_0 = 0
@@ -469,7 +463,6 @@ abs_remainder__0__3_0 * remainder_lt_operation__u16_flags__3_0 + abs_remainder__
 (remainder_lt_operation__u16_flags__0_0 + remainder_lt_operation__u16_flags__1_0 + remainder_lt_operation__u16_flags__2_0 + remainder_lt_operation__u16_flags__3_0) * (remainder_lt_operation__not_eq_inv_0 * (remainder_lt_operation__comparison_limbs__0_0 - remainder_lt_operation__comparison_limbs__1_0) + is_c_0__result_0 - 1) = 0
 remainder_lt_operation__u16_compare_operation__bit_0 * (remainder_lt_operation__u16_compare_operation__bit_0 - 1) = 0
 (1 * is_valid - is_c_0__result_0) * (1 - remainder_lt_operation__u16_compare_operation__bit_0) = 0
-b_msb__msb_0 * (b_msb__msb_0 - 1) = 0
 carry__0_0 * (carry__0_0 - 1) = 0
 carry__1_0 * (carry__1_0 - 1) = 0
 carry__2_0 * (carry__2_0 - 1) = 0
@@ -481,6 +474,8 @@ carry__7_0 * (carry__7_0 - 1) = 0
 is_overflow_0 * (is_overflow_0 - 1) = 0
 b_neg_not_overflow_0 * (b_neg_not_overflow_0 - 1) = 0
 b_not_neg_not_overflow_0 * (b_not_neg_not_overflow_0 - 1) = 0
+(b_msb__msb_0 - 1) * (b_msb__msb_0 + rem_msb__msb_0) = 0
+(a__0__0_0 + a__0__1_0 + a__0__2_0 + a__0__3_0) * ((1 - rem_msb__msb_0) * b_msb__msb_0 + is_overflow_0) = 0
 (1 - is_valid) * c_msb__msb_0 = 0
 (1 - is_valid) * c_msb__msb_0 = 0
 (1 - is_valid) * c_msb__msb_0 = 0

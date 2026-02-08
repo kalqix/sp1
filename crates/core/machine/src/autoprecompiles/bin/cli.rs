@@ -80,12 +80,12 @@ fn write_program_to_file(program: CompiledProgram, filename: &str) -> Result<(),
     Ok(())
 }
 
-fn stdin_from(input: Option<usize>) -> Option<SP1Stdin> {
-    input.map(|i| {
-        let mut s = SP1Stdin::default();
+fn stdin_from(input: Option<usize>) -> SP1Stdin {
+    let mut s = SP1Stdin::default();
+    if let Some(i) = input {
         s.write(&i);
-        s
-    })
+    }
+    s
 }
 
 fn setup_tracing_with_log_level(level: Level) {

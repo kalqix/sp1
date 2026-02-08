@@ -26,7 +26,7 @@ const GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN: usize = 10; // Max number of bytes 
 const APC: u64 = 10;
 const APC_SKIP: u64 = 0;
 
-fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
+fn test_execution_profile(guest_path: &str, stdin: SP1Stdin) {
     setup_logger();
 
     let elf = build_elf(guest_path);
@@ -75,12 +75,12 @@ fn keccak256_software_stdin() -> SP1Stdin {
 
 #[test]
 fn test_execution_profile_keccak256_software() {
-    test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(keccak256_software_stdin()));
+    test_execution_profile(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin());
 }
 
 #[test]
 fn test_execution_profile_fibonacci() {
-    test_execution_profile(GUEST_FIBONACCI, None);
+    test_execution_profile(GUEST_FIBONACCI, SP1Stdin::default());
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn test_compile_program_keccak256_software_cell_pgo() {
     setup_logger();
 
     let execution_profile =
-        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, Some(keccak256_software_stdin()));
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin());
 
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
@@ -117,18 +117,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 15265,
-            constraints: 9603,
-            bus_interactions: 7327,
+            main_columns: 15075,
+            constraints: 9489,
+            bus_interactions: 7235,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 3182,
-            constraints: 568,
-            bus_interactions: 2020,
+            main_columns: 3098,
+            constraints: 491,
+            bus_interactions: 1996,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
@@ -150,7 +150,7 @@ fn test_collect_basic_blocks_keccak256_software() {
     test_collect_basic_blocks(
         GUEST_KECCAK256_SOFTWARE,
         expect![[r#"
-            1887
+            2037
         "#]],
     );
 }
@@ -162,7 +162,7 @@ fn test_collect_basic_blocks_fibonacci() {
     test_collect_basic_blocks(
         GUEST_FIBONACCI,
         expect![[r#"
-            1724
+            1858
         "#]],
     );
 }

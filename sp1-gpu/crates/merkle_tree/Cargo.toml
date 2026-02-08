@@ -30,6 +30,7 @@ sp1-primitives = { workspace = true }
 
 # sp1
 sp1-hypercube = { workspace = true }
+sp1-core-machine = { workspace = true }
 tokio = { workspace = true }
 thiserror = "1.0"
 

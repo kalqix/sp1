@@ -296,6 +296,7 @@ mod tests {
     use sp1_hypercube::MachineRecord;
     use sp1_hypercube::{prover::ProverSemaphore, ShardVerifier};
     use sp1_primitives::fri_params::core_fri_config;
+    use sp1_sdk::RiscvAirWithApcs;
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -536,8 +537,9 @@ mod tests {
     #[test]
     #[serial]
     fn test_logup_gkr_e2e() {
+        let machine = RiscvAirWithApcs::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (machine, record, program) = rt.block_on(tracegen_setup::setup());
+        let (record, program) = rt.block_on(tracegen_setup::setup(machine.clone()));
 
         run_sync_in_place(|scope| {
             // *********** Generate traces using the host tracegen. ***********
