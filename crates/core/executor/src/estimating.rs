@@ -46,7 +46,7 @@ impl GasEstimatingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&|| self.gas_calculator.snapshot());
+        let instruction = self.core.fetch(|| self.gas_calculator.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -112,7 +112,7 @@ impl GasEstimatingVM<'_> {
             }
         }
 
-        let (res, calls) = self.core.advance(&|| self.gas_calculator.snapshot());
+        let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
 
         assert!(calls.is_empty(), "unimplemented");
 

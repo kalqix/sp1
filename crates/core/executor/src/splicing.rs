@@ -62,7 +62,7 @@ impl SplicingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch(&|| self.shape_checker.snapshot());
+        let instruction = self.core.fetch(|| self.shape_checker.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -135,7 +135,7 @@ impl SplicingVM<'_> {
             self.core.needs_state_bump(&instruction),
         );
 
-        let (res, calls) = self.core.advance(&|| self.shape_checker.snapshot());
+        let (res, calls) = self.core.advance(|| self.shape_checker.snapshot());
         self.shape_checker.apply_apc_calls(&calls);
 
         Ok(res)

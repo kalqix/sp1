@@ -156,9 +156,10 @@ impl<'a, S> CoreVM<'a, S> {
     #[inline]
     pub fn fetch<'b>(
         &'b mut self,
-        snapshot_callback: &impl Fn() -> S, // TODO: restrict to some trait, maybe Snapshot
+        snapshot_callback: impl Fn() -> S, // TODO: restrict to some trait, maybe Snapshot
     ) -> Option<&'b Instruction> {
         // todo: mprotect / kernel mode logic.
+        let snapshot_callback = &snapshot_callback;
         self.program.fetch(self.pc).map(|(i, apc_indices)| {
             if let Some(apc_indices) = apc_indices {
                 // We are at the start of an APC range, so we add it as a candidate
@@ -183,7 +184,7 @@ impl<'a, S> CoreVM<'a, S> {
     /// Calling this method will update the pc and the clk to the next cycle.
     pub fn advance(
         &mut self,
-        snapshot_callback: &impl Fn() -> S,
+        snapshot_callback: impl Fn() -> S,
     ) -> (CycleResult, Vec<ApcCall<S>>) {
         self.clk = self.next_clk;
         self.pc = self.next_pc;
@@ -199,7 +200,7 @@ impl<'a, S> CoreVM<'a, S> {
                 registers: self.registers,
                 global_clk: self.global_clk,
             },
-            snapshot_callback,
+            &snapshot_callback,
         );
 
         let outputs = self.apc_candidates.extract_calls();

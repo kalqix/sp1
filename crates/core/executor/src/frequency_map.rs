@@ -63,7 +63,7 @@ impl<'a> FrequencyMapVM<'a> {
         let pc = self.core.pc();
         *pc_counts.entry(pc).or_insert(0) += 1;
 
-        let instruction = self.core.fetch(&|| ());
+        let instruction = self.core.fetch(|| ());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -134,7 +134,7 @@ impl<'a> FrequencyMapVM<'a> {
             }
         }
 
-        let (res, calls) = self.core.advance(&|| ());
+        let (res, calls) = self.core.advance(|| ());
         assert!(
             calls.is_empty(),
             "Frequency map collection should happen on the program with no apcs, but we found apc calls"

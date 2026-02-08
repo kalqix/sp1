@@ -71,7 +71,7 @@ impl TracingVM<'_> {
         let pc = self.core.pc();
         let instruction = self
             .core
-            .fetch(&|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
+            .fetch(|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -138,7 +138,7 @@ impl TracingVM<'_> {
         }
 
         let next_pc = self.core.next_pc();
-        let (res, calls) = self.core.advance(&|| ExecutionRecordSnapshotWithPc {
+        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
             record: self.record.snapshot(),
             pc: next_pc,
         });
