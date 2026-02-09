@@ -16,6 +16,8 @@ use crate::{
     ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, SyscallCode,
 };
 
+use super::program::Apc;
+
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
 ///
 /// These new [`SplicedMinimalTrace`]s correspond to exactly 1 execuction shard to be proved.
@@ -181,7 +183,7 @@ impl<'a> SplicingVM<'a> {
         opts: SP1CoreOpts,
     ) -> Self {
         let program_len = program.instructions.len() as u64;
-        let apc_costs = program.apcs.apc_by_index.iter().map(|apc| apc.cost()).collect();
+        let apc_costs = program.apcs.apc_by_index.iter().map(Apc::cost).collect();
         let sharding_threshold = opts.sharding_threshold;
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),

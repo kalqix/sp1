@@ -5,14 +5,13 @@ use itertools::Itertools;
 use powdr_autoprecompiles::execution::ApcCall;
 
 use crate::{
-    vm::memory::CompressedMemory, Apc, ApcCost, Instruction, Opcode, Program, RiscvAirId,
+    vm::memory::CompressedMemory, ApcCost, Instruction, Opcode, RiscvAirId,
     ShardingThreshold, SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
 use std::{
     collections::BTreeMap,
     ops::{Index, IndexMut},
     str::FromStr,
-    sync::Arc,
 };
 
 /// The maximum trace area from padding with next multiple of 32.
