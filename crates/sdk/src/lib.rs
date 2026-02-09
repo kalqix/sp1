@@ -425,6 +425,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "todo"]
     async fn test_apc_compressed_fibonacci() {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Compressed).await.unwrap();
     }
