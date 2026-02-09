@@ -387,8 +387,6 @@ impl SP1ProofWithPublicValues {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::print_stdout)]
-
-    use sp1_core_machine::riscv::RiscvAirWithApcs;
     use sp1_prover::{Groth16Bn254Proof, PlonkBn254Proof};
 
     use super::*;
@@ -524,7 +522,8 @@ mod tests {
     async fn test_round_trip_proof_save_load() {
         use crate::{ProveRequest, Prover};
 
-        let prover = crate::CpuProver::new(RiscvAirWithApcs::machine()).await;
+        let prover =
+            crate::CpuProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine()).await;
         let pk = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF).await.unwrap();
         let proof = prover.prove(&pk, crate::SP1Stdin::new()).compressed().await.unwrap();
 
