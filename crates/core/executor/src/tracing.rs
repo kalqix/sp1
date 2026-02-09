@@ -77,10 +77,9 @@ impl TracingVM<'_> {
         }
 
         // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let instruction = unsafe { instruction.unwrap_unchecked() };
-        let instruction = *instruction;
+        let instruction = unsafe { *instruction.unwrap_unchecked() };
 
-        match instruction.opcode {
+        match &instruction.opcode {
             Opcode::ADD
             | Opcode::ADDI
             | Opcode::SUB

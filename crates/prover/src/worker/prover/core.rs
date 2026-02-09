@@ -651,8 +651,8 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
     }
 }
 
-pub type SetupEngine<A, C> = Arc<
-    AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A, C>>,
+pub type SetupEngine<A, P> = Arc<
+    AsyncEngine<SetupTask, Result<(TaskId, TaskMetadata), TaskError>, CoreAndNormalizeWorker<A, P>>,
 >;
 
 /// Unified engine that handles both tracing and core proving in a single async task.

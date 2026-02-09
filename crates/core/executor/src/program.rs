@@ -1,6 +1,6 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::str::FromStr;
+use std::{fs::File, io::Read, str::FromStr};
 
 use crate::{
     disassembler::{transpile, Elf},
@@ -246,6 +246,7 @@ impl Program {
             eyre::bail!("elf has too many instructions");
         }
 
+        // Return the program.
         Ok(Program {
             instructions,
             instructions_encoded: Some(instructions_encoded),
@@ -258,6 +259,17 @@ impl Program {
             function_symbols: elf.function_symbols,
             apcs: Apcs::default(),
         })
+    }
+
+    /// Disassemble a RV64IM ELF to a program that be executed by the VM from a file path.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the file cannot be opened or read.
+    pub fn from_elf(path: &str) -> eyre::Result<Self> {
+        let mut elf_code = Vec::new();
+        File::open(path)?.read_to_end(&mut elf_code)?;
+        Program::from(&elf_code)
     }
 
     /// Create a program and customize it with a machine. This means that the apcs of the machine are added to the program to be available during execution.
