@@ -976,7 +976,6 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
 
     pub fn machine_with_apcs(apcs: Vec<Arc<Sp1Apc<F>>>) -> Machine<F, Self> {
         let base = RiscvAir::<F>::machine();
-        let apcs_len = apcs.len();
 
         let mut chips = RiscvAir::airs()
             .into_iter()
@@ -1017,7 +1016,15 @@ impl<F: PrimeField32> RiscvAirWithApcs<F> {
                     })
                     .collect::<Vec<_>>();
 
-                if apcs_len > 0 {
+                // A bit hacky: we detect if this cluster contains the chip for `Add`, and use that to decide whether we should add apcs
+                let has_software_chips = cluster.iter().any(|chip| {
+                    matches!(
+                        RiscvAirDiscriminants::from(chip.air.as_ref()),
+                        RiscvAirDiscriminants::Add
+                    )
+                });
+
+                if has_software_chips {
                     out.extend(apc_chips.iter().cloned());
                 }
                 out.into_iter().collect::<BTreeSet<_>>()
@@ -1041,13 +1048,12 @@ pub mod tests {
         sync::Arc,
     };
 
-    use itertools::Itertools;
     use slop_air::BaseAir;
     use sp1_core_executor::{
         cost_and_height_per_syscall, rv64im_costs, Instruction, Opcode, Program, RiscvAirId,
         SyscallCode, MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA,
     };
-    use sp1_hypercube::{air::MachineAir, InteractionBuilder, Machine, MachineRecord};
+    use sp1_hypercube::{air::MachineAir, InteractionBuilder, MachineRecord};
     use sp1_primitives::SP1Field;
 
     use crate::{
