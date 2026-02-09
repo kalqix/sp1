@@ -80,19 +80,20 @@ pub use utils::setup_logger;
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
 
+    use std::sync::Arc;
+
     use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
     use anyhow::Result;
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
-    use sp1_core_executor::{RetainedEventsPreset, SP1CoreOpts};
+    use sp1_core_executor::Program;
     use sp1_core_machine::autoprecompiles::{
-        build_elf, execution_profile_from_guest, sp1_powdr_config, CompiledProgram,
+        execution_profile_from_program, sp1_powdr_config, CompiledProgram,
     };
     use sp1_core_machine::riscv::RiscvAirWithApcs;
     use sp1_primitives::{io::SP1PublicValues, Elf};
-
-    const GUEST_FIBONACCI: &str = "../test-artifacts/programs/fibonacci";
-    const GUEST_KECCAK256_SOFTWARE: &str = "../test-artifacts/programs/keccak256-software";
+    use sp1_verifier::SP1ProofMode;
+    use test_artifacts::{FIBONACCI_ELF, KECCAK256_ELF};
 
     fn seeded_random_preimages_with_bounded_len(
         count: usize,
@@ -128,33 +129,49 @@ mod tests {
         stdin
     }
 
-    async fn test_apc(guest: &str, stdin: SP1Stdin, apc_count: u64, apc_skip: u64) -> Result<()> {
-        let elf: Elf = build_elf(guest).into();
+    fn fibonacci_stdin() -> SP1Stdin {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        stdin
+    }
 
-        let execution_profile = execution_profile_from_guest(guest, stdin.clone());
-
-        let config = sp1_powdr_config(apc_count, apc_skip);
-        let pgo_config = PgoConfig::Instruction(execution_profile);
-        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
-
-        let apcs = compiled_program
-            .apcs_and_stats
-            .into_iter()
-            .map(ApcWithStats::into_parts)
-            .map(|(apc, _, _)| apc)
-            .collect();
-
+    /// Test core proving for a given guests
+    /// The same input is used for apc training and for proving
+    async fn test_e2e(elf: Elf, stdin: SP1Stdin, apc_count: u64, mode: SP1ProofMode) -> Result<()> {
         utils::setup_logger();
 
-        let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
-        let core_opts = SP1CoreOpts {
-            retained_events_presets: [RetainedEventsPreset::Sha256].into(),
-            ..Default::default()
+        let apcs = if apc_count > 0 {
+            let program = Arc::new(Program::from(&elf).unwrap());
+
+            let execution_profile = execution_profile_from_program(program, stdin.clone());
+
+            let config = sp1_powdr_config(apc_count, 0);
+            let pgo_config = PgoConfig::Instruction(execution_profile);
+            let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+
+            compiled_program
+                .apcs_and_stats
+                .into_iter()
+                .map(ApcWithStats::into_parts)
+                .map(|(apc, _, _)| apc)
+                .collect()
+        } else {
+            vec![]
         };
-        let client = CpuProver::new_with_opts(Some(core_opts), machine).await;
+
+        let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
+        let client = ProverClient::builder(machine).cpu().build().await;
         let pk = client.setup(elf).await?;
-        let proof = client.prove(&pk, stdin).core().await?;
+        let mut proof = client.prove(&pk, stdin).mode(mode).await?;
         client.verify(&proof, &pk.vk, None)?;
+
+        // Test invalid public values.
+        let mut fake_public_values = proof.public_values.to_vec();
+        fake_public_values[0] += 1;
+        proof.public_values = SP1PublicValues::from(&fake_public_values);
+        if client.verify(&proof, &pk.vk, None).is_ok() {
+            panic!("verified proof with invalid public values")
+        }
 
         Ok(())
     }
@@ -163,7 +180,7 @@ mod tests {
     async fn test_execute() {
         utils::setup_logger();
         let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
-        let elf = test_artifacts::FIBONACCI_ELF;
+        let elf = FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let (_pv, report) = client.execute(elf, stdin).await.unwrap();
@@ -307,23 +324,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_e2e_core() {
-        utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let pk = client.setup(elf).await.unwrap();
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-
-        // Generate proof & verify.
-        let mut proof = client.prove(&pk, stdin).await.unwrap();
-        client.verify(&proof, &pk.vk, None).unwrap();
-
-        // Test invalid public values.
-        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
-        if client.verify(&proof, &pk.vk, None).is_ok() {
-            panic!("verified proof with invalid public values")
-        }
+    async fn test_e2e_core_fibonacci() {
+        test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Core).await.unwrap();
     }
 
     #[tokio::test]
@@ -367,22 +369,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_compressed() {
-        utils::setup_logger();
-        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let pk = client.setup(elf).await.unwrap();
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-
-        // Generate proof & verify.
-        let mut proof = client.prove(&pk, stdin).compressed().await.unwrap();
-        client.verify(&proof, &pk.vk, None).unwrap();
-
-        // Test invalid public values.
-        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
-        if client.verify(&proof, &pk.vk, None).is_ok() {
-            panic!("verified proof with invalid public values")
-        }
+        test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Compressed).await.unwrap();
     }
 
     #[tokio::test]
@@ -409,43 +396,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_e2e_plonk() {
-        utils::setup_logger();
-        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
-        let pk = client.setup(test_artifacts::FIBONACCI_ELF).await.unwrap();
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-
-        let proof = client.prove(&pk, stdin).plonk().await.unwrap();
-        client.verify(&proof, &pk.vk, None).unwrap();
+    async fn test_e2e_plonk_fibonacci() {
+        test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Plonk).await.unwrap();
     }
 
     #[tokio::test]
-    async fn test_e2e_groth16() {
-        utils::setup_logger();
-        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let pk = client.setup(elf).await.unwrap();
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-
-        let proof = client.prove(&pk, stdin).groth16().await.unwrap();
-
-        client.verify(&proof, &pk.vk, None).unwrap();
+    async fn test_e2e_groth16_fibonacci() {
+        test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Groth16).await.unwrap();
     }
 
     #[tokio::test]
-    async fn test_apc_fibonacci() {
-        test_apc(GUEST_FIBONACCI, SP1Stdin::default(), 10, 0).await.unwrap();
+    async fn test_apc_core_fibonacci() {
+        test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 10, SP1ProofMode::Core).await.unwrap();
     }
 
     #[tokio::test]
-    async fn test_apc_keccak_100() {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(100, 10), 10, 0).await.unwrap();
+    async fn test_apc_core_keccak_100() {
+        test_e2e(KECCAK256_ELF, keccak256_software_stdin(100, 10), 10, SP1ProofMode::Core)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
-    async fn test_apc_keccak_200() {
-        test_apc(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin(200, 10), 10, 0).await.unwrap();
+    async fn test_apc_core_keccak_200() {
+        test_e2e(KECCAK256_ELF, keccak256_software_stdin(200, 10), 10, SP1ProofMode::Core)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_apc_compressed_fibonacci() {
+        test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Compressed).await.unwrap();
     }
 }
