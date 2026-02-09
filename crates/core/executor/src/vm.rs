@@ -154,10 +154,7 @@ impl<'a, S> CoreVM<'a, S> {
 
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch<'b>(
-        &'b mut self,
-        snapshot_callback: impl Fn() -> S, // TODO: restrict to some trait, maybe Snapshot
-    ) -> Option<&'b Instruction> {
+    pub fn fetch(&mut self, snapshot_callback: impl Fn() -> S) -> Option<&Instruction> {
         // todo: mprotect / kernel mode logic.
         let snapshot_callback = &snapshot_callback;
         self.program.fetch(self.pc).map(|(i, apc_indices)| {
@@ -182,10 +179,7 @@ impl<'a, S> CoreVM<'a, S> {
     #[inline]
     /// Increment the state of the VM by one cycle.
     /// Calling this method will update the pc and the clk to the next cycle.
-    pub fn advance(
-        &mut self,
-        snapshot_callback: impl Fn() -> S,
-    ) -> (CycleResult, Vec<ApcCall<S>>) {
+    pub fn advance(&mut self, snapshot_callback: impl Fn() -> S) -> (CycleResult, Vec<ApcCall<S>>) {
         self.clk = self.next_clk;
         self.pc = self.next_pc;
 
@@ -820,12 +814,8 @@ impl<S> CoreVM<'_, S> {
     /// Check if the top 24 bits have changed, which imply a `state bump` event needs to be emitted.
     #[inline]
     #[must_use]
-    pub fn needs_bump_clk_high(&mut self) -> bool {
-        let condition = (self.next_clk() >> 24) ^ (self.clk() >> 24) > 0;
-        if condition {
-            self.apc_candidates.abort_in_progress();
-        }
-        condition
+    pub const fn needs_bump_clk_high(&self) -> bool {
+        (self.next_clk() >> 24) ^ (self.clk() >> 24) > 0
     }
 
     /// Check if the state needs to be bumped, which implies a `state bump` event needs to be

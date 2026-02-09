@@ -137,6 +137,10 @@ impl TracingVM<'_> {
             }
         }
 
+        if self.core.needs_bump_clk_high() || self.core.needs_state_bump(&instruction) {
+            self.core.apc_candidates.abort_in_progress();
+        }
+
         let next_pc = self.core.next_pc();
         let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
             record: self.record.snapshot(),
@@ -959,7 +963,7 @@ mod tests {
     };
 
     use crate::{
-        utils::add_halt, CycleResult, ExecutionRecord, Instruction, MinimalExecutor, Opcode,
+        utils::add_halt, Apc, CycleResult, ExecutionRecord, Instruction, MinimalExecutor, Opcode,
         Program, Register, SP1Context, SP1CoreOpts, TracingVM,
     };
 
@@ -1013,7 +1017,9 @@ mod tests {
                 .into_iter()
                 .map(|v| {
                     v.into_iter()
-                        .map(|(x, y)| (x, y, OptimisticConstraints::from_constraints(vec![])))
+                        .map(|(x, y)| {
+                            Apc::new(x, y, OptimisticConstraints::from_constraints(vec![]))
+                        })
                         .collect::<Vec<_>>()
                 })
         {
@@ -1058,7 +1064,7 @@ mod tests {
         add_halt(&mut instructions);
 
         let program_without_apcs = Program::new(instructions, 0, 0);
-        let apc_range_and_cost = vec![(&(2, 4), 1, OptimisticConstraints::empty())];
+        let apc_range_and_cost = vec![Apc::new(&(2, 4), 1, OptimisticConstraints::empty())];
         let program = Arc::new(program_without_apcs.with_apcs(apc_range_and_cost));
         let (record, registers, status) = run_tracing_vm(program, SP1CoreOpts::default(), 100_000);
         assert!(status.is_done(), "TracingVM did not complete");
@@ -1109,7 +1115,7 @@ mod tests {
                 .into_iter()
                 .map(|v| {
                     v.into_iter()
-                        .map(|(x, y)| (x, y, failing_optimistic_constraints()))
+                        .map(|(x, y)| Apc::new(x, y, failing_optimistic_constraints()))
                         .collect::<Vec<_>>()
                 })
         {
@@ -1156,7 +1162,7 @@ mod tests {
         // Pass the same apc twice
         for apc_range_and_cost in [vec![(&(0, 2), 1), (&(0, 2), 1)]].into_iter().map(|v| {
             v.into_iter()
-                .map(|(x, y)| (x, y, OptimisticConstraints::from_constraints(vec![])))
+                .map(|(x, y)| Apc::new(x, y, OptimisticConstraints::from_constraints(vec![])))
                 .collect::<Vec<_>>()
         }) {
             // Here we set APC costs to a dummy [1, 1] if there are APCs
@@ -1212,7 +1218,9 @@ mod tests {
             ),
             (&(0, 2), 1, OptimisticConstraints::empty()),
             (&(2, 4), 1, OptimisticConstraints::empty()),
-        ];
+        ]
+        .into_iter()
+        .map(|(range, cost, constraints)| Apc::new(range, cost, constraints));
 
         let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
 
@@ -1268,7 +1276,9 @@ mod tests {
             ),
             (&(0, 3), 1, OptimisticConstraints::empty()),
             (&(3, 7), 1, OptimisticConstraints::empty()),
-        ];
+        ]
+        .into_iter()
+        .map(|(range, cost, constraints)| Apc::new(range, cost, constraints));
 
         let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
 
@@ -1284,60 +1294,60 @@ mod tests {
         assert!(record.apc_events.get_events(2).is_none());
     }
 
-    // #[test]
-    // fn test_apc_state_bump_error() {
-    //     // This test verifies that when a state bump (bump2) occurs during an APC,
-    //     // the APC is properly rejected and a state_bump_error is recorded.
-    //     //
-    //     // There are two types of state bumps:
-    //     // - bump1: Clock overflow - triggers when clk's top 24 bits change (requires ~2M cycles)
-    //     // - bump2: PC overflow - triggers when PC crosses a 16-bit boundary (testable with pc_base)
-    //     //
-    //     // Memory bump also requires clk to reach 2^24 (~2M cycles), making it impractical
-    //     // to test with unit tests. However, the APC rejection logic is identical for all
-    //     // bump types (comparing event count in from_snapshot vs to_snapshot), so this test
-    //     // validates the shared code path.
-    //     //
-    //     // This test uses bump2 by setting pc_base = 0xFFF0, so instruction 3 (at PC 0xFFFC)
-    //     // will cause next_pc = 0x10000, crossing the 16-bit boundary.
-    //     //
-    //     // Instruction layout:
-    //     //   Index 0: PC = 0xFFF0
-    //     //   Index 1: PC = 0xFFF4
-    //     //   Index 2: PC = 0xFFF8
-    //     //   Index 3: PC = 0xFFFC -> next_pc = 0x10000 (bump2 triggers here!)
-    //     //   Index 4: PC = 0x10000
-    //     //   Index 5: PC = 0x10004
-    //     //   Index 6: PC = 0x10008
-    //     //   Index 7: PC = 0x1000C
+    #[test]
+    fn test_apc_state_bump_error() {
+        // This test verifies that when a state bump (bump2) occurs during an APC,
+        // the APC is properly rejected and a state_bump_error is recorded.
+        //
+        // There are two types of state bumps:
+        // - bump1: Clock overflow - triggers when clk's top 24 bits change (requires ~2M cycles)
+        // - bump2: PC overflow - triggers when PC crosses a 16-bit boundary (testable with pc_base)
+        //
+        // Memory bump also requires clk to reach 2^24 (~2M cycles), making it impractical
+        // to test with unit tests. However, the APC rejection logic is identical for all
+        // bump types (comparing event count in from_snapshot vs to_snapshot), so this test
+        // validates the shared code path.
+        //
+        // This test uses bump2 by setting pc_base = 0xFFF0, so instruction 3 (at PC 0xFFFC)
+        // will cause next_pc = 0x10000, crossing the 16-bit boundary.
+        //
+        // Instruction layout:
+        //   Index 0: PC = 0xFFF0
+        //   Index 1: PC = 0xFFF4
+        //   Index 2: PC = 0xFFF8
+        //   Index 3: PC = 0xFFFC -> next_pc = 0x10000 (bump2 triggers here!)
+        //   Index 4: PC = 0x10000
+        //   Index 5: PC = 0x10004
+        //   Index 6: PC = 0x10008
+        //   Index 7: PC = 0x1000C
 
-    //     let mut instructions: Vec<Instruction> = std::iter::repeat([
-    //         Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-    //         Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-    //         Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-    //     ])
-    //     .flatten()
-    //     .take(12)
-    //     .collect();
+        let mut instructions: Vec<Instruction> = std::iter::repeat([
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ])
+        .flatten()
+        .take(12)
+        .collect();
 
-    //     add_halt(&mut instructions);
+        add_halt(&mut instructions);
 
-    //     // Set pc_base = 0xFFF0 so that instruction 3 triggers bump2
-    //     let pc_base: u64 = 0xFFF0;
-    //     let program_without_apcs = Program::new(instructions, pc_base, pc_base);
+        // Set pc_base = 0xFFF0 so that instruction 3 triggers bump2
+        let pc_base: u64 = 0xFFF0;
+        let program_without_apcs = Program::new(instructions, pc_base, pc_base);
 
-    //     // Create an APC covering instructions 0-7 which spans the bump point at index 3
-    //     let apc_range_and_cost =
-    //         vec![(&(0, 7), 1, OptimisticConstraints::from_constraints(vec![]))];
+        // Create an APC covering instructions 0-7 which spans the bump point at index 3
+        let apc_range_and_cost =
+            vec![Apc::new(&(0, 7), 1, OptimisticConstraints::from_constraints(vec![]))];
 
-    //     let program = program_without_apcs.with_apcs(apc_range_and_cost);
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
 
-    //     let (record, _registers, status) =
-    //         run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
-    //     assert!(status.is_done(), "TracingVM did not complete");
-    //     assert!(
-    //         record.apc_events.is_empty(),
-    //         "Expected APC to be rejected when a state bump occurs"
-    //     );
-    // }
+        let (record, _registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        assert!(
+            record.apc_events.is_empty(),
+            "Expected APC to be rejected when a state bump occurs"
+        );
+    }
 }

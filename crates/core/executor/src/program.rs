@@ -81,13 +81,36 @@ impl Apcs {
 #[derive(Debug, Clone, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Apc {
     /// The index of the pc at which this APC starts
-    pub start_pc_idx: usize,
+    start_pc_idx: usize,
     /// The number of cycles required to go through this APC
-    pub cycle_count: usize,
+    cycle_count: usize,
     /// The cost for this APC
-    pub cost: ApcCost,
+    cost: ApcCost,
     /// The execution constraints for this APC
-    pub execution_constraints: OptimisticConstraints<u8, u64>,
+    execution_constraints: OptimisticConstraints<u8, u64>,
+}
+
+impl Apc {
+    /// Create a new apc for a given range, cost, and execution constraints.
+    pub fn new<R: Into<ApcRange>>(
+        range: R,
+        cost: u64,
+        execution_constraints: OptimisticConstraints<u8, u64>,
+    ) -> Self {
+        let range = range.into();
+        Self {
+            start_pc_idx: range.start().unwrap(),
+            cycle_count: range.len(),
+            cost,
+            execution_constraints,
+        }
+    }
+
+    /// Return the cost of this apc.
+    #[must_use]
+    pub fn cost(&self) -> ApcCost {
+        self.cost
+    }
 }
 
 impl<S: ExecutionState<RegisterAddress = u8, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
@@ -162,25 +185,10 @@ impl From<&(usize, usize)> for ApcRange {
 }
 
 impl Program {
-    /// Set the APC ranges for this program.
-    /// This will also compute the modified instructions based on the original instructions and the
-    /// APC ranges.
-    /// Panics if the APC ranges are already set or if the modified instructions are already set.
+    /// Add apcs to this program
     #[must_use]
-    pub fn with_apcs<R: Into<ApcRange>>(
-        self,
-        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, OptimisticConstraints<u8, u64>)>,
-    ) -> Self {
-        apc_ranges_and_costs
-            .into_iter()
-            .map(|(r, c, conditions)| (r.into(), c, conditions))
-            .map(|(range, cost, execution_constraints)| Apc {
-                start_pc_idx: range.start().unwrap(),
-                cycle_count: range.len(),
-                cost,
-                execution_constraints,
-            })
-            .fold(self, Program::add_apc)
+    pub fn with_apcs(self, apc_ranges_and_costs: impl IntoIterator<Item = Apc>) -> Self {
+        apc_ranges_and_costs.into_iter().fold(self, Program::add_apc)
     }
 
     /// Add an APC range to the program.
@@ -272,7 +280,7 @@ impl Program {
     }
 
     #[must_use]
-    /// Fetch the instruction at the given program counter, as well as the apc, if any.
+    /// Fetch the instruction at the given program counter, as well as the apc ranges, if any.
     pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {

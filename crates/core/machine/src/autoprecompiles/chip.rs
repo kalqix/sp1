@@ -456,12 +456,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             ((self.apc().start_pc() - program.pc_base) / Sp1Instruction::pc_step() as u64) as usize,
             self.apc().block.statements.len(),
         );
-        let apc = sp1_core_executor::Apc {
-            start_pc_idx: range.start().unwrap(),
-            cycle_count: range.len(),
-            cost: self.cached_apc.width() as u64,
-            execution_constraints: self.apc().optimistic_constraints.clone(),
-        };
+        let apc = sp1_core_executor::Apc::new(
+            range,
+            self.cached_apc.width() as u64,
+            self.apc().optimistic_constraints.clone(),
+        );
         program.add_apc(apc)
     }
 

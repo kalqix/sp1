@@ -72,7 +72,7 @@ pub struct ExecutionReport {
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
     /// The syscall counts.
     pub syscall_counts: Box<EnumMap<SyscallCode, u64>>,
-    /// The apc counts.
+    /// The apc counts by apc id.
     pub apc_counts: Box<HashMap<u64, ApcCount>>,
     /// The cycle tracker counts.
     pub cycle_tracker: HashMap<String, u64>,

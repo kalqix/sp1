@@ -20,7 +20,7 @@ pub struct ReportGenerator {
     is_last_read_external: CompressedMemory,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
-    pub apc_counts: Box<HashMap<u64, ApcCount>>,
+    apc_counts: Box<HashMap<u64, ApcCount>>,
 
     shard_start_clk: u64,
     exit_code: u64,

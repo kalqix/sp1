@@ -112,6 +112,10 @@ impl GasEstimatingVM<'_> {
             }
         }
 
+        if self.core.needs_bump_clk_high() || self.core.needs_state_bump(&instruction) {
+            self.core.apc_candidates.abort_in_progress();
+        }
+
         let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
 
         assert!(

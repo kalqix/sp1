@@ -520,68 +520,12 @@ impl ExecutionRecord {
             .chain(self.cpu_local_page_prot_access.iter())
     }
 
-    /// Reset the record, without deallocating the event vecs.
-    #[inline]
-    pub fn reset(&mut self) {
-        self.add_events.truncate(0);
-        self.addw_events.truncate(0);
-        self.addi_events.truncate(0);
-        self.mul_events.truncate(0);
-        self.sub_events.truncate(0);
-        self.subw_events.truncate(0);
-        self.bitwise_events.truncate(0);
-        self.shift_left_events.truncate(0);
-        self.shift_right_events.truncate(0);
-        self.divrem_events.truncate(0);
-        self.lt_events.truncate(0);
-        self.memory_load_byte_events.truncate(0);
-        self.memory_load_half_events.truncate(0);
-        self.memory_load_word_events.truncate(0);
-        self.memory_load_x0_events.truncate(0);
-        self.memory_load_double_events.truncate(0);
-        self.memory_store_byte_events.truncate(0);
-        self.memory_store_half_events.truncate(0);
-        self.memory_store_word_events.truncate(0);
-        self.memory_store_double_events.truncate(0);
-        self.utype_events.truncate(0);
-        self.branch_events.truncate(0);
-        self.jal_events.truncate(0);
-        self.jalr_events.truncate(0);
-        self.byte_lookups.clear();
-        self.precompile_events = PrecompileEvents::default();
-        self.global_memory_initialize_events.truncate(0);
-        self.global_memory_finalize_events.truncate(0);
-        self.global_page_prot_initialize_events.truncate(0);
-        self.global_page_prot_finalize_events.truncate(0);
-        self.cpu_local_memory_access.truncate(0);
-        self.cpu_local_page_prot_access.truncate(0);
-        self.syscall_events.truncate(0);
-        self.global_interaction_events.truncate(0);
-        self.instruction_fetch_events.truncate(0);
-        self.instruction_decode_events.truncate(0);
-        let mut cumulative_sum = self.global_cumulative_sum.lock().unwrap();
-        *cumulative_sum = SepticDigest::default();
-        self.global_interaction_event_count = 0;
-        self.bump_memory_events.truncate(0);
-        self.bump_state_events.truncate(0);
-        let _ = self.public_values.reset();
-        self.next_nonce = 0;
-        self.shape = None;
-        self.estimated_trace_area = 0;
-        self.initial_timestamp = 0;
-        self.last_timestamp = 0;
-        self.pc_start = None;
-        self.next_pc = 0;
-        self.exit_code = 0;
-    }
-
     #[must_use]
     /// Create a snapshot of this record
     pub fn snapshot(&self) -> ExecutionRecordSnapshot {
         assert!(
             self.byte_lookups.is_empty(),
-            "byte_lookups should always be empty here: it's only populated during trace
-        // generation, not during TracingVM execution when snapshot() is called."
+            "`byte_lookups` should always be empty here: it's only populated during trace generation, not during `TracingVM` execution when `snapshot()` is called."
         );
 
         ExecutionRecordSnapshot {

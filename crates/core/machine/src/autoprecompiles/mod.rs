@@ -13,7 +13,7 @@ pub mod program;
 mod tests;
 
 #[cfg(test)]
-use powdr_autoprecompiles::{adapter::AdapterApc, execution::OptimisticConstraints};
+use powdr_autoprecompiles::adapter::AdapterApc;
 use powdr_autoprecompiles::{
     adapter::{AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
@@ -23,9 +23,9 @@ use powdr_autoprecompiles::{
 };
 use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
-#[cfg(test)]
-use sp1_core_executor::ApcRange;
 use sp1_core_executor::{execute_for_frequency_map, Program};
+#[cfg(test)]
+use sp1_core_executor::{Apc, ApcRange};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -164,13 +164,14 @@ impl CompiledProgram {
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u8, u64>)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<Apc>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges
         .into_iter()
         .map(|range| {
             use powdr_autoprecompiles::blocks::{BasicBlock, PcStep};
+            use sp1_core_executor::Apc;
 
             let instructions = program.instructions
                 [range.start().unwrap()..range.end().unwrap() + 1]
@@ -196,10 +197,12 @@ pub fn create_apcs(
             )
             .expect("Failed to build APC");
 
-            let apc_cost = apc.machine.main_columns().count() as u64;
+            let cost = apc.machine.main_columns().count() as u64;
             let optimistic_constraints = apc.optimistic_constraints.clone();
 
-            (Arc::new(apc), (range, apc_cost, optimistic_constraints))
+            let execution_apc = Apc::new(range, cost, optimistic_constraints);
+
+            (Arc::new(apc), execution_apc)
         })
         .unzip()
 }

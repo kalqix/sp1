@@ -1,11 +1,12 @@
+use derive_where::derive_where;
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use powdr_autoprecompiles::execution::ApcCall;
 
 use crate::{
-    vm::memory::CompressedMemory, Instruction, Opcode, Program, RiscvAirId, ShardingThreshold,
-    SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    vm::memory::CompressedMemory, Apc, ApcCost, Instruction, Opcode, Program, RiscvAirId,
+    ShardingThreshold, SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
 use std::{
     collections::BTreeMap,
@@ -23,8 +24,7 @@ pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
 pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 18;
 
 pub struct ShapeChecker {
-    // TODO: we typically don't need the entire program, just the costs of the apcs and the length of the program
-    program: Arc<Program>,
+    program_len: u64,
     trace_area: u64,
     max_height: u64,
     pub(crate) syscall_sent: bool,
@@ -44,6 +44,7 @@ pub struct ShapeChecker {
 
 /// The number of events/instructions executed.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[derive_where(Default)]
 pub struct EventCounts<T>
 where
     T: EnumArray<u64>,
@@ -63,20 +64,6 @@ where
     /// Compute the maximum height of all airs
     fn max(&self) -> u64 {
         *self.core.values().chain(self.apc.values()).max().unwrap()
-    }
-}
-
-// Deriving `Default` requires `T: Default`, which isn't true for `Opcode` and `RiscvAirId`.
-impl<T: EnumArray<u64>> Default for EventCounts<T>
-where
-    T: EnumArray<u64>,
-    <T as EnumArray<u64>>::Array: Clone,
-{
-    fn default() -> Self {
-        Self {
-            core: EnumMap::default(), // Doesn't require `T: Default`
-            apc: BTreeMap::new(),
-        }
     }
 }
 
@@ -123,7 +110,7 @@ pub struct EventCosts {
     /// different for syscall instructions.
     pub core: EnumMap<RiscvAirId, u64>,
     /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
-    pub apc: BTreeMap<usize, u64>,
+    pub apc: Vec<ApcCost>,
 }
 
 #[derive(Debug)]
@@ -134,11 +121,11 @@ pub struct ShapeCheckerSnapshot {
 
 impl ShapeChecker {
     pub fn new(
-        program: Arc<Program>,
+        program_len: u64,
+        apc_costs: Vec<ApcCost>,
         shard_start_clk: u64,
         elem_threshold: ShardingThreshold,
     ) -> Self {
-        let program_len = program.instructions.len() as u64;
         let core_costs: HashMap<String, usize> =
             serde_json::from_str(include_str!("../artifacts/rv64im_costs.json")).unwrap();
         let costs = EventCosts {
@@ -146,13 +133,7 @@ impl ShapeChecker {
                 .into_iter()
                 .map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64))
                 .collect(),
-            apc: program
-                .apcs
-                .apc_by_index
-                .iter()
-                .enumerate()
-                .map(|(id, apc)| (id, apc.cost))
-                .collect(),
+            apc: apc_costs,
         };
 
         let preprocessed_trace_area = program_len.next_multiple_of(32) * costs[RiscvAirId::Program]
@@ -160,7 +141,7 @@ impl ShapeChecker {
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
         Self {
-            program,
+            program_len,
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
             max_height: 0,
             syscall_sent: false,
@@ -235,7 +216,12 @@ impl ShapeChecker {
     /// Set the start clock of the shard.
     #[inline]
     pub fn reset(&mut self, clk: u64) {
-        *self = Self::new(self.program.clone(), clk, self.sharding_threshold);
+        *self = Self::new(
+            self.program_len,
+            std::mem::take(&mut self.costs.apc),
+            clk,
+            self.sharding_threshold,
+        );
     }
 
     /// Check if the shard limit has been reached.
@@ -335,7 +321,7 @@ impl ShapeChecker {
         // Increase the height of this apc by 1
         *self.heights.apc.entry(call.apc_id).or_default() += 1;
         // Increate the trace area by a row whose width is the cost of the apc
-        self.trace_area += self.costs.apc[&call.apc_id];
+        self.trace_area += self.costs.apc[call.apc_id];
     }
 }
 
