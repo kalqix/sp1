@@ -78,8 +78,8 @@ impl EnvProver {
                 Please set it to your private key or use the .private_key() method.",
                     );
 
-                let network_builder = crate::network::builder::NetworkProverBuilder::new(machine)
-                    .private_key(&private_key);
+                let network_builder =
+                    crate::network::builder::NetworkProverBuilder::new().private_key(&private_key);
 
                 Self::Network(network_builder.build().await)
             }

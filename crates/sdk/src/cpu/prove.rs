@@ -86,10 +86,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let proof = client.prove(&pk, stdin).await.unwrap();
     /// });

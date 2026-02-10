@@ -27,3 +27,4 @@ async fn main() {
 
     println!("successfully generated and verified proof for the program!")
 }
+

@@ -18,5 +18,5 @@ async fn main() {
     let proof = client.prove(&pk, stdin).core().await.unwrap();
 
     // Verify the proof
-    client.verify(&proof, pk.verifying_key(), None).unwrap();
+    client.verify(&proof, &pk.verifying_key(), None).unwrap();
 }

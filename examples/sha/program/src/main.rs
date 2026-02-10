@@ -21,7 +21,7 @@ pub fn main() {
 
     for _ in 0..4 {
         let mut random_w = [0u32; 64];
-        random_w.fill_with(rand::random::<u32>);
+        random_w.fill_with(|| rand::random::<u32>());
 
         let mut random_w_u64 = [0u64; 64];
         for i in 0..64 {
@@ -29,7 +29,7 @@ pub fn main() {
         }
 
         let mut random_state = [0u32; 8];
-        random_state.fill_with(rand::random::<u32>);
+        random_state.fill_with(|| rand::random::<u32>());
 
         let mut random_state_u64 = [0u64; 8];
         for i in 0..8 {

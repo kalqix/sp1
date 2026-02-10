@@ -29,6 +29,12 @@ pub struct CpuProver {
     pub(crate) prover: Arc<SP1LocalNode>,
 }
 
+impl Default for CpuProver {
+    fn default() -> Self {
+        Self::new(RiscvAirWithApcs::machine())
+    }
+}
+
 /// An error occurred while proving.
 #[derive(Debug, Error)]
 pub enum CPUProverError {

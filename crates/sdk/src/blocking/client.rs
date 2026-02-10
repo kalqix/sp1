@@ -35,7 +35,15 @@ impl ProverClient {
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
     #[must_use]
-    pub fn from_env(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> EnvProver {
+    pub fn from_env() -> EnvProver {
+        EnvProver::new(RiscvAirWithApcs::machine())
+    }
+
+    /// Same as `from_env` but with a custom machine.
+    #[must_use]
+    pub fn from_env_with_machine(
+        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> EnvProver {
         EnvProver::new(machine)
     }
 

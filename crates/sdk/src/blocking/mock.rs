@@ -29,7 +29,6 @@ pub struct MockProver {
 
 impl Default for MockProver {
     fn default() -> Self {
-        tracing::info!("initializing mock prover");
         Self::new()
     }
 }
@@ -44,6 +43,7 @@ impl MockProver {
     /// Create a new mock prover with a given machine
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+        tracing::info!("initializing mock prover");
         Self { inner: block_on(SP1LightNode::new_with_machine(machine)) }
     }
 }

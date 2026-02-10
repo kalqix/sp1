@@ -25,9 +25,7 @@ impl ProverClient {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     std::env::set_var("SP1_PROVER", "network");
@@ -46,26 +44,7 @@ impl ProverClient {
         Self::from_env_with_machine(RiscvAirWithApcs::machine()).await
     }
 
-    /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
-    ///
-    /// # Usage
-    /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, SP1Stdin,
-    /// };
-    ///
-    /// tokio_test::block_on(async {
-    ///     std::env::set_var("SP1_PROVER", "network");
-    ///     std::env::set_var("NETWORK_PRIVATE_KEY", "...");
-    ///     let prover = ProverClient::from_env().await;
-    ///
-    ///     let elf = Elf::Static(&[1, 2, 3]);
-    ///     let stdin = SP1Stdin::new();
-    ///
-    ///     let pk = prover.setup(elf).await.unwrap();
-    ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
-    /// });
-    /// ```
+    /// Same as `from_env` but with a custom machine.
     #[must_use]
     pub async fn from_env_with_machine(
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
@@ -102,18 +81,13 @@ impl ProverClientBuilder {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -127,18 +101,13 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder()
-    ///         .cuda()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -152,18 +121,13 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder()
-    ///         .network()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().network().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -178,19 +142,13 @@ impl ProverClientBuilder {
     ///
     /// # Examples
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     network::NetworkMode, Elf, ProveRequest, Prover, ProverClient,
-    ///    SP1Stdin,
-    /// };
+    /// use sp1_sdk::{network::NetworkMode, Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder()
-    ///         .network_for(NetworkMode::Mainnet)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().network_for(NetworkMode::Mainnet).build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });

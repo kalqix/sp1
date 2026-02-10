@@ -18,12 +18,12 @@ fn is_prime(n: u64) -> bool {
     if n <= 3 {
         return true;
     }
-    if n.is_multiple_of(2) || n.is_multiple_of(3) {
+    if n % 2 == 0 || n % 3 == 0 {
         return false;
     }
     let mut i = 5;
     while i * i <= n {
-        if n.is_multiple_of(i) || n.is_multiple_of(i + 2) {
+        if n % i == 0 || n % (i + 2) == 0 {
             return false;
         }
         i += 6;

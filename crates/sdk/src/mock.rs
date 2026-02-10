@@ -146,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_proof_all_types() {
         setup_logger();
-        let prover: MockProver = MockProver::new().await;
+        let prover = MockProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 

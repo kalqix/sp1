@@ -18,6 +18,12 @@ pub struct CpuProverBuilder {
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
+impl Default for CpuProverBuilder {
+    fn default() -> Self {
+        Self::new(RiscvAirWithApcs::machine())
+    }
+}
+
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
@@ -35,11 +41,7 @@ impl CpuProverBuilder {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder()
-    ///         .cpu()
-    ///         .core_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().core_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -58,11 +60,7 @@ impl CpuProverBuilder {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder()
-    ///         .cpu()
-    ///         .with_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().with_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -81,10 +79,7 @@ impl CpuProverBuilder {
     /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
-    ///     let prover = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().build().await;
     /// });
     /// ```
     #[must_use]

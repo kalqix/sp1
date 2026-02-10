@@ -24,6 +24,12 @@ pub struct NetworkProverBuilder {
     pub(crate) machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
+impl Default for NetworkProverBuilder {
+    fn default() -> Self {
+        Self::new(RiscvAirWithApcs::machine())
+    }
+}
+
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]

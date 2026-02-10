@@ -41,10 +41,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let result = client
     ///         .execute(elf, stdin)
     ///         .with_hook(1, |env, data| {
@@ -83,10 +80,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let result = client.execute(elf, stdin).cycle_limit(1000000).await.unwrap();
     /// });
     /// ```
@@ -115,10 +109,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let result = client.execute(elf, stdin).deferred_proof_verification(false).await.unwrap();
     /// });
     /// ```
@@ -149,10 +140,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let result = client.execute(elf, stdin).calculate_gas(false).await.unwrap();
     /// });
     /// ```

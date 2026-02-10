@@ -17,6 +17,12 @@ pub struct CpuProverBuilder {
     machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
 }
 
+impl Default for CpuProverBuilder {
+    fn default() -> Self {
+        Self::new(RiscvAirWithApcs::machine())
+    }
+}
+
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]

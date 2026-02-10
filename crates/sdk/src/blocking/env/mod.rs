@@ -32,6 +32,12 @@ pub enum EnvProver {
     Cuda(CudaProver),
 }
 
+impl Default for EnvProver {
+    fn default() -> Self {
+        Self::new(RiscvAirWithApcs::new())
+    }
+}
+
 impl EnvProver {
     /// Creates a new [`EnvProver`] from the environment.
     ///

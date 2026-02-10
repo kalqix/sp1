@@ -277,18 +277,15 @@ impl SP1ProofWithPublicValues {
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{
-    ///     Elf, Prover, ProverClient, ProvingKey, SP1ProofMode,
-    ///     SP1ProofWithPublicValues, SP1Stdin, SP1_CIRCUIT_VERSION,
+    ///     Elf, Prover, ProverClient, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin,
+    ///     SP1_CIRCUIT_VERSION,
     /// };
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder()
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let client = ProverClient::builder().cpu().build().await;
     ///     let pk = client.setup(elf.clone()).await.unwrap();
     ///     let (public_values, _) = client.execute(elf, stdin).await.unwrap();
     ///
@@ -388,6 +385,7 @@ impl SP1ProofWithPublicValues {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::print_stdout)]
+
     use sp1_prover::{Groth16Bn254Proof, PlonkBn254Proof};
 
     use super::*;

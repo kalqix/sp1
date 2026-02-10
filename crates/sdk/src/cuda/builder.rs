@@ -44,10 +44,7 @@ impl CudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .cuda()
-    ///     .with_device_id(0)
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().with_device_id(0).build();
     /// ```
     #[must_use]
     pub fn with_device_id(mut self, id: u32) -> Self {
@@ -65,11 +62,7 @@ impl CudaProverBuilder {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder()
-    ///         .cuda()
-    ///         .core_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -88,11 +81,7 @@ impl CudaProverBuilder {
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder()
-    ///         .cuda()
-    ///         .with_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -109,9 +98,7 @@ impl CudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .cuda()
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().build();
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
