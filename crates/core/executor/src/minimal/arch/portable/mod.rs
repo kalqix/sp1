@@ -712,7 +712,13 @@ impl MinimalExecutor {
                     (b as i64).wrapping_div(c as i64) as u64
                 }
             }
-            Opcode::DIVU => b.checked_div(c).unwrap_or(u64::MAX),
+            Opcode::DIVU => {
+                if c == 0 {
+                    u64::MAX
+                } else {
+                    b / c
+                }
+            }
             Opcode::REM => {
                 if c == 0 {
                     b
