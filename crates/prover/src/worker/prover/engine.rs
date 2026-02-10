@@ -14,7 +14,7 @@ use crate::{
         SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
         SetupTask, TaskError, TaskId, WorkerClient,
     },
-    SP1ProverComponents,
+    SP1ProverComponents, WrapProverBuilder,
 };
 
 #[derive(Clone)]
@@ -31,6 +31,25 @@ pub struct SP1ProverEngine<A, W, C: SP1ProverComponents> {
     pub vk_worker: RecursionVkWorker<C>,
 }
 
+pub struct WrapAirProverInit<C: SP1ProverComponents> {
+    builder: Arc<C::WrapProverBuilder>,
+    permits: ProverSemaphore,
+}
+
+impl<C: SP1ProverComponents> WrapAirProverInit<C> {
+    pub(crate) fn new(builder: C::WrapProverBuilder, permits: ProverSemaphore) -> Self {
+        Self { builder: Arc::new(builder), permits }
+    }
+
+    pub(crate) fn permits(&self) -> ProverSemaphore {
+        self.permits.clone()
+    }
+
+    pub(crate) fn build(&self) -> Arc<C::WrapProver> {
+        self.builder.build()
+    }
+}
+
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine<A, W, C> {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -41,7 +60,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         core_prover_and_permits: (Arc<C::CoreProver>, ProverSemaphore),
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
-        wrap_air_prover_and_permits: (Arc<C::WrapProver>, ProverSemaphore),
+        wrap_air_prover_init: WrapAirProverInit<C>,
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
@@ -49,7 +68,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
             artifact_client.clone(),
             recursion_prover_and_permits.clone(),
             shrink_air_prover_and_permits,
-            wrap_air_prover_and_permits,
+            wrap_air_prover_init,
         )
         .await;
 

@@ -11,9 +11,10 @@ use crate::{
     components::SP1ProverComponents,
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{
-        LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig, WorkerClient,
+        LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig,
+        WorkerClient, WrapAirProverInit,
     },
-    CpuSP1ProverComponents,
+    CpuSP1ProverComponents, CpuWrapProverBuilder,
 };
 
 pub struct SP1WorkerBuilder<
@@ -26,7 +27,7 @@ pub struct SP1WorkerBuilder<
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
     shrink_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
-    wrap_air_prover_and_permits: Option<(Arc<C::WrapProver>, ProverSemaphore)>,
+    wrap_air_prover_and_permits: Option<WrapAirProverInit<C>>,
     artifact_client: Option<A>,
     worker_client: Option<W>,
 }
@@ -149,10 +150,10 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[must_use]
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<C::WrapProver>,
+        wrap_air_prover: C::WrapProverBuilder,
         permit: ProverSemaphore,
     ) -> Self {
-        self.wrap_air_prover_and_permits = Some((wrap_air_prover, permit));
+        self.wrap_air_prover_and_permits = Some(WrapAirProverInit::new(wrap_air_prover, permit));
         self
     }
 
@@ -237,17 +238,6 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
 
         let mut verifier = SP1Verifier::new(verifier_vks, machine);
         verifier.set_shrink_vk(shrink_vk);
-
-        // Check consistency of wrap vk
-        // let wrap_vk = prover_engine.recursion_prover.wrap_prover.verifying_key.clone();
-        // let expected_wrap_vk = verifier.wrap_vk.clone();
-        // if recursion_vks.vk_verification() && wrap_vk != expected_wrap_vk {
-        //     return Err(anyhow::anyhow!(
-        //         "Wrap vk mismatch, expected: {:?}, got: {:?}",
-        //         expected_wrap_vk,
-        //         wrap_vk
-        //     ));
-        // }
 
         let controller = SP1Controller::new(
             config.controller_config,
@@ -339,11 +329,10 @@ pub fn cpu_worker_builder(
     let shrink_verifier = CpuSP1ProverComponents::shrink_verifier();
     let shrink_prover = Arc::new(CpuShardProver::new(shrink_verifier.shard_verifier().clone()));
 
-    let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
-    let wrap_prover = Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()));
-
     let artifact_client = InMemoryArtifactClient::new();
     let (worker_client, _) = LocalWorkerClient::init();
+
+    let wrap_prover = CpuWrapProverBuilder;
 
     SP1WorkerBuilder::new(machine)
         .with_artifact_client(artifact_client)

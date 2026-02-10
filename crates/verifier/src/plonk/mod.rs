@@ -41,7 +41,7 @@ impl PlonkVerifier {
     ///
     /// ```ignore
     /// use sp1_sdk::ProverClient;
-    /// let client = ProverClient::from_env();
+    /// let client = ProverClient::from_env(RiscvAirWithApcs::machine());
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```
@@ -71,7 +71,7 @@ impl PlonkVerifier {
     ///
     /// ```ignore
     /// use sp1_sdk::ProverClient;
-    /// let client = ProverClient::from_env();
+    /// let client = ProverClient::from_env(RiscvAirWithApcs::machine());
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```

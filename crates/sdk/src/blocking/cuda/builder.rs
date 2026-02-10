@@ -94,6 +94,7 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
+        tracing::info!("initializing cuda prover");
         let node =
             block_on(SP1LightNode::with_opts(self.machine, self.core_opts.unwrap_or_default()));
         let cuda_prover = match self.cuda_device_id {

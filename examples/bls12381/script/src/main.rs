@@ -9,7 +9,7 @@ async fn main() {
 
     let stdin = SP1Stdin::new();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let (_public_values, report) = client.execute(ELF, stdin).await.expect("failed to prove");
 
     println!("executed: {}", report);

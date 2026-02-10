@@ -79,6 +79,7 @@ impl CpuProver {
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
     ) -> Self {
+        tracing::info!("initializing cpu prover");
         let worker_builder =
             cpu_worker_builder(machine).with_core_opts(core_opts.unwrap_or_default());
         let prover = Arc::new(

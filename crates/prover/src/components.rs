@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sp1_core_executor::HEIGHT_THRESHOLD;
 use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_hypercube::{
@@ -119,12 +121,33 @@ impl<C> RecursionProver for C where C: AirProver<SP1GlobalContext, RecursionSC> 
 
 impl<C> WrapProver for C where C: AirProver<SP1OuterGlobalContext, WrapSC> {}
 
-pub trait SP1ProverComponents: Send + Sync + 'static {
+pub trait WrapProverBuilder<C: SP1ProverComponents>: Send + Sync + 'static {
+    fn build(&self) -> Arc<C::WrapProver>;
+}
+
+pub struct ReadyWrapProverBuilder<C: SP1ProverComponents> {
+    prover: Arc<C::WrapProver>,
+}
+
+impl<C: SP1ProverComponents> ReadyWrapProverBuilder<C> {
+    pub fn new(prover: Arc<C::WrapProver>) -> Self {
+        Self { prover }
+    }
+}
+
+impl<C: SP1ProverComponents> WrapProverBuilder<C> for ReadyWrapProverBuilder<C> {
+    fn build(&self) -> Arc<C::WrapProver> {
+        self.prover.clone()
+    }
+}
+
+pub trait SP1ProverComponents: Send + Sync + 'static + Sized {
     /// The prover for making SP1 core proofs.
     type CoreProver: CoreProver;
     /// The prover for making SP1 recursive proofs.
     type RecursionProver: RecursionProver;
     type WrapProver: WrapProver;
+    type WrapProverBuilder: WrapProverBuilder<Self>;
 
     fn core_verifier(
         machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
@@ -147,6 +170,15 @@ pub trait SP1ProverComponents: Send + Sync + 'static {
 
 pub struct CpuSP1ProverComponents;
 
+pub struct CpuWrapProverBuilder;
+
+impl WrapProverBuilder<CpuSP1ProverComponents> for CpuWrapProverBuilder {
+    fn build(&self) -> Arc<<CpuSP1ProverComponents as SP1ProverComponents>::WrapProver> {
+        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
+        Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()))
+    }
+}
+
 impl SP1ProverComponents for CpuSP1ProverComponents {
     type CoreProver = CpuShardProver<
         SP1GlobalContext,
@@ -158,4 +190,5 @@ impl SP1ProverComponents for CpuSP1ProverComponents {
         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;
     type WrapProver =
         CpuShardProver<SP1OuterGlobalContext, SP1OuterPcs, SP1OuterPcsProver, WrapAir<SP1Field>>;
+    type WrapProverBuilder = CpuWrapProverBuilder;
 }

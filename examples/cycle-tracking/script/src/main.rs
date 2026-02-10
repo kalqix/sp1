@@ -11,7 +11,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Execute the normal program.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let (_, _) = client.execute(NORMAL_ELF, Default::default()).await.expect("proving failed");
 
     // Execute the report program.

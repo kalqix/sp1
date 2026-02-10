@@ -1,25 +1,9 @@
-use sp1_build::include_elf;
-use sp1_core_executor::{Executor, Program, RetainedEventsPreset, SP1Context, SP1CoreOpts};
-use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::io::SP1PublicValues;
-use sp1_prover::SP1CoreProofData;
-use sp1_prover::{
-    components::CpuSP1ProverComponents,
-    local::{LocalProver, LocalProverOpts},
-    SP1ProverBuilder,
-};
-use std::sync::Arc;
-use tracing::Instrument;
-use sp1_core_machine::utils::setup_logger;
 use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
 
-use alloy_primitives::B256;
 use clap::Parser;
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
-
-
-
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("rsp-program");
@@ -41,13 +25,14 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 
 #[tokio::main]
 async fn main() {
-    setup_logger();
+    sp1_sdk::utils::setup_logger();
 
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 21740164);
     let mut stdin = SP1Stdin::default();
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
+<<<<<<< HEAD
     let sp1_prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAirWithApcs::new()).build().await;
     let opts = LocalProverOpts {
         core_opts: SP1CoreOpts {
@@ -76,4 +61,10 @@ async fn main() {
     // Verify the proof
     let core_proof_data = SP1CoreProofData(core_proof.proof.0.clone());
     prover.prover().verify(&core_proof_data, &vk).unwrap();
+=======
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let pk = client.setup(ELF).await.unwrap();
+    let proof = client.prove(&pk, stdin).core().await.unwrap();
+    client.verify(&proof, &pk.verifying_key(), None).unwrap();
+>>>>>>> a32b4d66845a78fce3fac3dbbbdb4a9fe552a938
 }

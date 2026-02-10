@@ -23,7 +23,6 @@
 mod air;
 mod autoprecompiles;
 mod context;
-mod cost;
 mod debug;
 mod disassembler;
 mod errors;
@@ -68,7 +67,6 @@ mod utils;
 
 pub use air::*;
 pub use context::*;
-pub use cost::*;
 pub use errors::*;
 pub use hook::*;
 pub use instruction::*;
@@ -95,6 +93,12 @@ pub const CLK_INC: u32 = 8;
 /// The executor uses this PC to determine if the program has halted.
 /// As a PC, it is invalid since it is not a multiple of [`PC_INC`].
 pub const HALT_PC: u64 = 1;
+
+/// The number of rows in the `ByteChip`.
+pub const BYTE_NUM_ROWS: u64 = 1 << 16;
+
+/// The number of rows in the `RangeChip`.
+pub const RANGE_NUM_ROWS: u64 = 1 << 17;
 
 /// A module for testing programs.
 #[cfg(test)]

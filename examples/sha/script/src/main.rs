@@ -10,7 +10,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     let stdin = SP1Stdin::new();
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let pk = client.setup(ELF).await.expect("setup failed");
     let proof = client.prove(&pk, stdin).core().await.expect("proving failed");
 

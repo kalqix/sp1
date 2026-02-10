@@ -20,7 +20,7 @@ async fn main() {
     stdin.write(&target_string);
 
     // Generate the proof for the given program and input.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let pk = client.setup(REGEX_IO_ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).await.unwrap();
 

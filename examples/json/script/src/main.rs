@@ -36,7 +36,7 @@ async fn main() {
     stdin.write(&initial_account_state);
     stdin.write(&transactions);
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let pk = client.setup(JSON_ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).await.unwrap();
 

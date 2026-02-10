@@ -54,7 +54,7 @@ impl EnvProver {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::blocking::ProverClient;
     ///
-    /// let mut client = ProverClient::from_env();
+    /// let mut client = ProverClient::from_env(RiscvAirWithApcs::machine());
     /// let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
     /// client = client.with_opts(opts);
     /// ```

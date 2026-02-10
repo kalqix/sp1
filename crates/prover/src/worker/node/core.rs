@@ -54,6 +54,7 @@ impl SP1NodeCore {
             context,
             self.inner.opts.clone(),
             SP1ExecutorConfig::default(),
+            self.machine().clone(),
         )
         .await?;
         Ok((public_values, public_value_digest, report))

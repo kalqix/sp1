@@ -10,6 +10,8 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::utils::setup_logger;
 use sp1_primitives::io::SP1PublicValues;
 use std::sync::Arc;
+use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
 
 use alloy_primitives::B256;
 use clap::{Parser, Subcommand};
@@ -54,7 +56,7 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 
 #[tokio::main]
 async fn main() {
-    setup_logger();
+    sp1_sdk::utils::setup_logger();
     let args = Args::parse();
 
     // Load the input from the cache.
@@ -125,7 +127,10 @@ async fn main() {
                 Vec::new()
             };
 
-            let client = ProverClient::from_env_with_apcs(apcs).await;
+            let machine = RiscvAirWithApcs::custom(apcs);
+
+            let client = ProverClient::from_env(machine).await;
+
             let pk = client.setup(ELF).await.expect("setup failed");
 
             println!("Starting proving...");

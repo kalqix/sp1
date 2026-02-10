@@ -15,7 +15,7 @@ async fn main() {
     let san = "d4".to_string();
     stdin.write(&san);
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let pk = client.setup(ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).await.unwrap();
 

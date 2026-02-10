@@ -24,7 +24,7 @@ async fn generate_fibonacci_proof() -> (Vec<u8>, Vec<u8>, String) {
     stdin.write(&n);
 
     // Create a `ProverClient`.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
 
     // Generate the groth16 proof for the Fibonacci program.
     let pk = client.setup(FIBONACCI_ELF).await.unwrap();
@@ -48,7 +48,7 @@ async fn main() {
     stdin.write(&vk);
 
     // Create a `ProverClient`.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(GROTH16_ELF, stdin).await.unwrap();

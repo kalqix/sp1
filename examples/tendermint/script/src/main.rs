@@ -42,7 +42,7 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
     let pk = client.setup(TENDERMINT_ELF).await.expect("setup failed");
 
     client.execute(TENDERMINT_ELF, stdin.clone()).await.expect("proving failed");

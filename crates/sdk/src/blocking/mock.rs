@@ -27,6 +27,13 @@ pub struct MockProver {
     inner: SP1LightNode,
 }
 
+impl Default for MockProver {
+    fn default() -> Self {
+        tracing::info!("initializing mock prover");
+        Self::new(RiscvAirWithApcs::machine())
+    }
+}
+
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
@@ -89,6 +96,7 @@ impl<'a> ProveRequest<'a, MockProver> for MockProveRequest<'a> {
 
     fn run(self) -> Result<SP1ProofWithPublicValues, CPUProverError> {
         let BaseProveRequest { prover, pk, mode, stdin, context_builder } = self.base;
+        tracing::info!(mode = ?mode, "generating mock proof");
         let mut req = prover.execute(pk.elf.clone(), stdin);
         req.context_builder = context_builder;
         let (public_values, _) = req.run()?;

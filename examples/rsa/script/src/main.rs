@@ -263,7 +263,7 @@ async fn main() {
     // let verified = stdout.read::<bool>();
 
     // Generate the proof for the given program and input.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
 
     let (_, report) = client.execute(RSA_ELF, stdin.clone()).await.unwrap();
     println!("executed program with {} cycles", report.total_instruction_count());
