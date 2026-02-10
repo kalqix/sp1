@@ -1048,6 +1048,7 @@ pub mod tests {
         sync::Arc,
     };
 
+    use itertools::Itertools;
     use slop_air::BaseAir;
     use sp1_core_executor::{
         cost_and_height_per_syscall, rv64im_costs, Instruction, Opcode, Program, RiscvAirId,
@@ -1528,6 +1529,56 @@ pub mod tests {
         let program = keccak_permute_program();
         let stdin = SP1Stdin::new();
         run_test(Arc::new(program), stdin).await.unwrap();
+    }
+
+    #[test]
+    fn test_no_apc_equivalence() {
+        // RiscvAir and RiscvAirWithApcs should be equivalent when there are no apcs
+        let machine = RiscvAir::<SP1Field>::machine();
+        let machine_with_apcs = RiscvAirWithApcs::machine();
+
+        assert_eq!(machine.chips().len(), machine_with_apcs.chips().len());
+        for (left, right) in machine.chips().iter().zip_eq(machine_with_apcs.chips()) {
+            if let RiscvAirWithApcs::Riscv(right_air) = right.air.as_ref() {
+                assert_eq!(left.air.as_ref(), right_air);
+                assert_eq!(left.air.id(), right_air.id());
+                assert_eq!(left.name(), right_air.name());
+                assert_eq!(left.width(), right_air.width());
+                assert_eq!(left.preprocessed_width(), right_air.preprocessed_width());
+
+                let left_sends =
+                    left.sends().iter().map(|i| (i.kind, i.values.len())).collect::<Vec<_>>();
+                let right_sends =
+                    right.sends().iter().map(|i| (i.kind, i.values.len())).collect::<Vec<_>>();
+                assert_eq!(left_sends, right_sends);
+
+                let left_receives =
+                    left.receives().iter().map(|i| (i.kind, i.values.len())).collect::<Vec<_>>();
+                let right_receives =
+                    right.receives().iter().map(|i| (i.kind, i.values.len())).collect::<Vec<_>>();
+                assert_eq!(left_receives, right_receives);
+            }
+        }
+
+        assert_eq!(
+            machine.shape().chip_clusters.len(),
+            machine_with_apcs.shape().chip_clusters.len()
+        );
+        for (left_cluster, right_cluster) in machine
+            .shape()
+            .chip_clusters
+            .iter()
+            .zip_eq(machine_with_apcs.shape().chip_clusters.iter())
+        {
+            assert_eq!(left_cluster.len(), right_cluster.len());
+            for (left_chip, right_chip) in left_cluster.iter().zip_eq(right_cluster.iter()) {
+                if let RiscvAirWithApcs::Riscv(right_air) = right_chip.air.as_ref() {
+                    assert_eq!(left_chip.air.as_ref(), right_air);
+                    assert_eq!(left_chip.air.id(), right_air.id());
+                    assert_eq!(left_chip.name(), right_chip.name());
+                }
+            }
+        }
     }
 
     // #[tokio::test]
