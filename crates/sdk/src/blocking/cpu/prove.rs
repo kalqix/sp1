@@ -48,7 +48,7 @@ impl<'a> ProveRequest<'a, CpuProver> for CpuProveBuilder<'a> {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// ```

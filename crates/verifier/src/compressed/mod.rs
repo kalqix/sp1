@@ -61,7 +61,7 @@ impl SP1CompressedVerifierRaw {
     ///
     /// ```ignore
     /// use sp1_sdk::{HashableKey, ProverClient, SP1Proof};
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = bincode::serialize(&vk.hash_babybear()).unwrap();
     /// let proof = match client.prove(&pk, &stdin).compressed().run().unwrap().proof {
@@ -106,7 +106,7 @@ impl SP1CompressedVerifierRaw {
     ///
     /// ```ignore
     /// use sp1_sdk::{HashableKey, ProverClient, SP1Proof};
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = bincode::serialize(&vk.hash_babybear()).unwrap();
     /// let proof = match client.prove(&pk, &stdin).compressed().run().unwrap().proof {

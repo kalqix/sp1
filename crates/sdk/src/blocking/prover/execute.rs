@@ -36,7 +36,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let builder = client
     ///     .execute(elf, stdin)
     ///     .with_hook(1, |env, data| {
@@ -72,7 +72,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let result = client.execute(elf, stdin).cycle_limit(1000000).run();
     /// ```
     #[must_use]
@@ -99,7 +99,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let result = client.execute(elf, stdin).deferred_proof_verification(false).run();
     /// ```
     #[must_use]
@@ -128,7 +128,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
+    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let result = client.execute(elf, stdin).calculate_gas(false).run();
     /// ```
     #[must_use]
@@ -159,7 +159,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder().cpu().build();
+    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     // /// client.execute(elf, &stdin).stdout(&mut stdout).run();
     // /// ```
     // #[must_use]
@@ -179,7 +179,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder().cpu().build();
+    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     // /// client.execute(elf, &stdin).stderr(&mut stderr).run();
     // /// ```
     // #[must_use]

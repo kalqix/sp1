@@ -51,30 +51,6 @@ impl EnvProver {
         Self::from_env_with_opts(None, machine).await
     }
 
-    /// Updates the core options for this prover.
-    ///
-    /// This method allows you to configure the prover after creation.
-    /// It recreates the prover with the new options based on the current environment settings.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
-    ///
-    /// tokio_test::block_on(async {
-    ///     let mut client =
-    ///         ProverClient::from_env(RiscvAirWithApcs::machine()).await;
-    ///     let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
-    ///     client = client.with_opts(opts).await;
-    /// });
-    /// ```
-    pub async fn with_opts(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-        opts: SP1CoreOpts,
-    ) -> Self {
-        Self::from_env_with_opts(Some(opts), machine).await
-    }
-
     /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
     ///
     /// This method will read from the `SP1_PROVER` environment variable to determine which prover

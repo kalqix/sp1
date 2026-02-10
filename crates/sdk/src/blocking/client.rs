@@ -61,7 +61,7 @@ impl ProverClientBuilder {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let prover = ProverClient::builder().cpu().build();
+    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// let pk = prover.setup(elf).unwrap();
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
@@ -80,7 +80,7 @@ impl ProverClientBuilder {
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let prover = ProverClient::builder().cuda().build();
+    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build();
     /// let pk = prover.setup(elf).unwrap();
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```

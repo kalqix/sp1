@@ -179,7 +179,7 @@ impl NetworkProver {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let balance = client.get_balance().await.unwrap();
     /// })
     /// ```
@@ -202,7 +202,7 @@ impl NetworkProver {
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let vk_hash = client.register_program(&pk.verifying_key(), pk.elf()).await.unwrap();
     /// });
@@ -220,7 +220,7 @@ impl NetworkProver {
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1ProofMode};
     /// tokio_test::block_on(async {
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
     /// })
     /// ```
@@ -252,7 +252,7 @@ impl NetworkProver {
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();
     /// })
     /// ```
@@ -280,7 +280,7 @@ impl NetworkProver {
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let request = client.get_proof_request(request_id).await.unwrap();
     /// })
     /// ```
@@ -304,7 +304,7 @@ impl NetworkProver {
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder().network().build().await;
+    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let (maybe_proof, fulfillment_status) =
     ///         client.process_proof_status(request_id, None).await.unwrap();
     /// })

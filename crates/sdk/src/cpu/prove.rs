@@ -43,7 +43,7 @@ impl<'a> CpuProveBuilder<'a> {
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder().cpu().build();
+    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     // /// client.execute(elf, &stdin).stdout(&mut stdout).run();
     // /// ```
     // #[must_use]
@@ -63,7 +63,7 @@ impl<'a> CpuProveBuilder<'a> {
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder().cpu().build();
+    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     // /// client.execute(elf, &stdin).stderr(&mut stderr).run();
     // /// ```````
     // #[must_use]
