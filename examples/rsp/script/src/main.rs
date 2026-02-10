@@ -1,21 +1,21 @@
 // use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 use powdr_autoprecompiles::PgoConfig;
-use sp1_build::Elf;
 use sp1_build::include_elf;
+use sp1_build::Elf;
 use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts};
-use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::utils::setup_logger;
 use sp1_primitives::io::SP1PublicValues;
-use std::sync::Arc;
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
+use std::sync::Arc;
 
 use alloy_primitives::B256;
 use clap::{Parser, Subcommand};
-use rsp_client_executor::{CHAIN_ID_ETH_MAINNET, io::ClientExecutorInput};
+use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use sp1_sdk::ProveRequest;
 use sp1_sdk::Prover;
 use sp1_sdk::ProverClient;
@@ -61,8 +61,8 @@ async fn main() {
 
     // Load the input from the cache.
     let block = 20526624; // ~2.4M Gas
-    // let block = 21740164; // ~15M Gas
-    // let block = 21740137; // ~29M Gas
+                          // let block = 21740164; // ~15M Gas
+                          // let block = 21740137; // ~29M Gas
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, block);
     let mut stdin = SP1Stdin::default();
     let buffer = bincode::serialize(&client_input).unwrap();

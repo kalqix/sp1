@@ -69,8 +69,8 @@ pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSI
 /// A prelude, including all the types and traits that are commonly used.
 pub mod prelude {
     pub use super::{
-        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, SP1ProofWithPublicValues,
-        SP1Stdin,
+        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, RiscvAirWithApcs,
+        SP1ProofWithPublicValues, SP1Stdin,
     };
 }
 
