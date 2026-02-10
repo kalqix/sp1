@@ -23,7 +23,7 @@ impl ProverClient {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
     ///
     /// std::env::set_var("SP1_PROVER", "cuda");
     /// let prover = ProverClient::from_env(RiscvAirWithApcs::machine());
@@ -56,7 +56,7 @@ impl ProverClientBuilder {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
@@ -75,7 +75,7 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();

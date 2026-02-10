@@ -144,8 +144,8 @@ impl ProverClientBuilder {
     /// # Examples
     /// ```no_run
     /// use sp1_sdk::{
-    ///     network::NetworkMode, CpuSP1ProverComponents, Elf, ProveRequest, Prover, ProverClient,
-    ///     RiscvAir, SP1Stdin,
+    ///     network::NetworkMode, Elf, ProveRequest, Prover, ProverClient,
+    ///     RiscvAirWithApcs, SP1Stdin,
     /// };
     ///
     /// tokio_test::block_on(async {

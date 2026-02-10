@@ -47,7 +47,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::time::Duration;
     ///
     /// tokio_test::block_on(async {
@@ -75,7 +75,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -99,7 +99,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::FulfillmentStrategy, Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{network::FulfillmentStrategy, Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -129,7 +129,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -164,7 +164,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -194,7 +194,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// async fn create_proof() {
-    ///     use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    ///     use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
@@ -222,7 +222,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::time::Duration;
     ///
     /// tokio_test::block_on(async {
@@ -253,7 +253,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -283,7 +283,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -311,7 +311,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -339,7 +339,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -367,7 +367,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -398,7 +398,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::str::FromStr;
     ///
     /// tokio_test::block_on(async {
@@ -432,7 +432,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     /// use std::time::Duration;
     ///
     /// tokio_test::block_on(async {
@@ -463,7 +463,7 @@ impl NetworkProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);

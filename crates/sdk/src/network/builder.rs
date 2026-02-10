@@ -46,7 +46,7 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().private_key("...").build();
     /// ```
@@ -64,7 +64,7 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().rpc_url("...").build();
     /// ```
@@ -82,7 +82,7 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().private().build();
     /// ```

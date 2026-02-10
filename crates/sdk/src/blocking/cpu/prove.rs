@@ -43,7 +43,7 @@ impl<'a> ProveRequest<'a, CpuProver> for CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();

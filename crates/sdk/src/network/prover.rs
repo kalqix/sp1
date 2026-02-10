@@ -119,9 +119,9 @@ impl NetworkProver {
     /// # Examples
     /// Using a private key string:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::NetworkMode, NetworkProver};
+    /// use sp1_sdk::{network::NetworkMode, NetworkProver, RiscvAirWithApcs};
     ///
-    /// let prover = NetworkProver::new("0x...", "...", NetworkMode::Mainnet);
+    /// let prover = NetworkProver::new("0x...", "...", NetworkMode::Mainnet, RiscvAirWithApcs::machine());
     /// ```
     ///
     /// Using a `NetworkSigner`:
@@ -129,10 +129,11 @@ impl NetworkProver {
     /// use sp1_sdk::{
     ///     network::{signer::NetworkSigner, NetworkMode},
     ///     NetworkProver,
+    ///     RiscvAirWithApcs,
     /// };
     ///
     /// let signer = NetworkSigner::local("0x...").unwrap();
-    /// let prover = NetworkProver::new(signer, "...", NetworkMode::Reserved);
+    /// let prover = NetworkProver::new(signer, "...", NetworkMode::Reserved, RiscvAirWithApcs::machine());
     /// ```
     #[must_use]
     pub async fn new(
@@ -176,7 +177,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    /// use sp1_sdk::{ProverClient, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
@@ -198,7 +199,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1Stdin};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1Stdin, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
@@ -218,7 +219,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1ProofMode};
+    /// use sp1_sdk::{ProverClient, SP1ProofMode, RiscvAirWithApcs};
     /// tokio_test::block_on(async {
     ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
@@ -248,7 +249,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient};
+    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
@@ -276,7 +277,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient};
+    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
@@ -300,7 +301,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient};
+    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);

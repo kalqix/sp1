@@ -29,7 +29,7 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let mut opts = SP1CoreOpts::default();
     /// opts.shard_size = 500_000;
@@ -46,7 +46,7 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let mut opts = SP1CoreOpts::default();
     /// opts.shard_size = 500_000;
@@ -65,7 +65,7 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
     ///
     /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
     /// ```
