@@ -63,7 +63,7 @@ impl EnvProver {
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine)),
             "cuda" => Self::Cuda(CudaProverBuilder::new(machine).build()),
-            "mock" => Self::Mock(MockProver::new(machine)),
+            "mock" => Self::Mock(MockProver::new_with_machine(machine)),
             "network" => panic!("The network prover is not supported in the blocking client"),
             _ => unreachable!(),
         }

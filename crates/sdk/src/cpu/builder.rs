@@ -30,12 +30,12 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let prover = ProverClient::builder()
     ///         .cpu()
     ///         .core_opts(opts)
     ///         .build()
@@ -53,12 +53,12 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let prover = ProverClient::builder()
     ///         .cpu()
     ///         .with_opts(opts)
     ///         .build()
@@ -78,10 +78,10 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let prover = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;

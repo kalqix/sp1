@@ -160,7 +160,7 @@ mod tests {
         };
 
         let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
-        let client = ProverClient::builder(machine).cpu().build().await;
+        let client = ProverClient::builder_with_machine(machine).cpu().build().await;
         let pk = client.setup(elf).await?;
         let mut proof = client.prove(&pk, stdin).mode(mode).await?;
         client.verify(&proof, &pk.vk, None)?;
@@ -179,7 +179,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
+        let client = ProverClient::builder().cpu().build().await;
         let elf = FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -191,7 +191,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
+        let client = ProverClient::builder().cpu().build().await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -205,7 +205,7 @@ mod tests {
     #[ignore = "The cycle limit logic needs to be reimplemented."]
     async fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
+        let client = ProverClient::builder().cpu().build().await;
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -220,7 +220,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_report_variants() {
         utils::setup_logger();
-        let client = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let client = MockProver::new().await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -282,7 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_cycle_tracker_macro_non_report() {
         utils::setup_logger();
-        let client = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let client = MockProver::new().await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 
@@ -333,7 +333,7 @@ mod tests {
         use sp1_core_executor::StatusCode;
 
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
+        let client = CpuProver::new().await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();
@@ -355,7 +355,7 @@ mod tests {
     // #[tokio::test]
     // async fn test_e2e_io_override() {
     //     utils::setup_logger();
-    //     let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
+    //     let client = ProverClient::builder().cpu().build().await;
     //     let elf = test_artifacts::HELLO_WORLD_ELF;
 
     //     let mut stdout = Vec::new();
@@ -377,7 +377,7 @@ mod tests {
         use sp1_core_executor::StatusCode;
 
         utils::setup_logger();
-        let client = CpuProver::new(RiscvAirWithApcs::machine()).await;
+        let client = CpuProver::new().await;
         let elf = test_artifacts::PANIC_ELF;
         let pk = client.setup(elf).await.unwrap();
         let stdin = SP1Stdin::new();

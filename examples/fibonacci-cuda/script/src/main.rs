@@ -18,22 +18,22 @@ async fn main() {
     stdin.write(&n);
 
     // Create a `ProverClient` method.
-    let client = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
-    let client2 = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
+    let client = ProverClient::builder().cuda().build().await;
+    let client2 = ProverClient::builder().cuda().build().await;
 
     let handle = tokio::spawn({
         let stdin = stdin.clone();
         async move {
             let pk = client2.setup(ELF).await.unwrap();
             let proof = client2.prove(&pk, stdin.clone()).compressed().await.unwrap();
-            client2.verify(&proof, &pk.verifying_key(), None).unwrap();
+            client2.verify(&proof, pk.verifying_key(), None).unwrap();
         }
     });
 
     // Generate the proof for the given program and input.
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin.clone()).compressed().await.unwrap();
-    client.verify(&proof, &pk.verifying_key(), None).unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
 
     handle.await.unwrap();
 

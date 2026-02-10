@@ -13,7 +13,7 @@ async fn main() {
     // No stdin needed for this simple example
     let stdin = SP1Stdin::new();
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     // Execute the program first
     println!("Executing program...");

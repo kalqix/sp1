@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use sp1_sdk::{Prover, ProverClient, RiscvAirWithApcs};
+use sp1_sdk::{Prover, ProverClient};
 use test_artifacts::FIBONACCI_ELF;
 
 #[tokio::main]
@@ -8,7 +8,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     let t = Instant::now();
-    let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await;
+    let client = ProverClient::builder().cpu().build().await;
     let init_time = t.elapsed();
     tracing::info!("prover init time: {init_time:?}");
 

@@ -95,5 +95,4 @@
         "utility": "cpp",
         "cmath": "cpp"
     },
-    "cmake.sourceDirectory": "/home/thibaut/sp1-wip/sp1-gpu",
 }

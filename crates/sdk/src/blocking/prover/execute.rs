@@ -31,12 +31,12 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client
     ///     .execute(elf, stdin)
     ///     .with_hook(1, |env, data| {
@@ -67,12 +67,12 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let result = client.execute(elf, stdin).cycle_limit(1000000).run();
     /// ```
     #[must_use]
@@ -94,12 +94,12 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let result = client.execute(elf, stdin).deferred_proof_verification(false).run();
     /// ```
     #[must_use]
@@ -123,12 +123,12 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let result = client.execute(elf, stdin).calculate_gas(false).run();
     /// ```
     #[must_use]
@@ -152,14 +152,14 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     // ///
     // /// # Example
     // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
+    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     // ///
     // /// let mut stdout = Vec::new();
     // ///
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    // /// let client = ProverClient::builder().cpu().build();
     // /// client.execute(elf, &stdin).stdout(&mut stdout).run();
     // /// ```
     // #[must_use]
@@ -172,14 +172,14 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     // ///
     // /// # Example
     // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin, RiscvAirWithApcs};
+    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     // ///
     // /// let mut stderr = Vec::new();
     // ///
     // /// let elf = &[1, 2, 3];
     // /// let stdin = SP1Stdin::new();
     // ///
-    // /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    // /// let client = ProverClient::builder().cpu().build();
     // /// client.execute(elf, &stdin).stderr(&mut stderr).run();
     // /// ```
     // #[must_use]

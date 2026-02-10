@@ -22,12 +22,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).mode(SP1ProofMode::Groth16).run().unwrap();
     /// ```
@@ -46,12 +46,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
@@ -71,12 +71,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).plonk().run().unwrap();
     /// ```
@@ -94,12 +94,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let builder = client.prove(&pk, stdin).groth16().run();
     /// ```
@@ -117,12 +117,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let builder = client.prove(&pk, stdin).core().run();
     /// ```
@@ -140,12 +140,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let builder = client.prove(&pk, stdin).cycle_limit(1000000).run();
     /// ```
@@ -168,12 +168,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).deferred_proof_verification(false).run().unwrap();
     /// ```

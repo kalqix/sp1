@@ -33,10 +33,10 @@ async fn main() {
     stdin.write_vec(encoded_1);
     stdin.write_vec(encoded_2);
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(TENDERMINT_ELF).await.unwrap();
     let proof = client.prove(&pk, stdin).core().await.unwrap();
-    client.verify(&proof, &pk.verifying_key(), None).unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
 
     // Verify the public values
     let mut expected_public_values: Vec<u8> = Vec::new();

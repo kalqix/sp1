@@ -69,7 +69,12 @@ impl Prover for CpuProver {
 
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
-    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new() -> Self {
+        Self::new_with_machine(RiscvAirWithApcs::machine()).await
+    }
+
+    /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`] and a given machine.
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine).await
     }
 

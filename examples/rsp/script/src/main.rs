@@ -69,7 +69,7 @@ async fn main() {
     match args.command {
         Commands::Execute => {
             // Create a `MockProver` because we only need to execute. Use no apcs.
-            let client = sp1_sdk::MockProver::new(RiscvAirWithApcs::machine()).await;
+            let client = sp1_sdk::MockProver::new().await;
 
             let (_, report) = client.execute(ELF, stdin.clone()).await.unwrap();
             println!("executed program with {} cycles", report.total_instruction_count());
@@ -113,7 +113,7 @@ async fn main() {
 
             let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
 
-            let client = ProverClient::from_env(machine).await;
+            let client = ProverClient::from_env_with_machine(machine).await;
 
             println!("Starting setup...");
             let pk = client.setup(ELF).await.expect("setup failed");

@@ -5,6 +5,10 @@ pub struct ExecutionRecordSnapshotWithPc {
 }
 
 #[derive(Debug)]
+/// A snapshot of current state of the execution record
+/// The execution record is made of vectors for each type of events, as well as single values
+/// The snapshot stores the size of the vectors and the current values of the single values at the time of snapshotting
+/// Not all data present in the record is present here, because some fields are guaranteed not to change during the execution of an apc.
 pub struct ExecutionRecordSnapshot {
     pub cpu_event_count: u32,
     pub add_events_len: usize,

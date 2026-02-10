@@ -13,10 +13,10 @@ async fn main() {
     let mut stdin = SP1Stdin::default();
     stdin.write(&n);
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin).core().await.unwrap();
 
     // Verify the proof
-    client.verify(&proof, &pk.verifying_key(), None).unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
 }

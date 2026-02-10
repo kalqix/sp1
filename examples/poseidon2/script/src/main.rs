@@ -14,7 +14,7 @@ async fn main() {
     let stdin = SP1Stdin::new();
 
     // Create a `ProverClient` method.
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
 

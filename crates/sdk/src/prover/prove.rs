@@ -43,7 +43,7 @@ where
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1ProofMode,
+    ///     Elf, ProveRequest, Prover, ProverClient, SP1ProofMode,
     ///     SP1Stdin,
     /// };
     ///
@@ -51,7 +51,7 @@ where
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -74,13 +74,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -104,13 +104,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -132,13 +132,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -160,13 +160,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -188,13 +188,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -221,13 +221,13 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;

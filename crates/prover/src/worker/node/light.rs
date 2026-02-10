@@ -36,7 +36,11 @@ impl Clone for SP1LightNode {
 }
 
 impl SP1LightNode {
-    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new() -> Self {
+        Self::new_with_machine(RiscvAirWithApcs::machine()).await
+    }
+
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
         Self::with_opts(machine, SP1CoreOpts::default()).await
     }
 
@@ -109,7 +113,7 @@ mod tests {
         setup_logger();
 
         let machine = RiscvAirWithApcs::machine();
-        let light_node = SP1LightNode::new(machine.clone())
+        let light_node = SP1LightNode::new_with_machine(machine.clone())
             .instrument(tracing::info_span!("initialize light node"))
             .await;
 

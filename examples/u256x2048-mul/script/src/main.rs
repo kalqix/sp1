@@ -10,7 +10,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     let stdin = SP1Stdin::new();
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     let (_, report) = client.execute(ELF, stdin.clone()).await.unwrap();
     println!("executed program {:?} ", report);

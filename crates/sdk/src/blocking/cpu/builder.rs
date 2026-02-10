@@ -29,11 +29,11 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// let mut opts = SP1CoreOpts::default();
     /// opts.shard_size = 500_000;
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().core_opts(opts).build();
+    /// let prover = ProverClient::builder().cpu().core_opts(opts).build();
     /// ```
     #[must_use]
     pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
@@ -46,11 +46,11 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// let mut opts = SP1CoreOpts::default();
     /// opts.shard_size = 500_000;
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().with_opts(opts).build();
+    /// let prover = ProverClient::builder().cpu().with_opts(opts).build();
     /// ```
     #[must_use]
     pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
@@ -65,9 +65,9 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let prover = ProverClient::builder().cpu().build();
     /// ```
     #[must_use]
     pub fn build(self) -> CpuProver {

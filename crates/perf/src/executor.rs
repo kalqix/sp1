@@ -147,7 +147,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
 // Executes a program while measuring gas and prints the gas report.
 async fn execute_gas(elf: Vec<u8>, stdin: SP1Stdin) {
-    let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+    let prover = MockProver::new().await;
 
     let now = std::time::Instant::now();
     let (_, report) = prover

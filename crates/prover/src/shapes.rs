@@ -770,7 +770,7 @@ mod tests {
     #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
-        let client = SP1LightNode::new(RiscvAirWithApcs::machine()).await;
+        let client = SP1LightNode::new().await;
 
         let vk_verification = client.inner().vk_verification();
         let allowed_vk_height = client.inner().allowed_vk_height();
@@ -807,7 +807,7 @@ mod tests {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
         let machine = RiscvAirWithApcs::machine();
-        let client = SP1LightNode::new(machine.clone()).await;
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
         // let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
         let vk = client.setup(&elf).await?;
 
@@ -991,7 +991,7 @@ mod tests {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
         let machine = RiscvAirWithApcs::machine();
-        let client = SP1LightNode::new(machine.clone()).await;
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
         let vk = client.setup(&elf).await.unwrap();
 
         let chip_clusters = &machine.shape().chip_clusters;

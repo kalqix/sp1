@@ -277,7 +277,7 @@ impl SP1ProofWithPublicValues {
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{
-    ///     Elf, Prover, ProverClient, ProvingKey, RiscvAirWithApcs, SP1ProofMode,
+    ///     Elf, Prover, ProverClient, ProvingKey, SP1ProofMode,
     ///     SP1ProofWithPublicValues, SP1Stdin, SP1_CIRCUIT_VERSION,
     /// };
     ///
@@ -285,7 +285,7 @@ impl SP1ProofWithPublicValues {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine())
+    ///     let client = ProverClient::builder()
     ///         .cpu()
     ///         .build()
     ///         .await;
@@ -523,8 +523,7 @@ mod tests {
     async fn test_round_trip_proof_save_load() {
         use crate::{ProveRequest, Prover};
 
-        let prover =
-            crate::CpuProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine()).await;
+        let prover = crate::CpuProver::new().await;
         let pk = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF).await.unwrap();
         let proof = prover.prove(&pk, crate::SP1Stdin::new()).compressed().await.unwrap();
 
