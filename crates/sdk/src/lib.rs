@@ -62,14 +62,14 @@ pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuil
 
 // Re-export the machine/prover primitives.
 pub use sp1_core_machine::io::SP1Stdin;
-pub use sp1_core_machine::riscv::RiscvAirWithApcs;
+pub use sp1_core_machine::riscv::RiscvAir;
 pub use sp1_primitives::{io::SP1PublicValues, Elf};
 pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 
 /// A prelude, including all the types and traits that are commonly used.
 pub mod prelude {
     pub use super::{
-        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, RiscvAirWithApcs,
+        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, RiscvAir,
         SP1ProofWithPublicValues, SP1Stdin,
     };
 }
@@ -90,7 +90,7 @@ mod tests {
     use sp1_core_machine::autoprecompiles::{
         execution_profile_from_program, sp1_powdr_config, CompiledProgram,
     };
-    use sp1_core_machine::riscv::RiscvAirWithApcs;
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::{io::SP1PublicValues, Elf};
     use sp1_verifier::SP1ProofMode;
     use test_artifacts::{FIBONACCI_ELF, KECCAK256_ELF};
@@ -159,7 +159,7 @@ mod tests {
             vec![]
         };
 
-        let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
+        let machine = RiscvAir::machine_with_apcs(apcs);
         let client = ProverClient::builder_with_machine(machine).cpu().build().await;
         let pk = client.setup(elf).await?;
         let mut proof = client.prove(&pk, stdin).mode(mode).await?;
@@ -306,7 +306,7 @@ mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.minimal_trace_chunk_threshold = 1000;
 
-        let client = MockProver::new_with_opts(RiscvAirWithApcs::machine(), opts).await;
+        let client = MockProver::new_with_opts(RiscvAir::machine(), opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 

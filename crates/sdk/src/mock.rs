@@ -5,7 +5,7 @@
 use std::pin::Pin;
 
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::{
@@ -31,12 +31,12 @@ impl MockProver {
     /// Create a new mock prover.
     #[must_use]
     pub async fn new() -> Self {
-        Self::new_with_machine(RiscvAirWithApcs::machine()).await
+        Self::new_with_machine(RiscvAir::machine()).await
     }
 
     /// Create a new mock prover with a given machine.
     #[must_use]
-    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing mock prover");
         Self { inner: SP1LightNode::new_with_machine(machine).await }
     }
@@ -44,7 +44,7 @@ impl MockProver {
     /// Create a new mock prover with custom options.
     #[must_use]
     pub async fn new_with_opts(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
         Self { inner: SP1LightNode::with_opts(machine, opts).await }

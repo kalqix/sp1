@@ -4,7 +4,7 @@
 
 use super::CudaProver;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
@@ -20,13 +20,13 @@ pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl CudaProverBuilder {
     /// Creates a new [`CudaProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { cuda_device_id: None, core_opts: None, machine }
     }
 

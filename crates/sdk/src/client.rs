@@ -2,7 +2,7 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
@@ -41,13 +41,13 @@ impl ProverClient {
     /// ```
     #[must_use]
     pub async fn from_env() -> EnvProver {
-        Self::from_env_with_machine(RiscvAirWithApcs::machine()).await
+        Self::from_env_with_machine(RiscvAir::machine()).await
     }
 
     /// Same as `from_env` but with a custom machine.
     #[must_use]
     pub async fn from_env_with_machine(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> EnvProver {
         EnvProver::new(machine).await
     }
@@ -55,13 +55,13 @@ impl ProverClient {
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
     pub fn builder() -> ProverClientBuilder {
-        Self::builder_with_machine(RiscvAirWithApcs::machine())
+        Self::builder_with_machine(RiscvAir::machine())
     }
 
     /// Creates a new [`ProverClientBuilder`] with a given machine.
     #[must_use]
     pub fn builder_with_machine(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> ProverClientBuilder {
         ProverClientBuilder::new(machine)
     }
@@ -69,11 +69,11 @@ impl ProverClient {
 
 /// A builder to define which proving client to use.
 pub struct ProverClientBuilder {
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl ProverClientBuilder {
-    fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { machine }
     }
 

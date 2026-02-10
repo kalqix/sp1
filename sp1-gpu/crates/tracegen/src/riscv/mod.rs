@@ -1,16 +1,16 @@
 mod global;
 
 use slop_alloc::mem::CopyError;
-use sp1_core_machine::riscv::{RiscvAir, RiscvAirWithApcs};
+use sp1_core_machine::riscv::{RiscvAirWithoutApcs, RiscvAir};
 use sp1_gpu_cudart::{DeviceMle, TaskScope};
 
 use crate::{CudaTracegenAir, F};
 
-impl CudaTracegenAir<F> for RiscvAirWithApcs<F> {
+impl CudaTracegenAir<F> for RiscvAir<F> {
     fn supports_device_preprocessed_tracegen(&self) -> bool {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => riscv_air.supports_device_preprocessed_tracegen(),
-            RiscvAirWithApcs::Apc(_) => false,
+            RiscvAir::Riscv(riscv_air) => riscv_air.supports_device_preprocessed_tracegen(),
+            RiscvAir::Apc(_) => false,
         }
     }
 
@@ -20,17 +20,17 @@ impl CudaTracegenAir<F> for RiscvAirWithApcs<F> {
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => {
+            RiscvAir::Riscv(riscv_air) => {
                 riscv_air.generate_preprocessed_trace_device(program, scope).await
             }
-            RiscvAirWithApcs::Apc(_) => unimplemented!(),
+            RiscvAir::Apc(_) => unimplemented!(),
         }
     }
 
     fn supports_device_main_tracegen(&self) -> bool {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => riscv_air.supports_device_main_tracegen(),
-            RiscvAirWithApcs::Apc(_) => false,
+            RiscvAir::Riscv(riscv_air) => riscv_air.supports_device_main_tracegen(),
+            RiscvAir::Apc(_) => false,
         }
     }
 
@@ -41,15 +41,15 @@ impl CudaTracegenAir<F> for RiscvAirWithApcs<F> {
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => {
+            RiscvAir::Riscv(riscv_air) => {
                 riscv_air.generate_trace_device(input, output, scope).await
             }
-            RiscvAirWithApcs::Apc(_) => unimplemented!(),
+            RiscvAir::Apc(_) => unimplemented!(),
         }
     }
 }
 
-impl CudaTracegenAir<F> for RiscvAir<F> {
+impl CudaTracegenAir<F> for RiscvAirWithoutApcs<F> {
     fn supports_device_main_tracegen(&self) -> bool {
         match self {
             Self::Global(chip) => chip.supports_device_main_tracegen(),

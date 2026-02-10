@@ -10,7 +10,7 @@ use slop_challenger::IopCtx;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 
 use sp1_hypercube::air::{PublicValues, SP1CorePublicValues};
 
@@ -99,10 +99,10 @@ where
     /// The first shard has some additional constraints for initialization.
     pub fn verify(
         builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<SP1GlobalContext, RiscvAirWithApcs<SP1Field>, C>,
+        machine: &RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, C>,
         input: SP1RecursionWitnessVariable<C, SP1GlobalContext>,
     ) where
-        RiscvAirWithApcs<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
+        RiscvAir<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
     {
         // Read input.
         let SP1RecursionWitnessVariable {

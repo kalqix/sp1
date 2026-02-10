@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use num_bigint::BigUint;
 use slop_algebra::{AbstractField, PrimeField};
 use sp1_core_executor::SP1RecursionProof;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
@@ -75,7 +75,7 @@ pub struct SP1Verifier {
 impl SP1Verifier {
     pub fn new(
         recursion_vks: VerifierRecursionVks,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Get the verifiers from the components.
         let core = CpuSP1ProverComponents::core_verifier(machine);

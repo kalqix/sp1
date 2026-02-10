@@ -10,7 +10,7 @@ use sp1_hypercube::{
 use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
 
-use crate::{io::SP1Stdin, riscv::RiscvAirWithApcs};
+use crate::{io::SP1Stdin, riscv::RiscvAir};
 
 use super::prove_core;
 
@@ -23,7 +23,7 @@ use super::prove_core;
 pub async fn run_test_with_machine_opts(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     opts: SP1CoreOpts,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     // Run MinimalExecutor to get public values
@@ -41,7 +41,7 @@ pub async fn run_test_with_machine_opts(
 pub async fn run_test_with_machine(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
 }
@@ -50,7 +50,7 @@ pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    run_test_with_machine(program, inputs, RiscvAirWithApcs::machine()).await
+    run_test_with_machine(program, inputs, RiscvAir::machine()).await
 }
 
 /// This function tests cases where `max_log_row_count` is potentially larger than the `log(trace)`.
@@ -119,7 +119,7 @@ pub async fn run_test_core(
         inputs,
         log_stacking_height,
         max_log_row_count,
-        RiscvAirWithApcs::machine(),
+        RiscvAir::machine(),
         SP1CoreOpts::default(),
     )
     .await
@@ -131,7 +131,7 @@ pub async fn run_test_core_with_machine(
     inputs: SP1Stdin,
     log_stacking_height: u32,
     max_log_row_count: usize,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     opts: SP1CoreOpts,
 ) -> Result<
     MachineProof<SP1GlobalContext, SP1PcsProofInner>,

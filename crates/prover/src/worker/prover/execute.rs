@@ -5,7 +5,7 @@ use sp1_core_executor::{
     SP1CoreOpts, SP1RecursionProof,
 };
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_hypercube::{Machine, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
@@ -111,7 +111,7 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
 }
 
 fn verify_deferred_proofs(
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     proofs: &[DeferredProofInput],
 ) -> anyhow::Result<()> {
     if proofs.is_empty() {
@@ -134,7 +134,7 @@ pub async fn execute_with_options(
     context: SP1Context<'static>,
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
     // The return values of the spawned tasks.
     enum ExecutorOutput {
@@ -323,7 +323,7 @@ mod tests {
     use std::sync::Arc;
 
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
-    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAirWithApcs};
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 
     use super::{execute_with_options, SP1ExecutorConfig};
 
@@ -343,7 +343,7 @@ mod tests {
             context,
             opts,
             executor_config,
-            RiscvAirWithApcs::machine(),
+            RiscvAir::machine(),
         )
         .await
         .unwrap();

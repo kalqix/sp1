@@ -307,7 +307,7 @@ impl SP1LocalNode {
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use sp1_core_machine::{riscv::RiscvAirWithApcs, utils::setup_logger};
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 
     use crate::CpuSP1ProverComponents;
     use sp1_hypercube::HashableKey;
@@ -369,7 +369,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder(RiscvAirWithApcs::machine())).await
+        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine())).await
     }
 
     #[tokio::test]
@@ -377,7 +377,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder(RiscvAirWithApcs::machine()).without_vk_verification())
+        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine()).without_vk_verification())
             .await
     }
 
@@ -388,7 +388,7 @@ mod tests {
         setup_logger();
 
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
-            RiscvAirWithApcs::machine(),
+            RiscvAir::machine(),
         ))
         .build()
         .await
@@ -411,7 +411,7 @@ mod tests {
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Groth16;
 
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
             .build()
             .await
@@ -455,7 +455,7 @@ mod tests {
         setup_logger();
 
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
-            RiscvAirWithApcs::machine(),
+            RiscvAir::machine(),
         ))
         .build()
         .await

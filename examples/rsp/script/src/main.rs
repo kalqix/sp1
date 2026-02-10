@@ -111,7 +111,7 @@ async fn main() {
                 Vec::new()
             };
 
-            let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
+            let machine = RiscvAir::machine_with_apcs(apcs);
 
             let client = ProverClient::from_env_with_machine(machine).await;
 

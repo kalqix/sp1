@@ -15,7 +15,7 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::SP1NodeCore;
@@ -34,7 +34,7 @@ pub enum EnvProver {
 
 impl Default for EnvProver {
     fn default() -> Self {
-        Self::new(RiscvAirWithApcs::new())
+        Self::new(RiscvAir::new())
     }
 }
 
@@ -46,7 +46,7 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
-    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::from_env_with_opts(None, machine)
     }
 
@@ -59,7 +59,7 @@ impl EnvProver {
     #[must_use]
     pub fn from_env_with_opts(
         core_opts: Option<SP1CoreOpts>,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,

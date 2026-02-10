@@ -6,7 +6,7 @@ use std::{
 
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_challenger::IopCtx;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     air::{POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
     prover::ZerocheckAir,
@@ -68,7 +68,7 @@ impl RecursionVks {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
         // TODO: use apcs here
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
             .into_iter()
             .collect::<BTreeSet<_>>()
@@ -175,11 +175,7 @@ impl RecursionVks {
 /// The program that proves the correct execution of the verifier of a single shard of the core
 /// (RISC-V) machine.
 pub fn normalize_program_from_input(
-    recursive_verifier: &RecursiveShardVerifier<
-        SP1GlobalContext,
-        RiscvAirWithApcs<SP1Field>,
-        InnerConfig,
-    >,
+    recursive_verifier: &RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
     input: &SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner>,
 ) -> RecursionProgram<SP1Field> {
     // Get the operations.

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::prover::{CpuShardProver, ProverSemaphore};
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
@@ -22,7 +22,7 @@ pub struct SP1WorkerBuilder<
     A = InMemoryArtifactClient,
     W = LocalWorkerClient,
 > {
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     config: SP1WorkerConfig,
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
@@ -34,7 +34,7 @@ pub struct SP1WorkerBuilder<
 
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     #[allow(clippy::new_without_default)]
-    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         let config = SP1WorkerConfig::default();
 
         Self {
@@ -49,7 +49,7 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
         }
     }
 
-    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
         &self.machine
     }
 }
@@ -311,7 +311,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
 
 /// Create a [SP1WorkerBuilder] for a CPU worker with default components.
 pub fn cpu_worker_builder(
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     // Create the prover permits, setting it to having 4 provers.
     let prover_permits = ProverSemaphore::new(4);

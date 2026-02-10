@@ -412,7 +412,7 @@ mod tests {
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
     use sp1_core_machine::{
         io::SP1Stdin,
-        riscv::RiscvAirWithApcs,
+        riscv::RiscvAir,
         utils::{prove_core, setup_logger},
     };
     use sp1_hypercube::{
@@ -438,14 +438,14 @@ mod tests {
     use sp1_primitives::{SP1Field, SP1GlobalContext};
     type GC = SP1GlobalContext;
     type C = InnerConfig;
-    type A = RiscvAirWithApcs<SP1Field>;
+    type A = RiscvAir<SP1Field>;
 
     #[tokio::test]
     async fn test_verify_shard() {
         setup_logger();
         let log_stacking_height = 21;
         let max_log_row_count = 22;
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let verifier = ShardVerifier::from_basefold_parameters(
             FriConfig::default_fri_config(),
             log_stacking_height,

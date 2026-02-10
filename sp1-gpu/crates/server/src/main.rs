@@ -1,4 +1,4 @@
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -24,7 +24,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let args = Args::parse();
-    let machine = RiscvAirWithApcs::machine();
+    let machine = RiscvAir::machine();
 
     if args.version {
         println!("{}", sp1_primitives::SP1_VERSION);

@@ -33,7 +33,7 @@ use anyhow::{Context, Result};
 use sp1_build::Elf;
 use sp1_core_executor::{SP1Context, StatusCode};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
@@ -140,7 +140,7 @@ impl NetworkProver {
         rpc_url: &str,
         network_mode: NetworkMode,
     ) -> Self {
-        Self::new_with_machine(signer, rpc_url, network_mode, RiscvAirWithApcs::machine()).await
+        Self::new_with_machine(signer, rpc_url, network_mode, RiscvAir::machine()).await
     }
 
     #[must_use]
@@ -149,7 +149,7 @@ impl NetworkProver {
         signer: impl Into<NetworkSigner>,
         rpc_url: &str,
         network_mode: NetworkMode,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();

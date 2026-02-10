@@ -4,7 +4,7 @@ use clap::Parser;
 
 use slop_algebra::AbstractField;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAirWithApcs};
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
@@ -119,7 +119,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         worker_client,
         None,
         args.cycle_limit,
-        RiscvAirWithApcs::machine(),
+        RiscvAir::machine(),
     );
 
     let counter_handle = tokio::task::spawn(async move {

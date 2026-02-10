@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{Machine, SP1VerifyingKey};
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
@@ -34,7 +34,7 @@ impl SP1NodeCore {
         Self { inner: Arc::new(SP1NodeCoreInner { verifier, opts }) }
     }
 
-    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
         self.inner.verifier.core.machine()
     }
 

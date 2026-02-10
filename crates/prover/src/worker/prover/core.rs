@@ -8,7 +8,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
 use sp1_core_machine::executor::trace_chunk;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
@@ -122,7 +122,7 @@ pub struct CoreProvingTask {
 struct NormalizeProgramCompiler {
     cache: SP1NormalizeCache,
     recursive_verifier:
-        RecursiveShardVerifier<SP1GlobalContext, RiscvAirWithApcs<SP1Field>, InnerConfig>,
+        RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
     verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
 }
@@ -132,7 +132,7 @@ impl NormalizeProgramCompiler {
         cache: SP1NormalizeCache,
         recursive_verifier: RecursiveShardVerifier<
             SP1GlobalContext,
-            RiscvAirWithApcs<SP1Field>,
+            RiscvAir<SP1Field>,
             InnerConfig,
         >,
 
@@ -142,14 +142,14 @@ impl NormalizeProgramCompiler {
         Self { cache, recursive_verifier, reduce_shape, verifier: machine_verifier }
     }
 
-    pub fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
         self.verifier.machine()
     }
 
     pub fn get_program(
         &self,
         vk: SP1VerifyingKey,
-        proof_shape: &CoreProofShape<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        proof_shape: &CoreProofShape<SP1Field, RiscvAir<SP1Field>>,
     ) -> Arc<RecursionProgram<SP1Field>> {
         let shape = SP1NormalizeInputShape {
             proof_shapes: vec![proof_shape.clone()],
@@ -210,7 +210,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         }
     }
 
-    fn machine(&self) -> &Machine<SP1Field, RiscvAirWithApcs<SP1Field>> {
+    fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
         self.normalize_program_compiler.machine()
     }
 }
@@ -745,7 +745,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
         let core_verifier = C::core_verifier(machine);

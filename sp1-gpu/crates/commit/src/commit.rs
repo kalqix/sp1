@@ -110,13 +110,13 @@ mod tests {
     use sp1_hypercube::prover::{DefaultTraceGenerator, ProverSemaphore, TraceGenerator};
     use sp1_hypercube::{SP1InnerPcs, SP1PcsProofInner};
     use sp1_primitives::fri_params::core_fri_config;
-    use sp1_sdk::RiscvAirWithApcs;
+    use sp1_sdk::RiscvAir;
 
     use crate::commit::commit_multilinears;
     #[serial]
     #[tokio::test]
     async fn test_commit_matches() {
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let (record, program) = tracegen_setup::setup(machine.clone()).await;
 
         type JC = SP1InnerPcs;

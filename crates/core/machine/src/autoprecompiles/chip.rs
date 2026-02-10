@@ -31,7 +31,7 @@ use crate::{
         instruction_handler::{try_instruction_type_to_air_id, InstructionType},
         Sp1Apc,
     },
-    riscv::RiscvAirWithApcs,
+    riscv::RiscvAir,
     utils::{next_multiple_of_32, zeroed_f_vec},
 };
 
@@ -66,7 +66,7 @@ pub struct ApcChip<F: PrimeField32> {
     /// The cached APC.
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
-    machine: Machine<F, RiscvAirWithApcs<F>>,
+    machine: Machine<F, RiscvAir<F>>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
@@ -75,7 +75,7 @@ impl<F: PrimeField32> ApcChip<F> {
             id,
             name: format!("APC_{id}"),
             cached_apc: apc.into(),
-            machine: RiscvAirWithApcs::machine(),
+            machine: RiscvAir::machine(),
         }
     }
 

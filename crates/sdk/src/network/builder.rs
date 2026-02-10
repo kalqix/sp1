@@ -3,7 +3,7 @@
 //! This module provides a builder for the [`NetworkProver`].
 
 use alloy_primitives::Address;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
@@ -21,19 +21,19 @@ pub struct NetworkProverBuilder {
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
-    pub(crate) machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl Default for NetworkProverBuilder {
     fn default() -> Self {
-        Self::new(RiscvAirWithApcs::machine())
+        Self::new(RiscvAir::machine())
     }
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self {
             private_key: None,
             rpc_url: None,

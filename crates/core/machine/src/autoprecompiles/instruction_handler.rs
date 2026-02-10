@@ -8,7 +8,7 @@ use crate::{
         instruction::Sp1Instruction,
         DEFAULT_DEGREE_BOUND,
     },
-    riscv::RiscvAir,
+    riscv::RiscvAirWithoutApcs,
 };
 use itertools::Itertools;
 use powdr_autoprecompiles::{
@@ -48,13 +48,13 @@ pub struct Sp1InstructionHandler<F> {
 impl<F: PrimeField32> Sp1InstructionHandler<F> {
     pub fn new() -> Self {
         let mut handler = Self::default();
-        for air in RiscvAir::airs() {
+        for air in RiscvAirWithoutApcs::airs() {
             handler.add(&air);
         }
         handler
     }
 
-    pub fn add(&mut self, riscv_air: &RiscvAir<F>) {
+    pub fn add(&mut self, riscv_air: &RiscvAirWithoutApcs<F>) {
         let opcodes = air_id_to_opcodes(riscv_air.id());
 
         if opcodes.is_empty() {

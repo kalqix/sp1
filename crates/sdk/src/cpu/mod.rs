@@ -10,7 +10,7 @@ use std::sync::Arc;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::{
@@ -70,11 +70,11 @@ impl Prover for CpuProver {
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     pub async fn new() -> Self {
-        Self::new_with_machine(RiscvAirWithApcs::machine()).await
+        Self::new_with_machine(RiscvAir::machine()).await
     }
 
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`] and a given machine.
-    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine).await
     }
 
@@ -82,7 +82,7 @@ impl CpuProver {
     #[must_use]
     pub async fn new_with_opts(
         core_opts: Option<sp1_core_executor::SP1CoreOpts>,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         tracing::info!("initializing cpu prover");
         let worker_builder =
@@ -105,7 +105,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub async fn new_experimental(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new_experimental(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::new_with_opts(None, machine).await
     }
 }

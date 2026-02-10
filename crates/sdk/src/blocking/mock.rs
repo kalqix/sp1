@@ -3,7 +3,7 @@
 //! A mock prover that can be used for testing.
 
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::{
@@ -37,12 +37,12 @@ impl MockProver {
     /// Create a new mock prover.
     #[must_use]
     pub fn new() -> Self {
-        Self::new_with_machine(RiscvAirWithApcs::machine())
+        Self::new_with_machine(RiscvAir::machine())
     }
 
     /// Create a new mock prover with a given machine
     #[must_use]
-    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing mock prover");
         Self { inner: block_on(SP1LightNode::new_with_machine(machine)) }
     }

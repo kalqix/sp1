@@ -27,7 +27,7 @@ use sp1_prover::{
     CpuSP1ProverComponents, SP1ProverComponents,
 };
 use sp1_prover_types::network_base_types::ProofMode;
-use sp1_sdk::RiscvAirWithApcs;
+use sp1_sdk::RiscvAir;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -41,7 +41,7 @@ struct Args {
 #[tokio::main]
 #[allow(clippy::field_reassign_with_default)]
 async fn main() {
-    let machine = RiscvAirWithApcs::machine();
+    let machine = RiscvAir::machine();
     let args = Args::parse();
 
     // Load the environment variables.

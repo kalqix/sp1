@@ -309,7 +309,7 @@ mod tests {
     };
     use sp1_gpu_utils::TestGC;
     use sp1_hypercube::SP1SC;
-    use sp1_sdk::RiscvAirWithApcs;
+    use sp1_sdk::RiscvAir;
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -550,7 +550,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_logup_gkr_e2e() {
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (record, program) = rt.block_on(tracegen_setup::setup(machine.clone()));
 
@@ -587,7 +587,7 @@ mod tests {
             }
 
             let mut prover_challenger = challenger.clone();
-            let proof = super::prove_logup_gkr::<TestGC, RiscvAirWithApcs<Felt>>(
+            let proof = super::prove_logup_gkr::<TestGC, RiscvAir<Felt>>(
                 shard_chips,
                 all_interactions,
                 &jagged_trace_data,
@@ -611,7 +611,7 @@ mod tests {
                 .collect();
 
             let mut verifier_challenger = challenger.clone();
-            sp1_hypercube::LogUpGkrVerifier::<TestGC, SP1SC<TestGC, RiscvAirWithApcs<Felt>>>::verify_logup_gkr(
+            sp1_hypercube::LogUpGkrVerifier::<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>::verify_logup_gkr(
                 shard_chips,
                 &degrees,
                 CORE_MAX_LOG_ROW_COUNT as usize,

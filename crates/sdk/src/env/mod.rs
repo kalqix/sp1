@@ -19,7 +19,7 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::SP1NodeCore;
@@ -47,7 +47,7 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::from_env_with_opts(None, machine).await
     }
 
@@ -59,7 +59,7 @@ impl EnvProver {
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn from_env_with_opts(
         core_opts: Option<SP1CoreOpts>,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
@@ -78,8 +78,8 @@ impl EnvProver {
                 Please set it to your private key or use the .private_key() method.",
                     );
 
-                let network_builder =
-                    crate::network::builder::NetworkProverBuilder::new().private_key(&private_key);
+                let network_builder = crate::network::builder::NetworkProverBuilder::default()
+                    .private_key(&private_key);
 
                 Self::Network(network_builder.build().await)
             }
