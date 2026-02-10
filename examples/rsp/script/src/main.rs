@@ -2,6 +2,7 @@
 use powdr_autoprecompiles::PgoConfig;
 use sp1_build::include_elf;
 use sp1_build::Elf;
+use sp1_core_executor::Program;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
@@ -9,7 +10,6 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
 use std::sync::Arc;
-use sp1_core_executor::Program;
 
 use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
@@ -85,8 +85,7 @@ async fn main() {
         Commands::Prove { apcs } => {
             let apcs = if apcs > 0 {
                 println!("[powdr] Getting execution profile...");
-                let execution_profile =
-                    execution_profile_from_program(program, stdin.clone());
+                let execution_profile = execution_profile_from_program(program, stdin.clone());
 
                 println!("[powdr] Generating APCs...");
                 let path = std::path::Path::new("apc_candidates");
