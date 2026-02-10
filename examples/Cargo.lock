@@ -4880,33 +4880,9 @@ dependencies = [
  "log",
  "metrics",
  "num-traits",
- "powdr-constraint-solver 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "powdr-expression 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "rayon",
- "serde",
- "serde_cbor",
- "serde_json",
- "strum 0.27.2",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "powdr-autoprecompiles"
-version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1#f2d26f166f79ba6fd439828c031775f31b74088c"
-dependencies = [
- "deepsize2",
- "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
- "log",
- "metrics",
- "num-traits",
- "powdr-constraint-solver 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
- "powdr-expression 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
+ "powdr-constraint-solver",
+ "powdr-expression",
+ "powdr-number",
  "rayon",
  "serde",
  "serde_cbor",
@@ -4929,24 +4905,7 @@ dependencies = [
  "itertools 0.13.0",
  "log",
  "num-traits",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "serde",
-]
-
-[[package]]
-name = "powdr-constraint-solver"
-version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1#f2d26f166f79ba6fd439828c031775f31b74088c"
-dependencies = [
- "auto_enums",
- "bitvec",
- "crepe",
- "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
- "log",
- "num-traits",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
+ "powdr-number",
  "serde",
 ]
 
@@ -4958,20 +4917,7 @@ dependencies = [
  "derive_more 0.99.20",
  "itertools 0.13.0",
  "num-traits",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "schemars 0.8.22",
- "serde",
-]
-
-[[package]]
-name = "powdr-expression"
-version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1#f2d26f166f79ba6fd439828c031775f31b74088c"
-dependencies = [
- "derive_more 0.99.20",
- "itertools 0.13.0",
- "num-traits",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
+ "powdr-number",
  "schemars 0.8.22",
  "serde",
 ]
@@ -4985,29 +4931,6 @@ source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e80
 name = "powdr-number"
 version = "0.1.4"
 source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
-dependencies = [
- "ark-bn254",
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
- "csv",
- "derive_more 0.99.20",
- "ibig",
- "num-bigint 0.4.6",
- "num-traits",
- "p3-baby-bear 0.1.0",
- "p3-field 0.1.0",
- "p3-koala-bear 0.1.0",
- "p3-mersenne-31",
- "schemars 0.8.22",
- "serde",
- "serde_cbor",
- "serde_with",
-]
-
-[[package]]
-name = "powdr-number"
-version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1#f2d26f166f79ba6fd439828c031775f31b74088c"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.4.2",
@@ -6427,9 +6350,12 @@ dependencies = [
  "alloy-primitives 0.8.26",
  "bincode",
  "clap",
- "powdr-autoprecompiles 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=f2d26f1)",
+ "powdr-autoprecompiles",
  "rsp-client-executor",
  "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives 6.0.0-rc.1",
  "sp1-sdk",
  "tokio",
  "tracing",
@@ -7547,7 +7473,7 @@ dependencies = [
  "itertools 0.14.0",
  "memmap2",
  "num",
- "powdr-autoprecompiles 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
+ "powdr-autoprecompiles",
  "rrs-succinct",
  "serde",
  "serde_arrays",
@@ -7585,10 +7511,10 @@ dependencies = [
  "metrics-tracing-context",
  "num",
  "num_cpus",
- "powdr-autoprecompiles 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "powdr-constraint-solver 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "powdr-expression 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
- "powdr-number 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
+ "powdr-autoprecompiles",
+ "powdr-constraint-solver",
+ "powdr-expression",
+ "powdr-number",
  "powdr-riscv-elf",
  "rayon",
  "rayon-scan",
@@ -7817,7 +7743,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "opentelemetry",
  "pin-project",
- "powdr-autoprecompiles 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
+ "powdr-autoprecompiles",
  "rand 0.8.5",
  "reqwest",
  "serde",
@@ -8017,7 +7943,7 @@ dependencies = [
  "itertools 0.14.0",
  "k256",
  "num-bigint 0.4.6",
- "powdr-autoprecompiles 0.1.4 (git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7)",
+ "powdr-autoprecompiles",
  "serde",
  "sha2 0.10.8",
  "slop-algebra",

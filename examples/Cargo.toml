@@ -68,11 +68,12 @@ edition = "2021"
 [workspace.dependencies]
 sp1-build = { path = "../crates/build" }
 sp1-core-executor = { path = "../crates/core/executor" }
+sp1-core-machine = { path = "../crates/core/machine" }
 sp1-primitives = { path = "../crates/primitives" }
 sp1-sdk = { path = "../crates/sdk" }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", features = ["lib"] }
 tokio = { version = "1.4", features = ["full"] }
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "f2d26f1", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "ac7e7c7", default-features = false }
 
 # misc
 serde = "1.0.204"

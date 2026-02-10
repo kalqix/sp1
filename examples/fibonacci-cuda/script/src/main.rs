@@ -18,8 +18,8 @@ async fn main() {
     stdin.write(&n);
 
     // Create a `ProverClient` method.
-    let client = ProverClient::builder().cuda().build().await;
-    let client2 = ProverClient::builder().cuda().build().await;
+    let client = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
+    let client2 = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
 
     let handle = tokio::spawn({
         let stdin = stdin.clone();

@@ -2,23 +2,19 @@
 use powdr_autoprecompiles::PgoConfig;
 use sp1_build::include_elf;
 use sp1_build::Elf;
-use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::utils::setup_logger;
-use sp1_primitives::io::SP1PublicValues;
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
 use std::sync::Arc;
+use sp1_core_executor::Program;
 
-use alloy_primitives::B256;
 use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use sp1_sdk::ProveRequest;
 use sp1_sdk::Prover;
-use sp1_sdk::ProverClient;
 use sp1_sdk::ProvingKey;
 use std::path::PathBuf;
 
@@ -68,32 +64,15 @@ async fn main() {
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
-    let opts = SP1CoreOpts::default();
     let program = Arc::new(Program::from(&ELF).unwrap());
 
     match args.command {
         Commands::Execute => {
-            let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
-            runtime.maybe_setup_profiler(&ELF);
-
-            runtime.write_vecs(&stdin.buffer);
-
-            let now = std::time::Instant::now();
-            runtime.run_fast().unwrap();
-
-            println!("total elapsed: {:?}", now.elapsed());
-
-            println!("Full execution report:\n{:?}", runtime.report);
-            println!("Cycles: {:?}", runtime.report.total_instruction_count());
-
-            let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-            let block_hash = public_values.read::<B256>();
-            println!("success: block_hash={block_hash}");
+            todo!()
         }
         Commands::Powdr => {
             println!("[powdr] Getting execution profile...");
-            let execution_profile = execution_profile_from_program(program, opts, Some(stdin));
+            let execution_profile = execution_profile_from_program(program, stdin);
 
             println!("[powdr] Generating APCs...");
             let path = std::path::Path::new("apc_candidates");
@@ -107,7 +86,7 @@ async fn main() {
             let apcs = if apcs > 0 {
                 println!("[powdr] Getting execution profile...");
                 let execution_profile =
-                    execution_profile_from_program(program, opts, Some(stdin.clone()));
+                    execution_profile_from_program(program, stdin.clone());
 
                 println!("[powdr] Generating APCs...");
                 let path = std::path::Path::new("apc_candidates");
@@ -121,13 +100,13 @@ async fn main() {
                     .apcs_and_stats
                     .into_iter()
                     .map(|a| a.into_parts())
-                    .map(|(apc, _)| Arc::new(apc))
+                    .map(|(apc, _, _)| apc)
                     .collect()
             } else {
                 Vec::new()
             };
 
-            let machine = RiscvAirWithApcs::custom(apcs);
+            let machine = RiscvAirWithApcs::machine_with_apcs(apcs);
 
             let client = ProverClient::from_env(machine).await;
 
