@@ -6,7 +6,7 @@ use std::sync::Arc;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
-use sp1_core_executor::{Program, SP1CoreOpts};
+use sp1_core_executor::Program;
 
 const ELF: Elf = include_elf!("keccak-bench-program");
 
@@ -42,9 +42,8 @@ async fn main() {
     stdin.write(&state);
 
     let apcs = if args.apcs > 0 {
-        let opts = SP1CoreOpts::default();
         let program = Arc::new(Program::from(&ELF).unwrap());
-        let execution_profile = execution_profile_from_program(program, opts, Some(stdin.clone()));
+        let execution_profile = execution_profile_from_program(program, stdin.clone());
         let path = std::path::Path::new("apc_candidates");
         let config = sp1_powdr_config(args.apcs as u64, 0).with_apc_candidates_dir(path);
         let pgo_config = PgoConfig::Cell(execution_profile, None);
@@ -54,13 +53,13 @@ async fn main() {
             .apcs_and_stats
             .into_iter()
             .map(|a| a.into_parts())
-            .map(|(apc, _)| Arc::new(apc))
+            .map(|(apc, _, _)| apc)
             .collect()
     } else {
         Vec::new()
     };
 
-    let client = ProverClient::from_env_with_apcs(apcs).await;
+    let client = ProverClient::from_env_with_machine(RiscvAir::machine_with_apcs(apcs)).await;
     let pk = client.setup(ELF).await.expect("setup failed");
     let proof = client.prove(&pk, stdin).core().await.expect("proving failed");
 
