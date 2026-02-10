@@ -34,7 +34,7 @@ pub enum EnvProver {
 
 impl Default for EnvProver {
     fn default() -> Self {
-        Self::new(RiscvAir::new())
+        Self::new(RiscvAir::machine())
     }
 }
 
