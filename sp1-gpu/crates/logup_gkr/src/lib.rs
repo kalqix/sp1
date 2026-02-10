@@ -301,7 +301,6 @@ mod tests {
     use slop_futures::queue::WorkerQueue;
     use slop_multilinear::Mle;
     use slop_sumcheck::partially_verify_sumcheck_proof;
-    use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, PinnedBuffer};
     use sp1_gpu_jagged_tracegen::{
         full_tracegen,
@@ -309,10 +308,7 @@ mod tests {
         CORE_MAX_TRACE_SIZE,
     };
     use sp1_gpu_utils::TestGC;
-    use sp1_hypercube::MachineRecord;
-    use sp1_hypercube::{prover::ProverSemaphore, ShardVerifier};
-    use sp1_hypercube::{prover::ProverSemaphore, SP1SC};
-    use sp1_primitives::fri_params::core_fri_config;
+    use sp1_hypercube::SP1SC;
     use sp1_sdk::RiscvAirWithApcs;
     use std::sync::Arc;
 
@@ -574,7 +570,7 @@ mod tests {
                     LOG_STACKING_HEIGHT,
                     CORE_MAX_LOG_ROW_COUNT,
                     &scope,
-                    ProverSemaphore::new(1),
+                    sp1_hypercube::prover::ProverSemaphore::new(1),
                     true,
                 ));
 

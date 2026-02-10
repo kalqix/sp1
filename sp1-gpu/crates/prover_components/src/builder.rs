@@ -9,7 +9,6 @@ use sp1_primitives::SP1Field;
 use sp1_prover::{
     worker::SP1WorkerBuilder, ReadyWrapProverBuilder, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT,
 };
-use sp1_prover::{worker::SP1WorkerBuilder, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT};
 
 pub const RECURSION_TRACE_ALLOCATION: usize = 1 << 27;
 pub const SHRINK_TRACE_ALLOCATION: usize = 1 << 25;
