@@ -39,11 +39,7 @@ struct ConnectionCtx {
 
 impl Server {
     /// Run the server, indefinitely.
-    pub async fn run(
-        self,
-        task_scope: TaskScope,
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-    ) {
+    pub async fn run(self, task_scope: TaskScope, machine: Machine<SP1Field, RiscvAir<SP1Field>>) {
         eprintln!(
             "Running sp1-gpu-server {} with device {}",
             sp1_primitives::SP1_VERSION,

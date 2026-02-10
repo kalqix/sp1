@@ -377,8 +377,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine()).without_vk_verification())
-            .await
+        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine()).without_vk_verification()).await
     }
 
     #[tokio::test]

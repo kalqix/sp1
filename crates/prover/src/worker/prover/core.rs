@@ -121,8 +121,7 @@ pub struct CoreProvingTask {
 
 struct NormalizeProgramCompiler {
     cache: SP1NormalizeCache,
-    recursive_verifier:
-        RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
+    recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
     verifier: MachineVerifier<SP1GlobalContext, CoreSC>,
 }

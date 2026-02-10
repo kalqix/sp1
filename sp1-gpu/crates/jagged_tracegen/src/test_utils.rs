@@ -79,9 +79,7 @@ pub mod tracegen_setup {
     /// Returns (machine, record, program) for use in core execution tracegen tests.
     ///
     /// Note: This generates ExecutionRecord, not recursion/compression records.
-    pub async fn setup(
-        machine: Machine<Felt, RiscvAir<Felt>>,
-    ) -> (ExecutionRecord, Arc<Program>) {
+    pub async fn setup(machine: Machine<Felt, RiscvAir<Felt>>) -> (ExecutionRecord, Arc<Program>) {
         setup_with_program(machine, TestProgram::default()).await
     }
 
