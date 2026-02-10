@@ -1061,9 +1061,7 @@ pub mod tests {
         autoprecompiles::create_apcs,
         programs::tests::*,
         riscv::{RiscvAir, RiscvAirWithApcs},
-        utils::{
-            run_test_small_trace, run_test_with_machine, run_test_with_machine_opts, setup_logger,
-        },
+        utils::{run_test_small_trace, run_test_with_machine, setup_logger},
     };
     use sp1_core_executor::add_halt;
     use sp1_hypercube::InteractionKind;
@@ -1297,7 +1295,6 @@ pub mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "CoreVM does not support apcs yet"]
     async fn test_add_apc_prove() {
         setup_logger();
         let mut instructions = vec![
@@ -1321,42 +1318,6 @@ pub mod tests {
         run_test_with_machine(Arc::new(program), stdin, RiscvAirWithApcs::machine_with_apcs(apcs))
             .await
             .unwrap();
-    }
-
-    #[tokio::test]
-    #[ignore = "CoreVM does not support apcs yet"]
-    async fn test_add_apc_prove_segment() {
-        use sp1_core_executor::{SP1CoreOpts, ShardingThreshold};
-        setup_logger();
-        let mut instructions = std::iter::repeat([
-            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
-            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-        ])
-        .flatten()
-        .take(16)
-        .collect();
-
-        add_halt(&mut instructions);
-        let apc_ranges = vec![(0, 2), (3, 5)];
-        let program = Program::new(instructions, 0, 0);
-        // TODO: The API is not great here, we should be able to pass the full apcs (not just the
-        // ranges) to the program Then in `run_test` the apcs can be passed to the prover,
-        // instead of passing them here to `run_test_with_apcs`
-        let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
-        let program = program.with_apcs(apc_range_and_costs);
-        let stdin = SP1Stdin::new();
-        let mut opts = SP1CoreOpts::default();
-        opts.sharding_threshold =
-            ShardingThreshold { element_threshold: 1000, height_threshold: 1000 };
-        run_test_with_machine_opts(
-            Arc::new(program),
-            stdin,
-            RiscvAirWithApcs::machine_with_apcs(apcs),
-            opts,
-        )
-        .await
-        .unwrap();
     }
 
     #[test]
