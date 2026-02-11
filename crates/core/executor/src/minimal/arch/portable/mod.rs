@@ -513,8 +513,7 @@ impl MinimalExecutor {
 
     fn execute_instruction(&mut self) -> bool {
         let program = self.program.clone();
-        // Note: we ignore the potential apc here: they are not relevant during minimal execution
-        let (instruction, _apc) = program.fetch(self.pc).unwrap();
+        let instruction = program.fetch(self.pc).unwrap();
         if let Some(sender) = &self.debug_sender {
             sender.send(Some(self.current_state())).expect("Failed to send debug state");
         }
@@ -712,7 +711,13 @@ impl MinimalExecutor {
                     (b as i64).wrapping_div(c as i64) as u64
                 }
             }
-            Opcode::DIVU => b.checked_div(c).unwrap_or(u64::MAX),
+            Opcode::DIVU => {
+                if c == 0 {
+                    u64::MAX
+                } else {
+                    b / c
+                }
+            }
             Opcode::REM => {
                 if c == 0 {
                     b

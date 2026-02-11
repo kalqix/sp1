@@ -9,15 +9,13 @@ use sp1_core_executor::events::FieldOperation;
 use sp1_core_executor::SyscallCode;
 use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder};
 use sp1_core_machine::operations::{AddrAddOperation, SyscallAddrOperation};
-use sp1_core_machine::riscv::{
-    RiscvAirWithApcs, WeierstrassAddAssignChip, WeierstrassDoubleAssignChip,
-};
+use sp1_core_machine::riscv::{RiscvAir, WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};
 use sp1_core_machine::syscall::precompiles::weierstrass::{
     WeierstrassAddAssignCols, WeierstrassDoubleAssignCols,
 };
 use sp1_core_machine::utils::limbs_to_words;
 use sp1_core_machine::{
-    riscv::{KeccakPermuteChip, RiscvAir},
+    riscv::{KeccakPermuteChip, RiscvAirWithoutApcs},
     syscall::precompiles::keccak256::{columns::KeccakMemCols, constants::rc_value_bit},
 };
 use sp1_curves::k256::elliptic_curve::generic_array::typenum::Unsigned;
@@ -52,18 +50,18 @@ pub trait BlockAir<AB: AirBuilder>: Air<AB> + MachineAir<F> + 'static + Send + S
     }
 }
 
-impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAirWithApcs<F> {
+impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
     fn num_blocks(&self) -> usize {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => riscv_air.num_blocks(),
-            RiscvAirWithApcs::Apc(_) => 1,
+            RiscvAir::Riscv(riscv_air) => riscv_air.num_blocks(),
+            RiscvAir::Apc(_) => 1,
         }
     }
 
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
         match self {
-            RiscvAirWithApcs::Riscv(riscv_air) => riscv_air.eval_block(builder, index),
-            RiscvAirWithApcs::Apc(apc_chip) => {
+            RiscvAir::Riscv(riscv_air) => riscv_air.eval_block(builder, index),
+            RiscvAir::Apc(apc_chip) => {
                 assert!(index == 0);
                 apc_chip.eval(builder);
             }
@@ -71,21 +69,23 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAirWithApcs<F> {
     }
 }
 
-impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
+impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAirWithoutApcs<F> {
     fn num_blocks(&self) -> usize {
         match self {
-            RiscvAir::KeccakP(keccak) => keccak.num_blocks(),
-            RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
-            RiscvAir::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAirWithoutApcs::KeccakP(keccak) => keccak.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
             _ => 1,
         }
     }
 
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
         match self {
-            RiscvAir::KeccakP(keccak) => keccak.eval_block(builder, index),
-            RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.eval_block(builder, index),
-            RiscvAir::Secp256k1Double(secp256k1_double) => {
+            RiscvAirWithoutApcs::KeccakP(keccak) => keccak.eval_block(builder, index),
+            RiscvAirWithoutApcs::Secp256k1Add(secp256k1_add) => {
+                secp256k1_add.eval_block(builder, index)
+            }
+            RiscvAirWithoutApcs::Secp256k1Double(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
             }
             _ => {

@@ -17,7 +17,7 @@ use slop_basefold::FriConfig;
 use sp1_core_executor::MAX_PROGRAM_SIZE;
 use sp1_core_machine::{
     bytes::columns::NUM_BYTE_PREPROCESSED_COLS, program::NUM_PROGRAM_PREPROCESSED_COLS,
-    range::columns::NUM_RANGE_PREPROCESSED_COLS, riscv::RiscvAirWithApcs,
+    range::columns::NUM_RANGE_PREPROCESSED_COLS, riscv::RiscvAir,
 };
 use sp1_hypercube::{
     air::MachineAir,
@@ -74,7 +74,7 @@ pub const DEFAULT_ARITY: usize = 4;
 /// single core shard proof.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SP1NormalizeInputShape {
-    pub proof_shapes: Vec<CoreProofShape<SP1Field, RiscvAirWithApcs<SP1Field>>>,
+    pub proof_shapes: Vec<CoreProofShape<SP1Field, RiscvAir<SP1Field>>>,
     pub max_log_row_count: usize,
     pub log_blowup: usize,
     pub log_stacking_height: usize,
@@ -83,7 +83,7 @@ pub struct SP1NormalizeInputShape {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum SP1RecursionProgramShape {
     // The program that verifies a core shard proof.
-    Normalize(CoreProofShape<SP1Field, RiscvAirWithApcs<SP1Field>>),
+    Normalize(CoreProofShape<SP1Field, RiscvAir<SP1Field>>),
     // Compose(arity) is the program that verifies a batch of Normalize proofs of size arity.
     Compose(usize),
     // The deferred proof program.
@@ -352,7 +352,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     max_arity: usize,
     merkle_tree_height: usize,
     vk_worker: Arc<RecursionVkWorker<C>>,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>) {
     let recursion_permits = vk_worker.recursion_permits.clone();
     let recursion_prover = vk_worker.recursion_prover.clone();
@@ -578,7 +578,7 @@ fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> 
 }
 
 pub fn create_all_input_shapes(
-    core_shape: &MachineShape<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    core_shape: &MachineShape<SP1Field, RiscvAir<SP1Field>>,
     max_arity: usize,
 ) -> Vec<SP1RecursionProgramShape> {
     let (max_preprocessed_multiple, _, capacity) = normalize_program_parameter_space();
@@ -633,7 +633,7 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
 }
 
 pub fn dummy_vk_map<C: SP1ProverComponents>(
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
     create_all_input_shapes(C::core_verifier(machine).machine().shape(), DEFAULT_ARITY)
         .iter()
@@ -663,7 +663,7 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
 }
 
 pub fn create_test_shape(
-    cluster: &BTreeSet<Chip<SP1Field, RiscvAirWithApcs<SP1Field>>>,
+    cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
 ) -> SP1NormalizeInputShape {
     let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
         + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
@@ -770,7 +770,7 @@ mod tests {
     #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
-        let client = SP1LightNode::new(RiscvAirWithApcs::machine()).await;
+        let client = SP1LightNode::new().await;
 
         let vk_verification = client.inner().vk_verification();
         let allowed_vk_height = client.inner().allowed_vk_height();
@@ -806,8 +806,8 @@ mod tests {
     async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let machine = RiscvAirWithApcs::machine();
-        let client = SP1LightNode::new(machine.clone()).await;
+        let machine = RiscvAir::machine();
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
         // let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
         let vk = client.setup(&elf).await?;
 
@@ -908,7 +908,7 @@ mod tests {
         // Clean up any existing file from previous runs
         let _ = std::fs::remove_file(&vk_map_path);
 
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let node =
             SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine.clone()))
                 .build()
@@ -990,8 +990,8 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let machine = RiscvAirWithApcs::machine();
-        let client = SP1LightNode::new(machine.clone()).await;
+        let machine = RiscvAir::machine();
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
         let vk = client.setup(&elf).await.unwrap();
 
         let chip_clusters = &machine.shape().chip_clusters;

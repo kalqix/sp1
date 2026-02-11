@@ -7,7 +7,7 @@ pub fn render_current_instruction(program: &Program, state: &State) -> String {
     if state.pc == HALT_PC {
         return "<HALTED>".to_string();
     }
-    let Some((instruction, _)) = program.fetch(state.pc) else {
+    let Some(instruction) = program.fetch(state.pc) else {
         return format!("<INVALID_PC=0x{:016x}>", state.pc);
     };
     let a = instruction.op_a;

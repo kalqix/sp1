@@ -7,7 +7,7 @@ use sp1_core_executor::{
     events::{MemoryInitializeFinalizeEvent, MemoryRecord},
     CoreVM, ExecutionError, MinimalExecutor, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAirWithApcs};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     Machine, SP1VerifyingKey, DIGEST_SIZE,
@@ -89,7 +89,7 @@ pub struct SP1CoreExecutor<A, W> {
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl<A, W> SP1CoreExecutor<A, W> {
@@ -108,7 +108,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,

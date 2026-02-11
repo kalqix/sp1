@@ -32,7 +32,7 @@ async fn main() {
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin).core().await.unwrap();
     client.verify(&proof, &pk.verifying_key(), None).unwrap();

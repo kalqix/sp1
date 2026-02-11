@@ -3,7 +3,7 @@
 //! A mock prover that can be used for testing.
 
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::{
@@ -29,16 +29,22 @@ pub struct MockProver {
 
 impl Default for MockProver {
     fn default() -> Self {
-        tracing::info!("initializing mock prover");
-        Self::new(RiscvAirWithApcs::machine())
+        Self::new()
     }
 }
 
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
-        Self { inner: block_on(SP1LightNode::new(machine)) }
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Create a new mock prover with a given machine
+    #[must_use]
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        tracing::info!("initializing mock prover");
+        Self { inner: block_on(SP1LightNode::new_with_machine(machine)) }
     }
 }
 
@@ -123,7 +129,7 @@ mod tests {
     #[test]
     fn test_mock_proof_all_types() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Test Core proof.
@@ -164,7 +170,7 @@ mod tests {
     #[test]
     fn test_mock_proof_public_values() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -185,7 +191,7 @@ mod tests {
     #[test]
     fn test_mock_plonk_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
 
         // Setup two different programs.
         let pk1 =
@@ -208,7 +214,7 @@ mod tests {
     #[test]
     fn test_mock_groth16_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
 
         // Setup two different programs.
         let pk1 =
@@ -231,7 +237,7 @@ mod tests {
     #[test]
     fn test_mock_plonk_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Create a Plonk proof.
@@ -252,7 +258,7 @@ mod tests {
     #[test]
     fn test_mock_groth16_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new(sp1_core_machine::riscv::RiscvAirWithApcs::machine());
+        let prover = MockProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Create a Groth16 proof.

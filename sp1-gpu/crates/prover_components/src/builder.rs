@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{cuda_memory_info, TaskScope};
 
 use sp1_core_executor::{SP1CoreOpts, ELEMENT_THRESHOLD};
@@ -50,7 +50,7 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
 /// Create a [SP1CudaProverWorkerBuilder]
 pub async fn cuda_worker_builder(
     scope: TaskScope,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1WorkerBuilder<SP1CudaProverComponents> {
     // Create a prover permits, assuming a single proof happens at a time.
     let prover_permits = ProverSemaphore::new(1);

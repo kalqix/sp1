@@ -292,8 +292,15 @@ impl Program {
     }
 
     #[must_use]
+    /// Fetch the instruction at the given program counter.
+    pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
+        let idx = ((pc - self.pc_base) / 4) as usize;
+        self.instructions.get(idx)
+    }
+
+    #[must_use]
     /// Fetch the instruction at the given program counter, as well as the apc ranges, if any.
-    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
+    pub fn fetch_with_apcs(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((&self.instructions[idx], self.apcs.get(idx)))

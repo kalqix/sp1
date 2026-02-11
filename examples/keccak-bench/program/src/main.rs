@@ -20,7 +20,7 @@ pub fn main() {
 }
 
 mod manual_precompile {
-    use tiny_keccak_succinct::{Hasher, Keccak};
+    use tiny_keccak::{Hasher, Keccak};
 
     pub fn hash(state: &mut Vec<u8>) {
         let mut hasher = Keccak::v256();

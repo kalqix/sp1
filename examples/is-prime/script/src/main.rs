@@ -1,6 +1,6 @@
 //! A program that takes a number `n` as input, and writes if `n` is prime as an output.
-use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
+use sp1_sdk::prelude::*;
 
 const ELF: Elf = include_elf!("is-prime-program");
 
@@ -16,7 +16,7 @@ async fn main() {
     stdin.write(&n);
 
     // Generate and verify the proof
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).await.unwrap();
 

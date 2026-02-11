@@ -2,7 +2,7 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
@@ -25,14 +25,12 @@ impl ProverClient {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     std::env::set_var("SP1_PROVER", "network");
     ///     std::env::set_var("NETWORK_PRIVATE_KEY", "...");
-    ///     let prover = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    ///     let prover = ProverClient::from_env().await;
     ///
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
@@ -42,24 +40,40 @@ impl ProverClient {
     /// });
     /// ```
     #[must_use]
-    pub async fn from_env(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> EnvProver {
+    pub async fn from_env() -> EnvProver {
+        Self::from_env_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Same as `from_env` but with a custom machine.
+    #[must_use]
+    pub async fn from_env_with_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> EnvProver {
         EnvProver::new(machine).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
-    pub fn builder(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> ProverClientBuilder {
+    pub fn builder() -> ProverClientBuilder {
+        Self::builder_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`ProverClientBuilder`] with a given machine.
+    #[must_use]
+    pub fn builder_with_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> ProverClientBuilder {
         ProverClientBuilder::new(machine)
     }
 }
 
 /// A builder to define which proving client to use.
 pub struct ProverClientBuilder {
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl ProverClientBuilder {
-    fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { machine }
     }
 
@@ -67,18 +81,13 @@ impl ProverClientBuilder {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -92,43 +101,33 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cuda()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
     /// ```
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::new(self.machine.clone())
+        CudaProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     Elf, ProveRequest, Prover, ProverClient, RiscvAirWithApcs, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .network()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().network().build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
@@ -143,19 +142,13 @@ impl ProverClientBuilder {
     ///
     /// # Examples
     /// ```no_run
-    /// use sp1_sdk::{
-    ///     network::NetworkMode, Elf, ProveRequest, Prover, ProverClient,
-    ///     RiscvAirWithApcs, SP1Stdin,
-    /// };
+    /// use sp1_sdk::{network::NetworkMode, Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
     ///     let stdin = SP1Stdin::new();
     ///
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .network_for(NetworkMode::Mainnet)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().network_for(NetworkMode::Mainnet).build().await;
     ///     let pk = prover.setup(elf).await.unwrap();
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });

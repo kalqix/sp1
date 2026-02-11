@@ -2,7 +2,7 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
@@ -15,13 +15,19 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for CpuProverBuilder {
+    fn default() -> Self {
+        Self::new(RiscvAir::machine())
+    }
 }
 
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -30,16 +36,12 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cpu()
-    ///         .core_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().core_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -53,16 +55,12 @@ impl CpuProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cpu()
-    ///         .with_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().with_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -78,13 +76,10 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cpu()
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cpu().build().await;
     /// });
     /// ```
     #[must_use]

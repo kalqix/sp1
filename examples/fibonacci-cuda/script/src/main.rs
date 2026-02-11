@@ -18,8 +18,8 @@ async fn main() {
     stdin.write(&n);
 
     // Create a `ProverClient` method.
-    let client = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
-    let client2 = ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
+    let client = ProverClient::builder().cuda().build().await;
+    let client2 = ProverClient::builder().cuda().build().await;
 
     let handle = tokio::spawn({
         let stdin = stdin.clone();
@@ -34,7 +34,7 @@ async fn main() {
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin.clone()).compressed().await.unwrap();
     client.verify(&proof, &pk.verifying_key(), None).unwrap();
-
+    
     handle.await.unwrap();
 
     println!("generated and verified proofs");

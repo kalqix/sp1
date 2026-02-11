@@ -3,7 +3,7 @@ use std::{fs::File, io::Read};
 use anyhow::Result;
 use clap::{Args, Parser};
 use sp1_build::{generate_elf_paths, BuildArgs};
-use sp1_sdk::{HashableKey, Prover, ProverClient, ProvingKey, RiscvAirWithApcs};
+use sp1_sdk::{HashableKey, Prover, ProverClient, ProvingKey};
 
 #[derive(Parser)]
 #[command(name = "vkey", about = "View the verification key hash for a program.")]
@@ -48,7 +48,7 @@ impl VkeyCmd {
             file.read_to_end(&mut elf)?;
 
             // Get the verification key
-            let prover = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+            let prover = ProverClient::from_env().await;
             let pk = prover.setup(elf.into()).await?;
             let vk = pk.verifying_key();
 

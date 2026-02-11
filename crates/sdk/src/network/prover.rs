@@ -33,7 +33,7 @@ use anyhow::{Context, Result};
 use sp1_build::Elf;
 use sp1_core_executor::{SP1Context, StatusCode};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
@@ -119,9 +119,9 @@ impl NetworkProver {
     /// # Examples
     /// Using a private key string:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::NetworkMode, NetworkProver, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::NetworkMode, NetworkProver};
     ///
-    /// let prover = NetworkProver::new("0x...", "...", NetworkMode::Mainnet, RiscvAirWithApcs::machine());
+    /// let prover = NetworkProver::new("0x...", "...", NetworkMode::Mainnet);
     /// ```
     ///
     /// Using a `NetworkSigner`:
@@ -129,24 +129,33 @@ impl NetworkProver {
     /// use sp1_sdk::{
     ///     network::{signer::NetworkSigner, NetworkMode},
     ///     NetworkProver,
-    ///     RiscvAirWithApcs,
     /// };
     ///
     /// let signer = NetworkSigner::local("0x...").unwrap();
-    /// let prover = NetworkProver::new(signer, "...", NetworkMode::Reserved, RiscvAirWithApcs::machine());
+    /// let prover = NetworkProver::new(signer, "...", NetworkMode::Reserved);
     /// ```
     #[must_use]
     pub async fn new(
         signer: impl Into<NetworkSigner>,
         rpc_url: &str,
         network_mode: NetworkMode,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    ) -> Self {
+        Self::new_with_machine(signer, rpc_url, network_mode, RiscvAir::machine()).await
+    }
+
+    #[must_use]
+    /// Same as `new` but with a custom machine
+    pub async fn new_with_machine(
+        signer: impl Into<NetworkSigner>,
+        rpc_url: &str,
+        network_mode: NetworkMode,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let signer = signer.into();
-        let node = SP1LightNode::new(machine).await;
+        let node = SP1LightNode::new_with_machine(machine).await;
         let client = NetworkClient::new(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode }
     }
@@ -177,10 +186,10 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, RiscvAirWithApcs};
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let balance = client.get_balance().await.unwrap();
     /// })
     /// ```
@@ -199,11 +208,11 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1Stdin, RiscvAirWithApcs};
+    /// use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1Stdin};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let pk = client.setup(elf).await.unwrap();
     ///     let vk_hash = client.register_program(&pk.verifying_key(), pk.elf()).await.unwrap();
     /// });
@@ -219,9 +228,9 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1ProofMode, RiscvAirWithApcs};
+    /// use sp1_sdk::{ProverClient, SP1ProofMode};
     /// tokio_test::block_on(async {
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
     /// })
     /// ```
@@ -249,11 +258,11 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::B256, ProverClient};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();
     /// })
     /// ```
@@ -277,11 +286,11 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::B256, ProverClient};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let request = client.get_proof_request(request_id).await.unwrap();
     /// })
     /// ```
@@ -301,11 +310,11 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{network::B256, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::B256, ProverClient};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
-    ///     let client = ProverClient::builder(RiscvAirWithApcs::machine()).network().build().await;
+    ///     let client = ProverClient::builder().network().build().await;
     ///     let (maybe_proof, fulfillment_status) =
     ///         client.process_proof_status(request_id, None).await.unwrap();
     /// })

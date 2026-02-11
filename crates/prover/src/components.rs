@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sp1_core_executor::HEIGHT_THRESHOLD;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{AirProver, CpuShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
     Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContextImpl, ShardVerifier,
@@ -34,8 +34,7 @@ pub(crate) const SHRINK_MAX_LOG_ROW_COUNT: usize = 19;
 
 pub(crate) const WRAP_LOG_STACKING_HEIGHT: u32 = 21;
 
-pub type CoreSC =
-    ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, RiscvAirWithApcs<SP1Field>>;
+pub type CoreSC = ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, RiscvAir<SP1Field>>;
 
 pub type RecursionSC =
     ShardContextImpl<SP1GlobalContext, SP1Pcs<SP1GlobalContext>, CompressAir<SP1Field>>;
@@ -50,7 +49,7 @@ pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
     ///
     /// The verifier fixes the parameters of the underlying proof system.
     fn verifier(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
@@ -150,7 +149,7 @@ pub trait SP1ProverComponents: Send + Sync + 'static + Sized {
     type WrapProverBuilder: WrapProverBuilder<Self>;
 
     fn core_verifier(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
         <Self::CoreProver as CoreProver>::verifier(machine)
     }
@@ -184,7 +183,7 @@ impl SP1ProverComponents for CpuSP1ProverComponents {
         SP1GlobalContext,
         SP1Pcs<SP1GlobalContext>,
         SP1InnerPcsProver,
-        RiscvAirWithApcs<SP1Field>,
+        RiscvAir<SP1Field>,
     >;
     type RecursionProver =
         CpuShardProver<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, CompressAir<SP1Field>>;

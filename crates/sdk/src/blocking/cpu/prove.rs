@@ -43,12 +43,12 @@ impl<'a> ProveRequest<'a, CpuProver> for CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, RiscvAirWithApcs};
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = Elf::Static(&[1, 2, 3]);
     /// let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build();
+    /// let client = ProverClient::builder().cpu().build();
     /// let pk = client.setup(elf).unwrap();
     /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// ```

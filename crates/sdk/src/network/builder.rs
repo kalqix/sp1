@@ -3,7 +3,7 @@
 //! This module provides a builder for the [`NetworkProver`].
 
 use alloy_primitives::Address;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
@@ -21,13 +21,19 @@ pub struct NetworkProverBuilder {
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
-    pub(crate) machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for NetworkProverBuilder {
+    fn default() -> Self {
+        Self::new(RiscvAir::machine())
+    }
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self {
             private_key: None,
             rpc_url: None,
@@ -46,9 +52,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().private_key("...").build();
+    /// let prover = ProverClient::builder().network().private_key("...").build();
     /// ```
     #[must_use]
     pub fn private_key(mut self, private_key: &str) -> Self {
@@ -64,9 +70,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().rpc_url("...").build();
+    /// let prover = ProverClient::builder().network().rpc_url("...").build();
     /// ```
     #[must_use]
     pub fn rpc_url(mut self, rpc_url: &str) -> Self {
@@ -82,9 +88,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().private().build();
+    /// let prover = ProverClient::builder().network().private().build();
     /// ```
     #[must_use]
     pub fn private(mut self) -> Self {
@@ -110,21 +116,21 @@ impl NetworkProverBuilder {
     ///
     /// Using a local private key:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient};
     ///
     /// let private_key = "...";
     /// let signer = NetworkSigner::local(private_key).unwrap();
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().signer(signer).build();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
     /// ```
     ///
     /// Using AWS KMS:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient};
     ///
     /// # async fn example() {
     /// let kms_key_arn = "arn:aws:kms:us-east-1:123456789:key/key-id";
     /// let signer = NetworkSigner::aws_kms(kms_key_arn).await.unwrap();
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().signer(signer).build();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
     /// # }
     /// ```
     #[must_use]
@@ -145,28 +151,28 @@ impl NetworkProverBuilder {
     ///
     /// Using a private key:
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().private_key("...").rpc_url("...").build();
+    /// let prover = ProverClient::builder().network().private_key("...").rpc_url("...").build();
     /// ```
     ///
     /// Using a local signer:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient};
     ///
     /// let private_key = "...";
     /// let signer = NetworkSigner::local(private_key).unwrap();
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().signer(signer).build();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
     /// ```
     ///
     /// Using AWS KMS:
     /// ```rust,no_run
-    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::{network::signer::NetworkSigner, ProverClient};
     ///
     /// # async fn example() {
     /// let kms_key_arn = "arn:aws:kms:us-east-1:123456789:key/key-id";
     /// let signer = NetworkSigner::aws_kms(kms_key_arn).await.unwrap();
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine()).network().signer(signer).build();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
     /// # }
     /// ```
     #[must_use]
@@ -209,7 +215,7 @@ impl NetworkProverBuilder {
             None => vec![],
         };
 
-        NetworkProver::new(signer, &rpc_url, network_mode, self.machine)
+        NetworkProver::new_with_machine(signer, &rpc_url, network_mode, self.machine)
             .await
             .with_tee_signers(tee_signers)
     }

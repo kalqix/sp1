@@ -231,7 +231,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 // Note: We must sleep on gpu tests to wait for Docker cleanup.
                 std::thread::sleep(std::time::Duration::from_secs(5));
 
-                let __macro_internal_client = ::sp1_sdk::ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await;
+                let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build().await;
                 let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn

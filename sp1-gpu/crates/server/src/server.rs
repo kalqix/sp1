@@ -1,5 +1,5 @@
 use sp1_core_executor::SP1Context;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::{
     api::{Request, Response},
     client::socket_path,
@@ -39,11 +39,7 @@ struct ConnectionCtx {
 
 impl Server {
     /// Run the server, indefinitely.
-    pub async fn run(
-        self,
-        task_scope: TaskScope,
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
-    ) {
+    pub async fn run(self, task_scope: TaskScope, machine: Machine<SP1Field, RiscvAir<SP1Field>>) {
         eprintln!(
             "Running sp1-gpu-server {} with device {}",
             sp1_primitives::SP1_VERSION,

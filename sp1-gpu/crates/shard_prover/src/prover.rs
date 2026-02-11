@@ -775,7 +775,7 @@ mod tests {
     use slop_jagged::JaggedPcsVerifier;
     use slop_multilinear::MultilinearPcsChallenger;
     use slop_tensor::Tensor;
-    use sp1_core_machine::riscv::RiscvAirWithApcs;
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_air::codegen_cuda_eval;
     use sp1_gpu_cudart::run_in_place;
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
@@ -792,7 +792,7 @@ mod tests {
 
     impl CudaShardProverComponents<TestGC> for TestProverComponentsImpl {
         type P = Poseidon2SP1Field16CudaProver;
-        type Air = RiscvAirWithApcs<Felt>;
+        type Air = RiscvAir<Felt>;
         type C = SP1InnerPcs;
         type DeviceChallenger = sp1_gpu_challenger::DuplexChallenger<Felt, TaskScope>;
     }
@@ -800,7 +800,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_prove_trusted_evaluations() {
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let (record, program) = tracegen_setup::setup(machine.clone()).await;
         run_in_place(|scope| async move {
             // *********** Generate traces using the host tracegen. ***********

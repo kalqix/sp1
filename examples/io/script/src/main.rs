@@ -25,7 +25,7 @@ async fn main() {
     stdin.write(&q);
 
     // Generate the proof for the given program.
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).await.unwrap();
 

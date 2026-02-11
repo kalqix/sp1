@@ -160,7 +160,7 @@ impl<'a, S> CoreVM<'a, S> {
     pub fn fetch(&mut self, snapshot_callback: impl Fn() -> S) -> Option<&Instruction> {
         // todo: mprotect / kernel mode logic.
         let snapshot_callback = &snapshot_callback;
-        self.program.fetch(self.pc).map(|(i, apc_indices)| {
+        self.program.fetch_with_apcs(self.pc).map(|(i, apc_indices)| {
             if let Some(apc_indices) = apc_indices {
                 // We are at the start of an APC range, so we add it as a candidate
                 for apc in apc_indices {

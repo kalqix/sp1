@@ -24,7 +24,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Initialize the proving client.
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     // Setup the proving and verifying keys.
     let pk = client.setup(FIBONACCI_ELF).await.unwrap();

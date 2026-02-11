@@ -40,8 +40,8 @@ impl PlonkVerifier {
     /// * `sp1_vkey_hash` - The SP1 vkey hash. This is generated in the following manner:
     ///
     /// ```ignore
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
-    /// let client = ProverClient::from_env(RiscvAirWithApcs::machine());
+    /// use sp1_sdk::ProverClient;
+    /// let client = ProverClient::from_env();
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```
@@ -70,8 +70,8 @@ impl PlonkVerifier {
     /// * `sp1_vkey_hash` - The SP1 vkey hash. This is generated in the following manner:
     ///
     /// ```ignore
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
-    /// let client = ProverClient::from_env(RiscvAirWithApcs::machine());
+    /// use sp1_sdk::ProverClient;
+    /// let client = ProverClient::from_env();
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{CpuShardProver, ProverSemaphore},
     Machine, SP1VerifyingKey,
@@ -36,13 +36,17 @@ impl Clone for SP1LightNode {
 }
 
 impl SP1LightNode {
-    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine()).await
+    }
+
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::with_opts(machine, SP1CoreOpts::default()).await
     }
 
     /// Create a new light node
     pub async fn with_opts(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
@@ -108,8 +112,8 @@ mod tests {
     async fn test_light_node() {
         setup_logger();
 
-        let machine = RiscvAirWithApcs::machine();
-        let light_node = SP1LightNode::new(machine.clone())
+        let machine = RiscvAir::machine();
+        let light_node = SP1LightNode::new_with_machine(machine.clone())
             .instrument(tracing::info_span!("initialize light node"))
             .await;
 

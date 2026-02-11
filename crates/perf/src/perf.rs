@@ -6,7 +6,6 @@ use std::{
 use async_scoped::TokioScope;
 use clap::Parser;
 use sp1_core_executor::ExecutionError;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
 use sp1_cuda::CudaClientError;
 use sp1_prover::ProverMode;
 use sp1_sdk::{
@@ -83,10 +82,8 @@ async fn main() {
 
     let performance_reports = match args.mode {
         ProverMode::Cpu => {
-            let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder(RiscvAirWithApcs::machine()).cpu().build().await
-            })
-            .await;
+            let (ref prover, prover_init_duration) =
+                time_operation_fut(async || ProverClient::builder().cpu().build().await).await;
 
             repeat_concurrent(args.concurrent_repeat_count, || async move {
                 let (execution_result, execution_duration) =
@@ -120,10 +117,8 @@ async fn main() {
             .await
         }
         ProverMode::Cuda => {
-            let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder(RiscvAirWithApcs::machine()).cuda().build().await
-            })
-            .await;
+            let (ref prover, prover_init_duration) =
+                time_operation_fut(async || ProverClient::builder().cuda().build().await).await;
 
             repeat_concurrent(args.concurrent_repeat_count, || async move {
                 let (execution_result, execution_duration) =
@@ -161,7 +156,7 @@ async fn main() {
                 .expect("NETWORK_PRIVATE_KEY environment variable must be set");
             let signer = NetworkSigner::local(&private_key).expect("failed to create signer");
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
-                ProverClient::builder(RiscvAirWithApcs::machine())
+                ProverClient::builder()
                     .network_for(NetworkMode::Mainnet)
                     .rpc_url("https://rpc.sepolia.succinct.xyz")
                     .signer(signer)

@@ -1,4 +1,4 @@
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{log2_ceil_usize, prover::ProverSemaphore, Machine};
 use sp1_primitives::SP1Field;
 use sp1_prover_types::ArtifactClient;
@@ -30,7 +30,7 @@ pub async fn run_vk_generation<A: ArtifactClient, C: SP1ProverComponents>(
     worker: Arc<RecursionVkWorker<C>>,
     request: RawTaskRequest,
     client: A,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> Result<(), TaskError> {
     let RawTaskRequest { inputs, outputs, .. } = request;
 

@@ -523,13 +523,13 @@ mod tests {
     use sp1_gpu_utils::{Ext, Felt, TestGC};
     use sp1_primitives::fri_params::core_fri_config;
     use sp1_primitives::SP1GlobalContext;
-    use sp1_sdk::RiscvAirWithApcs;
+    use sp1_sdk::RiscvAir;
 
     use super::*;
 
     #[test]
     fn test_basefold() {
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (record, program) = rt.block_on(tracegen_setup::setup(machine.clone()));
 

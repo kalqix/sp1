@@ -735,7 +735,7 @@ pub mod tests {
 
     use sp1_gpu_air::codegen_cuda_eval;
     use sp1_primitives::SP1Field;
-    use sp1_sdk::RiscvAirWithApcs;
+    use sp1_sdk::RiscvAir;
     use std::collections::{BTreeMap, BTreeSet};
     use std::marker::PhantomData;
     use std::ops::Deref;
@@ -2016,7 +2016,7 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_zerocheck_real_traces() {
-        let machine = RiscvAirWithApcs::machine();
+        let machine = RiscvAir::machine();
         let (record, program) = tracegen_setup::setup(machine.clone()).await;
 
         run_in_place(|t| async move {

@@ -6,7 +6,7 @@ use sp1_gpu_perf::{get_program_and_input, Measurement};
 use sp1_gpu_prover::cuda_worker_builder;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
-use sp1_sdk::RiscvAirWithApcs;
+use sp1_sdk::RiscvAir;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -38,7 +38,7 @@ fn proof_mode_from_string(s: &str) -> ProofMode {
 #[allow(clippy::print_stdout)]
 async fn main() {
     let args = Args::parse();
-    let machine = RiscvAirWithApcs::machine();
+    let machine = RiscvAir::machine();
 
     // Load the environment variables.
     dotenv::dotenv().ok();

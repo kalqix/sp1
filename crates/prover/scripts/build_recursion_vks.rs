@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use clap::Parser;
 use either::Either;
-use sp1_core_machine::{riscv::RiscvAirWithApcs, utils::setup_logger};
+use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 use sp1_prover::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
 
 #[derive(Parser, Debug)]
@@ -30,7 +30,7 @@ async fn main() {
     let maybe_range = start.and_then(|s| end.map(|e| (s..e).collect::<Vec<usize>>()));
     let maybe_either = maybe_range.map(Either::Left);
     // TODO: This should take the apcs into account. Now it uses vanilla riscv.
-    let machine = RiscvAirWithApcs::machine();
+    let machine = RiscvAir::machine();
     let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
         .build()
         .await

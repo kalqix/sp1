@@ -5,7 +5,7 @@
 use std::pin::Pin;
 
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::{
@@ -30,15 +30,21 @@ pub struct MockProver {
 impl MockProver {
     /// Create a new mock prover.
     #[must_use]
-    pub async fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub async fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Create a new mock prover with a given machine.
+    #[must_use]
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing mock prover");
-        Self { inner: SP1LightNode::new(machine).await }
+        Self { inner: SP1LightNode::new_with_machine(machine).await }
     }
 
     /// Create a new mock prover with custom options.
     #[must_use]
     pub async fn new_with_opts(
-        machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
         Self { inner: SP1LightNode::with_opts(machine, opts).await }
@@ -134,15 +140,13 @@ impl<'a> IntoFuture for MockProveRequest<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::riscv::RiscvAirWithApcs;
-
     use crate::{prover::ProveRequest, utils::setup_logger, MockProver, Prover, SP1Stdin};
 
     /// Test mock proof creation and verification for all proof types.
     #[tokio::test]
     async fn test_mock_proof_all_types() {
         setup_logger();
-        let prover: MockProver = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 
@@ -184,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_proof_public_values() {
         setup_logger();
-        let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
         let mut stdin = SP1Stdin::new();
@@ -206,7 +210,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_plonk_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
 
         // Setup two different programs.
         let pk1 = prover
@@ -233,7 +237,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_groth16_proof_wrong_vkey_fails() {
         setup_logger();
-        let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
 
         // Setup two different programs.
         let pk1 = prover
@@ -260,7 +264,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_plonk_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 
@@ -282,7 +286,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_groth16_proof_tampered_public_values_fails() {
         setup_logger();
-        let prover = MockProver::new(RiscvAirWithApcs::machine()).await;
+        let prover = MockProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 

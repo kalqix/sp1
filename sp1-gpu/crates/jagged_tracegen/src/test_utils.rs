@@ -3,7 +3,7 @@
 
 pub mod tracegen_setup {
     use sp1_core_executor::{ExecutionRecord, Program, SP1CoreOpts};
-    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAirWithApcs, utils::generate_records};
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::generate_records};
     use sp1_hypercube::{air::PROOF_NONCE_NUM_WORDS, Machine};
     use std::sync::Arc;
 
@@ -79,9 +79,7 @@ pub mod tracegen_setup {
     /// Returns (machine, record, program) for use in core execution tracegen tests.
     ///
     /// Note: This generates ExecutionRecord, not recursion/compression records.
-    pub async fn setup(
-        machine: Machine<Felt, RiscvAirWithApcs<Felt>>,
-    ) -> (ExecutionRecord, Arc<Program>) {
+    pub async fn setup(machine: Machine<Felt, RiscvAir<Felt>>) -> (ExecutionRecord, Arc<Program>) {
         setup_with_program(machine, TestProgram::default()).await
     }
 
@@ -89,7 +87,7 @@ pub mod tracegen_setup {
     ///
     /// Returns (machine, record, program) for use in core execution tracegen tests.
     pub async fn setup_with_program(
-        machine: Machine<Felt, RiscvAirWithApcs<Felt>>,
+        machine: Machine<Felt, RiscvAir<Felt>>,
         test_program: TestProgram,
     ) -> (ExecutionRecord, Arc<Program>) {
         // 1. Load program from ELF

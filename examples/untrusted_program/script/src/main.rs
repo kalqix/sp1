@@ -1,6 +1,6 @@
 //! A program that takes a number `n` as input, and writes if `n` is prime as an output.
-use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
+use sp1_sdk::prelude::*;
 
 const ELF: Elf = include_elf!("untrusted-program-program");
 
@@ -18,7 +18,7 @@ async fn main() {
     stdin.write(&execute_prot_should_fail);
     stdin.write(&test_prot_none_fail);
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     let pk = client.setup(ELF).await.expect("setup failed");
 
@@ -36,5 +36,5 @@ async fn main() {
         "Executed program with {} cycles",
         execution_report.total_instruction_count() + execution_report.total_syscall_count()
     );
-    println!("Full execution report:\n{:?}", execution_report);
+    println!("Full execution report:\n{:?}", execution_report);    
 }

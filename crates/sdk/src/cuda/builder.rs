@@ -4,7 +4,7 @@
 
 use super::CudaProver;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver as CudaProverImpl;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
@@ -18,13 +18,19 @@ pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for CudaProverBuilder {
+    fn default() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
 }
 
 impl CudaProverBuilder {
     /// Creates a new builder from a machine.
     #[must_use]
-    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { machine, cuda_device_id: None, core_opts: None }
     }
 
@@ -36,12 +42,9 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///     .cuda()
-    ///     .with_device_id(0)
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().with_device_id(0).build();
     /// ```
     #[must_use]
     pub fn with_device_id(mut self, id: u32) -> Self {
@@ -54,16 +57,12 @@ impl CudaProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cuda()
-    ///         .core_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -77,16 +76,12 @@ impl CudaProverBuilder {
     /// # Example
     /// ```rust,no_run
     /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
     /// tokio_test::block_on(async {
     ///     let mut opts = SP1CoreOpts::default();
     ///     opts.shard_size = 500_000;
-    ///     let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///         .cuda()
-    ///         .with_opts(opts)
-    ///         .build()
-    ///         .await;
+    ///     let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
     /// });
     /// ```
     #[must_use]
@@ -101,11 +96,9 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, RiscvAirWithApcs};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder(RiscvAirWithApcs::machine())
-    ///     .cuda()
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().build();
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {

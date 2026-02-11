@@ -1,6 +1,7 @@
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
 
+
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("mprotect-program");
 
@@ -16,7 +17,7 @@ async fn main() {
     stdin.write(&execute_prot_should_fail);
     stdin.write(&test_prot_none_fail);
 
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin).core().await.unwrap();
     client.verify(&proof, &pk.verifying_key(), None).unwrap();

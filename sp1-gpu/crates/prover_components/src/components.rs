@@ -8,7 +8,7 @@ use slop_basefold::BasefoldVerifier;
 use slop_bn254::Bn254Fr;
 use slop_challenger::IopCtx;
 use slop_futures::queue::WorkerQueue;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_basefold::FriCudaProver;
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2Bn254CudaProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
@@ -31,7 +31,7 @@ pub struct CudaProverCoreComponents;
 
 impl CudaShardProverComponents<SP1GlobalContext> for CudaProverCoreComponents {
     type P = Poseidon2SP1Field16CudaProver;
-    type Air = RiscvAirWithApcs<SP1Field>;
+    type Air = RiscvAir<SP1Field>;
     type C = SP1InnerPcs;
     type DeviceChallenger = DuplexChallenger<SP1Field, TaskScope>;
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use slop_futures::pipeline::TaskJoinError;
-use sp1_core_machine::riscv::RiscvAirWithApcs;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{prover::ProverSemaphore, Machine};
 use sp1_primitives::SP1Field;
 use sp1_prover_types::{
@@ -20,14 +20,14 @@ use crate::{
 };
 
 pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
-    pub machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>,
+    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
 
 impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
-    pub fn new(machine: Machine<SP1Field, RiscvAirWithApcs<SP1Field>>) -> Self {
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self::from_worker_client_builder(SP1WorkerBuilder::new(machine))
     }
 

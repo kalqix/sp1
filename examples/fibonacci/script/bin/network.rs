@@ -1,6 +1,7 @@
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
 
+
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("fibonacci-program");
 
@@ -16,7 +17,7 @@ async fn main() {
     stdin.write(&n);
 
     // TODO: Use network prover here
-    let client = ProverClient::from_env(RiscvAirWithApcs::machine()).await;
+    let client = ProverClient::from_env().await;
 
     // Generate the proof for the given program and input.
     let pk = client.setup(ELF).await.unwrap();
