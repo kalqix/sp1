@@ -17,7 +17,7 @@ async fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-    let client = ProverClient::builder().cpu().build().await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     println!("vk: {:?}", pk.verifying_key().bytes32());
 
@@ -34,7 +34,7 @@ async fn main() {
     println!("proof: 0x{}", hex::encode(solidity_proof));
 
     // Verify proof and public values
-    client.verify(&proof, pk.verifying_key()).expect("verification failed");
+    client.verify(&proof, pk.verifying_key(), None).expect("verification failed");
 
     // Save the proof.
     proof.save("fibonacci-plonk.bin").expect("saving proof failed");

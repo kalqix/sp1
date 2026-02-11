@@ -60,23 +60,25 @@ impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
 #[derive(Debug)]
 pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
-    id: u64,
+    id: usize,
+    /// The name of this APC
+    name: String,
     /// The cached APC.
     cached_apc: CachedApc<F>,
-    /// A machine to generate traces for the APC.
+    /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
     machine: Machine<F, RiscvAir<F>>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<Sp1Apc<F>>, id: usize) -> Self {
-        Self { id: id as u64, cached_apc: apc.into(), machine: RiscvAir::machine() }
+        Self { id, name: format!("APC_{id}"), cached_apc: apc.into(), machine: RiscvAir::machine() }
     }
 
     pub fn apc(&self) -> &Arc<Sp1Apc<F>> {
         &self.cached_apc.apc
     }
 
-    pub fn id(&self) -> u64 {
+    pub fn id(&self) -> usize {
         self.id
     }
 }
@@ -93,8 +95,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        format!("ApcChip_{}", self.id)
+    fn name(&self) -> &str {
+        &self.name
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -449,13 +451,21 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             ((self.apc().start_pc() - program.pc_base) / Sp1Instruction::pc_step() as u64) as usize,
             self.apc().block.statements.len(),
         );
-        let apc = sp1_core_executor::Apc {
-            start_pc_idx: range.start().unwrap(),
-            cycle_count: range.len(),
-            cost: self.cached_apc.width() as u64,
-            execution_constraints: self.apc().optimistic_constraints.clone(),
-        };
+        let apc = sp1_core_executor::Apc::new(
+            range,
+            self.cached_apc.width() as u64,
+            self.apc().optimistic_constraints.clone(),
+        );
         program.add_apc(apc)
+    }
+
+    fn generate_trace_into(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
+        todo!("implement this instead of `generate_trace` and use the default implementation for `generate_trace`")
     }
 }
 

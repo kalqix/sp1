@@ -1,16 +1,18 @@
 use crate::builder::SP1RecursionAirBuilder;
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_rows_fixed;
+use slop_algebra::PrimeField32;
+use slop_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
-    CommitPublicValuesEvent, CommitPublicValuesInstr, ExecutionRecord, Instruction,
-    RecursionProgram, RecursionPublicValues, DIGEST_SIZE, RECURSIVE_PROOF_NUM_PV_ELTS,
+    ExecutionRecord, Instruction, RecursionProgram, RecursionPublicValues, DIGEST_SIZE,
+    RECURSIVE_PROOF_NUM_PV_ELTS,
 };
-use std::borrow::{Borrow, BorrowMut};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::MaybeUninit,
+};
 
 use super::mem::MemoryAccessColsChips;
 use crate::chips::mem::MemoryAccessCols;
@@ -50,8 +52,8 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "PublicValues".to_string()
+    fn name(&self) -> &'static str {
+        "PublicValues"
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -66,29 +68,46 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         Some(1 << PUB_VALUES_LOG_HEIGHT)
     }
 
-    fn preprocessed_num_rows(&self, _program: &Self::Program, _instrs_len: usize) -> Option<usize> {
+    fn preprocessed_num_rows(&self, _program: &Self::Program) -> Option<usize> {
         Some(1 << PUB_VALUES_LOG_HEIGHT)
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn preprocessed_num_rows_with_instrs_len(&self, _: &Self::Program, _: usize) -> Option<usize> {
+        Some(1 << PUB_VALUES_LOG_HEIGHT)
+    }
+
+    fn generate_preprocessed_trace_into(
+        &self,
+        program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
             "generate_preprocessed_trace only supports SP1Field field"
         );
 
-        let mut rows: Vec<[SP1Field; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();
+        let padded_nb_rows = self.preprocessed_num_rows(program).unwrap();
+
+        unsafe {
+            let padding_size = padded_nb_rows * NUM_PUBLIC_VALUES_PREPROCESSED_COLS;
+            core::ptr::write_bytes(buffer.as_mut_ptr(), 0, padding_size);
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(
+                buffer_ptr,
+                padded_nb_rows * NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
+            )
+        };
+
         let commit_pv_hash_instrs = program
             .inner
             .iter()
             .filter_map(|instruction| {
                 if let Instruction::CommitPublicValues(instr) = instruction.inner() {
-                    Some(unsafe {
-                        std::mem::transmute::<
-                            &Box<CommitPublicValuesInstr<F>>,
-                            &Box<CommitPublicValuesInstr<SP1Field>>,
-                        >(instr)
-                    })
+                    Some(instr)
                 } else {
                     None
                 }
@@ -103,85 +122,46 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         // values hash.
         for instr in commit_pv_hash_instrs.iter().take(1) {
             for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
-                let mut row = [SP1Field::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
-                let cols: &mut PublicValuesPreprocessedCols<SP1Field> =
-                    row.as_mut_slice().borrow_mut();
-                cols.pv_idx[i] = SP1Field::one();
-                cols.pv_mem = MemoryAccessCols { addr: *addr, mult: SP1Field::one() };
-                rows.push(row);
+                let start = i * NUM_PUBLIC_VALUES_PREPROCESSED_COLS;
+                let end = (i + 1) * NUM_PUBLIC_VALUES_PREPROCESSED_COLS;
+                let cols: &mut PublicValuesPreprocessedCols<F> = values[start..end].borrow_mut();
+                cols.pv_idx[i] = F::one();
+                cols.pv_mem = MemoryAccessCols { addr: *addr, mult: F::one() };
             }
         }
-
-        // Pad the preprocessed rows to 8 rows.
-        // gpu code breaks for small traces
-        pad_rows_fixed(
-            &mut rows,
-            || [SP1Field::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
-            self.preprocessed_num_rows(program, commit_pv_hash_instrs.len()),
-        );
-
-        let trace = RowMajorMatrix::new(
-            unsafe {
-                std::mem::transmute::<Vec<SP1Field>, Vec<F>>(
-                    rows.into_iter().flatten().collect::<Vec<SP1Field>>(),
-                )
-            },
-            NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
-        );
-        Some(trace)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
-            "generate_trace only supports SP1Field field"
+            "generate_trace_into only supports SP1Field"
         );
+        let padded_nb_rows = <PublicValuesChip as MachineAir<F>>::num_rows(self, input).unwrap();
 
-        if input.commit_pv_hash_events.len() != 1 {
-            tracing::warn!("Expected exactly one CommitPVHash event.");
+        unsafe {
+            let padding_size = padded_nb_rows * NUM_PUBLIC_VALUES_COLS;
+            core::ptr::write_bytes(buffer.as_mut_ptr(), 0, padding_size);
         }
 
-        let mut rows: Vec<[SP1Field; NUM_PUBLIC_VALUES_COLS]> = Vec::new();
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_PUBLIC_VALUES_COLS)
+        };
 
-        // We only take 1 commit pv hash instruction, since our air only checks for one public
-        // values hash.
         for event in input.commit_pv_hash_events.iter().take(1) {
-            let bb_event = unsafe {
-                std::mem::transmute::<&CommitPublicValuesEvent<F>, &CommitPublicValuesEvent<SP1Field>>(
-                    event,
-                )
-            };
-
-            for element in bb_event.public_values.digest.iter() {
-                let mut row = [SP1Field::zero(); NUM_PUBLIC_VALUES_COLS];
-                let cols: &mut PublicValuesCols<SP1Field> = row.as_mut_slice().borrow_mut();
-
+            for (idx, element) in event.public_values.digest.iter().enumerate() {
+                let start = idx * NUM_PUBLIC_VALUES_COLS;
+                let end = (idx + 1) * NUM_PUBLIC_VALUES_COLS;
+                let cols: &mut PublicValuesCols<F> = values[start..end].borrow_mut();
                 cols.pv_element = *element;
-                rows.push(row);
             }
         }
-
-        // Pad the trace to 8 rows.
-        pad_rows_fixed(
-            &mut rows,
-            || [SP1Field::zero(); NUM_PUBLIC_VALUES_COLS],
-            self.num_rows(input),
-        );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            unsafe {
-                std::mem::transmute::<Vec<SP1Field>, Vec<F>>(
-                    rows.into_iter().flatten().collect::<Vec<SP1Field>>(),
-                )
-            },
-            NUM_PUBLIC_VALUES_COLS,
-        )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -225,10 +205,11 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::AbstractField;
 
-    use slop_jagged::JaggedConfig;
+    use slop_challenger::IopCtx;
     use slop_matrix::Matrix;
     use sp1_core_machine::utils::setup_logger;
-    use sp1_hypercube::{air::MachineAir, SP1CoreJaggedConfig};
+    use sp1_hypercube::air::MachineAir;
+    use sp1_primitives::SP1GlobalContext;
     use sp1_recursion_executor::{
         instruction as instr, ExecutionRecord, MemAccessKind, RecursionPublicValues, DIGEST_SIZE,
         NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
@@ -238,7 +219,7 @@ mod tests {
     #[tokio::test]
     async fn prove_koalabear_circuit_public_values() {
         setup_logger();
-        type F = <SP1CoreJaggedConfig as JaggedConfig>::F;
+        type F = <SP1GlobalContext as IopCtx>::F;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };

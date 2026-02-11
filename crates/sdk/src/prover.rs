@@ -2,30 +2,24 @@
 //!
 //! A trait that each prover variant must implement.
 
-use std::{
-    borrow::Borrow,
-    future::{Future, IntoFuture},
-    sync::Arc,
-};
-
 use crate::StatusCode;
 use anyhow::Result;
 use itertools::Itertools;
-use slop_air::Air;
+use num_bigint::BigUint;
 use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_hypercube::{
-    air::PublicValues, prover::MachineProverComponents, MachineVerifierConfigError,
-    VerifierConstraintFolder,
-};
+use sp1_hypercube::{air::PublicValues, PROOF_MAX_NUM_PVS};
 use sp1_primitives::types::Elf;
 use sp1_prover::{
-    components::{CpuSP1ApcProverComponents, SP1ProverComponents},
-    local::LocalProver,
-    CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
+    verify::verify_public_values, worker::SP1NodeCore, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
-use sp1_recursion_circuit::zerocheck::RecursiveVerifierConstraintFolder;
-use sp1_recursion_compiler::config::InnerConfig;
+use sp1_recursion_executor::RecursionPublicValues;
+use std::{
+    borrow::Borrow,
+    fmt,
+    future::{Future, IntoFuture},
+    str::FromStr,
+};
 use thiserror::Error;
 
 /// The module that exposes the [`ExecuteRequest`] type.
@@ -36,7 +30,7 @@ mod prove;
 
 pub use execute::ExecuteRequest;
 pub(crate) use prove::BaseProveRequest;
-pub use prove::ProveRequest;
+pub use prove::{ProveRequest, SP1ProvingKey};
 
 use crate::{SP1Proof, SP1ProofWithPublicValues};
 
@@ -46,7 +40,7 @@ pub trait Prover: Clone + Send + Sync {
     type ProvingKey: ProvingKey;
 
     /// The possible errors that can occur when proving.
-    type Error;
+    type Error: fmt::Debug + fmt::Display;
 
     /// The prove request builder.
     type ProveRequest<'a>: ProveRequest<'a, Self>
@@ -54,7 +48,7 @@ pub trait Prover: Clone + Send + Sync {
         Self: 'a;
 
     /// The inner [`LocalProver`] struct used by the prover.
-    fn inner(&self) -> Arc<LocalProver<CpuSP1ApcProverComponents>>;
+    fn inner(&self) -> &SP1NodeCore;
 
     /// The version of the current SP1 circuit.
     fn version(&self) -> &str {
@@ -81,7 +75,7 @@ pub trait Prover: Clone + Send + Sync {
         vkey: &SP1VerifyingKey,
         status_code: Option<StatusCode>,
     ) -> Result<(), SP1VerificationError> {
-        verify_proof(self.inner().prover(), self.version(), proof, vkey, status_code)
+        verify_proof(self.inner(), self.version(), proof, vkey, status_code)
     }
 }
 
@@ -91,7 +85,7 @@ pub trait ProvingKey: Clone + Send + Sync {
     fn verifying_key(&self) -> &SP1VerifyingKey;
 
     /// Get the ELF corresponding to the proving key.
-    fn elf(&self) -> &[u8];
+    fn elf(&self) -> &Elf;
 }
 
 /// A trait for [`Future`]s that are send and return a [`Result`].
@@ -115,14 +109,14 @@ pub enum SP1VerificationError {
     #[error("Invalid public values")]
     InvalidPublicValues,
     /// An error that occurs when the SP1 version does not match the version of the circuit.
-    #[error("Version mismatch")]
+    #[error("Version mismatch: {0}")]
     VersionMismatch(String),
     /// An error that occurs when the core machine verification fails.
     #[error("Core machine verification error: {0}")]
-    Core(MachineVerifierConfigError<CoreSC>),
+    Core(anyhow::Error),
     /// An error that occurs when the recursion verification fails.
     #[error("Recursion verification error: {0}")]
-    Recursion(MachineVerifierConfigError<InnerSC>),
+    Recursion(anyhow::Error),
     /// An error that occurs when the Plonk verification fails.
     #[error("Plonk verification error: {0}")]
     Plonk(anyhow::Error),
@@ -146,17 +140,13 @@ pub enum SP1VerificationError {
 /// designed to be collision resistant. It is computationally infeasible to find an input i1 for
 /// SHA256 and an input i2 for Blake3 that the same hash value. Doing so would require breaking both
 /// algorithms simultaneously.
-pub(crate) fn verify_proof<C: SP1ProverComponents>(
-    prover: &SP1Prover<C>,
+pub(crate) fn verify_proof(
+    node: &SP1NodeCore,
     version: &str,
     bundle: &SP1ProofWithPublicValues,
     vkey: &SP1VerifyingKey,
     status_code: Option<StatusCode>,
-) -> Result<(), SP1VerificationError>
-where
-    <C::CoreComponents as MachineProverComponents>::Air: for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>
-        + for<'a> Air<VerifierConstraintFolder<'a, CoreSC>>,
-{
+) -> Result<(), SP1VerificationError> {
     let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
 
     // Check that the SP1 version matches the version of the current circuit.
@@ -166,6 +156,14 @@ where
 
     match &bundle.proof {
         SP1Proof::Core(proof) => {
+            if proof.is_empty() {
+                return Err(SP1VerificationError::Core(anyhow::anyhow!("Empty core proof")));
+            }
+
+            if proof.last().unwrap().public_values.len() != PROOF_MAX_NUM_PVS {
+                return Err(SP1VerificationError::InvalidPublicValues);
+            }
+
             let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
                 proof.last().unwrap().public_values.as_slice().borrow();
 
@@ -188,16 +186,16 @@ where
             if committed_value_digest_bytes != bundle.public_values.hash()
                 && committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
+                tracing::error!("committed value digest doesnt match");
+                return Err(SP1VerificationError::InvalidPublicValues);
+            }
+        }
+        SP1Proof::Compressed(proof) => {
+            if proof.proof.public_values.len() != PROOF_MAX_NUM_PVS {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }
 
-            // Verify the core proof.
-            prover
-                .verify(&SP1CoreProofData(proof.clone()), vkey)
-                .map_err(SP1VerificationError::Core)
-        }
-        SP1Proof::Compressed(proof) => {
-            let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
+            let public_values: &RecursionPublicValues<_> =
                 proof.proof.public_values.as_slice().borrow();
 
             if !status_code.is_accepted_code(public_values.exit_code.as_canonical_u32()) {
@@ -221,34 +219,45 @@ where
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }
-
-            prover.verify_compressed(proof, vkey).map_err(SP1VerificationError::Recursion)
         }
-        SP1Proof::Plonk(_) => unimplemented!(),
-        // prover
-        //     .verify_plonk_bn254(
-        //         proof,
-        //         vkey,
-        //         &bundle.public_values,
-        //         &if sp1_prover::build::sp1_dev_mode() {
-        //             sp1_prover::build::plonk_bn254_artifacts_dev_dir()
-        //         } else {
-        //             try_install_circuit_artifacts("plonk")
-        //         },
-        //     )
-        //     .map_err(SP1VerificationError::Plonk),
-        SP1Proof::Groth16(_) => unimplemented!(),
-        // prover
-        // .verify_groth16_bn254(
-        //     proof,
-        //     vkey,
-        //     &bundle.public_values,
-        //     &if sp1_prover::build::sp1_dev_mode() {
-        //         sp1_prover::build::groth16_bn254_artifacts_dev_dir()
-        //     } else {
-        //         try_install_circuit_artifacts("groth16")
-        //     },
-        // )
-        // .map_err(SP1VerificationError::Groth16),
+        SP1Proof::Plonk(proof) => {
+            let exit_code = BigUint::from_str(&proof.public_inputs[2])
+                .map_err(|e| SP1VerificationError::Plonk(anyhow::anyhow!(e)))?;
+
+            let exit_code_u32 =
+                u32::try_from(&exit_code).map_err(|_| SP1VerificationError::InvalidPublicValues)?;
+
+            if !status_code.is_accepted_code(exit_code_u32) {
+                return Err(SP1VerificationError::UnexpectedExitCode(exit_code_u32));
+            }
+
+            let public_values_hash = BigUint::from_str(&proof.public_inputs[1])
+                .map_err(|e| SP1VerificationError::Plonk(anyhow::anyhow!(e)))?;
+            verify_public_values(&bundle.public_values, public_values_hash)
+                .map_err(SP1VerificationError::Plonk)?;
+        }
+
+        SP1Proof::Groth16(proof) => {
+            let exit_code = BigUint::from_str(&proof.public_inputs[2])
+                .map_err(|e| SP1VerificationError::Plonk(anyhow::anyhow!(e)))?;
+
+            let exit_code_u32 =
+                u32::try_from(&exit_code).map_err(|_| SP1VerificationError::InvalidPublicValues)?;
+
+            if !status_code.is_accepted_code(exit_code_u32) {
+                return Err(SP1VerificationError::UnexpectedExitCode(exit_code_u32));
+            }
+
+            let public_values_hash = BigUint::from_str(&proof.public_inputs[1])
+                .map_err(|e| SP1VerificationError::Groth16(anyhow::anyhow!(e)))?;
+            verify_public_values(&bundle.public_values, public_values_hash)
+                .map_err(SP1VerificationError::Groth16)?;
+        }
     }
+    node.verify(vkey, &bundle.proof).map_err(|e| match bundle.proof {
+        SP1Proof::Core(_) => SP1VerificationError::Core(e),
+        SP1Proof::Compressed(_) => SP1VerificationError::Recursion(e),
+        SP1Proof::Plonk(_) => SP1VerificationError::Plonk(e),
+        SP1Proof::Groth16(_) => SP1VerificationError::Groth16(e),
+    })
 }

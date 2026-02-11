@@ -10,4 +10,3 @@ tokio = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
-

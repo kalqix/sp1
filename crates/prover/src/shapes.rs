@@ -1,10 +1,7 @@
-use derive_where::derive_where;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    fs::File,
     num::NonZero,
-    path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
@@ -12,32 +9,33 @@ use std::{
 };
 
 use hashbrown::HashSet;
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use slop_air::{Air, BaseAir};
+use slop_air::BaseAir;
 use slop_algebra::AbstractField;
-use slop_jagged::JaggedConfig;
-use sp1_core_executor::{ELEMENT_THRESHOLD, MAX_PROGRAM_SIZE};
+use slop_basefold::FriConfig;
+use sp1_core_executor::MAX_PROGRAM_SIZE;
 use sp1_core_machine::{
     bytes::columns::NUM_BYTE_PREPROCESSED_COLS, program::NUM_PROGRAM_PREPROCESSED_COLS,
-    range::columns::NUM_RANGE_PREPROCESSED_COLS,
+    range::columns::NUM_RANGE_PREPROCESSED_COLS, riscv::RiscvAir,
 };
 use sp1_hypercube::{
     air::MachineAir,
     log2_ceil_usize,
-    prover::{
-        CoreProofShape, DefaultTraceGenerator, MachineProverComponents, ProverSemaphore,
-        TraceGenerator,
-    },
-    Chip, ChipDimensions, Machine, MachineShape,
+    prover::{CoreProofShape, DefaultTraceGenerator, ProverSemaphore, TraceGenerator},
+    Chip, HashableKey, Machine, MachineShape, SP1PcsProofInner, SP1VerifyingKey,
 };
-use sp1_primitives::SP1Field;
+use sp1_primitives::{
+    fri_params::{core_fri_config, CORE_LOG_BLOWUP},
+    SP1Field, SP1GlobalContext,
+};
+use sp1_prover_types::ArtifactClient;
 use sp1_recursion_circuit::{
     dummy::{dummy_shard_proof, dummy_vk},
     machine::{
         SP1CompressWithVKeyWitnessValues, SP1MerkleProofWitnessValues, SP1NormalizeWitnessValues,
         SP1ShapedWitnessValues,
     },
-    zerocheck::RecursiveVerifierConstraintFolder,
 };
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{
@@ -55,36 +53,37 @@ use sp1_recursion_machine::chips::{
     public_values::PublicValuesChip,
     select::SelectChip,
 };
+use sp1_verifier::compressed::RECURSION_MAX_LOG_ROW_COUNT;
 use thiserror::Error;
 use tokio::task::JoinSet;
 
 use crate::{
-    components::SP1ProverComponents,
-    core::{CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT},
+    components::{SP1ProverComponents, CORE_LOG_STACKING_HEIGHT},
     recursion::{
-        deferred_program_from_input, dummy_compose_input, dummy_deferred_input,
-        shrink_program_from_input, RECURSION_MAX_LOG_ROW_COUNT,
+        compose_program_from_input, deferred_program_from_input, dummy_compose_input,
+        dummy_deferred_input, normalize_program_from_input, recursive_verifier,
+        shrink_program_from_input,
     },
-    types::HashableKey,
-    CompressAir, CoreSC, InnerSC, SP1Prover, SP1RecursionProver, SP1VerifyingKey, CORE_LOG_BLOWUP,
+    worker::{AirProverWorker, RecursionVkWorker},
+    CompressAir, CORE_MAX_LOG_ROW_COUNT,
 };
 
 pub const DEFAULT_ARITY: usize = 4;
 
 /// The shape of the "normalize" program, which proves the correct execution for the verifier of a
 /// single core shard proof.
-#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct SP1NormalizeInputShape<A: MachineAir<SP1Field>> {
-    pub proof_shapes: Vec<CoreProofShape<SP1Field, A>>,
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct SP1NormalizeInputShape {
+    pub proof_shapes: Vec<CoreProofShape<SP1Field, RiscvAir<SP1Field>>>,
     pub max_log_row_count: usize,
     pub log_blowup: usize,
     pub log_stacking_height: usize,
 }
 
-#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum SP1RecursionProgramShape<A: MachineAir<SP1Field>> {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum SP1RecursionProgramShape {
     // The program that verifies a core shard proof.
-    Normalize(CoreProofShape<SP1Field, A>),
+    Normalize(CoreProofShape<SP1Field, RiscvAir<SP1Field>>),
     // Compose(arity) is the program that verifies a batch of Normalize proofs of size arity.
     Compose(usize),
     // The deferred proof program.
@@ -92,6 +91,9 @@ pub enum SP1RecursionProgramShape<A: MachineAir<SP1Field>> {
     // The shrink program that verifies the the root of the recursion tree.
     Shrink,
 }
+
+const PADDED_ELEMENT_THRESHOLD: u64 =
+    sp1_core_executor::ELEMENT_THRESHOLD + (1 << CORE_LOG_STACKING_HEIGHT);
 
 #[derive(Debug, Error)]
 pub enum VkBuildError {
@@ -101,8 +103,11 @@ pub enum VkBuildError {
     Bincode(#[from] bincode::Error),
 }
 
-impl<A: MachineAir<SP1Field>> SP1NormalizeInputShape<A> {
-    pub fn dummy_input(&self, vk: SP1VerifyingKey) -> SP1NormalizeWitnessValues<CoreSC> {
+impl SP1NormalizeInputShape {
+    pub fn dummy_input(
+        &self,
+        vk: SP1VerifyingKey,
+    ) -> SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> {
         let shard_proofs = self
             .proof_shapes
             .iter()
@@ -110,7 +115,7 @@ impl<A: MachineAir<SP1Field>> SP1NormalizeInputShape<A> {
                 dummy_shard_proof(
                     core_shape.shard_chips.clone(),
                     self.max_log_row_count,
-                    self.log_blowup,
+                    core_fri_config(),
                     self.log_stacking_height,
                     &[core_shape.preprocessed_multiple, core_shape.main_multiple],
                     &[core_shape.preprocessed_padding_cols, core_shape.main_padding_cols],
@@ -124,18 +129,18 @@ impl<A: MachineAir<SP1Field>> SP1NormalizeInputShape<A> {
             is_complete: false,
             vk_root: [SP1Field::zero(); DIGEST_SIZE],
             reconstruct_deferred_digest: [SP1Field::zero(); 8],
+            num_deferred_proofs: SP1Field::zero(),
         }
     }
 }
 
-type LruCache<A> = lru::LruCache<SP1NormalizeInputShape<A>, Arc<RecursionProgram<SP1Field>>>;
-pub struct SP1NormalizeCache<A: MachineAir<SP1Field>> {
-    lru: Arc<Mutex<LruCache<A>>>,
+pub struct SP1NormalizeCache {
+    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape, Arc<RecursionProgram<SP1Field>>>>>,
     total_calls: AtomicUsize,
     hits: AtomicUsize,
 }
 
-impl<A: MachineAir<SP1Field>> SP1NormalizeCache<A> {
+impl SP1NormalizeCache {
     pub fn new(size: usize) -> Self {
         let size = NonZero::new(size).expect("size must be non-zero");
         let lru = LruCache::new(size);
@@ -143,10 +148,7 @@ impl<A: MachineAir<SP1Field>> SP1NormalizeCache<A> {
         Self { lru, total_calls: AtomicUsize::new(0), hits: AtomicUsize::new(0) }
     }
 
-    pub fn get(
-        &self,
-        shape: &SP1NormalizeInputShape<A>,
-    ) -> Option<Arc<RecursionProgram<SP1Field>>> {
+    pub fn get(&self, shape: &SP1NormalizeInputShape) -> Option<Arc<RecursionProgram<SP1Field>>> {
         self.total_calls.fetch_add(1, Ordering::Relaxed);
         if let Some(program) = self.lru.lock().unwrap().get(shape).cloned() {
             self.hits.fetch_add(1, Ordering::Relaxed);
@@ -156,7 +158,7 @@ impl<A: MachineAir<SP1Field>> SP1NormalizeCache<A> {
         }
     }
 
-    pub fn push(&self, shape: SP1NormalizeInputShape<A>, program: Arc<RecursionProgram<SP1Field>>) {
+    pub fn push(&self, shape: SP1NormalizeInputShape, program: Arc<RecursionProgram<SP1Field>>) {
         self.lru.lock().unwrap().push(shape, program);
     }
 
@@ -237,11 +239,10 @@ impl SP1RecursionProofShape {
         height: usize,
         chips: BTreeSet<Chip<SP1Field, CompressAir<SP1Field>>>,
         max_log_row_count: usize,
-        log_blowup: usize,
+        fri_config: FriConfig<SP1Field>,
         log_stacking_height: usize,
-    ) -> SP1CompressWithVKeyWitnessValues<InnerSC> {
-        let preprocessed_chip_information = self.shape.preprocessed_chip_information(&chips);
-        let dummy_vk = dummy_vk(preprocessed_chip_information);
+    ) -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
+        let dummy_vk = dummy_vk();
 
         let preprocessed_multiple = chips
             .iter()
@@ -272,7 +273,7 @@ impl SP1RecursionProofShape {
         let dummy_proof = dummy_shard_proof(
             chips,
             max_log_row_count,
-            log_blowup,
+            fri_config,
             log_stacking_height,
             &[preprocessed_multiple, main_multiple],
             &[preprocessed_padding_cols, main_padding_cols],
@@ -317,17 +318,22 @@ impl SP1RecursionProofShape {
     }
 
     #[allow(dead_code)]
-    async fn max_arity<C: SP1ProverComponents>(&self, prover: &SP1RecursionProver<C>) -> usize
-    where
-        <C::CoreComponents as MachineProverComponents>::Air: MachineAir<SP1Field>
-            + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
-    {
+    async fn max_arity<C: SP1ProverComponents>(
+        &self,
+        vk_verification: bool,
+        height: usize,
+    ) -> usize {
         let mut arity = 0;
+        let compress_verifier = C::compress_verifier();
+        let recursive_compress_verifier =
+            recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
         for possible_arity in 1.. {
-            let input = prover.dummy_reduce_input_with_shape(possible_arity, self);
-            let program = prover.compose_program_from_input(&input);
+            let input = dummy_compose_input(&compress_verifier, self, possible_arity, height);
+            let program =
+                compose_program_from_input(&recursive_compress_verifier, vk_verification, &input);
             let program = Arc::new(program);
-            let is_compatible = self.check_compatibility(program, prover.machine().clone()).await;
+            let is_compatible =
+                self.check_compatibility(program, compress_verifier.machine().clone()).await;
             if !is_compatible {
                 break;
             }
@@ -337,30 +343,30 @@ impl SP1RecursionProofShape {
     }
 }
 
-pub async fn build_vk_map<C: SP1ProverComponents + 'static>(
+#[allow(clippy::too_many_arguments)]
+pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     dummy: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
     max_arity: usize,
-    prover: Arc<SP1Prover<C>>,
-) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>)
-where
-    <C::CoreComponents as MachineProverComponents>::Air:
-        for<'b> Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
-{
+    merkle_tree_height: usize,
+    vk_worker: Arc<RecursionVkWorker<C>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> (BTreeSet<[SP1Field; DIGEST_SIZE]>, Vec<usize>) {
+    let recursion_permits = vk_worker.recursion_permits.clone();
+    let recursion_prover = vk_worker.recursion_prover.clone();
+    let shrink_prover = vk_worker.shrink_prover.clone();
     if dummy {
-        let dummy_set = dummy_vk_map(&prover).into_keys().collect::<BTreeSet<_>>();
+        let dummy_set = dummy_vk_map::<C>(machine).into_keys().collect();
         return (dummy_set, vec![]);
     }
 
     // Setup the channels.
     let (vk_tx, mut vk_rx) =
         tokio::sync::mpsc::unbounded_channel::<(usize, [SP1Field; DIGEST_SIZE])>();
-    let (shape_tx, shape_rx) = tokio::sync::mpsc::channel::<(
-        usize,
-        SP1RecursionProgramShape<<C::CoreComponents as MachineProverComponents>::Air>,
-    )>(num_compiler_workers);
+    let (shape_tx, shape_rx) =
+        tokio::sync::mpsc::channel::<(usize, SP1RecursionProgramShape)>(num_compiler_workers);
     let (program_tx, program_rx) = tokio::sync::mpsc::channel(num_setup_workers);
     let (panic_tx, mut panic_rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -368,12 +374,14 @@ where
     let shape_rx = Arc::new(tokio::sync::Mutex::new(shape_rx));
     let program_rx = Arc::new(tokio::sync::Mutex::new(program_rx));
 
-    // Generate all the possible shape inputs we encounter in recursion. This may span lift,
-    // join, deferred, shrink, etc.
-    let all_shapes = create_all_input_shapes(prover.core().machine().shape(), max_arity);
+    // Generate all the possible shape inputs we encounter in recursion. This may span normalize,
+    // compose (of any arity), deferred, shrink, etc.
+    let all_shapes =
+        create_all_input_shapes(C::core_verifier(machine.clone()).machine().shape(), max_arity);
 
     let num_shapes = all_shapes.len();
-    let height = log2_ceil_usize(indices.as_ref().map(Vec::len).unwrap_or(num_shapes));
+
+    let height = if indices.is_some() { merkle_tree_height } else { log2_ceil_usize(num_shapes) };
 
     let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
 
@@ -385,18 +393,19 @@ where
     for _ in 0..num_compiler_workers {
         let program_tx = program_tx.clone();
         let shape_rx = shape_rx.clone();
-        let prover = prover.clone();
         let panic_tx = panic_tx.clone();
+        let machine = machine.clone();
         set.spawn(async move {
             while let Some((i, shape)) = shape_rx.lock().await.recv().await {
                 // eprintln!("shape: {:?}", shape);
-                // let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
-                let prover = prover.clone();
+                let compress_verifier = C::compress_verifier();
+                let recursive_compress_verifier =
+                    recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
                 // Spawn on another thread to handle panics.
+                let machine = machine.clone();
                 let program_thread = tokio::spawn(async move {
-                    let prover = prover.clone();
-
-                    let prover = prover.clone();
+                    let reduce_shape =
+                        SP1RecursionProofShape::compress_proof_shape_from_arity(max_arity);
                     match shape {
                         SP1RecursionProgramShape::Normalize(shape_clone) => {
                             let normalize_shape = SP1NormalizeInputShape {
@@ -405,78 +414,63 @@ where
                                 log_blowup: CORE_LOG_BLOWUP,
                                 log_stacking_height: CORE_LOG_STACKING_HEIGHT as usize,
                             };
-                            let dummy_vk = dummy_vk(
-                                vec![
-                                    (
-                                        "Byte".to_string(),
-                                        ChipDimensions {
-                                            height: <CoreSC as JaggedConfig>::F::zero(),
-                                            num_polynomials: <CoreSC as JaggedConfig>::F::zero(),
-                                        },
-                                    ),
-                                    (
-                                        "Program".to_string(),
-                                        ChipDimensions {
-                                            height: <CoreSC as JaggedConfig>::F::zero(),
-                                            num_polynomials: <CoreSC as JaggedConfig>::F::zero(),
-                                        },
-                                    ),
-                                    (
-                                        "Range".to_string(),
-                                        ChipDimensions {
-                                            height: <CoreSC as JaggedConfig>::F::zero(),
-                                            num_polynomials: <CoreSC as JaggedConfig>::F::zero(),
-                                        },
-                                    ),
-                                ]
-                                .into_iter()
-                                .collect(),
+                            let dummy_vk = dummy_vk();
+                            let core_verifier = C::core_verifier(machine);
+                            let recursive_core_verifier = recursive_verifier::<_, _, InnerConfig>(
+                                core_verifier.shard_verifier(),
                             );
                             let witness =
                                 normalize_shape.dummy_input(SP1VerifyingKey { vk: dummy_vk });
-                            (prover.recursion().normalize_program(&witness), false)
+                            let mut program =
+                                normalize_program_from_input(&recursive_core_verifier, &witness);
+                            program.shape =
+                                Some(reduce_shape.clone().expect("max arity not supported").shape);
+                            (Arc::new(program), false)
                         }
                         SP1RecursionProgramShape::Compose(arity) => {
                             let dummy_input = dummy_compose_input(
-                                &prover.recursion().prover,
+                                &compress_verifier,
                                 &SP1RecursionProofShape::compress_proof_shape_from_arity(max_arity)
                                     .expect("max arity not supported"),
                                 arity,
                                 height,
                             );
-                            (
-                                Arc::new(
-                                    prover.recursion().compose_program_from_input(&dummy_input),
-                                ),
-                                false,
-                            )
+
+                            let mut program = compose_program_from_input(
+                                &recursive_compress_verifier,
+                                true,
+                                &dummy_input,
+                            );
+                            program.shape =
+                                Some(reduce_shape.clone().expect("max arity not supported").shape);
+                            (Arc::new(program), false)
                         }
                         SP1RecursionProgramShape::Deferred => {
                             let dummy_input = dummy_deferred_input(
-                                &prover.recursion().prover,
-                                &SP1RecursionProofShape::compress_proof_shape_from_arity(max_arity)
-                                    .expect("max arity not supported"),
+                                &C::compress_verifier(),
+                                &reduce_shape.clone().expect("max arity not supported"),
                                 height,
                             );
-                            (
-                                Arc::new(deferred_program_from_input(
-                                    &prover.recursion().recursive_compress_verifier,
-                                    true,
-                                    &dummy_input,
-                                )),
-                                false,
-                            )
+                            let mut program = deferred_program_from_input(
+                                &recursive_compress_verifier,
+                                true,
+                                &dummy_input,
+                            );
+
+                            program.shape =
+                                Some(reduce_shape.clone().expect("max arity not supported").shape);
+
+                            (Arc::new(program), false)
                         }
                         SP1RecursionProgramShape::Shrink => {
                             let dummy_input = dummy_compose_input(
-                                &prover.recursion().prover,
-                                &SP1RecursionProofShape::compress_proof_shape_from_arity(max_arity)
-                                    .expect("max arity not supported"),
+                                &C::compress_verifier(),
+                                &reduce_shape.clone().expect("max arity not supported"),
                                 1,
                                 height,
                             );
                             let program = shrink_program_from_input(
-                                &prover.recursion().recursive_compress_verifier,
+                                &recursive_compress_verifier,
                                 true,
                                 &dummy_input,
                             );
@@ -502,26 +496,31 @@ where
         });
     }
 
+    let recursion_prover = recursion_prover.clone();
     // Initialize setup workers.
     for _ in 0..num_setup_workers {
         let vk_tx = vk_tx.clone();
         let program_rx = program_rx.clone();
-        let prover = prover.clone();
+        let prover = recursion_prover.clone();
+        let recursion_permits = recursion_permits.clone();
+        let shrink_prover = shrink_prover.clone();
         set.spawn(async move {
             let mut done = 0;
             while let Some((i, program, is_shrink)) = program_rx.lock().await.recv().await {
                 let prover = prover.clone();
+                let shrink_prover = shrink_prover.clone();
+                let recursion_permits = recursion_permits.clone();
                 let vk_thread = tokio::spawn(async move {
                     if is_shrink {
-                        prover.recursion().shrink_prover.setup(program, None).await
+                        shrink_prover.setup(program).await
                     } else {
-                        prover.recursion().prover.setup(program, None).await
+                        prover.setup(program, recursion_permits.clone()).await.1
                     }
                 });
                 let vk = vk_thread.await.unwrap();
                 done += 1;
 
-                let vk_digest = vk.1.hash_koalabear();
+                let vk_digest = vk.hash_koalabear();
 
                 tracing::info!(
                     "program {} = {:?}, {}% done",
@@ -557,9 +556,6 @@ where
         vk_map.insert(i, vk);
     }
 
-    // Build vk_set in the same order as shapes were sent
-    let vk_set: BTreeSet<[SP1Field; DIGEST_SIZE]> = vk_map.into_values().collect();
-
     let mut panic_indices = vec![];
     while let Some(i) = panic_rx.recv().await {
         panic_indices.push(i);
@@ -570,62 +566,26 @@ where
         }
     }
 
+    // Build vk_set in lexicographic order.
+    let vk_set: BTreeSet<[SP1Field; DIGEST_SIZE]> = vk_map.into_values().collect();
+
     (vk_set, panic_indices)
 }
 
-pub async fn build_vk_map_to_file<C: SP1ProverComponents + 'static>(
-    build_dir: PathBuf,
-    max_arity: usize,
-    dummy: bool,
-    num_compiler_workers: usize,
-    num_setup_workers: usize,
-    indices: Option<Vec<usize>>,
-    prover: Arc<SP1Prover<C>>,
-) -> Result<(), VkBuildError>
-where
-    <C::CoreComponents as MachineProverComponents>::Air: MachineAir<SP1Field>
-        + for<'b> slop_air::Air<RecursiveVerifierConstraintFolder<'b, InnerConfig>>,
-{
-    // Create the build directory if it doesn't exist.
-    std::fs::create_dir_all(&build_dir)?;
-
-    // Build the vk map.
-    let (vk_set, _) = build_vk_map::<C>(
-        dummy,
-        num_compiler_workers,
-        num_setup_workers,
-        indices,
-        max_arity,
-        prover.clone(),
-    )
-    .await;
-
-    let vk_map = vk_set.into_iter().enumerate().map(|(i, vk)| (vk, i)).collect::<BTreeMap<_, _>>();
-
-    // Create the file to store the vk map.
-    let mut file = if dummy {
-        File::create(build_dir.join("dummy_vk_map.bin"))?
-    } else {
-        File::create(build_dir.join("vk_map.bin"))?
-    };
-
-    Ok(bincode::serialize_into(&mut file, &vk_map)?)
-}
-
 fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> usize {
-    (ELEMENT_THRESHOLD - preprocessed_multiple as u64 * (1 << CORE_LOG_STACKING_HEIGHT))
+    (PADDED_ELEMENT_THRESHOLD - preprocessed_multiple as u64 * (1 << CORE_LOG_STACKING_HEIGHT))
         .div_ceil(1 << CORE_LOG_STACKING_HEIGHT as u64) as usize
 }
 
-fn create_all_input_shapes<A: MachineAir<SP1Field>>(
-    core_shape: &MachineShape<SP1Field, A>,
+pub fn create_all_input_shapes(
+    core_shape: &MachineShape<SP1Field, RiscvAir<SP1Field>>,
     max_arity: usize,
-) -> Vec<SP1RecursionProgramShape<A>> {
+) -> Vec<SP1RecursionProgramShape> {
     let (max_preprocessed_multiple, _, capacity) = normalize_program_parameter_space();
     let max_num_padding_cols =
         ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
 
-    let mut result: Vec<SP1RecursionProgramShape<_>> = Vec::with_capacity(capacity);
+    let mut result: Vec<SP1RecursionProgramShape> = Vec::with_capacity(capacity);
     for preprocessed_multiple in 1..=max_preprocessed_multiple {
         for main_multiple in 1..=max_main_multiple_for_preprocessed_multiple(preprocessed_multiple)
         {
@@ -662,7 +622,8 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
         + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
         + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)
         .div_ceil(1 << CORE_LOG_STACKING_HEIGHT);
-    let max_main_multiple = (ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
+    let max_main_multiple =
+        (PADDED_ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
 
     let num_shapes = (0..=max_preprocessed_multiple)
         .map(max_main_multiple_for_preprocessed_multiple)
@@ -672,9 +633,9 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
 }
 
 pub fn dummy_vk_map<C: SP1ProverComponents>(
-    prover: &SP1Prover<C>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
-    create_all_input_shapes(prover.core().machine().shape(), DEFAULT_ARITY)
+    create_all_input_shapes(C::core_verifier(machine).machine().shape(), DEFAULT_ARITY)
         .iter()
         .enumerate()
         .map(|(i, _)| ([SP1Field::from_canonical_usize(i); DIGEST_SIZE], i))
@@ -701,14 +662,14 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
     }
 }
 
-pub fn create_test_shape<A: MachineAir<SP1Field>>(
-    cluster: &BTreeSet<Chip<SP1Field, A>>,
-) -> SP1NormalizeInputShape<A> {
+pub fn create_test_shape(
+    cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
+) -> SP1NormalizeInputShape {
     let preprocessed_multiple = (MAX_PROGRAM_SIZE * NUM_PROGRAM_PREPROCESSED_COLS
         + (1 << 17) * NUM_RANGE_PREPROCESSED_COLS
         + (1 << 16) * NUM_BYTE_PREPROCESSED_COLS)
         .div_ceil(1 << CORE_LOG_STACKING_HEIGHT);
-    let main_multiple = (ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
+    let main_multiple = (PADDED_ELEMENT_THRESHOLD).div_ceil(1 << CORE_LOG_STACKING_HEIGHT) as usize;
     let num_padding_cols =
         ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
     SP1NormalizeInputShape {
@@ -790,19 +751,18 @@ pub fn build_shape_from_recursion_air_event_count(
     SP1RecursionProofShape { shape: chips_and_heights.into_iter().collect() }
 }
 
-#[cfg(all(test, feature = "unsound"))]
+#[cfg(test)]
 mod tests {
     use anyhow::Context;
-    use serial_test::serial;
 
-    use crate::{local::LocalProver, recursion::normalize_program_from_input};
+    use crate::{
+        recursion::normalize_program_from_input, worker::SP1LightNode, CpuSP1ProverComponents,
+    };
+    #[cfg(feature = "experimental")]
     use sp1_core_executor::SP1Context;
 
-    use crate::CpuSP1ProverComponents;
-    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
+    use sp1_core_machine::utils::setup_logger;
     use sp1_recursion_executor::RecursionAirEventCount;
-
-    use crate::SP1ProverBuilder;
 
     use super::*;
 
@@ -810,16 +770,17 @@ mod tests {
     #[ignore = "should be invoked specifically"]
     async fn test_max_arity() {
         setup_logger();
-        let prover: SP1Prover<_> =
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-                .without_recursion_vks()
-                .build()
-                .await;
+        let client = SP1LightNode::new().await;
+
+        let vk_verification = client.inner().vk_verification();
+        let allowed_vk_height = client.inner().allowed_vk_height();
 
         let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY)
             .expect("default arity shape should be valid");
 
-        let arity = reduce_shape.max_arity(prover.recursion()).await;
+        let arity = reduce_shape
+            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+            .await;
 
         tracing::info!("arity: {}", arity);
     }
@@ -845,33 +806,40 @@ mod tests {
     async fn test_core_shape_fit() -> Result<(), anyhow::Error> {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .without_recursion_vks()
-            .build()
-            .await;
-        let (_, _, vk) = prover.core().setup(&elf).await;
+        let machine = RiscvAir::machine();
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
+        // let prover = SP1ProverBuilder::new().without_recursion_vks().build().await;
+        let vk = client.setup(&elf).await?;
 
         let context =
-            "Shape is not valid. To fix: From sp1-wip directory, run `cargo test --release -p sp1-prover --features unsound -- test_find_recursion_shape --include-ignored`";
+            "Shape is not valid. To fix: From sp1-wip directory, run `cargo test --release -p sp1-prover --features experimental -- test_find_recursion_shape --include-ignored`";
 
-        let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
+
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let recursive_core_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
         for cluster in chip_clusters {
             let shape = create_test_shape(cluster);
             let program = normalize_program_from_input(
-                &prover.recursion().recursive_core_verifier,
+                &recursive_core_verifier,
                 &shape.dummy_input(vk.clone()),
             );
             max_cluster_count = max_count(max_cluster_count, program.event_counts);
         }
 
+        let vk_verification = client.inner().vk_verification();
+        let allowed_vk_height = client.inner().allowed_vk_height();
+
         tracing::info!("max_cluster_count: {:?}", max_cluster_count);
 
         let reduce_shape =
             SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY).unwrap();
-        let arity = reduce_shape.max_arity(prover.recursion()).await;
+        let arity = reduce_shape
+            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+            .await;
         if arity != DEFAULT_ARITY {
             return Err(ShapeError::WrongArity(arity)).context(context);
         }
@@ -894,7 +862,10 @@ mod tests {
 
                 new_reduce_shape.shape.insert_with_name(chip, height - 32);
 
-                if !(new_reduce_shape.max_arity(prover.recursion()).await < DEFAULT_ARITY
+                if !(new_reduce_shape
+                    .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+                    .await
+                    < DEFAULT_ARITY
                     || new_reduce_shape.shape.height_of_name(chip).unwrap()
                         < max_cluster_shape
                             .shape
@@ -904,18 +875,30 @@ mod tests {
                 {
                     return Err(ShapeError::ShapeNotMinimal).context(context);
                 }
-            } else {
-                if *height != 16 {
-                    return Err(ShapeError::PublicValuesChipHeightNot16).context(context);
-                }
+            } else if *height != 16 {
+                return Err(ShapeError::PublicValuesChipHeightNot16).context(context);
             }
         }
         Ok(())
     }
 
+    #[cfg(feature = "experimental")]
+    use serial_test::serial;
+
     #[tokio::test]
     #[serial]
+    #[cfg(feature = "experimental")]
     async fn test_build_vk_map() {
+        use std::fs::File;
+
+        use either::Either;
+
+        use sp1_core_machine::io::SP1Stdin;
+        use sp1_prover_types::network_base_types::ProofMode;
+        use sp1_verifier::SP1Proof;
+
+        use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+
         setup_logger();
 
         // Use a temporary directory for the vk_map file to avoid conflicts
@@ -925,91 +908,79 @@ mod tests {
         // Clean up any existing file from previous runs
         let _ = std::fs::remove_file(&vk_map_path);
 
-        let prover =
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await;
+        let machine = RiscvAir::machine();
+        let node =
+            SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine.clone()))
+                .build()
+                .await
+                .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
-        let (pk, program, vk) = prover.core().setup(&elf).await;
-
-        let local_prover = Arc::new(LocalProver::new(prover, Default::default()));
-
-        let pk = unsafe { pk.into_inner() };
 
         // Make a proof to get proof shapes to populate the vk map with.
-        let proof = local_prover
-            .clone()
-            .prove_core(pk, program, SP1Stdin::default(), SP1Context::default())
+        let vk = node.setup(&elf).await.expect("Failed to setup");
+
+        let proof = node
+            .prove_with_mode(&elf, SP1Stdin::default(), SP1Context::default(), ProofMode::Core)
             .await
             .expect("Failed to prove");
 
         // Create all circuit shapes.
-        let shapes =
-            create_all_input_shapes(local_prover.prover().core().machine().shape(), DEFAULT_ARITY);
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let shapes = create_all_input_shapes(
+            core_verifier.shard_verifier().machine().shape(),
+            DEFAULT_ARITY,
+        );
 
         // Determine the indices in `shapes` of the shapes appear in the proof.
         let mut shape_indices = vec![];
 
-        for proof in &proof.proof.0 {
-            let shape = SP1RecursionProgramShape::Normalize(
-                local_prover.prover().core().verifier().shape_from_proof(proof),
-            );
+        let core_proof = match proof.proof {
+            SP1Proof::Core(proof) => proof,
+            _ => panic!("Expected core proof"),
+        };
+
+        for proof in &core_proof {
+            let shape = SP1RecursionProgramShape::Normalize(core_verifier.shape_from_proof(proof));
 
             shape_indices.push(shapes.iter().position(|s| s == &shape).unwrap());
         }
 
-        // Build the vk map that includes all of the proof shapes in the proof.
-        let prover = Arc::new(
-            SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine()).build().await,
-        );
-
         let shape_indices =
             shape_indices.into_iter().chain(shapes.len() - 12..shapes.len()).collect::<Vec<_>>();
 
-        let shape_indices_len = shape_indices.len();
+        let result = node.build_vks(Some(Either::Left(shape_indices)), 4).await.unwrap();
 
-        build_vk_map_to_file(
-            temp_dir,
-            DEFAULT_ARITY,
-            false,
-            1,
-            1,
-            Some(shape_indices),
-            prover.clone(),
+        let vk_map_path = temp_dir.join("vk_map.bin");
+
+        // Create the file to store the vk map.
+        let mut file = File::create(vk_map_path.clone()).unwrap();
+
+        bincode::serialize_into(&mut file, &result.vk_map).unwrap();
+
+        // Build a new prover that performs the vk verification check using the built vk map.
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder(machine.clone())
+                .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
+        .build()
         .await
         .unwrap();
 
-        tracing::info!("Built vk map with {} shapes", shape_indices_len);
-
-        // Build a new prover that performs the vk verification check using the built vk map.
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .with_vk_map_path(vk_map_path.display().to_string())
-            .build()
-            .await;
-
         tracing::info!("Rebuilt prover with vk map.");
 
-        let local_prover = Arc::new(LocalProver::new(prover, Default::default()));
+        // Make a proof with the vks checked.
+        let proof = node
+            .prove_with_mode(
+                &elf,
+                SP1Stdin::default(),
+                SP1Context::default(),
+                ProofMode::Compressed,
+            )
+            .await
+            .expect("Failed to prove");
 
-        local_prover.prover().verify(&proof.proof, &vk).expect("Failed to verify proof");
-
-        tracing::info!("Core proof verified successfully.");
-
-        let compress_proof = local_prover.clone().compress(&vk, proof, vec![]).await.unwrap();
-
-        local_prover
-            .prover()
-            .verify_compressed(&compress_proof, &vk)
-            .expect("Failed to verify compress proof");
-
-        tracing::info!("Compress proof verified successfully.");
-
-        let shrink_proof = local_prover.clone().shrink(compress_proof).await.unwrap();
-
-        local_prover
-            .prover()
-            .verify_shrink(&shrink_proof, &vk)
-            .expect("Failed to verify shrink proof");
+        node.verify(&vk, &proof.proof).unwrap();
 
         std::fs::remove_file(vk_map_path).unwrap();
     }
@@ -1019,14 +990,33 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let elf = test_artifacts::FIBONACCI_ELF;
-        let prover = SP1ProverBuilder::<CpuSP1ProverComponents>::new(RiscvAir::machine())
-            .without_recursion_vks()
-            .build()
-            .await;
-        let (_, _, vk) = prover.core().setup(&elf).await;
+        let machine = RiscvAir::machine();
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
+        let vk = client.setup(&elf).await.unwrap();
 
-        let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
+        let allowed_vk_height = client.inner().allowed_vk_height();
+        let vk_verification = client.inner().vk_verification();
+
+        let verifier = CpuSP1ProverComponents::compress_verifier();
+        let dummy_input =
+            |current_shape: &SP1RecursionProofShape| -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
+                dummy_compose_input(&verifier, current_shape, DEFAULT_ARITY, allowed_vk_height)
+            };
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let recursive_core_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
+
+        let recursive_compress_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(verifier.shard_verifier());
+        let compose_program =
+            |input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>| -> Arc<RecursionProgram<SP1Field>> {
+                Arc::new(compose_program_from_input(
+                    &recursive_compress_verifier,
+                    vk_verification,
+                    input,
+                ))
+            };
 
         // Find the recursion proof shape that fits the normalize programs verifying all core
         // shards.
@@ -1035,7 +1025,7 @@ mod tests {
         for cluster in chip_clusters {
             let shape = create_test_shape(cluster);
             let program = normalize_program_from_input(
-                &prover.recursion().recursive_core_verifier,
+                &recursive_core_verifier,
                 &shape.dummy_input(vk.clone()),
             );
             max_cluster_count = max_count(max_cluster_count, program.event_counts);
@@ -1048,12 +1038,10 @@ mod tests {
             DefaultTraceGenerator::new(CompressAir::<SP1Field>::compress_machine());
         loop {
             // Create DEFAULT_ARITY dummy proofs of shape `current_shape`
-            let input =
-                prover.recursion().dummy_reduce_input_with_shape(DEFAULT_ARITY, &current_shape);
+            let input = dummy_input(&current_shape);
             // Compile the program that verifies those `DEFAULT_ARITY` proofs.
-            let program = prover.recursion().compose_program_from_input(&input);
+            let program = compose_program(&input);
             let setup_permits = ProverSemaphore::new(1);
-            let program = Arc::new(program);
             // The preprocessed traces contain the information of the minimum required table heights
             // to prove the compose program.
             let preprocessed_traces = trace_generator

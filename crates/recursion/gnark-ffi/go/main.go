@@ -5,13 +5,13 @@ package main
 #include <stdlib.h>
 
 typedef struct {
-	char *PublicInputs[4];
+	char *PublicInputs[5];
 	char *EncodedProof;
 	char *RawProof;
 } C_PlonkBn254Proof;
 
 typedef struct {
-	char *PublicInputs[4];
+	char *PublicInputs[5];
 	char *EncodedProof;
 	char *RawProof;
 } C_Groth16Bn254Proof;
@@ -55,6 +55,7 @@ func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof 
 	structPtr.PublicInputs[1] = C.CString(sp1PlonkBn254Proof.PublicInputs[1])
 	structPtr.PublicInputs[2] = C.CString(sp1PlonkBn254Proof.PublicInputs[2])
 	structPtr.PublicInputs[3] = C.CString(sp1PlonkBn254Proof.PublicInputs[3])
+	structPtr.PublicInputs[4] = C.CString(sp1PlonkBn254Proof.PublicInputs[4])
 	structPtr.EncodedProof = C.CString(sp1PlonkBn254Proof.EncodedProof)
 	structPtr.RawProof = C.CString(sp1PlonkBn254Proof.RawProof)
 	return structPtr
@@ -68,6 +69,7 @@ func FreePlonkBn254Proof(proof *C.C_PlonkBn254Proof) {
 	C.free(unsafe.Pointer(proof.PublicInputs[1]))
 	C.free(unsafe.Pointer(proof.PublicInputs[2]))
 	C.free(unsafe.Pointer(proof.PublicInputs[3]))
+	C.free(unsafe.Pointer(proof.PublicInputs[4]))
 	C.free(unsafe.Pointer(proof))
 }
 
@@ -80,14 +82,15 @@ func BuildPlonkBn254(dataDir *C.char) {
 }
 
 //export VerifyPlonkBn254
-func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char, exitCode *C.char, vkRoot *C.char) *C.char {
+func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char, exitCode *C.char, vkRoot *C.char, proofNonce *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
 	committedValuesDigestString := C.GoString(committedValuesDigest)
 	exitCodeString := C.GoString(exitCode)
 	vkRootString := C.GoString(vkRoot)
-	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, committedValuesDigestString, exitCodeString, vkRootString)
+	proofNonceString := C.GoString(proofNonce)
+	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, committedValuesDigestString, exitCodeString, vkRootString, proofNonceString)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -129,6 +132,7 @@ func ProveGroth16Bn254(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Bn254Pr
 	structPtr.PublicInputs[1] = C.CString(sp1Groth16Bn254Proof.PublicInputs[1])
 	structPtr.PublicInputs[2] = C.CString(sp1Groth16Bn254Proof.PublicInputs[2])
 	structPtr.PublicInputs[3] = C.CString(sp1Groth16Bn254Proof.PublicInputs[3])
+	structPtr.PublicInputs[4] = C.CString(sp1Groth16Bn254Proof.PublicInputs[4])
 	structPtr.EncodedProof = C.CString(sp1Groth16Bn254Proof.EncodedProof)
 	structPtr.RawProof = C.CString(sp1Groth16Bn254Proof.RawProof)
 	return structPtr
@@ -142,6 +146,7 @@ func FreeGroth16Bn254Proof(proof *C.C_Groth16Bn254Proof) {
 	C.free(unsafe.Pointer(proof.PublicInputs[1]))
 	C.free(unsafe.Pointer(proof.PublicInputs[2]))
 	C.free(unsafe.Pointer(proof.PublicInputs[3]))
+	C.free(unsafe.Pointer(proof.PublicInputs[4]))
 	C.free(unsafe.Pointer(proof))
 }
 
@@ -154,14 +159,15 @@ func BuildGroth16Bn254(dataDir *C.char) {
 }
 
 //export VerifyGroth16Bn254
-func VerifyGroth16Bn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char, exitCode *C.char, vkRoot *C.char) *C.char {
+func VerifyGroth16Bn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char, exitCode *C.char, vkRoot *C.char, proofNonce *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
 	committedValuesDigestString := C.GoString(committedValuesDigest)
 	exitCodeString := C.GoString(exitCode)
 	vkRootString := C.GoString(vkRoot)
-	err := sp1.VerifyGroth16(dataDirString, proofString, vkeyHashString, committedValuesDigestString, exitCodeString, vkRootString)
+	proofNonceString := C.GoString(proofNonce)
+	err := sp1.VerifyGroth16(dataDirString, proofString, vkeyHashString, committedValuesDigestString, exitCodeString, vkRootString, proofNonceString)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -207,8 +213,7 @@ func TestMain() error {
 
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
-	builder := scs.NewBuilder
-	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	if err != nil {
 		return err
 	}
@@ -284,8 +289,7 @@ func TestPoseidonKoalaBear2() *C.char {
 	circuit := sp1.TestPoseidon2KoalaBearCircuit{Input: input, ExpectedOutput: expectedOutput}
 	assignment := sp1.TestPoseidon2KoalaBearCircuit{Input: input, ExpectedOutput: expectedOutput}
 
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		return C.CString(err.Error())
 	}

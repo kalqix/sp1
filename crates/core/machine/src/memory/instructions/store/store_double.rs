@@ -6,24 +6,23 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
-    utils::{next_multiple_of_32, zeroed_f_vec},
+    utils::next_multiple_of_32,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
-use sp1_primitives::consts::PROT_WRITE;
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -50,9 +49,6 @@ pub struct StoreDoubleColumns<T> {
 
     /// Whether this is a real store word instruction.
     pub is_real: T,
-
-    /// Whether the page protection is active.
-    pub is_page_protect_active: T,
 }
 
 impl<F> BaseAir<F> for StoreDoubleChip {
@@ -66,8 +62,8 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "StoreDouble".to_string()
+    fn name(&self) -> &'static str {
+        "StoreDouble"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -78,15 +74,29 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
         Some(nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         let chunk_size =
             std::cmp::max((input.memory_store_double_events.len()) / num_cpus::get(), 1);
         let padded_nb_rows = <StoreDoubleChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_STORE_DOUBLE_COLUMNS);
+        let num_event_rows = input.memory_store_double_events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_STORE_DOUBLE_COLUMNS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_STORE_DOUBLE_COLUMNS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_STORE_DOUBLE_COLUMNS)
+        };
 
         let blu_events = values
             .chunks_mut(chunk_size * NUM_STORE_DOUBLE_COLUMNS)
@@ -101,8 +111,6 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
                     if idx < input.memory_store_double_events.len() {
                         let event = &input.memory_store_double_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
-                        cols.is_page_protect_active =
-                            F::from_canonical_u32(input.public_values.is_page_protect_active);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
                     }
@@ -112,9 +120,6 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
             .collect::<Vec<_>>();
 
         output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_STORE_DOUBLE_COLUMNS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -188,20 +193,6 @@ where
             local.memory_access,
             *local.adapter.prev_a(),
             local.is_real,
-        );
-
-        // Check page protect active is set correctly based on public value and is_real
-        let public_values = builder.extract_public_values();
-        let expected_page_protect_active =
-            public_values.is_page_protect_active.into() * local.is_real;
-        builder.assert_eq(local.is_page_protect_active, expected_page_protect_active);
-
-        builder.send_page_prot(
-            clk_high.clone(),
-            clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
-            &aligned_addr.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_WRITE),
-            local.is_page_protect_active.into(),
         );
 
         // Constrain the state of the CPU.

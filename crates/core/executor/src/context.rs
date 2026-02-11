@@ -1,11 +1,7 @@
+use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
-use std::sync::Arc;
-
-use crate::{
-    hook::{hookify, BoxedHook, HookEnv, HookRegistry},
-    subproof::SubproofVerifier,
-};
 use hashbrown::HashMap;
+use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use std::io::Write;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
@@ -50,7 +46,7 @@ impl StatusCode {
     /// Check if the status code is equal to the given value.
     #[must_use]
     pub const fn is_accepted_code(&self, code: u32) -> bool {
-        self.0 == Self::ANY.0 || self.0 == code
+        (code == 0 || code == 1) && (self.0 == Self::ANY.0 || self.0 == code)
     }
 }
 
@@ -61,9 +57,6 @@ pub struct SP1Context<'a> {
     ///
     /// Note: `None` denotes the default list of hooks.
     pub hook_registry: Option<HookRegistry<'a>>,
-
-    /// The verifier for verifying subproofs.
-    pub subproof_verifier: Option<Arc<dyn SubproofVerifier>>,
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
@@ -80,6 +73,10 @@ pub struct SP1Context<'a> {
     /// This option will noticeably slow down execution, so it should be disabled in most cases.
     pub calculate_gas: bool,
 
+    /// The nonce used for this specific proof execution (4 x u32 = 128 bits of entropy).
+    /// This nonce ensures each proof is unique even for identical programs and inputs.
+    pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+
     /// The IO options for the [`SP1Executor`].
     pub io_options: IoOptions<'a>,
 }
@@ -94,11 +91,11 @@ impl Default for SP1Context<'_> {
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
-    subproof_verifier: Option<Arc<dyn SubproofVerifier>>,
     max_cycles: Option<u64>,
     deferred_proof_verification: bool,
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
+    proof_nonce: [u32; 4],
     // TODO remove the lifetime here, change stdout and stderr options to accept channels.
     io_options: IoOptions<'a>,
 }
@@ -126,12 +123,12 @@ impl<'a> SP1ContextBuilder<'a> {
         Self {
             no_default_hooks: false,
             hook_registry_entries: Vec::new(),
-            subproof_verifier: None,
             max_cycles: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
             calculate_gas: true,
             expected_exit_code: None,
+            proof_nonce: [0, 0, 0, 0], // Default to zeros, will be set by SDK
             io_options: IoOptions::new(),
         }
     }
@@ -166,16 +163,16 @@ impl<'a> SP1ContextBuilder<'a> {
                 HookRegistry { table }
             });
 
-        let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
         let calculate_gas = take(&mut self.calculate_gas);
+        let proof_nonce = take(&mut self.proof_nonce);
         SP1Context {
             hook_registry,
-            subproof_verifier,
             max_cycles: cycle_limit,
             deferred_proof_verification,
             calculate_gas,
+            proof_nonce,
             io_options: take(&mut self.io_options),
             expected_exit_code: self.expected_exit_code.unwrap_or(StatusCode::SUCCESS),
         }
@@ -220,14 +217,6 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Add a subproof verifier.
-    ///
-    /// The verifier is used to sanity check `verify_sp1_proof` during runtime.
-    pub fn subproof_verifier(&mut self, subproof_verifier: Arc<dyn SubproofVerifier>) -> &mut Self {
-        self.subproof_verifier = Some(subproof_verifier);
-        self
-    }
-
     /// Set the maximum number of cpu cycles to use for execution.
     /// `report.total_instruction_count()` will be less than or equal to `max_cycles`.
     pub fn max_cycles(&mut self, max_cycles: u64) -> &mut Self {
@@ -256,6 +245,13 @@ impl<'a> SP1ContextBuilder<'a> {
     /// Set the expected exit code of the program.
     pub fn expected_exit_code(&mut self, code: StatusCode) -> &mut Self {
         self.expected_exit_code = Some(code);
+        self
+    }
+
+    /// Set the proof nonce for this execution.
+    /// This nonce ensures each proof is unique even for identical programs and inputs.
+    pub fn proof_nonce(&mut self, nonce: [u32; 4]) -> &mut Self {
+        self.proof_nonce = nonce;
         self
     }
 }
@@ -289,22 +285,19 @@ impl Clone for IoOptions<'_> {
 /// A trait for [`Write`] types to be used in the executor.
 ///
 /// This trait is generically implemented for any [`Write`] + [`Send`] type.
-pub trait IoWriter: Write + Send {}
+pub trait IoWriter: Write + Send + Sync {}
 
-impl<W: Write + Send> IoWriter for W {}
+impl<W: Write + Send + Sync> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use crate::{subproof::NoOpSubproofVerifier, SP1Context};
+    use crate::SP1Context;
 
     #[test]
     fn defaults() {
-        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit, .. } =
+        let SP1Context { hook_registry, max_cycles: cycle_limit, .. } =
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
-        assert!(subproof_verifier.is_none());
         assert!(cycle_limit.is_none());
     }
 
@@ -327,14 +320,5 @@ mod tests {
         let SP1Context { hook_registry, .. } =
             SP1Context::builder().without_default_hooks().hook(30, |_, _| vec![]).build();
         assert_eq!(&hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(), &[30]);
-    }
-
-    #[test]
-    fn subproof_verifier() {
-        let verifier = NoOpSubproofVerifier;
-
-        let SP1Context { subproof_verifier, .. } =
-            SP1Context::builder().subproof_verifier(Arc::new(verifier)).build();
-        assert!(subproof_verifier.is_some());
     }
 }

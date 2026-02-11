@@ -8,10 +8,12 @@ use hashbrown::HashMap;
 
 use crate::{
     events::{generate_execution_report, MemInstrEvent, PrecompileEvent, SyscallEvent},
-    syscalls::SyscallCode,
-    ITypeRecord, Opcode,
+    ITypeRecord, Opcode, SyscallCode,
 };
 
+/// This constant is chosen for backwards compatibility with the V4 gas model: with this factor,
+/// the gas costs of op-succinct blocks in V6 will approximately match those in V4.
+const GAS_NORMALIZATION_FACTOR: u64 = 191;
 /// Counts the number of times an APC was invoked along with its success and failure reasons.
 /// Note that in theory many reasons can lead to an APC failing, so the sum of the fields is *NOT*
 /// necessarily equal to the total number of invocations.
@@ -70,7 +72,7 @@ pub struct ExecutionReport {
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
     /// The syscall counts.
     pub syscall_counts: Box<EnumMap<SyscallCode, u64>>,
-    /// The apc counts.
+    /// The apc counts by apc id.
     pub apc_counts: Box<HashMap<u64, ApcCount>>,
     /// The cycle tracker counts.
     pub cycle_tracker: HashMap<String, u64>,
@@ -78,8 +80,10 @@ pub struct ExecutionReport {
     pub invocation_tracker: HashMap<String, u64>,
     /// The unique memory address counts.
     pub touched_memory_addresses: u64,
-    /// The gas, if it was calculated.
-    pub gas: Option<u64>,
+    /// The final exit code of the execution.
+    pub exit_code: u64,
+    /// The unnormalized gas, if it was calculated. Should not be accessed directly. Use `gas()` instead.
+    pub(crate) gas: Option<u64>,
 }
 
 impl ExecutionReport {
@@ -112,6 +116,14 @@ impl ExecutionReport {
             self.syscall_counts.values().sum::<u64>() * syscall_avg_record_size as u64;
 
         total_opcode_records_size_bytes + total_syscall_records_size_bytes
+    }
+
+    /// Normalize the internal gas so that op-succinct blocks have approximately the same gas
+    /// on v4 and v6.
+    #[must_use]
+    pub fn gas(&self) -> Option<u64> {
+        // Using integer arithmetic to avoid f64 precision warnings.
+        self.gas.map(|g| g * 10 / GAS_NORMALIZATION_FACTOR)
     }
 }
 
@@ -166,6 +178,24 @@ impl AddAssign for ExecutionReport {
         counts_add_assign(&mut self.syscall_counts, *rhs.syscall_counts);
         counts_add_assign_map(&mut self.apc_counts, *rhs.apc_counts);
         self.touched_memory_addresses += rhs.touched_memory_addresses;
+
+        // Merge cycle_tracker and invocation_tracker
+        for (label, count) in rhs.cycle_tracker {
+            *self.cycle_tracker.entry(label).or_insert(0) += count;
+        }
+        for (label, count) in rhs.invocation_tracker {
+            *self.invocation_tracker.entry(label).or_insert(0) += count;
+        }
+
+        // Sum gas costs if both have gas
+        self.gas = match (self.gas, rhs.gas) {
+            (Some(c1), Some(c2)) => Some(c1 + c2),
+            (Some(g), None) | (None, Some(g)) => Some(g),
+            (None, None) => None,
+        };
+
+        // The exit code value must either be `0` or the final exit code, so taking an `OR` works.
+        self.exit_code |= rhs.exit_code;
     }
 }
 
@@ -198,8 +228,8 @@ impl Sub for ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        if let Some(gas) = self.gas {
-            writeln!(f, "gas: {gas}")?;
+        if let Some(gas) = self.gas() {
+            writeln!(f, "gas: {gas:?}")?;
         }
         writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
         for line in generate_execution_report(self.opcode_counts.as_ref()) {

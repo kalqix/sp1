@@ -2,27 +2,38 @@
 //!
 //! This module provides a builder for the [`CudaProver`].
 
-use std::sync::Arc;
-
 use super::CudaProver;
-use crate::cpu::CpuProver;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::autoprecompiles::Sp1Apc;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver as CudaProverImpl;
+use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
+use sp1_prover::worker::SP1LightNode;
 
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
-    apcs: Vec<Arc<Sp1Apc<SP1Field>>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for CudaProverBuilder {
+    fn default() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
 }
 
 impl CudaProverBuilder {
+    /// Creates a new builder from a machine.
+    #[must_use]
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self { machine, cuda_device_id: None, core_opts: None }
+    }
+
     /// Sets the CUDA device id.
     ///
     /// # Details
@@ -48,9 +59,11 @@ impl CudaProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cuda().core_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn core_opts(mut self, opts: SP1CoreOpts) -> Self {
@@ -65,20 +78,15 @@ impl CudaProverBuilder {
     /// use sp1_core_executor::SP1CoreOpts;
     /// use sp1_sdk::ProverClient;
     ///
-    /// let mut opts = SP1CoreOpts::default();
-    /// opts.page_protect = true;
-    /// let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    /// tokio_test::block_on(async {
+    ///     let mut opts = SP1CoreOpts::default();
+    ///     opts.shard_size = 500_000;
+    ///     let prover = ProverClient::builder().cuda().with_opts(opts).build().await;
+    /// });
     /// ```
     #[must_use]
     pub fn with_opts(self, opts: SP1CoreOpts) -> Self {
         self.core_opts(opts)
-    }
-
-    /// Adds any autoprecompiles (APCs) that should be supported by the prover.
-    #[must_use]
-    pub fn with_apcs(mut self, apcs: Vec<Arc<Sp1Apc<SP1Field>>>) -> Self {
-        self.apcs = apcs;
-        self
     }
 
     /// Builds a [`CudaProver`].
@@ -94,15 +102,14 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CudaProver {
-        let cpu_prover = CpuProver::new_with_opts(self.core_opts, self.apcs).await;
+        tracing::info!("initializing cuda prover");
+        let machine = self.machine;
+        let node = SP1LightNode::with_opts(machine, self.core_opts.unwrap_or_default()).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,
         };
 
-        CudaProver {
-            cpu_prover,
-            prover: cuda_prover.expect("Failed to create the CUDA prover impl"),
-        }
+        CudaProver { node, prover: cuda_prover.expect("Failed to create the CUDA prover impl") }
     }
 }

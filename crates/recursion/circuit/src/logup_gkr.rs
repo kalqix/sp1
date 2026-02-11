@@ -1,23 +1,26 @@
 use itertools::Itertools;
+use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::*;
 use std::{collections::BTreeSet, marker::PhantomData, ops::Deref};
 
-use slop_algebra::{extension::BinomialExtensionField, AbstractField};
+use slop_algebra::AbstractField;
 use slop_multilinear::{full_geq, Mle, MleEval, Point};
 use sp1_hypercube::{
     air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
     LogupGkrRoundProof,
 };
-use sp1_primitives::SP1Field;
+use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::Builder;
 
+use crate::shard::RecursiveVerifierPublicValuesConstraintFolder;
 use crate::{
-    challenger::FieldChallengerVariable,
+    challenger::{CanObserveVariable, FieldChallengerVariable},
     sumcheck::{evaluate_mle_ext, verify_sumcheck},
     symbolic::IntoSymbolic,
     witness::{WitnessWriter, Witnessable},
     CircuitConfig, SP1FieldConfigVariable,
 };
+use sp1_hypercube::{MachineRecord, GKR_GRINDING_BITS};
 
 /// Verifier for `LogUp` GKR.
 #[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Hash)]
@@ -25,10 +28,35 @@ pub struct RecursiveLogUpGkrVerifier<C, SC, A>(PhantomData<(C, SC, A)>);
 
 impl<C, SC, A> RecursiveLogUpGkrVerifier<C, SC, A>
 where
-    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
+    C: CircuitConfig,
     SC: SP1FieldConfigVariable<C>,
-    A: MachineAir<C::F>,
+    A: MachineAir<SP1Field>,
 {
+    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
+    pub fn verify_public_values(
+        builder: &mut Builder<C>,
+        challenge: Ext<SP1Field, SP1ExtensionField>,
+        alpha: &Ext<SP1Field, SP1ExtensionField>,
+        beta_seed: &Point<Ext<SP1Field, SP1ExtensionField>>,
+        public_values: &[Felt<SP1Field>],
+    ) -> SymbolicExt<SP1Field, SP1ExtensionField> {
+        let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
+        let betas =
+            slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
+        let mut folder = RecursiveVerifierPublicValuesConstraintFolder {
+            perm_challenges: (alpha, &betas),
+            alpha: challenge,
+            accumulator: SymbolicExt::zero(),
+            local_interaction_digest: SymbolicExt::zero(),
+            public_values,
+            _marker: PhantomData,
+        };
+        A::Record::eval_public_values(&mut folder);
+        // Check that the constraints hold.
+        builder.assert_ext_eq(folder.accumulator, SymbolicExt::zero());
+        folder.local_interaction_digest
+    }
+
     /// Verify the `LogUp` GKR proof.
     ///
     /// # Errors
@@ -36,28 +64,47 @@ where
     #[allow(clippy::too_many_lines)]
     pub fn verify_logup_gkr(
         builder: &mut Builder<C>,
-        shard_chips: &BTreeSet<Chip<C::F, A>>,
-        degrees: &[Point<Felt<C::F>>],
-        alpha: Ext<C::F, C::EF>,
-        beta_seed: Point<Ext<C::F, C::EF>>,
-        cumulative_sum: SymbolicExt<C::F, C::EF>,
+        shard_chips: &BTreeSet<Chip<SP1Field, A>>,
+        degrees: &[Point<Felt<SP1Field>>],
         max_log_row_count: usize,
-        proof: &LogupGkrProof<Ext<C::F, C::EF>>,
+        proof: &LogupGkrProof<Felt<SP1Field>, Ext<SP1Field, SP1ExtensionField>>,
+        public_values: &[Felt<SP1Field>],
         challenger: &mut SC::FriChallengerVariable,
     ) {
-        let LogupGkrProof { circuit_output, round_proofs, logup_evaluations } = proof;
-
-        //  TODO: compare the number of variables to total number of itneractions as read from
-        // chips.
+        let LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness } = proof;
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
 
+        // Check proof of work (grinding to find a number that hashes to have
+        // `GKR_GRINDING_BITS` zeroes at the beginning).
+        challenger.check_witness(builder, GKR_GRINDING_BITS, *witness);
+
+        // Sample the permutation challenges.
+        let alpha = challenger.sample_ext(builder);
+        let max_interaction_arity = shard_chips
+            .iter()
+            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+            .map(|i| i.values.len() + 1)
+            .max()
+            .unwrap();
+        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+        let beta_seed =
+            Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
+        // Sample the public value challenge.
+        let pv_challenge = challenger.sample_ext(builder);
+
+        builder.cycle_tracker_v2_enter("verify-public-values");
+        let cumulative_sum = -RecursiveLogUpGkrVerifier::<C, SC, A>::verify_public_values(
+            builder,
+            pv_challenge,
+            &alpha,
+            &beta_seed,
+            public_values,
+        );
+        builder.cycle_tracker_v2_exit();
+
         // Observe the output claims.
-        for (n, d) in
-            numerator.guts().as_slice().iter().zip_eq(denominator.guts().as_slice().iter())
-        {
-            challenger.observe_ext_element(builder, *n);
-            challenger.observe_ext_element(builder, *d);
-        }
+        challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
+        challenger.observe_variable_length_extension_slice(builder, denominator.guts().as_slice());
 
         // Verify that the cumulative sum matches the claimed one.
         let output_cumulative_sum = numerator
@@ -66,7 +113,7 @@ where
             .iter()
             .zip_eq(denominator.guts().as_slice().iter())
             .map(|(n, d)| *n / *d)
-            .sum::<SymbolicExt<C::F, C::EF>>();
+            .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         // Assert that the cumulative sum matches the claimed one.
         builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
 
@@ -146,9 +193,9 @@ where
         // Compute the expected opening of the last layer numerator and denominator values from the
         // trace openings.
         let mut numerator_values =
-            Vec::<SymbolicExt<C::F, C::EF>>::with_capacity(num_of_interactions);
+            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
         let mut denominator_values =
-            Vec::<SymbolicExt<C::F, C::EF>>::with_capacity(num_of_interactions);
+            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
         let mut point_extended = IntoSymbolic::<C>::as_symbolic(point);
 
         let alpha = IntoSymbolic::<C>::as_symbolic(&alpha);
@@ -156,18 +203,20 @@ where
             &beta_seed,
         ));
         point_extended.add_dimension(SymbolicExt::zero());
+        let len = shard_chips.len();
+        let len_felt: Felt<_> = builder.constant(SP1Field::from_canonical_usize(len));
+        challenger.observe(builder, len_felt);
         for ((chip, openings), threshold) in
             shard_chips.iter().zip_eq(chip_openings.values()).zip_eq(degrees)
         {
             // Observe the opening
             if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                for eval in prep_eval.deref().iter() {
-                    challenger.observe_ext_element(builder, *eval);
-                }
+                challenger.observe_variable_length_extension_slice(builder, prep_eval.deref());
             }
-            for eval in openings.main_trace_evaluations.deref().iter() {
-                challenger.observe_ext_element(builder, *eval);
-            }
+            challenger.observe_variable_length_extension_slice(
+                builder,
+                openings.main_trace_evaluations.deref(),
+            );
             let threshold = threshold.iter().map(|x| SymbolicExt::from(*x)).collect::<Point<_>>();
             let geq_eval = full_geq(&threshold, &point_extended);
             let ChipEvaluation { main_trace_evaluations, preprocessed_trace_evaluations } =
@@ -186,10 +235,10 @@ where
                     betas.as_slice(),
                 );
                 let padding_trace_opening =
-                    MleEval::from(vec![C::F::zero(); main_trace_evaluations.num_polynomials()]);
+                    MleEval::from(vec![SP1Field::zero(); main_trace_evaluations.num_polynomials()]);
                 let padding_preprocessed_opening = preprocessed_trace_evaluations
                     .as_ref()
-                    .map(|eval| MleEval::from(vec![C::F::zero(); eval.num_polynomials()]));
+                    .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
                 let (padding_numerator, padding_denominator) = interaction.eval(
                     padding_preprocessed_opening.as_ref(),
                     &padding_trace_opening,
@@ -199,7 +248,8 @@ where
 
                 let numerator_eval = real_numerator - padding_numerator * geq_eval;
                 let denominator_eval = real_denominator
-                    + (SymbolicExt::<C::F, C::EF>::one() - padding_denominator) * geq_eval;
+                    + (SymbolicExt::<SP1Field, SP1ExtensionField>::one() - padding_denominator)
+                        * geq_eval;
                 let numerator_eval = if is_send { numerator_eval } else { -numerator_eval };
                 numerator_values.push(numerator_eval);
                 denominator_values.push(denominator_eval);
@@ -211,14 +261,14 @@ where
         let numerator_values = numerator_values
             .into_iter()
             .map(|x| builder.eval(x))
-            .collect::<Vec<Ext<C::F, C::EF>>>();
+            .collect::<Vec<Ext<SP1Field, SP1ExtensionField>>>();
         let numerator = Mle::from(numerator_values);
         // Pad the denominator values with ones.
         denominator_values.resize(1 << interaction_point.dimension(), SymbolicExt::one());
         let denominator_values = denominator_values
             .into_iter()
             .map(|x| builder.eval(x))
-            .collect::<Vec<Ext<C::F, C::EF>>>();
+            .collect::<Vec<Ext<SP1Field, SP1ExtensionField>>>();
         let denominator = Mle::from(denominator_values);
 
         let expected_numerator_eval =
@@ -306,18 +356,22 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for LogUpEvaluations<T>
     }
 }
 
-impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for LogupGkrProof<T> {
-    type WitnessVariable = LogupGkrProof<T::WitnessVariable>;
+impl<C: CircuitConfig, T1: Witnessable<C>, T2: Witnessable<C>> Witnessable<C>
+    for LogupGkrProof<T1, T2>
+{
+    type WitnessVariable = LogupGkrProof<T1::WitnessVariable, T2::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let circuit_output = self.circuit_output.read(builder);
         let round_proofs = self.round_proofs.read(builder);
         let logup_evaluations = self.logup_evaluations.read(builder);
-        Self::WitnessVariable { circuit_output, round_proofs, logup_evaluations }
+        let witness = self.witness.read(builder);
+        Self::WitnessVariable { circuit_output, round_proofs, logup_evaluations, witness }
     }
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.circuit_output.write(witness);
         self.round_proofs.write(witness);
         self.logup_evaluations.write(witness);
+        self.witness.write(witness);
     }
 }

@@ -1,26 +1,25 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::{MemoryAccessCols, MemoryAccessColsU8},
-    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32},
 };
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, One, Zero};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation, MemoryRecordEnum,
         PrecompileEvent,
     },
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
     edwards::{
@@ -34,13 +33,11 @@ use sp1_hypercube::{
     air::{BaseAirBuilder, InteractionScope, MachineAir},
     Word,
 };
-use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 use std::marker::PhantomData;
 use typenum::U32;
 
-use crate::{
-    operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::pad_rows_fixed,
+use crate::operations::field::{
+    field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols,
 };
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -63,8 +60,6 @@ pub struct EdDecompressCols<T> {
     pub x_access: GenericArray<MemoryAccessCols<T>, WordsFieldElement>,
     pub x_value: GenericArray<Word<T>, WordsFieldElement>,
     pub y_access: GenericArray<MemoryAccessColsU8<T>, WordsFieldElement>,
-    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
-    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
     pub(crate) neg_x_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) y_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
@@ -102,30 +97,6 @@ impl<F: PrimeField32> EdDecompressCols<F> {
             self.addrs[i].populate(record, event.ptr, i as u64 * 8);
             self.read_ptrs[i].populate(record, read_ptr, i as u64 * 8);
         }
-        if record.public_values.is_page_protect_active == 1 {
-            self.read_slice_page_prot_access.populate(
-                &mut new_byte_lookup_events,
-                read_ptr,
-                read_ptr + 8 * (WORDS_FIELD_ELEMENT - 1) as u64,
-                event.clk,
-                PROT_READ,
-                &event.page_prot_records.read_page_prot_records[0],
-                &event.page_prot_records.read_page_prot_records.get(1).copied(),
-                record.public_values.is_page_protect_active,
-            );
-
-            self.write_slice_page_prot_access.populate(
-                &mut new_byte_lookup_events,
-                event.ptr,
-                event.ptr + 8 * (WORDS_FIELD_ELEMENT - 1) as u64,
-                event.clk + 1,
-                PROT_WRITE,
-                &event.page_prot_records.write_page_prot_records[0],
-                &event.page_prot_records.write_page_prot_records.get(1).copied(),
-                record.public_values.is_page_protect_active,
-            );
-        }
-
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<E>(&mut new_byte_lookup_events, y);
 
@@ -267,28 +238,6 @@ impl<V: Copy> EdDecompressCols<V> {
                 .assert_all_eq(mul_x_word.clone(), x_value_word.clone());
         }
 
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            self.clk_high.into(),
-            self.clk_low.into(),
-            &self.read_ptrs[0].value.map(Into::into),
-            &self.read_ptrs[WORDS_FIELD_ELEMENT - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ),
-            &self.read_slice_page_prot_access,
-            self.is_real.into(),
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            self.clk_high.into(),
-            self.clk_low.into() + AB::Expr::one(),
-            &self.addrs[0].value.map(Into::into),
-            &self.addrs[WORDS_FIELD_ELEMENT - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_WRITE),
-            &self.write_slice_page_prot_access,
-            self.is_real.into(),
-        );
-
         builder.receive_syscall(
             self.clk_high,
             self.clk_low,
@@ -317,8 +266,8 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "EdDecompress".to_string()
+    fn name(&self) -> &'static str {
+        "EdDecompress"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -328,40 +277,52 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows = <EdDecompressChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
+        let num_event_rows = events.len();
 
-        for (_, event) in events {
+        unsafe {
+            let padding_start = num_event_rows * NUM_ED_DECOMPRESS_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_ED_DECOMPRESS_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_ED_DECOMPRESS_COLS)
+        };
+
+        values.chunks_mut(NUM_ED_DECOMPRESS_COLS).enumerate().for_each(|(idx, row)| {
+            let (_, event) = &events[idx];
             let event = if let PrecompileEvent::EdDecompress(event) = event {
                 event
             } else {
                 unreachable!();
             };
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut EdDecompressCols<F> = row.borrow_mut();
             cols.populate::<E::BaseField, E>(event.clone(), output);
+        });
 
-            rows.push(row);
+        for idx in num_event_rows..padded_nb_rows {
+            let row_start = idx * NUM_ED_DECOMPRESS_COLS;
+            let row = unsafe {
+                core::slice::from_raw_parts_mut(
+                    buffer[row_start..].as_mut_ptr() as *mut F,
+                    NUM_ED_DECOMPRESS_COLS,
+                )
+            };
+            let cols: &mut EdDecompressCols<F> = row.borrow_mut();
+            let zero = BigUint::zero();
+            cols.populate_field_ops::<E>(&mut vec![], &zero);
         }
-
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-                let zero = BigUint::zero();
-                cols.populate_field_ops::<E>(&mut vec![], &zero);
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_DECOMPRESS_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

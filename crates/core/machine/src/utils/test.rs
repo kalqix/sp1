@@ -1,18 +1,13 @@
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
-use slop_air::Air;
-use slop_algebra::extension::BinomialExtensionField;
-use slop_uni_stark::SymbolicAirBuilder;
-use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context, SP1CoreOpts, Trace};
+use slop_basefold::FriConfig;
+use sp1_core_executor::{MinimalExecutor, Program, SP1Context, SP1CoreOpts};
 use sp1_hypercube::{
-    air::MachineAir,
-    prover::{
-        AirProver, CpuMachineProverComponents, CpuShardProver, ProverSemaphore, ZerocheckAir,
-    },
-    Machine, MachineProof, MachineVerifier, MachineVerifierConfigError, SP1CoreJaggedConfig,
-    SP1CpuJaggedProverComponents, ShardVerifier, VerifierConstraintFolder,
+    prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver},
+    Machine, MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
+    ShardVerifier,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1Field};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
 
 use crate::{io::SP1Stdin, riscv::RiscvAir};
@@ -25,59 +20,61 @@ use super::prove_core;
 //     Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
-pub async fn run_test_with_machine<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
+pub async fn run_test_with_machine_opts(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
-) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    match run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await {
-        Ok((public_values, _)) => Ok(public_values),
-        Err(e) => Err(e),
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    opts: SP1CoreOpts,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    // Run MinimalExecutor to get public values
+    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    for buf in &inputs.buffer {
+        executor.with_input(buf);
     }
+    while executor.execute_chunk().is_some() {}
+    let public_values = SP1PublicValues::from(executor.public_values_stream());
+
+    let _ = run_test_core_with_machine(program, inputs, 21, 22, machine, opts).await?;
+    Ok(public_values)
 }
 
-pub async fn run_test_with_machine_opts<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
+pub async fn run_test_with_machine(
     program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
-    opts: SP1CoreOpts,
-) -> Result<
-    (SP1PublicValues, MachineProof<SP1CoreJaggedConfig>),
-    MachineVerifierConfigError<SP1CoreJaggedConfig>,
-> {
-    let mut runtime = Executor::new(program, opts.clone());
-    runtime.write_vecs(&inputs.buffer);
-    runtime.run::<Trace>().unwrap();
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-    let proof = run_test_core_with_opts(runtime, inputs, machine, opts).await?;
-    Ok((public_values, proof))
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    run_test_with_machine_opts(program, inputs, machine, SP1CoreOpts::default()).await
 }
 
 pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
-) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     run_test_with_machine(program, inputs, RiscvAir::machine()).await
 }
 
-// pub fn run_malicious_test<P: MachineProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>>(
+/// This function tests cases where `max_log_row_count` is potentially larger than the `log(trace)`.
+pub async fn run_test_small_trace(
+    program: Arc<Program>,
+    inputs: SP1Stdin,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    // Run MinimalExecutor to get public values
+    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    for buf in &inputs.buffer {
+        executor.with_input(buf);
+    }
+    while executor.execute_chunk().is_some() {}
+    let public_values = SP1PublicValues::from(executor.public_values_stream());
+
+    let _ = run_test_core(program, inputs, 20, 23).await?;
+    Ok(public_values)
+}
+
+// pub fn run_malicious_test<P: MachineProver<SP1InnerPcs, RiscvAir<SP1Field>>>(
 //     mut program: Program,
 //     inputs: SP1Stdin,
 //     malicious_trace_pv_generator: MaliciousTracePVGeneratorType<SP1Field, P>,
-// ) -> Result<SP1PublicValues, MachineVerificationError<SP1CoreJaggedConfig>> {
+// ) -> Result<SP1PublicValues, MachineVerificationError<SP1InnerPcs>> {
 //     let shape_config = CoreShapeConfig::<SP1Field>::default();
 //     shape_config.fix_preprocessed_shape(&mut program).unwrap();
 
@@ -108,71 +105,59 @@ pub async fn run_test(
 //     }
 // }
 
-#[allow(unused_variables)]
-pub async fn run_test_core<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
-    runtime: Executor<'static>,
+pub async fn run_test_core(
+    program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
-) -> Result<MachineProof<SP1CoreJaggedConfig>, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    run_test_core_with_opts(runtime, inputs, machine, SP1CoreOpts::default()).await
+    log_stacking_height: u32,
+    max_log_row_count: usize,
+) -> Result<
+    MachineProof<SP1GlobalContext, SP1PcsProofInner>,
+    MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
+> {
+    run_test_core_with_machine(
+        program,
+        inputs,
+        log_stacking_height,
+        max_log_row_count,
+        RiscvAir::machine(),
+        SP1CoreOpts::default(),
+    )
+    .await
 }
 
 #[allow(unused_variables)]
-pub async fn run_test_core_with_opts<
-    A: MachineAir<SP1Field, Record = ExecutionRecord, Program = Program>
-        + Debug
-        + Air<SymbolicAirBuilder<SP1Field>>
-        + ZerocheckAir<SP1Field, BinomialExtensionField<SP1Field, 4>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SP1CoreJaggedConfig>>,
->(
-    runtime: Executor<'static>,
+pub async fn run_test_core_with_machine(
+    program: Arc<Program>,
     inputs: SP1Stdin,
-    machine: Machine<SP1Field, A>,
+    log_stacking_height: u32,
+    max_log_row_count: usize,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     opts: SP1CoreOpts,
-) -> Result<MachineProof<SP1CoreJaggedConfig>, MachineVerifierConfigError<SP1CoreJaggedConfig>> {
-    let log_blowup = 1;
-    let log_stacking_height = 21;
-    let max_log_row_count = 22;
-    slop_futures::rayon::spawn(move || {
-        let x = 1;
-    });
+) -> Result<
+    MachineProof<SP1GlobalContext, SP1PcsProofInner>,
+    MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
+> {
     let verifier = ShardVerifier::from_basefold_parameters(
-        log_blowup,
+        FriConfig::default_fri_config(),
         log_stacking_height,
         max_log_row_count,
         machine.clone(),
     );
-    let prover = CpuShardProver::<SP1CpuJaggedProverComponents, _>::new(verifier.clone());
-    let setup_permit = ProverSemaphore::new(1);
-    let (pk, vk) = prover
-        .setup(runtime.program.clone(), setup_permit.clone())
-        .instrument(tracing::debug_span!("setup").or_current())
-        .await;
+    let shard_prover = CpuShardProver::<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>::new(
+        verifier.clone(),
+    );
+    let prover = SimpleProver::new(verifier, shard_prover);
+
+    let (pk, vk) =
+        prover.setup(program.clone()).instrument(tracing::debug_span!("setup").or_current()).await;
     let pk = unsafe { pk.into_inner() };
-    let challenger = verifier.pcs_verifier.challenger();
-    let (proof, _) =
-        prove_core::<SP1Field, CpuMachineProverComponents<SP1CpuJaggedProverComponents, A>, A>(
-            verifier.clone(),
-            Arc::new(prover),
-            pk,
-            runtime.program.clone(),
-            inputs,
-            opts,
-            SP1Context::default(),
-            machine,
-        )
+
+    let (proof, _) = prove_core(&prover, pk, program, inputs, opts, SP1Context::default(), machine)
         .instrument(tracing::debug_span!("prove core"))
         .await
         .unwrap();
 
-    let machine_verifier = MachineVerifier::new(verifier);
-    tracing::debug_span!("verify the proof").in_scope(|| machine_verifier.verify(&vk, &proof))?;
+    prover.verify(&vk, &proof)?;
     Ok(proof)
 }
 

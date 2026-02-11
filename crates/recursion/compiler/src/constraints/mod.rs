@@ -3,6 +3,7 @@ pub mod opcodes;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractExtensionField, PrimeField};
+use sp1_primitives::{SP1ExtensionField, SP1Field};
 use std::marker::PhantomData;
 
 use self::opcodes::ConstraintOpcode;
@@ -42,7 +43,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
     }
 
     /// Allocate a felt in the constraint system.
-    pub fn alloc_f(&mut self, constraints: &mut Vec<Constraint>, value: C::F) -> String {
+    pub fn alloc_f(&mut self, constraints: &mut Vec<Constraint>, value: SP1Field) -> String {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
             opcode: ConstraintOpcode::ImmF,
@@ -52,14 +53,17 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
     }
 
     /// Allocate an extension element in the constraint system.
-    pub fn alloc_e(&mut self, constraints: &mut Vec<Constraint>, value: C::EF) -> String {
+    pub fn alloc_e(
+        &mut self,
+        constraints: &mut Vec<Constraint>,
+        value: SP1ExtensionField,
+    ) -> String {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
             opcode: ConstraintOpcode::ImmE,
             args: vec![
                 vec![tmp_id.clone()],
-                value
-                    .as_base_slice()
+                <SP1ExtensionField as AbstractExtensionField<SP1Field>>::as_base_slice(&value)
                     .iter()
                     .map(|x| x.as_canonical_biguint().to_string())
                     .collect(),
@@ -84,7 +88,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::ImmE,
                     args: vec![
                         vec![a.id()],
-                        b.as_base_slice()
+                        <SP1ExtensionField as AbstractExtensionField<SP1Field>>::as_base_slice(&b)
                             .iter()
                             .map(|x| x.as_canonical_biguint().to_string())
                             .collect(),
@@ -120,13 +124,6 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::AddEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
-                DslIr::AddEFI(a, b, c) => {
-                    let tmp = self.alloc_f(constraints, c);
-                    constraints.push(Constraint {
-                        opcode: ConstraintOpcode::AddEF,
-                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
-                    });
-                }
                 DslIr::AddEI(a, b, c) => {
                     let tmp = self.alloc_e(constraints, c);
                     constraints.push(Constraint {
@@ -382,6 +379,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::CommitExitCode,
                     args: vec![vec![a.id()]],
                 }),
+                DslIr::CircuitCommitProofNonce(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitProofNonce,
+                    args: vec![vec![a.id()]],
+                }),
                 DslIr::CircuitCommitVkRoot(a) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::CommitVkRoot,
                     args: vec![vec![a.id()]],
@@ -403,7 +404,6 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
 
                 // Ignore cycle tracker instruction.
                 // It currently serves as a marker for calculation at compile time.
-                DslIr::CycleTracker(_) => (),
                 DslIr::CycleTrackerV2Enter(_) => (),
                 DslIr::CycleTrackerV2Exit => (),
                 DslIr::ReduceE(a) => constraints.push(Constraint {

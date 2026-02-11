@@ -4,9 +4,6 @@ use slop_algebra::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_hypercube::{air::MachineAir, Chip, Machine, MachineShape, PROOF_MAX_NUM_PVS};
 use sp1_recursion_executor::{ExecutionRecord, RecursionAirEventCount, RecursionProgram, D};
 
-use strum::EnumIter;
-use strum_macros::EnumDiscriminants;
-
 use crate::chips::{
     alu_base::{BaseAluChip, NUM_BASE_ALU_ENTRIES_PER_ROW},
     alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
@@ -21,15 +18,15 @@ use crate::chips::{
     public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
     select::SelectChip,
 };
+use std::mem::MaybeUninit;
+use strum::{EnumDiscriminants, EnumIter};
 
 #[derive(sp1_derive::MachineAir, EnumDiscriminants, Clone)]
-#[sp1_core_path = "sp1_core_machine"]
 #[execution_record_path = "ExecutionRecord<F>"]
 #[program_path = "RecursionProgram<F>"]
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
 #[strum_discriminants(derive(Hash, EnumIter))]
-#[allow(dead_code)]
 pub enum RecursionAir<
     F: PrimeField32 + BinomiallyExtendable<D>,
     const DEGREE: usize,
@@ -59,7 +56,6 @@ impl<
     }
 }
 
-#[allow(dead_code)]
 impl<
         F: PrimeField32 + BinomiallyExtendable<D>,
         const DEGREE: usize,
@@ -175,7 +171,7 @@ impl<
             (Self::Select(SelectChip), heights.select_events),
             (Self::PublicValues(PublicValuesChip), 1 << PUB_VALUES_LOG_HEIGHT),
         ]
-        .map(|(chip, log_height)| (chip.name(), log_height))
+        .map(|(chip, log_height)| (chip.name().to_string(), log_height))
         .to_vec()
     }
 }

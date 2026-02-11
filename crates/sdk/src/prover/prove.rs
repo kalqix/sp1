@@ -1,7 +1,30 @@
 use super::{IntoSendFutureResult, Prover};
-use crate::{SP1ProofMode, SP1ProofWithPublicValues, StatusCode};
+use crate::{ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, StatusCode};
+use sp1_build::Elf;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::SP1VerifyingKey;
+
+#[derive(Clone)]
+/// A proving key for the SP1 prover.
+///
+/// Contains only the minimal information required to implement the `ProvingKey` trait.
+pub struct SP1ProvingKey {
+    /// Verifying key for verifying a proof created with this proving key
+    pub(crate) vk: SP1VerifyingKey,
+    /// ELF of the program to be proven
+    pub(crate) elf: Elf,
+}
+
+impl ProvingKey for SP1ProvingKey {
+    fn verifying_key(&self) -> &SP1VerifyingKey {
+        &self.vk
+    }
+
+    fn elf(&self) -> &Elf {
+        &self.elf
+    }
+}
 
 /// A unified collection of methods for all prover types.
 pub trait ProveRequest<'a, P>
@@ -19,14 +42,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1ProofMode, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).mode(SP1ProofMode::Groth16).run().await;
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).mode(SP1ProofMode::Groth16).await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn mode(mut self, mode: SP1ProofMode) -> Self {
@@ -43,14 +68,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).compressed().run().await;
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).compressed().await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn compressed(mut self) -> Self {
@@ -68,14 +95,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).plonk().run().await;
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let builder = client.prove(&pk, stdin).plonk().await;
+    /// });
     /// ```
     #[must_use]
     fn plonk(mut self) -> Self {
@@ -91,14 +120,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).groth16().run().await;
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).groth16().await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn groth16(mut self) -> Self {
@@ -114,14 +145,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).core().run().await;
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).core().await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn core(mut self) -> Self {
@@ -137,14 +170,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).cycle_limit(1000000).run();
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).cycle_limit(1000000).await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn cycle_limit(mut self, cycle_limit: u64) -> Self {
@@ -165,14 +200,16 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().cpu().build();
-    /// let (pk, vk) = client.setup(elf).await;
-    /// let builder = client.prove(pk, stdin).deferred_proof_verification(false).run();
+    ///     let client = ProverClient::builder().cpu().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).deferred_proof_verification(false).await.unwrap();
+    /// });
     /// ```
     #[must_use]
     fn deferred_proof_verification(mut self, value: bool) -> Self {
@@ -187,6 +224,19 @@ where
     #[must_use]
     fn expected_exit_code(mut self, code: StatusCode) -> Self {
         self.base().expected_exit_code(code);
+        self
+    }
+
+    /// Set the proof nonce for this execution.
+    ///
+    /// The nonce ensures each proof is unique even for identical programs and inputs.
+    /// If not provided, will default to 0.
+    ///
+    /// # Arguments
+    /// * `nonce` - A 4-element array representing 128 bits of nonce data.
+    #[must_use]
+    fn with_proof_nonce(mut self, nonce: [u32; 4]) -> Self {
+        self.base().context_builder.proof_nonce(nonce);
         self
     }
 }
@@ -257,5 +307,9 @@ impl<'a, P: Prover> BaseProveRequest<'a, P> {
     /// See [`ProveRequest::expected_exit_code`].
     pub fn expected_exit_code(&mut self, code: StatusCode) {
         self.context_builder.expected_exit_code(code);
+    }
+
+    pub fn with_nonce(&mut self, nonce: [u32; 4]) {
+        self.context_builder.proof_nonce(nonce);
     }
 }

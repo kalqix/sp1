@@ -1,6 +1,8 @@
-use sp1_core_machine::{io::SP1Stdin, recursion::SP1RecursionProof};
+use sp1_core_executor::SP1Context;
+use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::Elf;
-use sp1_prover::{InnerSC, OuterSC, SP1CoreProof, SP1VerifyingKey};
+use sp1_prover::worker::ProofFromNetwork;
+use sp1_prover_types::network_base_types::ProofMode;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -10,13 +12,14 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
+    process::Child,
     sync::Mutex,
 };
 
 use crate::{
     api::{Request, Response},
     pk::CudaProvingKey,
-    server, CudaClientError,
+    CudaClientError,
 };
 
 /// The global client to be shared, if other clients still exist (like in a proving key.)
@@ -35,68 +38,25 @@ impl CudaClient {
     pub(crate) async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
         let request = Request::Setup { elf: elf.as_ref().into() };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
             Response::Setup { id, vk } => Ok(CudaProvingKey::new(id, elf, vk, self.clone())),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
         }
     }
 
-    /// Create a core proof.
-    pub(crate) async fn core(
+    pub(crate) async fn prove_with_mode(
         &self,
-        key: &CudaProvingKey,
+        pk: &CudaProvingKey,
         stdin: SP1Stdin,
-    ) -> Result<SP1CoreProof, CudaClientError> {
-        let request = Request::Core { key: key.id(), stdin };
+        context: SP1Context<'static>,
+        mode: ProofMode,
+    ) -> Result<ProofFromNetwork, CudaClientError> {
+        let key = pk.id();
+        let proof_nonce = context.proof_nonce;
+        let request = Request::ProveWithMode { mode, key, stdin, proof_nonce };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
-            Response::Core { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Compress a core proof.
-    pub(crate) async fn compress(
-        &self,
-        vk: &SP1VerifyingKey,
-        proof: SP1CoreProof,
-        deferred: Vec<SP1RecursionProof<InnerSC>>,
-    ) -> Result<SP1RecursionProof<InnerSC>, CudaClientError> {
-        let request = Request::Compress { vk: vk.clone(), proof, deferred };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Compress { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Shrink a compress proof.
-    pub(crate) async fn shrink(
-        &self,
-        proof: SP1RecursionProof<InnerSC>,
-    ) -> Result<SP1RecursionProof<InnerSC>, CudaClientError> {
-        let request = Request::Shrink { proof };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Shrink { proof } => Ok(proof),
-            _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
-        }
-    }
-
-    /// Wrap a shrink proof.
-    pub(crate) async fn wrap(
-        &self,
-        proof: SP1RecursionProof<InnerSC>,
-    ) -> Result<SP1RecursionProof<OuterSC>, CudaClientError> {
-        let request = Request::Wrap { proof };
-        let response = self.send_and_recv(request).await?.into_result()?;
-
-        match response {
-            Response::Wrap { proof } => Ok(proof),
+            Response::Proof { proof } => Ok(proof),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
         }
     }
@@ -105,7 +65,6 @@ impl CudaClient {
     pub(crate) async fn destroy(&self, key: [u8; 32]) -> Result<(), CudaClientError> {
         let request = Request::Destroy { key };
         let response = self.send_and_recv(request).await?.into_result()?;
-
         match response {
             Response::Ok => Ok(()),
             _ => Err(CudaClientError::UnexpectedResponse(response.type_of())),
@@ -152,18 +111,7 @@ impl CudaClient {
 
 struct CudaClientInner {
     stream: Option<Mutex<UnixStream>>,
-    id: u32,
-    child: Child,
-}
-
-#[allow(dead_code)] // todo: feature flag this properly in-line with the `native` flag.
-pub(crate) enum Child {
-    /// A server was started in a native process.
-    ///
-    /// Note: We need to keep the child around as we rely on `kill_on_drop`
-    Native(tokio::process::Child),
-    /// A server was started in a docker container.
-    Docker,
+    _child: Child,
 }
 
 impl CudaClientInner {
@@ -179,16 +127,12 @@ impl CudaClientInner {
             return Ok(CudaClient { inner: client });
         }
 
-        // Print a warning if the CUDA version is not found,
-        // panic if the version is too old.
-        crate::check_cuda_version().await;
-
-        // Actually start the server now that we know there isnt one running.
+        // Actually start the server now that we know there isn't one running.
         let child = crate::server::start_server(cuda_id).await?;
 
         // Connect to the server we just started.
         let connection = Self::connect_inner(cuda_id).await?;
-        let inner = CudaClientInner { stream: Some(Mutex::new(connection)), id: cuda_id, child };
+        let inner = CudaClientInner { stream: Some(Mutex::new(connection)), _child: child };
 
         let inner = Arc::new(inner);
         let _ = global.insert(cuda_id, Arc::downgrade(&inner));
@@ -218,7 +162,7 @@ impl CudaClientInner {
     /// Connects to the server at the given path.
     async fn connect_once(path: &Path) -> Result<UnixStream, CudaClientError> {
         let stream = UnixStream::connect(path).await.map_err(|e| {
-            CudaClientError::new_connect(e, "Could not connect to `cuslop-server` socket")
+            CudaClientError::new_connect(e, "Could not connect to `sp1-gpu-server` socket")
         })?;
 
         Ok(stream)
@@ -275,19 +219,5 @@ impl Drop for CudaClientInner {
                 tracing::error!("Failed to shutdown the stream: {}", e);
             }
         });
-
-        match &self.child {
-            Child::Native(_) => {
-                // Do nothing, we have kill on drop.
-            }
-            Child::Docker => {
-                let id = self.id;
-                tokio::spawn(async move {
-                    if let Err(e) = server::kill_server(id).await {
-                        tracing::error!("Failed to kill the server: {}", e);
-                    }
-                });
-            }
-        }
     }
 }

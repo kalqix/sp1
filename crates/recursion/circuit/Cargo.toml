@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-circuit"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Recursion circuit for SP1 proof aggregation"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }
@@ -35,24 +35,27 @@ sp1-recursion-machine = { workspace = true }
 sp1-recursion-executor = { workspace = true, features = ["program_validation"] }
 sp1-primitives = { workspace = true }
 slop-tensor = { workspace = true }
-tokio = { workspace = true }
+slop-whir = { workspace = true }
 
 itertools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-rand = "0.8.5"
+rand = { workspace = true }
 tracing = { workspace = true }
-rayon = "1.10.0"
+rayon = { workspace = true }
+bincode = { workspace = true }
 
 [dev-dependencies]
 sp1-core-executor = { workspace = true }
 sp1-hypercube = { workspace = true, features = ["test-proof"] }
 sp1-recursion-machine = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
-zkhash = "0.2.0"
-rand = "0.8.5"
-futures = "0.3.31"
-test-artifacts = { workspace = true }
-bincode = "1.3.3"
+slop-dft = { workspace = true }
+zkhash = { workspace = true }
+rand = { workspace = true }
+futures = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
+bincode = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 # Enables debug features in dependencies.

@@ -7,7 +7,6 @@ publish = false
 
 [dependencies]
 hex = "0.4.3"
-sp1-cuda = { workspace = true, features = ["native"] }
 tokio = { workspace = true }
 sp1-sdk = { workspace = true }
 

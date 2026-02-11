@@ -23,14 +23,32 @@
 mod air;
 mod autoprecompiles;
 mod context;
-mod cost;
+mod debug;
 mod disassembler;
-pub mod estimator;
+mod errors;
 pub mod events;
-mod executor;
 mod hook;
 mod instruction;
-mod io;
+mod tracing;
+pub use tracing::TracingVM;
+mod frequency_map;
+pub use frequency_map::execute_for_frequency_map;
+mod vm;
+pub use vm::{
+    gas::get_complexity_mapping,
+    memory::CompressedMemory,
+    results::CycleResult,
+    shapes::{MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA},
+    CoreExecutionState, CoreVM,
+};
+mod splicing;
+pub use splicing::{SplicedMinimalTrace, SplicingVM};
+mod estimating;
+pub use estimating::GasEstimatingVM;
+
+mod minimal;
+pub use minimal::*;
+
 mod memory;
 pub mod opcode;
 mod opts;
@@ -38,31 +56,49 @@ mod opts;
 mod profiler;
 mod program;
 mod record;
-mod recursion;
 mod register;
 mod report;
 mod retain;
 mod state;
 pub mod subproof;
-pub mod syscalls;
+mod syscall_code;
+pub use syscall_code::*;
 mod utils;
 
 pub use air::*;
 pub use context::*;
-pub use cost::*;
-pub use executor::*;
+pub use errors::*;
 pub use hook::*;
 pub use instruction::*;
+// pub use minimal::*;
 pub use opcode::*;
 pub use opts::*;
 pub use program::*;
 pub use record::*;
-pub use recursion::*;
 pub use register::*;
 pub use report::*;
 pub use retain::*;
 pub use state::*;
 pub use utils::*;
+
+pub use sp1_hypercube::SP1RecursionProof;
+
+/// The default increment for the program counter. Is used for all instructions except
+/// for branches and jumps.
+pub const PC_INC: u32 = 4;
+
+/// The default increment for the timestamp.
+pub const CLK_INC: u32 = 8;
+
+/// The executor uses this PC to determine if the program has halted.
+/// As a PC, it is invalid since it is not a multiple of [`PC_INC`].
+pub const HALT_PC: u64 = 1;
+
+/// The number of rows in the `ByteChip`.
+pub const BYTE_NUM_ROWS: u64 = 1 << 16;
+
+/// The number of rows in the `RangeChip`.
+pub const RANGE_NUM_ROWS: u64 = 1 << 17;
 
 /// A module for testing programs.
 #[cfg(test)]

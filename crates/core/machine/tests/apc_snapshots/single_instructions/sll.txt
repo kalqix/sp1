@@ -2,9 +2,9 @@ Instructions:
     0: sll        %x1        %x2        %x3       
 
 APC advantage:
-  - Main columns: 66 -> 45 (1.47x reduction)
-  - Bus interactions: 28 -> 23 (1.22x reduction)
-  - Constraints: 73 -> 37 (1.97x reduction)
+  - Main columns: 65 -> 45 (1.44x reduction)
+  - Bus interactions: 27 -> 23 (1.17x reduction)
+  - Constraints: 69 -> 34 (2.03x reduction)
 
 Symbolic machine using 45 unique main columns:
   state__clk_high_0
@@ -107,16 +107,13 @@ shift_u16__0_0 * (a__0__0_0 - lower_limb__0__0_0 * v_0123_0) = 0
 shift_u16__0_0 * (a__0__1_0 - (lower_limb__0__1_0 * v_0123_0 + higher_limb__0__0_0)) = 0
 shift_u16__0_0 * (a__0__2_0 - (lower_limb__0__2_0 * v_0123_0 + higher_limb__0__1_0)) = 0
 shift_u16__0_0 * (a__0__3_0 - (lower_limb__0__3_0 * v_0123_0 + higher_limb__0__2_0)) = 0
-shift_u16__1_0 * a__0__0_0 = 0
 shift_u16__1_0 * (a__0__1_0 - lower_limb__0__0_0 * v_0123_0) = 0
 shift_u16__1_0 * (a__0__2_0 - (lower_limb__0__1_0 * v_0123_0 + higher_limb__0__0_0)) = 0
 shift_u16__1_0 * (a__0__3_0 - (lower_limb__0__2_0 * v_0123_0 + higher_limb__0__1_0)) = 0
-shift_u16__2_0 * a__0__0_0 = 0
-shift_u16__2_0 * a__0__1_0 = 0
 shift_u16__2_0 * (a__0__2_0 - lower_limb__0__0_0 * v_0123_0) = 0
 shift_u16__2_0 * (a__0__3_0 - (lower_limb__0__1_0 * v_0123_0 + higher_limb__0__0_0)) = 0
-(1 - (shift_u16__0_0 + shift_u16__1_0 + shift_u16__2_0)) * a__0__0_0 = 0
-(1 - (shift_u16__0_0 + shift_u16__1_0 + shift_u16__2_0)) * a__0__1_0 = 0
 (1 - (shift_u16__0_0 + shift_u16__1_0 + shift_u16__2_0)) * a__0__2_0 = 0
 (1 - (shift_u16__0_0 + shift_u16__1_0 + shift_u16__2_0)) * (a__0__3_0 - lower_limb__0__0_0 * v_0123_0) = 0
+a__0__1_0 * (1 - (shift_u16__0_0 + shift_u16__1_0)) = 0
+a__0__0_0 * (1 - shift_u16__0_0) = 0
 is_valid * (is_valid - 1) = 0

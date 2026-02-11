@@ -34,7 +34,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -74,7 +74,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -114,7 +114,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -154,7 +154,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -200,7 +200,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -227,7 +227,7 @@ jobs:
           cd ../script
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
+          RUST_LOG=info cargo run --release
 
   cycle-tracking:
     name: Example (Cycle Tracking)
@@ -242,7 +242,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -265,7 +265,7 @@ jobs:
         run: |
           cd examples/cycle-tracking/script
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
+          RUST_LOG=info cargo run --release
 
   tendermint:
     name: Example (Tendermint)
@@ -280,7 +280,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -307,7 +307,7 @@ jobs:
           cd ../script
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
+          RUST_LOG=info cargo run --release
 
   patch-testing:
     name: "Run all tests for patches in the vm"
@@ -323,7 +323,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -352,7 +352,7 @@ jobs:
   #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   #   steps:
   #     - name: Checkout sources
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
 
   #     - name: Setup CI
   #       uses: ./.github/actions/setup
@@ -377,4 +377,4 @@ jobs:
   #         cd ../script
   #         cargo remove sp1-sdk
   #         cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-  #         SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
+  #         RUST_LOG=info cargo run --release -- --prove

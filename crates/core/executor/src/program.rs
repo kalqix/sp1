@@ -5,10 +5,10 @@ use std::{fs::File, io::Read, str::FromStr};
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    ExecutionState, RiscvAirId,
+    RiscvAirId,
 };
 use hashbrown::HashMap;
-use powdr_autoprecompiles::execution::OptimisticConstraints;
+use powdr_autoprecompiles::execution::{ExecutionState, OptimisticConstraints};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -17,11 +17,15 @@ use sp1_hypercube::{
     septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind,
+    InteractionKind, Machine,
 };
+use sp1_primitives::consts::split_page_idx;
+use std::sync::Arc;
 
 /// Cost of APC, currently defined as number of columns.
 pub type ApcCost = u64;
+/// The maximum number of instructions in a program.
+pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
 /// A program that can be executed by the SP1 zkVM.
 ///
@@ -37,10 +41,16 @@ pub struct Program {
     pub pc_start_abs: u64,
     /// The base address of the program.
     pub pc_base: u64,
-    /// The initial memory image, useful for global constants.
-    pub memory_image: HashMap<u64, u64>,
+    /// The initial page protection image, mapping page indices to protection flags.
+    pub page_prot_image: HashMap<u64, u8>,
+    /// The initial memory image, useful for global constants
+    pub memory_image: Arc<HashMap<u64, u64>>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<Shape<RiscvAirId>>,
+    /// Flag indicating if untrusted programs are allowed.
+    pub enable_untrusted_programs: bool,
+    /// Function symbols for profiling & debugging. In the form of (name, start address, size)
+    pub function_symbols: Vec<(String, u64, u64)>,
     /// The data about the apcs
     pub apcs: Apcs,
 }
@@ -71,16 +81,41 @@ impl Apcs {
 #[derive(Debug, Clone, Serialize, Deserialize, deepsize2::DeepSizeOf)]
 pub struct Apc {
     /// The index of the pc at which this APC starts
-    pub start_pc_idx: usize,
+    start_pc_idx: usize,
     /// The number of cycles required to go through this APC
-    pub cycle_count: usize,
+    cycle_count: usize,
     /// The cost for this APC
-    pub cost: ApcCost,
+    cost: ApcCost,
     /// The execution constraints for this APC
-    pub execution_constraints: OptimisticConstraints<u64, u64>,
+    execution_constraints: OptimisticConstraints<u8, u64>,
 }
 
-impl powdr_autoprecompiles::execution::Apc<ExecutionState> for Apc {
+impl Apc {
+    /// Create a new apc for a given range, cost, and execution constraints.
+    pub fn new<R: Into<ApcRange>>(
+        range: R,
+        cost: u64,
+        execution_constraints: OptimisticConstraints<u8, u64>,
+    ) -> Self {
+        let range = range.into();
+        Self {
+            start_pc_idx: range.start().unwrap(),
+            cycle_count: range.len(),
+            cost,
+            execution_constraints,
+        }
+    }
+
+    /// Return the cost of this apc.
+    #[must_use]
+    pub fn cost(&self) -> ApcCost {
+        self.cost
+    }
+}
+
+impl<S: ExecutionState<RegisterAddress = u8, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
+    for Apc
+{
     fn cycle_count(&self) -> usize {
         self.cycle_count
     }
@@ -90,7 +125,7 @@ impl powdr_autoprecompiles::execution::Apc<ExecutionState> for Apc {
         1
     }
 
-    fn optimistic_constraints(&self) -> &OptimisticConstraints<u64, u64> {
+    fn optimistic_constraints(&self) -> &OptimisticConstraints<u8, u64> {
         &self.execution_constraints
     }
 }
@@ -150,25 +185,10 @@ impl From<&(usize, usize)> for ApcRange {
 }
 
 impl Program {
-    /// Set the APC ranges for this program.
-    /// This will also compute the modified instructions based on the original instructions and the
-    /// APC ranges.
-    /// Panics if the APC ranges are already set or if the modified instructions are already set.
+    /// Add apcs to this program
     #[must_use]
-    pub fn with_apcs<R: Into<ApcRange>>(
-        self,
-        apc_ranges_and_costs: impl IntoIterator<Item = (R, ApcCost, OptimisticConstraints<u64, u64>)>,
-    ) -> Self {
-        apc_ranges_and_costs
-            .into_iter()
-            .map(|(r, c, conditions)| (r.into(), c, conditions))
-            .map(|(range, cost, execution_constraints)| Apc {
-                start_pc_idx: range.start().unwrap(),
-                cycle_count: range.len(),
-                cost,
-                execution_constraints,
-            })
-            .fold(self, Program::add_apc)
+    pub fn with_apcs(self, apc_ranges_and_costs: impl IntoIterator<Item = Apc>) -> Self {
+        apc_ranges_and_costs.into_iter().fold(self, Program::add_apc)
     }
 
     /// Add an APC range to the program.
@@ -181,13 +201,19 @@ impl Program {
     /// Create a new [Program].
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
+        assert!(!instructions.is_empty(), "empty program not supported");
+        assert!(instructions.len() <= (1 << 22), "program has too many instructions");
+
         Self {
             instructions,
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
-            memory_image: HashMap::new(),
+            page_prot_image: HashMap::new(),
+            memory_image: Arc::new(HashMap::new()),
             preprocessed_shape: None,
+            enable_untrusted_programs: false,
+            function_symbols: Vec::new(),
             apcs: Apcs::default(),
         }
     }
@@ -201,12 +227,24 @@ impl Program {
         // Decode the bytes as an ELF.
         let elf = Elf::decode(input)?;
 
-        assert!(elf.pc_base != 0, "elf with pc_base == 0 is not supported");
+        if elf.pc_base < 32 {
+            eyre::bail!("elf with pc_base < 32 is not supported");
+        }
+        if elf.pc_base % 4 != 0 {
+            eyre::bail!("elf with pc_base not a multiple of 4 is not supported");
+        }
 
         // Transpile the RV64IM instructions.
         let instruction_pair = transpile(&elf.instructions);
-        let (instructions, instructions_encoded): (Vec<Instruction>, _) =
+        let (instructions, instructions_encoded): (Vec<Instruction>, Vec<u32>) =
             instruction_pair.into_iter().unzip();
+
+        if instructions.is_empty() {
+            eyre::bail!("empty elf not supported");
+        }
+        if instructions.len() > (1 << 22) {
+            eyre::bail!("elf has too many instructions");
+        }
 
         // Return the program.
         Ok(Program {
@@ -215,7 +253,10 @@ impl Program {
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
+            page_prot_image: elf.page_prot_image,
             preprocessed_shape: None,
+            enable_untrusted_programs: elf.enable_untrusted_programs,
+            function_symbols: elf.function_symbols,
             apcs: Apcs::default(),
         })
     }
@@ -231,9 +272,18 @@ impl Program {
         Program::from(&elf_code)
     }
 
+    /// Create a program and customize it with a machine. This means that the apcs of the machine are added to the program to be available during execution.
+    pub fn custom<F: Field>(
+        input: &[u8],
+        machine: &Machine<F, impl MachineAir<F, Program = Self>>,
+    ) -> eyre::Result<Self> {
+        // Return the program after customization by the machine
+        Self::from(input).map(|p| machine.customize_program(p))
+    }
+
     /// Custom logic for padding the trace to a power of two according to the proof shape.
     pub fn fixed_log2_rows<F: Field, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
-        let id = RiscvAirId::from_str(&air.name()).unwrap();
+        let id = RiscvAirId::from_str(air.name()).unwrap();
         self.preprocessed_shape.as_ref().map(|shape| {
             shape
                 .log2_height(&id)
@@ -242,8 +292,15 @@ impl Program {
     }
 
     #[must_use]
-    /// Fetch the instruction at the given program counter, as well as the apc, if any.
-    pub fn fetch(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
+    /// Fetch the instruction at the given program counter.
+    pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
+        let idx = ((pc - self.pc_base) / 4) as usize;
+        self.instructions.get(idx)
+    }
+
+    #[must_use]
+    /// Fetch the instruction at the given program counter, as well as the apc ranges, if any.
+    pub fn fetch_with_apcs(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         if idx < self.instructions.len() {
             Some((&self.instructions[idx], self.apcs.get(idx)))
@@ -251,16 +308,6 @@ impl Program {
             None
         }
     }
-
-    // /// Returns `self.pc_start - self.pc_base`, that is, the relative `pc_start`.
-    // #[must_use]
-    // pub fn pc_start_rel_u32(&self) -> u32 {
-    //     self.pc_start_abs
-    //         .checked_sub(self.pc_base)
-    //         .expect("expected pc_base <= pc_start")
-    //         .try_into()
-    //         .expect("pc_start_rel should fit in `u32")
-    // }
 }
 
 impl<F: PrimeField32> MachineProgram<F> for Program {
@@ -273,7 +320,7 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
     }
 
     fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
-        let mut digests: Vec<SepticCurveComplete<F>> = self
+        let mut memory_digests: Vec<SepticCurveComplete<F>> = self
             .memory_image
             .iter()
             .par_bridge()
@@ -296,13 +343,45 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
                 SepticCurveComplete::Affine(point.neg())
             })
             .collect();
-        digests.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
+
+        if self.enable_untrusted_programs {
+            let page_prot_digests: Vec<SepticCurveComplete<F>> = self
+                .page_prot_image
+                .iter()
+                .par_bridge()
+                .map(|(&page_idx, &page_prot)| {
+                    // Use exact same encoding as PageProtGlobalChip Initialize events
+                    let page_idx_limbs = split_page_idx(page_idx);
+                    let values = [
+                        (InteractionKind::PageProtAccess as u32) << 24,
+                        0,
+                        page_idx_limbs[0].into(),
+                        page_idx_limbs[1].into(),
+                        page_idx_limbs[2].into(),
+                        page_prot.into(),
+                        0,
+                        0,
+                    ];
+                    let (point, _, _, _) =
+                        SepticCurve::<F>::lift_x(values.map(|x| F::from_canonical_u32(x)));
+                    SepticCurveComplete::Affine(point.neg())
+                })
+                .collect();
+
+            // Combine both memory and page protection contributions.
+            memory_digests.extend(page_prot_digests);
+        }
+
+        memory_digests.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
         SepticDigest(
-            digests.into_par_iter().reduce(|| SepticCurveComplete::Infinity, |a, b| a + b).point(),
+            memory_digests
+                .into_par_iter()
+                .reduce(|| SepticCurveComplete::Infinity, |a, b| a + b)
+                .point(),
         )
     }
 
-    fn from_elf(elf: &[u8]) -> Result<Self, String> {
-        Program::from(elf).map_err(|e| e.to_string())
+    fn enable_untrusted_programs(&self) -> F {
+        F::from_bool(self.enable_untrusted_programs)
     }
 }

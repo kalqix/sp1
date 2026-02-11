@@ -1,16 +1,15 @@
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir, PairBuilder};
-use slop_algebra::{extension::BinomiallyExtendable, AbstractField, Field, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_algebra::{extension::BinomiallyExtendable, Field, PrimeField32};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
-use sp1_core_machine::utils::next_multiple_of_32;
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
-    Address, Block, ExecutionRecord, ExtFeltEvent, ExtFeltInstr, Instruction, RecursionProgram, D,
+    Address, Block, ExecutionRecord, ExtFeltInstr, Instruction, RecursionProgram, D,
 };
-use std::{borrow::BorrowMut, iter::zip};
+use std::{borrow::BorrowMut, iter::zip, mem::MaybeUninit};
 
 use crate::builder::SP1RecursionAirBuilder;
 
@@ -63,42 +62,74 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ConvertChip {
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "ExtFeltConvert".to_string()
+    fn name(&self) -> &'static str {
+        "ExtFeltConvert"
     }
 
     fn preprocessed_width(&self) -> usize {
         NUM_CONVERT_PREPROCESSED_COLS
     }
 
-    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
-        let height = program.shape.as_ref().and_then(|shape| shape.height(self));
+    fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
+        let instrs_len = program
+            .inner
+            .iter()
+            .filter_map(|instruction| match instruction.inner() {
+                Instruction::ExtFelt(x) => Some(x),
+                _ => None,
+            })
+            .count();
+        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+    }
 
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        program: &Self::Program,
+        instrs_len: usize,
+    ) -> Option<usize> {
+        let height = program.shape.as_ref().and_then(|shape| shape.height(self));
         let nb_rows = instrs_len.div_ceil(NUM_CONVERT_ENTRIES_PER_ROW);
         Some(next_multiple_of_32(nb_rows, height))
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace_into(
+        &self,
+        program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
             "generate_preprocessed_trace only supports SP1Field field"
         );
 
-        let instrs = unsafe {
-            std::mem::transmute::<Vec<&ExtFeltInstr<F>>, Vec<&ExtFeltInstr<SP1Field>>>(
-                program
-                    .inner
-                    .iter()
-                    .filter_map(|instruction| match instruction.inner() {
-                        Instruction::ExtFelt(x) => Some(x),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
+        let instrs = program
+            .inner
+            .iter()
+            .filter_map(|instruction| match instruction.inner() {
+                Instruction::ExtFelt(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let padded_nb_rows =
+            self.preprocessed_num_rows_with_instrs_len(program, instrs.len()).unwrap();
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(
+                buffer_ptr,
+                padded_nb_rows * NUM_CONVERT_PREPROCESSED_COLS,
             )
         };
-        let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_CONVERT_PREPROCESSED_COLS];
+
+        unsafe {
+            let padding_start = instrs.len() * NUM_CONVERT_ACCESS_COLS;
+            let padding_size = padded_nb_rows * NUM_CONVERT_PREPROCESSED_COLS - padding_start;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_CONVERT_ACCESS_COLS;
@@ -108,26 +139,20 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ConvertChip {
                 let access: &mut ConvertAccessCols<_> = row.borrow_mut();
                 access.addrs = addrs.to_owned();
                 if *ext2felt {
-                    access.mults[0] = SP1Field::one();
+                    access.mults[0] = F::one();
                     access.mults[1] = mults[1];
                     access.mults[2] = mults[2];
                     access.mults[3] = mults[3];
                     access.mults[4] = mults[4];
                 } else {
                     access.mults[0] = -mults[0];
-                    access.mults[1] = -SP1Field::one();
-                    access.mults[2] = -SP1Field::one();
-                    access.mults[3] = -SP1Field::one();
-                    access.mults[4] = -SP1Field::one();
+                    access.mults[1] = -F::one();
+                    access.mults[2] = -F::one();
+                    access.mults[3] = -F::one();
+                    access.mults[4] = -F::one();
                 }
             },
         );
-
-        // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
-            NUM_CONVERT_PREPROCESSED_COLS,
-        ))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -141,20 +166,33 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ConvertChip {
         Some(next_multiple_of_32(nb_rows, height))
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace_into(
+        &self,
+        input: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         assert_eq!(
             std::any::TypeId::of::<F>(),
             std::any::TypeId::of::<SP1Field>(),
-            "generate_trace only supports SP1Field field"
+            "generate_trace_into only supports SP1Field"
         );
-
-        let events = unsafe {
-            std::mem::transmute::<&Vec<ExtFeltEvent<F>>, &Vec<ExtFeltEvent<SP1Field>>>(
-                &input.ext_felt_conversion_events,
-            )
-        };
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![SP1Field::zero(); padded_nb_rows * NUM_CONVERT_COLS];
+        let events = &input.ext_felt_conversion_events;
+        let num_event_rows = events.len();
+
+        unsafe {
+            let padding_start = num_event_rows * NUM_CONVERT_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_CONVERT_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_CONVERT_COLS)
+        };
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_CONVERT_VALUE_COLS;
@@ -164,12 +202,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ConvertChip {
                 cols.input = vals.input.to_owned();
             },
         );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            unsafe { std::mem::transmute::<Vec<SP1Field>, Vec<F>>(values) },
-            NUM_CONVERT_COLS,
-        )
     }
 
     fn included(&self, _record: &Self::Record) -> bool {

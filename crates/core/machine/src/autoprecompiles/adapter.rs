@@ -12,7 +12,7 @@ use powdr_autoprecompiles::{
 };
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
-use sp1_core_executor::ExecutionState;
+use sp1_core_executor::CoreExecutionState;
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
@@ -28,7 +28,7 @@ impl Adapter for Sp1ApcAdapter {
     type CustomBusTypes = Sp1SpecificBuses;
     type ApcStats = EvaluationResult;
     type AirId = usize;
-    type ExecutionState = ExecutionState;
+    type ExecutionState = CoreExecutionState;
 
     fn into_field(e: Self::PowdrField) -> Self::Field {
         Self::Field::from_canonical_u32(e.to_integer().try_into_u32().unwrap())

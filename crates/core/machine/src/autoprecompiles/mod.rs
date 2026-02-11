@@ -13,20 +13,19 @@ pub mod program;
 mod tests;
 
 #[cfg(test)]
-use powdr_autoprecompiles::{adapter::AdapterApc, execution::OptimisticConstraints};
+use powdr_autoprecompiles::adapter::AdapterApc;
 use powdr_autoprecompiles::{
     adapter::{AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
-    execution_profile::execution_profile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
 };
 use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
+use sp1_core_executor::{execute_for_frequency_map, Program};
 #[cfg(test)]
-use sp1_core_executor::ApcRange;
-use sp1_core_executor::{Executor, Program, SP1CoreOpts};
+use sp1_core_executor::{Apc, ApcRange};
 use sp1_primitives::SP1Field;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -56,7 +55,7 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
     Sp1BusInteractionHandler,
     Sp1SpecificBuses,
 >;
-pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u64, u64>;
+pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
     PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
@@ -96,31 +95,19 @@ pub fn compile_guest(
     CompiledProgram::new(&elf, config, pgo_config)
 }
 
-pub fn execution_profile_from_guest(
-    guest_path: &str,
-    sp1_opts: SP1CoreOpts,
-    stdin: Option<SP1Stdin>,
-) -> HashMap<u64, u32> {
+pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> HashMap<u64, u32> {
     let elf = build_elf(guest_path);
 
     let program = Arc::new(Program::from(&elf).unwrap());
 
-    execution_profile_from_program(program, sp1_opts, stdin)
+    execution_profile_from_program(program, stdin)
 }
 
-pub fn execution_profile_from_program(
-    program: Arc<Program>,
-    sp1_opts: SP1CoreOpts,
-    stdin: Option<SP1Stdin>,
-) -> HashMap<u64, u32> {
-    let mut executor = Executor::new(program.clone(), sp1_opts);
-    if let Some(input) = stdin {
-        executor.write_vecs(&input.buffer)
-    }
-
-    execution_profile::<Sp1ApcAdapter>(&Sp1Program::from(program), || {
-        executor.run_fast().unwrap();
-    })
+pub fn execution_profile_from_program(program: Arc<Program>, stdin: SP1Stdin) -> HashMap<u64, u32> {
+    execute_for_frequency_map(&program, stdin.buffer.iter().map(|v| v.as_slice()))
+        .unwrap()
+        .into_iter()
+        .collect()
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
@@ -177,13 +164,14 @@ impl CompiledProgram {
 pub fn create_apcs(
     program: &Program,
     pc_idx_ranges: &[(usize, usize)],
-) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<(ApcRange, u64, OptimisticConstraints<u64, u64>)>) {
+) -> (Vec<Arc<AdapterApc<Sp1ApcAdapter>>>, Vec<Apc>) {
     let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
 
     apc_ranges
         .into_iter()
         .map(|range| {
             use powdr_autoprecompiles::blocks::{BasicBlock, PcStep};
+            use sp1_core_executor::Apc;
 
             let instructions = program.instructions
                 [range.start().unwrap()..range.end().unwrap() + 1]
@@ -209,10 +197,12 @@ pub fn create_apcs(
             )
             .expect("Failed to build APC");
 
-            let apc_cost = apc.machine.main_columns().count() as u64;
+            let cost = apc.machine.main_columns().count() as u64;
             let optimistic_constraints = apc.optimistic_constraints.clone();
 
-            (Arc::new(apc), (range, apc_cost, optimistic_constraints))
+            let execution_apc = Apc::new(range, cost, optimistic_constraints);
+
+            (Arc::new(apc), execution_apc)
         })
         .unzip()
 }

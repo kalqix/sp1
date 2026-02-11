@@ -3,7 +3,7 @@ use crate::{
     memory::MemoryAccessColsU8,
     operations::{
         field::{field_op::FieldOpCols, range::FieldLtCols},
-        AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
+        AddrAddOperation, SyscallAddrOperation,
     },
     utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
 };
@@ -16,15 +16,14 @@ use itertools::Itertools;
 use num::{BigUint, One, Zero};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ByteRecord, EllipticCurveDoubleEvent, FieldOperation, MemoryRecordEnum,
         MemoryWriteRecord, PrecompileEvent, SyscallEvent,
     },
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
     params::{FieldParameters, Limbs, NumLimbs, NumWords},
@@ -36,8 +35,7 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
-use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
@@ -69,7 +67,6 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub slope_times_p_x_minus_x: FieldOpCols<T, P>,
     pub x3_range: FieldLtCols<T, P>,
     pub y3_range: FieldLtCols<T, P>,
-    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
 }
 
 #[derive(Default)]
@@ -168,12 +165,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
-            CurveType::Secp256r1 => "Secp256r1DoubleAssign".to_string(),
-            CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
-            CurveType::Bls12381 => "Bls12381DoubleAssign".to_string(),
+            CurveType::Secp256k1 => "Secp256k1DoubleAssign",
+            CurveType::Secp256r1 => "Secp256r1DoubleAssign",
+            CurveType::Bn254 => "Bn254DoubleAssign",
+            CurveType::Bls12381 => "Bls12381DoubleAssign",
             _ => panic!("Unsupported curve"),
         }
     }
@@ -224,7 +221,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                             event,
                             cols,
                             &mut blu,
-                            input.public_values.is_page_protect_active,
+                            input.public_values.is_untrusted_programs_enabled,
                         );
                     }
                     _ => unreachable!(),
@@ -238,12 +235,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // collects the events based on the curve type.
+        _output: &mut ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows =
+            <WeierstrassDoubleAssignChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE),
             CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_DOUBLE),
@@ -252,13 +251,21 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             _ => panic!("Unsupported curve"),
         };
 
+        let num_event_rows = events.len();
         let num_cols = num_weierstrass_double_cols::<E::BaseField>();
-        let num_rows = input
-            .fixed_log2_rows::<F, _>(self)
-            .map(|x| 1 << x)
-            .unwrap_or(std::cmp::max(events.len().next_multiple_of(32), 4));
-        let mut values = zeroed_f_vec(num_rows * num_cols);
         let chunk_size = 64;
+
+        unsafe {
+            let padding_start = num_event_rows * num_cols;
+            let padding_size = (padded_nb_rows - num_event_rows) * num_cols;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * num_cols) };
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 8;
         let mut dummy_row = zeroed_f_vec(num_cols);
@@ -292,7 +299,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                                 event,
                                 cols,
                                 &mut new_byte_lookup_events,
-                                input.public_values.is_page_protect_active,
+                                input.public_values.is_untrusted_programs_enabled,
                             );
                         }
                         _ => unreachable!(),
@@ -302,9 +309,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 }
             });
         });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, num_weierstrass_double_cols::<E::BaseField>())
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -335,7 +339,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
         event: &EllipticCurveDoubleEvent,
         cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
-        page_prot_enabled: u32,
+        _page_prot_enabled: u32,
     ) {
         // Decode affine points.
         let p = &event.p;
@@ -355,18 +359,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
             let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
             cols.p_access[i].populate(record, new_byte_lookup_events);
             cols.p_addrs[i].populate(new_byte_lookup_events, event.p_ptr, 8 * i as u64);
-        }
-        if page_prot_enabled == 1 {
-            cols.write_slice_page_prot_access.populate(
-                new_byte_lookup_events,
-                event.p_ptr,
-                event.p_ptr + 8 * (cols.p_addrs.len() - 1) as u64,
-                event.clk,
-                PROT_READ | PROT_WRITE,
-                &event.write_slice_page_prot_access[0],
-                &event.write_slice_page_prot_access.get(1).copied(),
-                page_prot_enabled,
-            );
         }
     }
 }
@@ -534,17 +526,6 @@ where
             [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()].map(Into::into),
             local.is_real,
             InteractionScope::Local,
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into(),
-            &local.p_ptr.addr.map(Into::into),
-            &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
-            &local.write_slice_page_prot_access,
-            local.is_real.into(),
         );
     }
 }

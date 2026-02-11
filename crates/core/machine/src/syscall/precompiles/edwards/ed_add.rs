@@ -1,13 +1,13 @@
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32},
 };
 use hashbrown::HashMap;
@@ -15,15 +15,16 @@ use itertools::Itertools;
 use num::{BigUint, Zero};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
-use slop_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+use slop_matrix::Matrix;
+use slop_maybe_rayon::prelude::{
+    IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut,
+};
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, MemoryRecordEnum,
         PrecompileEvent,
     },
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
     edwards::{ed25519::Ed25519BaseField, EdwardsParameters, WORDS_CURVE_POINT},
@@ -35,14 +36,10 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
-use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 
-use crate::{
-    operations::field::{
-        field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
-        range::FieldLtCols,
-    },
-    utils::pad_rows_fixed,
+use crate::operations::field::{
+    field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
+    range::FieldLtCols,
 };
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
@@ -62,8 +59,6 @@ pub struct EdAddAssignCols<T> {
     pub q_addrs_add: [AddrAddOperation<T>; WORDS_CURVE_POINT],
     pub p_access: [MemoryAccessColsU8<T>; WORDS_CURVE_POINT],
     pub q_access: [MemoryAccessColsU8<T>; WORDS_CURVE_POINT],
-    pub read_slice_page_prot_access: AddressSlicePageProtOperation<T>,
-    pub write_slice_page_prot_access: AddressSlicePageProtOperation<T>,
     pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
@@ -125,8 +120,8 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "EdAddAssign".to_string()
+    fn name(&self) -> &'static str {
+        "EdAddAssign"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -136,56 +131,67 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        _output: &mut ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows = <EdAddAssignChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = input.get_precompile_events(SyscallCode::ED_ADD);
+        let num_event_rows = events.len();
 
-        let mut rows = events
-            .par_iter()
-            .map(|(_, event)| {
+        unsafe {
+            let padding_start = num_event_rows * NUM_ED_ADD_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_ED_ADD_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_ED_ADD_COLS)
+        };
+
+        values.par_chunks_mut(NUM_ED_ADD_COLS).enumerate().for_each(|(idx, row)| {
+            if idx < events.len() {
+                let (_, event) = &events[idx];
                 let event = if let PrecompileEvent::EdAdd(event) = event {
                     event
                 } else {
                     unreachable!();
                 };
-
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut EdAddAssignCols<F> = row.borrow_mut();
                 let mut blu = Vec::new();
                 self.event_to_row(
                     event,
                     cols,
-                    input.public_values.is_page_protect_active,
+                    input.public_values.is_untrusted_programs_enabled,
                     &mut blu,
                 );
-                row
-            })
-            .collect::<Vec<_>>();
+            }
+        });
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                let zero = BigUint::zero();
-                Self::populate_field_ops(
-                    &mut vec![],
-                    cols,
-                    zero.clone(),
-                    zero.clone(),
-                    zero.clone(),
-                    zero,
-                );
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS)
+        for idx in num_event_rows..padded_nb_rows {
+            let row_start = idx * NUM_ED_ADD_COLS;
+            let row = unsafe {
+                core::slice::from_raw_parts_mut(
+                    buffer[row_start..].as_mut_ptr() as *mut F,
+                    NUM_ED_ADD_COLS,
+                )
+            };
+            let cols: &mut EdAddAssignCols<F> = row.borrow_mut();
+            let zero = BigUint::zero();
+            Self::populate_field_ops(
+                &mut vec![],
+                cols,
+                zero.clone(),
+                zero.clone(),
+                zero.clone(),
+                zero,
+            );
+        }
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -208,7 +214,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     self.event_to_row(
                         event,
                         cols,
-                        input.public_values.is_page_protect_active,
+                        input.public_values.is_untrusted_programs_enabled,
                         &mut blu,
                     );
                 });
@@ -234,7 +240,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         &self,
         event: &EllipticCurveAddEvent,
         cols: &mut EdAddAssignCols<F>,
-        page_prot_enabled: u32,
+        _page_prot_enabled: u32,
         blu: &mut impl ByteRecord,
     ) {
         // Decode affine points.
@@ -265,29 +271,6 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
             cols.p_addrs_add[i].populate(blu, event.p_ptr, i as u64 * 8);
             cols.p_access[i].populate(record, blu);
-        }
-        if page_prot_enabled == 1 {
-            cols.read_slice_page_prot_access.populate(
-                blu,
-                event.q_ptr,
-                event.q_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
-                event.clk,
-                PROT_READ,
-                &event.page_prot_records.read_page_prot_records[0],
-                &event.page_prot_records.read_page_prot_records.get(1).copied(),
-                page_prot_enabled,
-            );
-
-            cols.write_slice_page_prot_access.populate(
-                blu,
-                event.p_ptr,
-                event.p_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
-                event.clk + 1,
-                PROT_READ | PROT_WRITE,
-                &event.page_prot_records.write_page_prot_records[0],
-                &event.page_prot_records.write_page_prot_records.get(1).copied(),
-                page_prot_enabled,
-            );
         }
     }
 }
@@ -421,28 +404,6 @@ where
             q_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into(),
-            &local.q_ptr.addr.map(Into::into),
-            &local.q_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ),
-            &local.read_slice_page_prot_access,
-            local.is_real.into(),
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into() + AB::Expr::one(),
-            &local.p_ptr.addr.map(Into::into),
-            &local.p_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
-            &local.write_slice_page_prot_access,
-            local.is_real.into(),
         );
     }
 }

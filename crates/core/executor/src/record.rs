@@ -1,12 +1,13 @@
 use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
-use itertools::{EitherOrBoth, Itertools};
+use itertools::izip;
+use powdr_autoprecompiles::execution::ApcCall;
 use slop_air::AirBuilder;
-use slop_algebra::{AbstractField, Field, PrimeField};
+use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
 use sp1_hypercube::{
     air::{
         AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
-        PV_DIGEST_NUM_WORDS, SP1_PROOF_NUM_PV_ELTS,
+        PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS, SP1_PROOF_NUM_PV_ELTS,
     },
     septic_digest::SepticDigest,
     shape::Shape,
@@ -22,6 +23,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    autoprecompiles::{ExecutionRecordSnapshot, ExecutionRecordSnapshotWithPc},
     events::{
         AluEvent, ApcEvents, ApcEventsForId, BranchEvent, ByteLookupEvent, ByteRecord,
         GlobalInteractionEvent, InstructionDecodeEvent, InstructionFetchEvent, JumpEvent,
@@ -30,8 +32,7 @@ use crate::{
         SyscallEvent, UTypeEvent,
     },
     program::Program,
-    syscalls::SyscallCode,
-    ByteOpcode, Instruction, RetainedEventsPreset, RiscvAirId, SplitOpts,
+    ByteOpcode, Instruction, RetainedEventsPreset, RiscvAirId, SplitOpts, SyscallCode,
 };
 
 /// A record of the execution of a program.
@@ -50,7 +51,7 @@ pub struct ExecutionRecord {
     /// A trace of the ADDI events.
     pub addi_events: Vec<(AluEvent, ITypeRecord)>,
     /// A trace of the MUL events.
-    pub mul_events: Vec<(AluEvent, ALUTypeRecord)>,
+    pub mul_events: Vec<(AluEvent, RTypeRecord)>,
     /// A trace of the SUB events.
     pub sub_events: Vec<(AluEvent, RTypeRecord)>,
     /// A trace of the SUBW events.
@@ -62,7 +63,7 @@ pub struct ExecutionRecord {
     /// A trace of the SRL, SRLI, SRA, and SRAI events.
     pub shift_right_events: Vec<(AluEvent, ALUTypeRecord)>,
     /// A trace of the DIV, DIVU, REM, and REMU events.
-    pub divrem_events: Vec<(AluEvent, ALUTypeRecord)>,
+    pub divrem_events: Vec<(AluEvent, RTypeRecord)>,
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<(AluEvent, ALUTypeRecord)>,
     /// A trace of load byte instructions.
@@ -121,8 +122,8 @@ pub struct ExecutionRecord {
     pub global_cumulative_sum: Arc<Mutex<SepticDigest<u32>>>,
     /// The global interaction event count.
     pub global_interaction_event_count: u32,
-    /// Memory records with `prev_clk >> 24` different from `clk >> 24`.
-    pub bump_memory_events: Vec<(MemoryRecordEnum, u64)>,
+    /// Memory records used to bump the timestamp of the register memory access.
+    pub bump_memory_events: Vec<(MemoryRecordEnum, u64, bool)>,
     /// Record where the `clk >> 24` or `pc >> 16` has incremented.
     pub bump_state_events: Vec<(u64, u64, bool, u64)>,
     /// The public values.
@@ -143,13 +144,66 @@ pub struct ExecutionRecord {
     pub next_pc: u64,
     /// The exit code.
     pub exit_code: u32,
+    /// Use optimized `generate_dependencies` for global chip.
+    pub global_dependencies_opt: bool,
 }
 
 impl ExecutionRecord {
     /// Create a new [`ExecutionRecord`].
     #[must_use]
-    pub fn new(program: Arc<Program>) -> Self {
-        Self { program, ..Default::default() }
+    pub fn new(
+        program: Arc<Program>,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        global_dependencies_opt: bool,
+    ) -> Self {
+        let mut result = Self { program, ..Default::default() };
+        result.public_values.proof_nonce = proof_nonce;
+        result.global_dependencies_opt = global_dependencies_opt;
+        result
+    }
+
+    /// Create a new [`ExecutionRecord`] with preallocated event vecs.
+    #[must_use]
+    pub fn new_preallocated(
+        program: Arc<Program>,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        global_dependencies_opt: bool,
+        reservation_size: usize,
+    ) -> Self {
+        let mut result = Self { program, ..Default::default() };
+
+        result.add_events.reserve(reservation_size);
+        result.addi_events.reserve(reservation_size);
+        result.addw_events.reserve(reservation_size);
+        result.mul_events.reserve(reservation_size);
+        result.sub_events.reserve(reservation_size);
+        result.subw_events.reserve(reservation_size);
+        result.bitwise_events.reserve(reservation_size);
+        result.shift_left_events.reserve(reservation_size);
+        result.shift_right_events.reserve(reservation_size);
+        result.divrem_events.reserve(reservation_size);
+        result.lt_events.reserve(reservation_size);
+        result.branch_events.reserve(reservation_size);
+        result.jal_events.reserve(reservation_size);
+        result.jalr_events.reserve(reservation_size);
+        result.utype_events.reserve(reservation_size);
+        result.memory_load_x0_events.reserve(reservation_size);
+        result.memory_load_byte_events.reserve(reservation_size);
+        result.memory_load_half_events.reserve(reservation_size);
+        result.memory_load_word_events.reserve(reservation_size);
+        result.memory_load_double_events.reserve(reservation_size);
+        result.memory_store_byte_events.reserve(reservation_size);
+        result.memory_store_half_events.reserve(reservation_size);
+        result.memory_store_word_events.reserve(reservation_size);
+        result.memory_store_double_events.reserve(reservation_size);
+        result.global_memory_initialize_events.reserve(reservation_size);
+        result.global_memory_finalize_events.reserve(reservation_size);
+        result.global_interaction_events.reserve(reservation_size);
+        result.byte_lookups.reserve(reservation_size);
+
+        result.public_values.proof_nonce = proof_nonce;
+        result.global_dependencies_opt = global_dependencies_opt;
+        result
     }
 
     /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
@@ -161,7 +215,11 @@ impl ExecutionRecord {
         &mut self,
         retain_presets: impl IntoIterator<Item = &'a RetainedEventsPreset>,
     ) -> ExecutionRecord {
-        let mut execution_record = ExecutionRecord::new(self.program.clone());
+        let mut execution_record = ExecutionRecord::new(
+            self.program.clone(),
+            self.public_values.proof_nonce,
+            self.global_dependencies_opt,
+        );
         execution_record.precompile_events = std::mem::take(&mut self.precompile_events);
 
         // Take back the events that should be retained.
@@ -184,60 +242,35 @@ impl ExecutionRecord {
 
     /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
     /// contain a "reasonable" number of deferred events.
-    ///
-    /// The optional `last_record` will be provided if there are few enough deferred events that
-    /// they can all be packed into the already existing last record.
     #[allow(clippy::too_many_lines)]
     pub fn split(
         &mut self,
         done: bool,
-        last_record: Option<&mut ExecutionRecord>,
-        opts: SplitOpts,
+        last_record: &mut ExecutionRecord,
+        can_pack_global_memory: bool,
+        opts: &SplitOpts,
     ) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 
         let precompile_events = take(&mut self.precompile_events);
 
         for (syscall_code, events) in precompile_events.into_iter() {
-            let threshold = match syscall_code {
-                SyscallCode::KECCAK_PERMUTE => opts.keccak,
-                SyscallCode::SHA_EXTEND => opts.sha_extend,
-                SyscallCode::SHA_COMPRESS => opts.sha_compress,
-                SyscallCode::SECP256K1_ADD
-                | SyscallCode::SECP256R1_ADD
-                | SyscallCode::BN254_ADD
-                | SyscallCode::ED_ADD
-                | SyscallCode::SECP256K1_DECOMPRESS
-                | SyscallCode::SECP256R1_DECOMPRESS
-                | SyscallCode::ED_DECOMPRESS => opts.ec_add_256bit,
-                SyscallCode::SECP256K1_DOUBLE
-                | SyscallCode::SECP256R1_DOUBLE
-                | SyscallCode::BN254_DOUBLE => opts.ec_double_256bit,
-                SyscallCode::BLS12381_ADD | SyscallCode::BLS12381_DECOMPRESS => opts.ec_add_384bit,
-                SyscallCode::BLS12381_DOUBLE => opts.ec_double_384bit,
-                SyscallCode::BN254_FP_ADD
-                | SyscallCode::BN254_FP_SUB
-                | SyscallCode::BN254_FP_MUL => opts.fp_operation_256bit,
-                SyscallCode::BN254_FP2_ADD
-                | SyscallCode::BN254_FP2_SUB
-                | SyscallCode::BN254_FP2_MUL => opts.fp2_operation_256bit,
-                SyscallCode::BLS12381_FP_ADD
-                | SyscallCode::BLS12381_FP_SUB
-                | SyscallCode::BLS12381_FP_MUL => opts.fp_operation_384bit,
-                SyscallCode::BLS12381_FP2_ADD
-                | SyscallCode::BLS12381_FP2_SUB
-                | SyscallCode::BLS12381_FP2_MUL => opts.fp2_operation_384bit,
-                SyscallCode::MPROTECT => opts.mprotect,
-                SyscallCode::POSEIDON2 => opts.poseidon2,
-                _ => opts.deferred,
-            };
+            let threshold: usize = opts.syscall_threshold[syscall_code];
 
             let chunks = events.chunks_exact(threshold);
             if done {
                 let remainder = chunks.remainder().to_vec();
                 if !remainder.is_empty() {
-                    let mut execution_record = ExecutionRecord::new(self.program.clone());
+                    let mut execution_record = ExecutionRecord::new(
+                        self.program.clone(),
+                        self.public_values.proof_nonce,
+                        self.global_dependencies_opt,
+                    );
                     execution_record.precompile_events.insert(syscall_code, remainder);
+                    execution_record.public_values.update_initialized_state(
+                        self.program.pc_start_abs,
+                        self.program.enable_untrusted_programs,
+                    );
                     shards.push(execution_record);
                 }
             } else {
@@ -245,8 +278,16 @@ impl ExecutionRecord {
             }
             let mut event_shards = chunks
                 .map(|chunk| {
-                    let mut execution_record = ExecutionRecord::new(self.program.clone());
+                    let mut execution_record = ExecutionRecord::new(
+                        self.program.clone(),
+                        self.public_values.proof_nonce,
+                        self.global_dependencies_opt,
+                    );
                     execution_record.precompile_events.insert(syscall_code, chunk.to_vec());
+                    execution_record.public_values.update_initialized_state(
+                        self.program.pc_start_abs,
+                        self.program.enable_untrusted_programs,
+                    );
                     execution_record
                 })
                 .collect::<Vec<_>>();
@@ -256,15 +297,24 @@ impl ExecutionRecord {
         if done {
             // If there are no precompile shards, and `last_record` is Some, pack the memory events
             // into the last record.
-            let pack_memory_events_into_last_record = last_record.is_some() && shards.is_empty();
-            let mut blank_record = ExecutionRecord::new(self.program.clone());
+            let pack_memory_events_into_last_record = can_pack_global_memory && shards.is_empty();
+            let mut blank_record = ExecutionRecord::new(
+                self.program.clone(),
+                self.public_values.proof_nonce,
+                self.global_dependencies_opt,
+            );
+
+            // Clone the public values of the last record to update the last record's public values.
+            let last_record_public_values = last_record.public_values;
+
+            // Update the state of the blank record
+            blank_record
+                .public_values
+                .update_finalized_state_from_public_values(&last_record_public_values);
 
             // If `last_record` is None, use a blank record to store the memory events.
-            let last_record_ref = if pack_memory_events_into_last_record {
-                last_record.unwrap()
-            } else {
-                &mut blank_record
-            };
+            let mem_record_ref =
+                if pack_memory_events_into_last_record { last_record } else { &mut blank_record };
 
             let mut init_page_idx = 0;
             let mut finalize_page_idx = 0;
@@ -276,54 +326,67 @@ impl ExecutionRecord {
                 self.global_page_prot_initialize_events.sort_by_key(|event| event.page_idx);
                 self.global_page_prot_finalize_events.sort_by_key(|event| event.page_idx);
 
-                for page_prot_chunk in self
-                    .global_page_prot_initialize_events
-                    .chunks(opts.page_prot)
-                    .zip_longest(self.global_page_prot_finalize_events.chunks(opts.page_prot))
-                {
-                    let (page_prot_init_chunk, page_prot_finalize_chunk) = match page_prot_chunk {
-                        EitherOrBoth::Both(page_prot_init_chunk, page_prot_finalize_chunk) => {
-                            (page_prot_init_chunk, page_prot_finalize_chunk)
-                        }
-                        EitherOrBoth::Left(page_prot_init_chunk) => {
-                            (page_prot_init_chunk, [].as_slice())
-                        }
-                        EitherOrBoth::Right(page_prot_finalize_chunk) => {
-                            ([].as_slice(), page_prot_finalize_chunk)
-                        }
+                let init_iter = self.global_page_prot_initialize_events.iter();
+                let finalize_iter = self.global_page_prot_finalize_events.iter();
+                let mut init_remaining = init_iter.as_slice();
+                let mut finalize_remaining = finalize_iter.as_slice();
+
+                while !init_remaining.is_empty() || !finalize_remaining.is_empty() {
+                    let capacity = 2 * opts.page_prot;
+                    let init_to_take = init_remaining.len().min(capacity);
+                    let finalize_to_take = finalize_remaining.len().min(capacity - init_to_take);
+
+                    let finalize_to_take = if init_to_take < capacity {
+                        finalize_to_take.max(finalize_remaining.len().min(capacity - init_to_take))
+                    } else {
+                        0
                     };
 
-                    last_record_ref
+                    let page_prot_init_chunk = &init_remaining[..init_to_take];
+                    let page_prot_finalize_chunk = &finalize_remaining[..finalize_to_take];
+
+                    mem_record_ref
                         .global_page_prot_initialize_events
                         .extend_from_slice(page_prot_init_chunk);
-                    last_record_ref.public_values.previous_init_page_idx = init_page_idx;
+                    mem_record_ref.public_values.previous_init_page_idx = init_page_idx;
                     if let Some(last_event) = page_prot_init_chunk.last() {
                         init_page_idx = last_event.page_idx;
                     }
-                    last_record_ref.public_values.last_init_page_idx = init_page_idx;
+                    mem_record_ref.public_values.last_init_page_idx = init_page_idx;
 
-                    last_record_ref
+                    mem_record_ref
                         .global_page_prot_finalize_events
                         .extend_from_slice(page_prot_finalize_chunk);
-                    last_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
+                    mem_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
                     if let Some(last_event) = page_prot_finalize_chunk.last() {
                         finalize_page_idx = last_event.page_idx;
                     }
-                    last_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
+                    mem_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
 
                     // Because page prot events are non empty, we set the page protect active flag
-                    last_record_ref.public_values.is_page_protect_active = true as u32;
+                    mem_record_ref.public_values.is_untrusted_programs_enabled = true as u32;
+
+                    init_remaining = &init_remaining[init_to_take..];
+                    finalize_remaining = &finalize_remaining[finalize_to_take..];
+
+                    // Ensure last record has same proof nonce as other shards
+                    mem_record_ref.public_values.proof_nonce = self.public_values.proof_nonce;
+                    mem_record_ref.global_dependencies_opt = self.global_dependencies_opt;
 
                     if !pack_memory_events_into_last_record {
                         // If not packing memory events into the last record, add 'last_record_ref'
                         // to the returned records. `take` replaces `blank_program` with the
                         // default.
-                        shards.push(take(last_record_ref));
+                        shards.push(take(mem_record_ref));
 
                         // Reset the last record so its program is the correct one. (The default
                         // program provided by `take` contains no
                         // instructions.)
-                        last_record_ref.program = self.program.clone();
+                        mem_record_ref.program = self.program.clone();
+                        // Reset the public values execution state to match the last record state.
+                        mem_record_ref
+                            .public_values
+                            .update_finalized_state_from_public_values(&last_record_public_values);
                     }
                 }
             }
@@ -333,45 +396,61 @@ impl ExecutionRecord {
 
             let mut init_addr = 0;
             let mut finalize_addr = 0;
-            for mem_chunks in self
-                .global_memory_initialize_events
-                .chunks(opts.memory)
-                .zip_longest(self.global_memory_finalize_events.chunks(opts.memory))
-            {
-                let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
-                    EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
-                        (mem_init_chunk, mem_finalize_chunk)
-                    }
-                    EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
-                    EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
+
+            let mut mem_init_remaining = self.global_memory_initialize_events.as_slice();
+            let mut mem_finalize_remaining = self.global_memory_finalize_events.as_slice();
+
+            while !mem_init_remaining.is_empty() || !mem_finalize_remaining.is_empty() {
+                let capacity = 2 * opts.memory;
+                let init_to_take = mem_init_remaining.len().min(capacity);
+                let finalize_to_take = mem_finalize_remaining.len().min(capacity - init_to_take);
+
+                let finalize_to_take = if init_to_take < capacity {
+                    finalize_to_take.max(mem_finalize_remaining.len().min(capacity - init_to_take))
+                } else {
+                    0
                 };
-                last_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
-                last_record_ref.public_values.previous_init_addr = init_addr;
+
+                let mem_init_chunk = &mem_init_remaining[..init_to_take];
+                let mem_finalize_chunk = &mem_finalize_remaining[..finalize_to_take];
+
+                mem_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
+                mem_record_ref.public_values.previous_init_addr = init_addr;
                 if let Some(last_event) = mem_init_chunk.last() {
                     init_addr = last_event.addr;
                 }
-                last_record_ref.public_values.last_init_addr = init_addr;
+                mem_record_ref.public_values.last_init_addr = init_addr;
 
-                last_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
-                last_record_ref.public_values.previous_finalize_addr = finalize_addr;
+                mem_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
+                mem_record_ref.public_values.previous_finalize_addr = finalize_addr;
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     finalize_addr = last_event.addr;
                 }
-                last_record_ref.public_values.last_finalize_addr = finalize_addr;
+                mem_record_ref.public_values.last_finalize_addr = finalize_addr;
+
+                mem_record_ref.public_values.proof_nonce = self.public_values.proof_nonce;
+                mem_record_ref.global_dependencies_opt = self.global_dependencies_opt;
+
+                mem_init_remaining = &mem_init_remaining[init_to_take..];
+                mem_finalize_remaining = &mem_finalize_remaining[finalize_to_take..];
 
                 if !pack_memory_events_into_last_record {
-                    last_record_ref.public_values.previous_init_page_idx = init_page_idx;
-                    last_record_ref.public_values.last_init_page_idx = init_page_idx;
-                    last_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
-                    last_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
+                    mem_record_ref.public_values.previous_init_page_idx = init_page_idx;
+                    mem_record_ref.public_values.last_init_page_idx = init_page_idx;
+                    mem_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
+                    mem_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
 
                     // If not packing memory events into the last record, add 'last_record_ref'
                     // to the returned records. `take` replaces `blank_program` with the default.
-                    shards.push(take(last_record_ref));
+                    shards.push(take(mem_record_ref));
 
                     // Reset the last record so its program is the correct one. (The default program
                     // provided by `take` contains no instructions.)
-                    last_record_ref.program = self.program.clone();
+                    mem_record_ref.program = self.program.clone();
+                    // Reset the public values execution state to match the last record state.
+                    mem_record_ref
+                        .public_values
+                        .update_finalized_state_from_public_values(&last_record_public_values);
                 }
             }
         }
@@ -417,7 +496,7 @@ impl ExecutionRecord {
     /// Get all the apc events for an apc id.
     #[inline]
     #[must_use]
-    pub fn get_apc_events(&self, apc_id: u64) -> Option<&ApcEventsForId> {
+    pub fn get_apc_events(&self, apc_id: usize) -> Option<&ApcEventsForId> {
         self.apc_events.get_events(apc_id)
     }
 
@@ -440,6 +519,370 @@ impl ExecutionRecord {
             .chain(apc_local_page_prot_events)
             .chain(self.cpu_local_page_prot_access.iter())
     }
+
+    #[must_use]
+    /// Create a snapshot of this record
+    pub fn snapshot(&self) -> ExecutionRecordSnapshot {
+        assert!(
+            self.byte_lookups.is_empty(),
+            "`byte_lookups` should always be empty here: it's only populated during trace generation, not during `TracingVM` execution when `snapshot()` is called."
+        );
+
+        ExecutionRecordSnapshot {
+            cpu_event_count: self.cpu_event_count,
+            add_events_len: self.add_events.len(),
+            addw_events_len: self.addw_events.len(),
+            addi_events_len: self.addi_events.len(),
+            mul_events_len: self.mul_events.len(),
+            sub_events_len: self.sub_events.len(),
+            subw_events_len: self.subw_events.len(),
+            bitwise_events_len: self.bitwise_events.len(),
+            shift_left_events_len: self.shift_left_events.len(),
+            shift_right_events_len: self.shift_right_events.len(),
+            divrem_events_len: self.divrem_events.len(),
+            lt_events_len: self.lt_events.len(),
+            memory_load_byte_events_len: self.memory_load_byte_events.len(),
+            memory_load_half_events_len: self.memory_load_half_events.len(),
+            memory_load_word_events_len: self.memory_load_word_events.len(),
+            memory_load_x0_events_len: self.memory_load_x0_events.len(),
+            memory_load_double_events_len: self.memory_load_double_events.len(),
+            memory_store_byte_events_len: self.memory_store_byte_events.len(),
+            memory_store_half_events_len: self.memory_store_half_events.len(),
+            memory_store_word_events_len: self.memory_store_word_events.len(),
+            memory_store_double_events_len: self.memory_store_double_events.len(),
+            utype_events_len: self.utype_events.len(),
+            branch_events_len: self.branch_events.len(),
+            jal_events_len: self.jal_events.len(),
+            jalr_events_len: self.jalr_events.len(),
+            precompile_events_len: self.precompile_events.len(),
+            global_memory_initialize_events_len: self.global_memory_initialize_events.len(),
+            global_memory_finalize_events_len: self.global_memory_finalize_events.len(),
+            cpu_local_memory_access_len: self.cpu_local_memory_access.len(),
+            syscall_events_len: self.syscall_events.len(),
+            apc_events_len: self.apc_events.len(),
+            global_interaction_event_count: self.global_interaction_event_count,
+            bump_memory_events_len: self.bump_memory_events.len(),
+            bump_state_events_len: self.bump_state_events.len(),
+            instruction_fetch_events_len: self.instruction_fetch_events.len(),
+            instruction_decode_events_len: self.instruction_decode_events.len(),
+            global_page_prot_initialize_events_len: self.global_page_prot_initialize_events.len(),
+            global_page_prot_finalize_events_len: self.global_page_prot_finalize_events.len(),
+            cpu_local_page_prot_access_len: self.cpu_local_page_prot_access.len(),
+        }
+    }
+
+    /// Modify this record using a series of successful apc calls
+    pub fn apply_calls(&mut self, calls: &[ApcCall<ExecutionRecordSnapshotWithPc>]) {
+        if calls.is_empty() {
+            return;
+        }
+
+        let apc_records = self.extract_records(calls);
+
+        // Add the apc event to the record.
+        // TODO: we could merge directly into the cummulative record inside
+        // `self.apc_events` instead of going through this intermediate
+        // `apc_record`
+
+        // Update the CPU event count, since we are running apc, only one cpu_event
+        // happened per apc record
+        self.cpu_event_count += apc_records.len() as u32;
+
+        for (apc_id, record) in apc_records {
+            self.apc_events.add_event(apc_id, record);
+        }
+    }
+
+    /// Extract the records related to each call so they are ready to be added as apc events
+    /// TODO: Maybe this is not required and instead we can keep the record append-only and store the snapshots in the apc events
+    /// During tracegen, all events are currently accessible to all chips, so in software tracegen, we could ignore the software events that are in the range of any apc call
+    #[allow(clippy::too_many_lines)]
+    fn extract_records(
+        &mut self,
+        calls: &[ApcCall<ExecutionRecordSnapshotWithPc>],
+    ) -> Vec<(usize, ExecutionRecord)> {
+        // Go through the candidates in reverse order and split them off from the end of the record
+
+        // Extracts events from vector `v` at the given (from, to) index ranges.
+        // Returns Vec<Vec<T>> where each inner Vec contains the events for one APC call.
+        //
+        // We process outputs in reverse order to preserve indices during drain/split_off.
+        // This means apc_records ends up reversed, so we reverse it at the end to match
+        // the original order (important: apc_records gets zipped with apc_ids in izip!).
+        //
+        // Note: software_records (events between APC ranges that stay in v) end up in
+        // scrambled order, but this is fine because chips process events independently of order.
+        fn extract<T>(
+            v: &mut Vec<T>,
+            outputs: impl DoubleEndedIterator<Item = (usize, usize)>,
+        ) -> Vec<Vec<T>> {
+            let (mut apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.rev().fold(
+                (vec![], vec![]),
+                |(mut extracted, mut to_add_to_software), (from, to)| {
+                    to_add_to_software.extend(v.drain(to..));
+                    extracted.push(v.split_off(from));
+                    (extracted, to_add_to_software)
+                },
+            );
+            v.extend(software_records);
+            apc_records.reverse();
+            apc_records
+        }
+
+        fn extract_diff(v: &mut u32, outputs: impl Iterator<Item = (u32, u32)>) -> Vec<u32> {
+            let (apc_records, total_removed) =
+                outputs.fold((Vec::new(), 0), |(mut records, removed), (from, to)| {
+                    let len = to - from;
+                    records.push(len);
+                    (records, removed + len)
+                });
+            debug_assert!(total_removed <= *v);
+            *v -= total_removed;
+            apc_records
+        }
+
+        fn extract_empty<T: Default>(
+            outputs: impl Iterator<Item = (usize, usize)>,
+        ) -> impl Iterator<Item = T> {
+            outputs.map(|(from, to)| {
+                assert_eq!(from, to);
+                T::default()
+            })
+        }
+
+        macro_rules! extract_vec {
+            ($field:ident, $len_field:ident) => {
+                extract(
+                    &mut self.$field,
+                    calls
+                        .iter()
+                        .map(|output| (output.from.record.$len_field, output.to.record.$len_field)),
+                )
+            };
+            (empty $len_field:ident) => {
+                extract_empty(
+                    calls
+                        .iter()
+                        .map(|output| (output.from.record.$len_field, output.to.record.$len_field)),
+                )
+            };
+        }
+
+        let add = extract_vec!(add_events, add_events_len);
+        let sub = extract_vec!(sub_events, sub_events_len);
+        let addw = extract_vec!(addw_events, addw_events_len);
+        let addi = extract_vec!(addi_events, addi_events_len);
+        let mul = extract_vec!(mul_events, mul_events_len);
+        let subw = extract_vec!(subw_events, subw_events_len);
+        let bitwise = extract_vec!(bitwise_events, bitwise_events_len);
+        let shift_left = extract_vec!(shift_left_events, shift_left_events_len);
+        let shift_right = extract_vec!(shift_right_events, shift_right_events_len);
+        let divrem = extract_vec!(divrem_events, divrem_events_len);
+        let lt = extract_vec!(lt_events, lt_events_len);
+        let memory_load_byte = extract_vec!(memory_load_byte_events, memory_load_byte_events_len);
+        let memory_load_half = extract_vec!(memory_load_half_events, memory_load_half_events_len);
+        let memory_load_word = extract_vec!(memory_load_word_events, memory_load_word_events_len);
+        let memory_load_x0 = extract_vec!(memory_load_x0_events, memory_load_x0_events_len);
+        let memory_load_double =
+            extract_vec!(memory_load_double_events, memory_load_double_events_len);
+        let memory_store_byte =
+            extract_vec!(memory_store_byte_events, memory_store_byte_events_len);
+        let memory_store_half =
+            extract_vec!(memory_store_half_events, memory_store_half_events_len);
+        let memory_store_word =
+            extract_vec!(memory_store_word_events, memory_store_word_events_len);
+        let memory_store_double =
+            extract_vec!(memory_store_double_events, memory_store_double_events_len);
+        let utype = extract_vec!(utype_events, utype_events_len);
+        let branch = extract_vec!(branch_events, branch_events_len);
+        let jal = extract_vec!(jal_events, jal_events_len);
+        let jalr = extract_vec!(jalr_events, jalr_events_len);
+        let instruction_fetch = extract_vec!(empty instruction_fetch_events_len);
+        let instruction_decode = extract_vec!(empty instruction_decode_events_len);
+        let global_page_prot_initialize = extract_vec!(
+            global_page_prot_initialize_events,
+            global_page_prot_initialize_events_len
+        );
+        let global_page_prot_finalize =
+            extract_vec!(global_page_prot_finalize_events, global_page_prot_finalize_events_len);
+        let cpu_local_page_prot_access = extract_vec!(empty cpu_local_page_prot_access_len);
+        let global_memory_initialize =
+            extract_vec!(global_memory_initialize_events, global_memory_initialize_events_len);
+        let global_memory_finalize =
+            extract_vec!(global_memory_finalize_events, global_memory_finalize_events_len);
+        let cpu_local_memory_access =
+            extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
+        let syscall = extract_vec!(syscall_events, syscall_events_len);
+        let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
+        let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
+        let global_interaction_event_count = extract_diff(
+            &mut self.global_interaction_event_count,
+            calls.iter().map(|output| {
+                (
+                    output.from.record.global_interaction_event_count,
+                    output.to.record.global_interaction_event_count,
+                )
+            }),
+        );
+        let precompile_events = extract_vec!(empty precompile_events_len);
+        let apc_events = extract_vec!(empty apc_events_len);
+        let cpu_event_count = extract_diff(
+            &mut self.cpu_event_count,
+            calls.iter().map(|output| {
+                (output.from.record.cpu_event_count, output.to.record.cpu_event_count)
+            }),
+        );
+        let next_pc = calls.iter().map(|output| output.to.pc);
+        let apc_ids = calls.iter().map(|output| output.apc_id);
+        izip!(
+            apc_ids,
+            add,
+            sub,
+            addw,
+            addi,
+            mul,
+            subw,
+            bitwise,
+            shift_left,
+            shift_right,
+            divrem,
+            lt,
+            memory_load_byte,
+            memory_load_half,
+            memory_load_word,
+            memory_load_x0,
+            memory_load_double,
+            memory_store_byte,
+            memory_store_half,
+            memory_store_word,
+            memory_store_double,
+            utype,
+            branch,
+            jal,
+            jalr,
+            instruction_fetch,
+            instruction_decode,
+            global_page_prot_initialize,
+            global_page_prot_finalize,
+            cpu_local_page_prot_access,
+            global_memory_initialize,
+            global_memory_finalize,
+            cpu_local_memory_access,
+            syscall,
+            global_interaction_event_count,
+            bump_memory,
+            bump_state,
+            precompile_events,
+            apc_events,
+            cpu_event_count,
+            next_pc,
+        )
+        .map(
+            |(
+                apc_id,
+                add_events,
+                sub_events,
+                addw_events,
+                addi_events,
+                mul_events,
+                subw_events,
+                bitwise_events,
+                shift_left_events,
+                shift_right_events,
+                divrem_events,
+                lt_events,
+                memory_load_byte_events,
+                memory_load_half_events,
+                memory_load_word_events,
+                memory_load_x0_events,
+                memory_load_double_events,
+                memory_store_byte_events,
+                memory_store_half_events,
+                memory_store_word_events,
+                memory_store_double_events,
+                utype_events,
+                branch_events,
+                jal_events,
+                jalr_events,
+                instruction_fetch_events,
+                instruction_decode_events,
+                global_page_prot_initialize_events,
+                global_page_prot_finalize_events,
+                cpu_local_page_prot_access,
+                global_memory_initialize_events,
+                global_memory_finalize_events,
+                cpu_local_memory_access,
+                syscall_events,
+                global_interaction_event_count,
+                bump_memory_events,
+                bump_state_events,
+                precompile_events,
+                apc_events,
+                cpu_event_count,
+                next_pc,
+            )| {
+                (
+                    apc_id,
+                    ExecutionRecord {
+                        add_events,
+                        sub_events,
+                        addw_events,
+                        addi_events,
+                        mul_events,
+                        subw_events,
+                        bitwise_events,
+                        shift_left_events,
+                        shift_right_events,
+                        divrem_events,
+                        lt_events,
+                        memory_load_byte_events,
+                        memory_load_half_events,
+                        memory_load_word_events,
+                        memory_load_x0_events,
+                        memory_load_double_events,
+                        memory_store_byte_events,
+                        memory_store_half_events,
+                        memory_store_word_events,
+                        memory_store_double_events,
+                        utype_events,
+                        branch_events,
+                        jal_events,
+                        jalr_events,
+                        instruction_fetch_events,
+                        instruction_decode_events,
+                        global_page_prot_initialize_events,
+                        global_page_prot_finalize_events,
+                        cpu_local_page_prot_access,
+                        global_memory_initialize_events,
+                        global_memory_finalize_events,
+                        cpu_local_memory_access,
+                        syscall_events,
+                        bump_memory_events,
+                        bump_state_events,
+                        program: self.program.clone(),
+                        cpu_event_count,
+                        byte_lookups: HashMap::default(),
+                        precompile_events,
+                        apc_events,
+                        global_interaction_events: Vec::default(),
+                        global_cumulative_sum: self.global_cumulative_sum.clone(),
+                        global_interaction_event_count,
+                        public_values: self.public_values,
+                        next_nonce: self.next_nonce,
+                        shape: self.shape.clone(),
+                        estimated_trace_area: self.estimated_trace_area,
+                        initial_timestamp: self.initial_timestamp,
+                        last_timestamp: self.last_timestamp,
+                        pc_start: self.pc_start,
+                        next_pc,
+                        exit_code: self.exit_code,
+                        global_dependencies_opt: self.global_dependencies_opt,
+                    },
+                )
+            },
+        )
+        .collect()
+    }
 }
 
 /// A memory access record.
@@ -460,7 +903,7 @@ pub struct MemoryAccessRecord {
 }
 
 /// Memory record where all three operands are registers.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, DeepSizeOf)]
 pub struct RTypeRecord {
     /// The a operand.
     pub op_a: u8,
@@ -743,7 +1186,7 @@ impl MachineRecord for ExecutionRecord {
         }
 
         Self::eval_state(public_values, builder);
-        Self::eval_first_shard(public_values, builder);
+        Self::eval_first_execution_shard(public_values, builder);
         Self::eval_exit_code(public_values, builder);
         Self::eval_committed_value_digest(public_values, builder);
         Self::eval_deferred_proofs_digest(public_values, builder);
@@ -752,6 +1195,14 @@ impl MachineRecord for ExecutionRecord {
         Self::eval_global_memory_finalize(public_values, builder);
         Self::eval_global_page_prot_init(public_values, builder);
         Self::eval_global_page_prot_finalize(public_values, builder);
+    }
+
+    fn interactions_in_public_values() -> Vec<InteractionKind> {
+        InteractionKind::all_kinds()
+            .iter()
+            .filter(|kind| kind.appears_in_eval_public_values())
+            .copied()
+            .collect()
     }
 }
 
@@ -917,10 +1368,19 @@ impl ExecutionRecord {
             AB::Expr::one() - is_execution_shard.clone(),
             public_values.is_timestamp_high_eq.into() * public_values.is_timestamp_low_eq.into(),
         );
+
+        // Check that an execution shard has `last_timestamp != 1` by providing an inverse.
+        // The `high + low` value cannot overflow, as they were range checked to be 24 bits.
+        // `high == 1, low == 0` is impossible, as `low == 1 (mod 8)` as checked in `eval_state`.
+        builder.when(is_execution_shard.clone()).assert_eq(
+            (last_timestamp_high + last_timestamp_low - AB::Expr::one())
+                * public_values.last_timestamp_inv.into(),
+            AB::Expr::one(),
+        );
     }
 
     #[allow(clippy::type_complexity)]
-    fn eval_first_shard<AB: SP1AirBuilder>(
+    fn eval_first_execution_shard<AB: SP1AirBuilder>(
         public_values: &PublicValues<
             [AB::PublicVar; 4],
             [AB::PublicVar; 3],
@@ -929,91 +1389,73 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
-        let initial_timestamp_high = public_values.initial_timestamp[1].into()
-            + public_values.initial_timestamp[0].into() * AB::Expr::from_canonical_u32(1 << 8);
-        let initial_timestamp_low = public_values.initial_timestamp[3].into()
-            + public_values.initial_timestamp[2].into() * AB::Expr::from_canonical_u32(1 << 16);
-        let last_timestamp_high = public_values.last_timestamp[1].into()
-            + public_values.last_timestamp[0].into() * AB::Expr::from_canonical_u32(1 << 8);
-        let last_timestamp_low = public_values.last_timestamp[3].into()
-            + public_values.last_timestamp[2].into() * AB::Expr::from_canonical_u32(1 << 16);
+        // Check that `is_first_execution_shard` is boolean.
+        builder.assert_bool(public_values.is_first_execution_shard.into());
 
-        // Check that `is_first_shard` is boolean.
-        builder.assert_bool(public_values.is_first_shard.into());
-
-        // Check that `last_timestamp != 1` by providing an inverse.
-        // The `high + low` value cannot overflow, as they were range checked to be 24 bits.
-        // `high == 1, low == 0` is impossible, as `low == 1 (mod 8)` as checked in `eval_state`.
-        builder.assert_eq(
-            (last_timestamp_high + last_timestamp_low - AB::Expr::one())
-                * public_values.last_timestamp_inv.into(),
-            AB::Expr::one(),
-        );
-
-        // If `is_first_shard` is false, check `initial_timestamp != 1` by providing an inverse.
-        // The logic behind this constraint is the same as the one in `last_timestamp`.
-        builder.when_not(public_values.is_first_shard.into()).assert_eq(
-            (initial_timestamp_high + initial_timestamp_low - AB::Expr::one())
-                * public_values.initial_timestamp_inv.into(),
-            AB::Expr::one(),
-        );
-
-        // If `is_first_shard` is true, check `initial_timestamp == 1`.
-        builder.when(public_values.is_first_shard.into()).assert_all_eq(
+        // Timestamp constraints.
+        //
+        // We want to assert that `is_first_execution_shard == 1` corresponds exactly to the unique
+        // execution shard with initial timestamp 1.We are assuming that there is a unique
+        // shard with `is_first_execution_shard == 1`. This is enforced in the verifier and
+        // in recursion. Given thus, it is enough to impose that for this unique shard,
+        // `initial_timestamp == 1`.
+        builder.when(public_values.is_first_execution_shard.into()).assert_all_eq(
             public_values.initial_timestamp,
             [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
         );
 
-        // If `is_first_shard` is true, check `is_execution_shard == 1`.
+        // If `is_first_execution_shard` is true, check `is_execution_shard == 1`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_one(public_values.is_execution_shard);
 
-        // If `is_first_shard` is true, assert the initial boundary conditions.
+        // If `is_first_execution_shard` is true, assert the initial boundary conditions.
 
         // Check `prev_committed_value_digest == 0`.
         for i in 0..PV_DIGEST_NUM_WORDS {
             builder
-                .when(public_values.is_first_shard.into())
+                .when(public_values.is_first_execution_shard.into())
                 .assert_all_zero(public_values.prev_committed_value_digest[i]);
         }
 
         // Check `prev_deferred_proofs_digest == 0`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_all_zero(public_values.prev_deferred_proofs_digest);
 
         // Check `prev_exit_code == 0`.
-        builder.when(public_values.is_first_shard.into()).assert_zero(public_values.prev_exit_code);
+        builder
+            .when(public_values.is_first_execution_shard.into())
+            .assert_zero(public_values.prev_exit_code);
 
         // Check `previous_init_addr == 0`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_all_zero(public_values.previous_init_addr);
 
         // Check `previous_finalize_addr == 0`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_all_zero(public_values.previous_finalize_addr);
 
         // Check `previous_init_page_idx == 0`
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_all_zero(public_values.previous_init_page_idx);
 
         // Check `previous_finalize_page_idx == 0`
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_all_zero(public_values.previous_finalize_page_idx);
 
         // Check `prev_commit_syscall == 0`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_zero(public_values.prev_commit_syscall);
 
         // Check `prev_commit_deferred_syscall == 0`.
         builder
-            .when(public_values.is_first_shard.into())
+            .when(public_values.is_first_execution_shard.into())
             .assert_zero(public_values.prev_commit_deferred_syscall);
     }
 
@@ -1325,14 +1767,14 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
-        builder.assert_bool(public_values.is_page_protect_active.into());
+        builder.assert_bool(public_values.is_untrusted_programs_enabled.into());
         builder.send(
             AirInteraction::new(
                 once(AB::Expr::zero())
                     .chain(public_values.previous_init_page_idx.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
-                public_values.is_page_protect_active.into(),
+                public_values.is_untrusted_programs_enabled.into(),
                 InteractionKind::PageProtGlobalInitControl,
             ),
             InteractionScope::Local,
@@ -1343,7 +1785,7 @@ impl ExecutionRecord {
                     .chain(public_values.last_init_page_idx.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
-                public_values.is_page_protect_active.into(),
+                public_values.is_untrusted_programs_enabled.into(),
                 InteractionKind::PageProtGlobalInitControl,
             ),
             InteractionScope::Local,
@@ -1360,14 +1802,14 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
-        builder.assert_bool(public_values.is_page_protect_active.into());
+        builder.assert_bool(public_values.is_untrusted_programs_enabled.into());
         builder.send(
             AirInteraction::new(
                 once(AB::Expr::zero())
                     .chain(public_values.previous_finalize_page_idx.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
-                public_values.is_page_protect_active.into(),
+                public_values.is_untrusted_programs_enabled.into(),
                 InteractionKind::PageProtGlobalFinalizeControl,
             ),
             InteractionScope::Local,
@@ -1378,10 +1820,55 @@ impl ExecutionRecord {
                     .chain(public_values.last_finalize_page_idx.into_iter().map(Into::into))
                     .chain(once(AB::Expr::one()))
                     .collect(),
-                public_values.is_page_protect_active.into(),
+                public_values.is_untrusted_programs_enabled.into(),
                 InteractionKind::PageProtGlobalFinalizeControl,
             ),
             InteractionScope::Local,
         );
+    }
+
+    /// Finalize the public values.
+    pub fn finalize_public_values<F: PrimeField32>(&mut self, is_execution_shard: bool) {
+        let state = &mut self.public_values;
+        state.is_execution_shard = is_execution_shard as u32;
+
+        let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
+        let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
+        let last_timestamp_high = (state.last_timestamp >> 24) as u32;
+        let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
+
+        state.initial_timestamp_inv = if state.initial_timestamp == 1 {
+            0
+        } else {
+            F::from_canonical_u32(initial_timestamp_high + initial_timestamp_low - 1)
+                .inverse()
+                .as_canonical_u32()
+        };
+
+        state.last_timestamp_inv =
+            F::from_canonical_u32(last_timestamp_high + last_timestamp_low - 1)
+                .inverse()
+                .as_canonical_u32();
+
+        if initial_timestamp_high == last_timestamp_high {
+            state.is_timestamp_high_eq = 1;
+        } else {
+            state.is_timestamp_high_eq = 0;
+            state.inv_timestamp_high = (F::from_canonical_u32(last_timestamp_high)
+                - F::from_canonical_u32(initial_timestamp_high))
+            .inverse()
+            .as_canonical_u32();
+        }
+
+        if initial_timestamp_low == last_timestamp_low {
+            state.is_timestamp_low_eq = 1;
+        } else {
+            state.is_timestamp_low_eq = 0;
+            state.inv_timestamp_low = (F::from_canonical_u32(last_timestamp_low)
+                - F::from_canonical_u32(initial_timestamp_low))
+            .inverse()
+            .as_canonical_u32();
+        }
+        state.is_first_execution_shard = (state.initial_timestamp == 1) as u32;
     }
 }

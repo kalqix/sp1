@@ -5,16 +5,16 @@ use std::{
 
 use itertools::Itertools;
 use slop_air::Air;
-use slop_algebra::AbstractField;
-use slop_jagged::JaggedConfig;
-use sp1_primitives::SP1Field;
+use slop_algebra::{AbstractField, PrimeField32};
+use slop_challenger::IopCtx;
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::RiscvAir;
 
-use sp1_hypercube::air::{MachineAir, PublicValues};
+use sp1_hypercube::air::{PublicValues, SP1CorePublicValues};
 
-use sp1_hypercube::{MachineConfig, MachineVerifyingKey, ShardProof};
+use sp1_hypercube::{air::ShardRange, MachineVerifyingKey, ShardProof};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -24,73 +24,64 @@ use sp1_recursion_compiler::{
 use sp1_recursion_executor::{RecursionPublicValues, DIGEST_SIZE, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 use crate::{
-    basefold::{RecursiveBasefoldConfigImpl, RecursiveBasefoldProof, RecursiveBasefoldVerifier},
-    challenger::{CanObserveVariable, DuplexChallengerVariable},
-    jagged::RecursiveJaggedConfig,
+    challenger::CanObserveVariable,
     machine::{assert_complete, recursion_public_values_digest},
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
-    CircuitConfig, InnerSC, SP1FieldConfigVariable, SP1FieldFriConfig,
+    CircuitConfig, SP1FieldConfigVariable,
 };
 
-pub struct SP1RecursionWitnessVariable<
-    C: CircuitConfig<F = SP1Field, EF = crate::EF>,
-    SC: SP1FieldConfigVariable<C>,
-    JC: RecursiveJaggedConfig<
-        BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-    >,
-> {
+pub struct SP1RecursionWitnessVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> {
     pub vk: MachineVerifyingKeyVariable<C, SC>,
-    pub shard_proofs: Vec<ShardProofVariable<C, SC, JC>>,
-    pub reconstruct_deferred_digest: [Felt<C::F>; DIGEST_SIZE],
-    pub is_complete: Felt<C::F>,
-    pub vk_root: [Felt<C::F>; DIGEST_SIZE],
+    pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
+    pub reconstruct_deferred_digest: [Felt<SP1Field>; DIGEST_SIZE],
+    pub num_deferred_proofs: Felt<SP1Field>,
+    pub is_complete: Felt<SP1Field>,
+    pub vk_root: [Felt<SP1Field>; DIGEST_SIZE],
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
+#[serde(bound(serialize = "ShardProof<GC,Proof>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<GC,Proof>: Deserialize<'de>"))]
 /// A struct to contain the inputs to the `normalize` program.
-pub struct SP1NormalizeWitnessValues<SC: MachineConfig> {
-    pub vk: MachineVerifyingKey<SC>,
-    pub shard_proofs: Vec<ShardProof<SC>>,
+pub struct SP1NormalizeWitnessValues<GC: IopCtx, Proof> {
+    pub vk: MachineVerifyingKey<GC>,
+    pub shard_proofs: Vec<ShardProof<GC, Proof>>,
     pub is_complete: bool,
-    pub vk_root: [SC::F; DIGEST_SIZE],
-    pub reconstruct_deferred_digest: [SC::F; 8],
+    pub vk_root: [GC::F; DIGEST_SIZE],
+    pub reconstruct_deferred_digest: [GC::F; 8],
+    pub num_deferred_proofs: GC::F,
+}
+
+impl<GC: IopCtx, Proof> SP1NormalizeWitnessValues<GC, Proof> {
+    pub fn range(&self) -> ShardRange
+    where
+        GC::F: PrimeField32,
+    {
+        let start_pv: &SP1CorePublicValues<GC::F> =
+            self.shard_proofs[0].public_values.as_slice().borrow();
+        let end_pv: &SP1CorePublicValues<GC::F> =
+            self.shard_proofs[self.shard_proofs.len() - 1].public_values.as_slice().borrow();
+
+        let start = start_pv.range().start();
+        let end = end_pv.range().end();
+
+        let mut range: ShardRange = (start..end).into();
+        let num_deferred_proofs = self.num_deferred_proofs.as_canonical_u32() as u64;
+        range.deferred_proof_range = (num_deferred_proofs, num_deferred_proofs);
+        range
+    }
 }
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
-pub struct SP1RecursiveVerifier<A, C: Config, SC: SP1FieldFriConfig, JC: RecursiveJaggedConfig> {
-    _phantom: PhantomData<(A, C, SC, JC)>,
+pub struct SP1RecursiveVerifier<C: Config> {
+    _phantom: PhantomData<C>,
 }
 
-type InnerVal = <InnerSC as JaggedConfig>::F;
-type InnerChallenge = <InnerSC as JaggedConfig>::EF;
-
-impl<A, C, SC, JC> SP1RecursiveVerifier<A, C, SC, JC>
+impl<C> SP1RecursiveVerifier<C>
 where
-    A: MachineAir<<SC as JaggedConfig>::F> + for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
-    SC: SP1FieldConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<SP1Field>; DIGEST_SIZE],
-        > + Send
-        + Sync,
-    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<SP1Field>>,
-    JC: RecursiveJaggedConfig<
-        BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-    >,
-    SC: SP1FieldConfigVariable<C> + MachineConfig,
-    JC: RecursiveJaggedConfig<
-        F = C::F,
-        EF = C::EF,
-        Circuit = C,
-        Commitment = SC::DigestVariable,
-        Challenger = SC::FriChallengerVariable,
-        BatchPcsProof = RecursiveBasefoldProof<RecursiveBasefoldConfigImpl<C, SC>>,
-        BatchPcsVerifier = RecursiveBasefoldVerifier<RecursiveBasefoldConfigImpl<C, SC>>,
-    >,
+    C: CircuitConfig<Bit = Felt<SP1Field>>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
     ///
@@ -108,10 +99,10 @@ where
     /// The first shard has some additional constraints for initialization.
     pub fn verify(
         builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<A, SC, C, JC>,
-        input: SP1RecursionWitnessVariable<C, SC, JC>,
+        machine: &RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, C>,
+        input: SP1RecursionWitnessVariable<C, SP1GlobalContext>,
     ) where
-        RiscvAir<<SC as JaggedConfig>::F>: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
+        RiscvAir<SP1Field>: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
     {
         // Read input.
         let SP1RecursionWitnessVariable {
@@ -120,6 +111,7 @@ where
             is_complete,
             vk_root,
             reconstruct_deferred_digest,
+            num_deferred_proofs,
         } = input;
 
         // Assert that the number of proofs is one.
@@ -135,33 +127,43 @@ where
 
         // If it's the first shard, then the `pc_start` should be vk.pc_start.
         for (pc, vk_pc) in public_values.pc_start.iter().zip_eq(vk.pc_start.iter()) {
-            builder.assert_felt_eq(public_values.is_first_shard * (*pc - *vk_pc), C::F::zero());
+            builder.assert_felt_eq(
+                public_values.is_first_execution_shard * (*pc - *vk_pc),
+                SP1Field::zero(),
+            );
         }
 
         // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the
         // digest. If it's not the first shard, we add the zero digest to the digest.
         global_cumulative_sums.push(builder.select_global_cumulative_sum(
-            public_values.is_first_shard,
+            public_values.is_first_execution_shard,
             vk.initial_global_cumulative_sum,
         ));
 
         // Prepare a challenger.
-        let mut challenger = SC::challenger_variable(builder);
+        let mut challenger = SP1GlobalContext::challenger_variable(builder);
 
         // Observe the vk and start pc.
         challenger.observe(builder, vk.preprocessed_commit);
         challenger.observe_slice(builder, vk.pc_start);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        challenger.observe(builder, vk.enable_untrusted_programs);
         // Observe the padding.
-        let zero: Felt<_> = builder.eval(C::F::zero());
-        for _ in 0..7 {
+        let zero: Felt<_> = builder.eval(SP1Field::zero());
+        for _ in 0..6 {
             challenger.observe(builder, zero);
         }
 
         // Verify the shard proof.
         tracing::debug_span!("verify shard")
             .in_scope(|| machine.verify_shard(builder, &vk, shard_proof, &mut challenger));
+
+        // Assert that the `is_untrusted_programs_enabled` is equal to the vkey one.
+        builder.assert_felt_eq(
+            public_values.is_untrusted_programs_enabled,
+            vk.enable_untrusted_programs,
+        );
 
         // We add the global cumulative sum of the shard.
         global_cumulative_sums.push(public_values.global_cumulative_sum);
@@ -175,7 +177,7 @@ where
             let vk_digest = vk.hash(builder);
 
             // Initialize the public values we will commit to.
-            let zero: Felt<_> = builder.eval(C::F::zero());
+            let zero: Felt<_> = builder.eval(SP1Field::zero());
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
             let recursion_public_values: &mut RecursionPublicValues<_> =
                 recursion_public_values_stream.as_mut_slice().borrow_mut();
@@ -185,6 +187,8 @@ where
             recursion_public_values.prev_deferred_proofs_digest =
                 public_values.prev_deferred_proofs_digest;
             recursion_public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            recursion_public_values.prev_deferred_proof = num_deferred_proofs;
+            recursion_public_values.deferred_proof = num_deferred_proofs;
             recursion_public_values.pc_start = public_values.pc_start;
             recursion_public_values.next_pc = public_values.next_pc;
             recursion_public_values.initial_timestamp = public_values.initial_timestamp;
@@ -203,8 +207,8 @@ where
             recursion_public_values.sp1_vk_digest = vk_digest;
             recursion_public_values.vk_root = vk_root;
             recursion_public_values.global_cumulative_sum = global_cumulative_sum;
-            recursion_public_values.contains_first_shard = public_values.is_first_shard;
-            recursion_public_values.num_included_shard = builder.eval(C::F::one());
+            recursion_public_values.contains_first_shard = public_values.is_first_execution_shard;
+            recursion_public_values.num_included_shard = builder.eval(SP1Field::one());
             recursion_public_values.is_complete = is_complete;
             recursion_public_values.prev_exit_code = public_values.prev_exit_code;
             recursion_public_values.exit_code = public_values.exit_code;
@@ -213,15 +217,17 @@ where
             recursion_public_values.prev_commit_deferred_syscall =
                 public_values.prev_commit_deferred_syscall;
             recursion_public_values.commit_deferred_syscall = public_values.commit_deferred_syscall;
-            recursion_public_values.is_page_protect_active = public_values.is_page_protect_active;
+            recursion_public_values.proof_nonce = public_values.proof_nonce;
 
             // Calculate the digest and set it in the public values.
-            recursion_public_values.digest =
-                recursion_public_values_digest::<C, SC>(builder, recursion_public_values);
+            recursion_public_values.digest = recursion_public_values_digest::<C, SP1GlobalContext>(
+                builder,
+                recursion_public_values,
+            );
 
             assert_complete(builder, recursion_public_values, is_complete);
 
-            SC::commit_recursion_public_values(builder, *recursion_public_values);
+            SP1GlobalContext::commit_recursion_public_values(builder, *recursion_public_values);
         }
     }
 }

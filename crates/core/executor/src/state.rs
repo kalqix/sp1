@@ -6,14 +6,15 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_hypercube::{MachineVerifyingKey, SP1CoreJaggedConfig};
+use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner};
 
 use crate::{
     events::{MemoryEntry, PageProtRecord},
     memory::Memory,
-    syscalls::SyscallCode,
-    SP1RecursionProof,
+    SP1RecursionProof, SyscallCode,
 };
+
+use sp1_primitives::SP1GlobalContext;
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -52,8 +53,10 @@ pub struct ExecutionState {
     pub input_stream: VecDeque<Vec<u8>>,
 
     /// A stream of proofs (reduce vk, proof, verifying key) inputted to the program.
-    pub proof_stream:
-        Vec<(SP1RecursionProof<SP1CoreJaggedConfig>, MachineVerifyingKey<SP1CoreJaggedConfig>)>,
+    pub proof_stream: Vec<(
+        SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>,
+        MachineVerifyingKey<SP1GlobalContext>,
+    )>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
     pub proof_stream_ptr: usize,

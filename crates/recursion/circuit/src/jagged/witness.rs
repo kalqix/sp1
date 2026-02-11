@@ -1,36 +1,31 @@
-use slop_algebra::extension::BinomialExtensionField;
+use slop_algebra::AbstractField;
+use slop_challenger::IopCtx;
 use slop_jagged::{
-    JaggedConfig, JaggedEvalConfig, JaggedLittlePolynomialVerifierParams, JaggedPcsProof,
-    JaggedSumcheckEvalProof,
+    unzip_and_prefix_sums, JaggedLittlePolynomialVerifierParams, JaggedPcsProof,
+    JaggedSumcheckEvalProof, PrefixSumsMaxLogRowCount,
 };
-use sp1_primitives::SP1Field;
-use sp1_recursion_compiler::ir::{Builder, Ext};
+use slop_multilinear::Point;
+use sp1_primitives::{SP1ExtensionField, SP1Field};
+use sp1_recursion_compiler::ir::Builder;
 
 use crate::{
+    basefold::{stacked::RecursiveStackedPcsProof, RecursiveBasefoldProof},
     witness::{WitnessWriter, Witnessable},
-    AsRecursive, CircuitConfig,
+    CircuitConfig, SP1FieldConfigVariable,
 };
 
-use super::verifier::{JaggedPcsProofVariable, RecursiveJaggedConfig};
+use super::verifier::JaggedPcsProofVariable;
 
 impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for JaggedSumcheckEvalProof<T> {
     type WitnessVariable = JaggedSumcheckEvalProof<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         JaggedSumcheckEvalProof {
-            branching_program_evals: self
-                .branching_program_evals
-                .iter()
-                .map(|x| x.read(builder))
-                .collect(),
             partial_sumcheck_proof: self.partial_sumcheck_proof.read(builder),
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        for x in &self.branching_program_evals {
-            x.write(witness);
-        }
         self.partial_sumcheck_proof.write(witness);
     }
 }
@@ -47,7 +42,6 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C>
                 .iter()
                 .map(|x| (*x).read(builder))
                 .collect::<Vec<_>>(),
-            max_log_row_count: self.max_log_row_count,
         }
     }
 
@@ -58,51 +52,75 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C>
     }
 }
 
-impl<C, SC, RecursiveStackedPcsProof, RecursiveJaggedEvalProof> Witnessable<C>
-    for JaggedPcsProof<SC>
+impl<GC, C, Proof> Witnessable<C> for JaggedPcsProof<GC, Proof>
 where
-    C: CircuitConfig<F = SP1Field, EF = BinomialExtensionField<SP1Field, 4>>,
-    SC: JaggedConfig<
-            F = C::F,
-            EF = C::EF,
-            BatchPcsProof: Witnessable<C, WitnessVariable = RecursiveStackedPcsProof>,
-        > + AsRecursive<C>,
-    <<SC as JaggedConfig>::JaggedEvaluator as JaggedEvalConfig<
-        C::F,
-        C::EF,
-        <SC as JaggedConfig>::Challenger,
-    >>::JaggedEvalProof: Witnessable<C, WitnessVariable = RecursiveJaggedEvalProof>,
-    SC::Recursive: RecursiveJaggedConfig<
-        F = C::F,
-        EF = C::EF,
-        Circuit = C,
-        BatchPcsProof = RecursiveStackedPcsProof,
-        JaggedEvalProof = RecursiveJaggedEvalProof,
+    GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + SP1FieldConfigVariable<C>,
+    C: CircuitConfig,
+    Proof: Witnessable<
+        C,
+        WitnessVariable = RecursiveStackedPcsProof<
+            RecursiveBasefoldProof<C, GC>,
+            SP1Field,
+            SP1ExtensionField,
+        >,
     >,
-    C::EF: Witnessable<C, WitnessVariable = Ext<C::F, C::EF>>,
+    GC::Digest: Witnessable<C, WitnessVariable = GC::DigestVariable>,
 {
-    type WitnessVariable = JaggedPcsProofVariable<SC::Recursive>;
+    type WitnessVariable =
+        JaggedPcsProofVariable<RecursiveBasefoldProof<C, GC>, GC::DigestVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let params = self.params.read(builder);
+        let PrefixSumsMaxLogRowCount { row_counts, column_counts, usize_prefix_sums, log_m: _ } =
+            unzip_and_prefix_sums(&self.row_counts_and_column_counts);
+
+        let point_prefix_sums: Vec<Point<GC::F>> =
+            usize_prefix_sums.iter().map(|&x| Point::from_usize(x, self.log_m + 1)).collect();
+        let column_prefix_sums = point_prefix_sums.read(builder);
+        let params = JaggedLittlePolynomialVerifierParams { col_prefix_sums: column_prefix_sums };
+
         let sumcheck_proof = self.sumcheck_proof.read(builder);
         let jagged_eval_proof = self.jagged_eval_proof.read(builder);
-        let stacked_pcs_proof = self.stacked_pcs_proof.read(builder);
-        let added_columns = self.added_columns.clone();
+        let pcs_proof = self.pcs_proof.read(builder);
+
+        let row_counts = row_counts
+            .into_iter()
+            .map(|x| x.into_iter().map(SP1Field::from_canonical_usize).collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+            .read(builder);
+        let original_commitments =
+            self.merkle_tree_commitments.clone().into_iter().collect::<Vec<_>>().read(builder);
+        let expected_eval = self.expected_eval.read(builder);
 
         JaggedPcsProofVariable {
-            stacked_pcs_proof,
+            pcs_proof,
             sumcheck_proof,
             jagged_eval_proof,
             params,
-            added_columns,
+            column_counts,
+            row_counts,
+            original_commitments,
+            expected_eval,
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.params.write(witness);
+        let PrefixSumsMaxLogRowCount { usize_prefix_sums, log_m, .. } =
+            unzip_and_prefix_sums(&self.row_counts_and_column_counts);
+
+        let point_prefix_sums: Vec<Point<GC::F>> =
+            usize_prefix_sums.iter().map(|&x| Point::from_usize(x, log_m + 1)).collect();
+        let params = JaggedLittlePolynomialVerifierParams { col_prefix_sums: point_prefix_sums };
+        params.write(witness);
         self.sumcheck_proof.write(witness);
         self.jagged_eval_proof.write(witness);
-        self.stacked_pcs_proof.write(witness);
+        self.pcs_proof.write(witness);
+        self.row_counts_and_column_counts
+            .clone()
+            .into_iter()
+            .map(|x| x.into_iter().map(|x| SP1Field::from_canonical_usize(x.0)).collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+            .write(witness);
+        self.merkle_tree_commitments.write(witness);
+        self.expected_eval.write(witness);
     }
 }

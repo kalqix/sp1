@@ -1,38 +1,9 @@
-use std::collections::BTreeMap;
-
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
-use slop_challenger::CanObserve;
-use slop_jagged::JaggedConfig;
+use slop_challenger::VariableLengthChallenger;
+use slop_challenger::{CanObserve, IopCtx};
 
 use crate::septic_digest::SepticDigest;
-
-/// A configuration for a machine.
-pub trait MachineConfig:
-    JaggedConfig + 'static + Send + Sync + Serialize + DeserializeOwned
-{
-}
-
-impl<C> MachineConfig for C where
-    C: JaggedConfig + 'static + Send + Sync + Serialize + DeserializeOwned
-{
-}
-
-#[allow(clippy::disallowed_types)]
-use slop_jagged::Poseidon2KoalaBearJaggedCpuProverComponents;
-
-#[allow(clippy::disallowed_types)]
-/// The CPU prover components for a jagged PCS prover in SP1.
-pub type SP1CpuJaggedProverComponents = Poseidon2KoalaBearJaggedCpuProverComponents;
-
-#[allow(clippy::disallowed_types)]
-use slop_jagged::KoalaBearPoseidon2;
-
-#[allow(clippy::disallowed_types)]
-/// The jagged config for SP1 core, compress, and shrink proofs.
-pub type SP1CoreJaggedConfig = KoalaBearPoseidon2;
-
-pub use slop_jagged::SP1OuterConfig;
 
 #[allow(clippy::disallowed_types)]
 use slop_basefold::Poseidon2KoalaBear16BasefoldConfig;
@@ -60,25 +31,37 @@ pub struct ChipDimensions<T> {
 
 /// A verifying key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MachineVerifyingKey<C: MachineConfig> {
+pub struct MachineVerifyingKey<C: IopCtx> {
     /// The start pc of the program.
     pub pc_start: [C::F; 3],
     /// The starting global digest of the program, after incorporating the initial memory.
     pub initial_global_cumulative_sum: SepticDigest<C::F>,
     /// The preprocessed commitments.
-    pub preprocessed_commit: C::Commitment,
-    /// The dimensions of the preprocessed polynomials.
-    pub preprocessed_chip_information: BTreeMap<String, ChipDimensions<C::F>>,
+    pub preprocessed_commit: C::Digest,
+    /// Flag indicating if untrusted programs are allowed.
+    pub enable_untrusted_programs: C::F,
 }
 
-impl<C: MachineConfig> MachineVerifyingKey<C> {
+impl<C: IopCtx> PartialEq for MachineVerifyingKey<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pc_start == other.pc_start
+            && self.initial_global_cumulative_sum == other.initial_global_cumulative_sum
+            && self.preprocessed_commit == other.preprocessed_commit
+            && self.enable_untrusted_programs == other.enable_untrusted_programs
+    }
+}
+
+impl<C: IopCtx> Eq for MachineVerifyingKey<C> {}
+
+impl<C: IopCtx> MachineVerifyingKey<C> {
     /// Observes the values of the proving key into the challenger.
     pub fn observe_into(&self, challenger: &mut C::Challenger) {
-        challenger.observe(self.preprocessed_commit.clone());
-        challenger.observe_slice(&self.pc_start);
-        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
-        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
+        challenger.observe(self.preprocessed_commit);
+        challenger.observe_constant_length_slice(&self.pc_start);
+        challenger.observe_constant_length_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_constant_length_slice(&self.initial_global_cumulative_sum.0.y.0);
+        challenger.observe(self.enable_untrusted_programs);
         // Observe the padding.
-        challenger.observe_slice(&[C::F::zero(); 7]);
+        challenger.observe_constant_length_slice(&[C::F::zero(); 6]);
     }
 }

@@ -1,33 +1,29 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessCols,
-    operations::{
-        poseidon2::{permutation::Poseidon2Cols, Poseidon2Operation},
-        AddrAddOperation, AddressSlicePageProtOperation, SP1FieldWordRangeChecker,
-        SyscallAddrOperation,
-    },
-    utils::{next_multiple_of_32, zeroed_f_vec},
+    operations::{AddrAddOperation, SP1FieldWordRangeChecker, SyscallAddrOperation},
+    utils::next_multiple_of_32,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelBridge, ParallelIterator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
+use slop_maybe_rayon::prelude::ParallelSliceMut;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemoryRecordEnum, PrecompileEvent},
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, SyscallCode,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
+    operations::poseidon2::{permutation::Poseidon2Cols, Poseidon2Operation},
     Word,
 };
-use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 
 /// The number of columns in Poseidon2Cols.
@@ -74,9 +70,6 @@ pub struct Poseidon2Cols2<T: Copy> {
     /// The Poseidon2 operation columns.
     pub poseidon2_operation: Poseidon2Operation<T>,
 
-    /// Array Slice Page Prot Access.
-    pub address_slice_page_prot_access: AddressSlicePageProtOperation<T>,
-
     /// Whether this row is real.
     pub is_real: T,
 }
@@ -85,8 +78,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Poseidon2".to_string()
+    fn name(&self) -> &'static str {
+        "Poseidon2"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -96,19 +89,35 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Generate the trace rows & corresponding records for each event.
         let events = input.get_precompile_events(SyscallCode::POSEIDON2);
+        let num_event_rows = events.len();
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
         let padded_nb_rows = <Poseidon2Chip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_COLS);
 
-        values.chunks_mut(chunk_size * NUM_COLS).enumerate().par_bridge().for_each(|(i, rows)| {
+        unsafe {
+            let padding_start = num_event_rows * NUM_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_COLS) };
+
+        values.par_chunks_mut(chunk_size * NUM_COLS).enumerate().for_each(|(i, rows)| {
             rows.chunks_mut(NUM_COLS).enumerate().for_each(|(j, row)| {
+                unsafe {
+                    core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_COLS);
+                }
                 let idx = i * chunk_size + j;
                 let cols: &mut Poseidon2Cols2<F> = row.borrow_mut();
 
@@ -186,34 +195,21 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                     // Populate the Poseidon2 operation.
                     cols.poseidon2_operation =
-                        crate::operations::poseidon2::trace::populate_perm_deg3(
+                        sp1_hypercube::operations::poseidon2::trace::populate_perm_deg3(
                             posiedon_input,
                             Some(poseidon_output),
                         );
-                    if input.public_values.is_page_protect_active == 1 {
-                        // Populate the address slice page prot access.
-                        cols.address_slice_page_prot_access.populate(
-                            &mut byte_lookup_events,
-                            event.ptr,
-                            event.ptr + 7 * 8,
-                            event.clk,
-                            PROT_READ | PROT_WRITE,
-                            &event.page_prot_records[0],
-                            &event.page_prot_records.get(1).copied(),
-                            input.public_values.is_page_protect_active,
-                        );
-                    }
                 } else {
                     // Populate with dummy Poseidon2 operation for padding rows.
                     let dummy_input = [F::zero(); 16];
                     cols.poseidon2_operation =
-                        crate::operations::poseidon2::trace::populate_perm_deg3(dummy_input, None);
+                        sp1_hypercube::operations::poseidon2::trace::populate_perm_deg3(
+                            dummy_input,
+                            None,
+                        );
                 }
             });
         });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -236,18 +232,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     };
 
                     cols.ptr.populate(&mut blu, event.ptr, 64);
-                    if input.public_values.is_page_protect_active == 1 {
-                        cols.address_slice_page_prot_access.populate(
-                            &mut blu,
-                            event.ptr,
-                            event.ptr + 7 * 8,
-                            event.clk,
-                            PROT_READ | PROT_WRITE,
-                            &event.page_prot_records[0],
-                            &event.page_prot_records.get(1).copied(),
-                            input.public_values.is_page_protect_active,
-                        );
-                    }
                     // Populate memory columns for the 8 u64 words.
                     for i in 0..8 {
                         cols.addrs[i].populate(&mut blu, event.ptr, 8 * i as u64);
@@ -430,8 +414,8 @@ where
         }
 
         // Evaluate external rounds.
-        for r in 0..crate::operations::poseidon2::NUM_EXTERNAL_ROUNDS {
-            crate::operations::poseidon2::air::eval_external_round(
+        for r in 0..sp1_hypercube::operations::poseidon2::NUM_EXTERNAL_ROUNDS {
+            sp1_hypercube::operations::poseidon2::air::eval_external_round(
                 builder,
                 &local.poseidon2_operation.permutation,
                 r,
@@ -439,7 +423,7 @@ where
         }
 
         // Evaluate internal rounds.
-        crate::operations::poseidon2::air::eval_internal_rounds(
+        sp1_hypercube::operations::poseidon2::air::eval_internal_rounds(
             builder,
             &local.poseidon2_operation.permutation,
         );
@@ -449,17 +433,6 @@ where
         for i in 0..16 {
             builder.when(local.is_real).assert_eq(perm_output[i], output[i].clone());
         }
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into(),
-            &ptr.map(Into::into),
-            &local.addrs[local.addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
-            &local.address_slice_page_prot_access,
-            local.is_real.into(),
-        );
 
         // Receive the syscall.
         builder.receive_syscall(

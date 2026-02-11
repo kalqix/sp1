@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use slop_air::Air;
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAirWithoutApcs;
 use sp1_hypercube::{
     air::MachineAir,
     ir::{ConstraintCompiler, Shape},
@@ -62,7 +62,7 @@ fn main() {
 #[allow(clippy::print_stdout)]
 #[allow(clippy::uninlined_format_args)]
 fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
-    let machine = RiscvAir::<F>::machine();
+    let machine = RiscvAirWithoutApcs::<F>::machine();
     let chip =
         machine.chips().iter().find(|c| c.name() == chip_name).cloned().unwrap_or_else(|| {
             eprintln!("Error: Chip '{}' not found", chip_name);
@@ -93,18 +93,12 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
         OutputFormat::Lean => {
             let input_mapping = Default::default();
             let (steps, constraints, num_calls) = builder.ast().to_lean_components(&input_mapping);
-            // println!("{:#?}", lean_components);
 
             println!();
             println!("-- Generated Lean code for chip {}Chip", chip_name);
-            // println!("import SP1Foundations");
-            // println!();
-            //
-            // println!("namespace {}Chip", chip_name);
-            // println!();
 
             println!(
-                "def constraints (Main : Vector (Fin BB) {}) : SP1ConstraintList :=",
+                "@[irreducible] def constraints (Main : Vector (Fin KB) {}) : SP1ConstraintList :=",
                 builder.num_cols()
             );
 
@@ -120,7 +114,6 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
             println!("  ]");
 
             println!();
-            // println!("end {}Chip", chip_name);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&builder.ast()).unwrap());
@@ -132,7 +125,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
 #[allow(clippy::uninlined_format_args)]
 fn compile_operation(chip_name: &str, operation_name: &str, output_format: &OutputFormat) {
     // Step 1: Compile the chip normally to register all operations
-    let machine = RiscvAir::<F>::machine();
+    let machine = RiscvAirWithoutApcs::<F>::machine();
     let air = machine
         .chips()
         .iter()
@@ -173,19 +166,10 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
         OutputFormat::Lean => {
             let input_mapping = operation.decl.input_mapping();
             let (steps, constraints, num_calls) = operation.body.to_lean_components(&input_mapping);
-            // println!("{:#?}", lean_components);
 
-            // println!(
-            //     "-- Generated Lean code for operation {} (from chip {})",
-            //     operation_name, chip_name
-            // );
-            // println!("import SP1Foundations");
-            // println!();
-
-            // println!("namespace {}", operation_name);
             println!();
 
-            println!("def constraints");
+            println!("@[irreducible] def constraints");
             for (param_name, _, param) in &operation.decl.input {
                 println!(
                     "  ({} : {})",
@@ -223,7 +207,6 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
             }
 
             println!();
-            // println!("end {}", operation_name);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(operation).unwrap());

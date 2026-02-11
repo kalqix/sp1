@@ -1,17 +1,13 @@
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use std::collections::HashMap;
 
-use crate::{
-    air::ProgramAirBuilder,
-    program::InstructionCols,
-    utils::{next_multiple_of_32, pad_rows_fixed, zeroed_f_vec},
-};
+use crate::{air::ProgramAirBuilder, program::InstructionCols, utils::next_multiple_of_32};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
@@ -53,8 +49,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Program".to_string()
+    fn name(&self) -> &'static str {
+        "Program"
     }
 
     fn preprocessed_width(&self) -> usize {
@@ -68,7 +64,24 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         Some(padded_nb_rows)
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
+        let instrs_len = program.instructions.len();
+        Some(next_multiple_of_32(instrs_len, None))
+    }
+
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        _program: &Self::Program,
+        instrs_len: usize,
+    ) -> Option<usize> {
+        Some(next_multiple_of_32(instrs_len, None))
+    }
+
+    fn generate_preprocessed_trace_into(
+        &self,
+        program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         debug_assert!(
             !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
             "empty program"
@@ -81,7 +94,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             padded_nb_rows.checked_mul(4),
             Some(last_idx) if last_idx < F::ORDER_U64 as usize,
         ));
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_PROGRAM_PREPROCESSED_COLS);
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(
+                buffer_ptr,
+                padded_nb_rows * NUM_PROGRAM_PREPROCESSED_COLS,
+            )
+        };
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
         values
@@ -102,24 +121,22 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                         F::from_canonical_u16(((pc >> 16) & 0xFFFF) as u16),
                         F::from_canonical_u16(((pc >> 32) & 0xFFFF) as u16),
                     ];
-                    let instruction = &program.instructions[idx];
-                    cols.instruction.populate(instruction);
+                    let instruction = program.instructions[idx];
+                    cols.instruction.populate(&instruction);
                 });
             });
-
-        // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, NUM_PROGRAM_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
         // Do nothing since this chip has no dependencies.
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
@@ -235,30 +252,37 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         // protected and will never intersect with the address space for untrusted
         // instructions.
 
-        let mut rows = input
-            .program
-            .instructions
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(i, _)| {
-                let pc = input.program.pc_base + i as u64 * 4;
-                let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
-                let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.multiplicity =
-                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                row
-            })
-            .collect::<Vec<_>>();
+        let padded_nb_rows = <ProgramChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let nb_instructions = input.program.instructions.len();
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_MULT_COLS],
-            input.fixed_log2_rows::<F, _>(self),
+        unsafe {
+            let padding_start = nb_instructions * NUM_PROGRAM_MULT_COLS;
+            let padding_size = (padded_nb_rows - nb_instructions) * NUM_PROGRAM_MULT_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, nb_instructions * NUM_PROGRAM_MULT_COLS)
+        };
+
+        let chunk_size = std::cmp::max(nb_instructions / num_cpus::get(), 1);
+
+        values.chunks_mut(chunk_size * NUM_PROGRAM_MULT_COLS).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_PROGRAM_MULT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < nb_instructions {
+                        let pc = input.program.pc_base + idx as u64 * 4;
+                        let cols: &mut ProgramMultiplicityCols<F> = row.borrow_mut();
+                        cols.multiplicity =
+                            F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                    }
+                });
+            },
         );
-
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -296,11 +320,10 @@ mod tests {
 
     use std::sync::Arc;
 
-    use hashbrown::HashMap;
     use sp1_primitives::SP1Field;
 
     use slop_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{Apcs, ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_hypercube::air::MachineAir;
 
     use crate::program::ProgramChip;
@@ -317,15 +340,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let shard = ExecutionRecord {
-            program: Arc::new(Program {
-                instructions,
-                instructions_encoded: None,
-                pc_start_abs: 0,
-                pc_base: 0,
-                memory_image: HashMap::new(),
-                preprocessed_shape: None,
-                apcs: Apcs::default(),
-            }),
+            program: Arc::new(Program::new(instructions, 0, 0)),
             ..Default::default()
         };
         let chip = ProgramChip::new();

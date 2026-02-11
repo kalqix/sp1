@@ -1,30 +1,23 @@
 use crate::{
     air::SP1Operation,
     memory::MemoryAccessColsU8,
-    operations::{
-        field::field_op::FieldOpCols, AddrAddOperation, AddressSlicePageProtOperation,
-        IsZeroOperationInput,
-    },
+    operations::{field::field_op::FieldOpCols, AddrAddOperation, IsZeroOperationInput},
 };
 
 use crate::{
     air::SP1CoreAirBuilder,
     operations::{field::range::FieldLtCols, IsZeroOperation, SyscallAddrOperation},
-    utils::{
-        limbs_to_words, next_multiple_of_32, pad_rows_fixed, words_to_bytes_le,
-        words_to_bytes_le_vec,
-    },
+    utils::{limbs_to_words, next_multiple_of_32, words_to_bytes_le, words_to_bytes_le_vec},
 };
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, One, Zero};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteRecord, FieldOperation, MemoryRecordEnum, PrecompileEvent},
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
     params::{Limbs, NumLimbs, NumWords},
@@ -33,15 +26,12 @@ use sp1_curves::{
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
-    MachineRecord, Word,
+    Word,
 };
-use sp1_primitives::{
-    consts::{PROT_READ, PROT_WRITE},
-    polynomial::Polynomial,
-};
+use sp1_primitives::polynomial::Polynomial;
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use typenum::Unsigned;
 
@@ -98,17 +88,14 @@ pub struct Uint256MulCols<T> {
     pub output_range_check: FieldLtCols<T, U256Field>,
 
     pub is_real: T,
-
-    pub address_slice_page_prot_access_x: AddressSlicePageProtOperation<T>,
-    pub address_slice_page_prot_access_y: AddressSlicePageProtOperation<T>,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Uint256MulMod".to_string()
+    fn name(&self) -> &'static str {
+        "Uint256MulMod"
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -118,29 +105,48 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         Some(padded_nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows & corresponding records for each chunk of events concurrently.
-        let rows_and_records = input
-            .get_precompile_events(SyscallCode::UINT256_MUL)
-            .chunks(1)
-            .map(|events| {
-                let mut records = ExecutionRecord::default();
-                let mut new_byte_lookup_events = Vec::new();
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let padded_nb_rows = <Uint256MulChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let events = input.get_precompile_events(SyscallCode::UINT256_MUL);
+        let chunk_size = 1;
+        let num_event_rows = events.len();
 
-                let rows = events
-                    .iter()
-                    .map(|(_, event)| {
+        unsafe {
+            let padding_start = num_event_rows * NUM_COLS;
+            let padding_size = (padded_nb_rows - num_event_rows) * NUM_COLS;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let buffer_as_slice =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_COLS) };
+
+        let mut new_byte_lookup_events = Vec::new();
+
+        buffer_as_slice.chunks_exact_mut(chunk_size * NUM_COLS).enumerate().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < events.len() {
+                        let event = &events[idx].1;
                         let event = if let PrecompileEvent::Uint256Mul(event) = event {
                             event
                         } else {
                             unreachable!()
                         };
-                        let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                        let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+
+                        unsafe {
+                            core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_COLS);
+                        }
+
+                        let cols: &mut Uint256MulCols<F> = row.borrow_mut();
 
                         // Decode uint256 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
@@ -202,7 +208,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             &x,
                             &y,
                             &effective_modulus,
-                            // &modulus,
                             FieldOperation::Mul,
                         );
 
@@ -214,66 +219,28 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                                 &effective_modulus,
                             );
                         }
-                        if input.public_values.is_page_protect_active == 1 {
-                            // Populate page protection operations (once per event, not per word)
-                            cols.address_slice_page_prot_access_y.populate(
-                                &mut new_byte_lookup_events,
-                                event.y_ptr,
-                                event.y_ptr + ((WORDS_FIELD_ELEMENT * 2 - 1) * 8) as u64,
-                                event.clk,
-                                PROT_READ,
-                                &event.page_prot_records.read_y_modulus_page_prot_records[0],
-                                &event
-                                    .page_prot_records
-                                    .read_y_modulus_page_prot_records
-                                    .get(1)
-                                    .copied(),
-                                input.public_values.is_page_protect_active,
-                            );
-
-                            cols.address_slice_page_prot_access_x.populate(
-                                &mut new_byte_lookup_events,
-                                event.x_ptr,
-                                event.x_ptr + ((WORDS_FIELD_ELEMENT - 1) * 8) as u64,
-                                event.clk + 1,
-                                PROT_READ | PROT_WRITE,
-                                &event.page_prot_records.write_x_page_prot_records[0],
-                                &event.page_prot_records.write_x_page_prot_records.get(1).copied(),
-                                input.public_values.is_page_protect_active,
-                            );
-                        }
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                records.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, records)
-            })
-            .collect::<Vec<_>>();
-
-        //  Generate the trace rows for each event.
-        let mut rows = Vec::new();
-        for (row, mut record) in rows_and_records {
-            rows.extend(row);
-            output.append(&mut record);
-        }
-
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
-
-                let x = BigUint::zero();
-                let y = BigUint::zero();
-                cols.output.populate(&mut vec![], &x, &y, FieldOperation::Mul);
-
-                row
+                    }
+                })
             },
-            input.fixed_log2_rows::<F, _>(self),
         );
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
+        for row in num_event_rows..padded_nb_rows {
+            let row_start = row * NUM_COLS;
+            let row = unsafe {
+                core::slice::from_raw_parts_mut(
+                    buffer[row_start..].as_mut_ptr() as *mut F,
+                    NUM_COLS,
+                )
+            };
+
+            let cols: &mut Uint256MulCols<F> = row.borrow_mut();
+
+            let x = BigUint::zero();
+            let y = BigUint::zero();
+            cols.output.populate(&mut vec![], &x, &y, FieldOperation::Mul);
+        }
+
+        output.add_byte_lookup_events(new_byte_lookup_events);
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -425,29 +392,6 @@ where
             y_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
-        );
-
-        // Assert that is_real is a boolean.
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into(),
-            &y_ptr.map(Into::into),
-            &local.y_and_modulus_addrs[local.y_and_modulus_addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ),
-            &local.address_slice_page_prot_access_y,
-            local.is_real.into(),
-        );
-
-        AddressSlicePageProtOperation::<AB::F>::eval(
-            builder,
-            local.clk_high.into(),
-            local.clk_low.into() + AB::Expr::one(),
-            &x_ptr.map(Into::into),
-            &local.x_addrs[local.x_addrs.len() - 1].value.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_READ | PROT_WRITE),
-            &local.address_slice_page_prot_access_x,
-            local.is_real.into(),
         );
     }
 }

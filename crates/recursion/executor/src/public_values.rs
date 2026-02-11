@@ -1,9 +1,14 @@
 use crate::DIGEST_SIZE;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::utils::indices_arr;
+use slop_algebra::PrimeField32;
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::{air::POSEIDON_NUM_WORDS, septic_digest::SepticDigest, PROOF_MAX_NUM_PVS};
+use sp1_hypercube::{
+    air::{timestamp_from_limbs, ShardRange, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
+    indices_arr,
+    septic_digest::SepticDigest,
+    PROOF_MAX_NUM_PVS,
+};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
@@ -45,6 +50,12 @@ pub struct RecursionPublicValues<T> {
 
     /// The hash of all deferred proofs that have been witnessed in the VM.
     pub deferred_proofs_digest: [T; POSEIDON_NUM_WORDS],
+
+    /// The deferred proof index before this shard.
+    pub prev_deferred_proof: T,
+
+    /// The deferred proof index after this shard.
+    pub deferred_proof: T,
 
     /// The start pc of shards being proven.
     pub pc_start: [T; 3],
@@ -128,8 +139,8 @@ pub struct RecursionPublicValues<T> {
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
 
-    /// Whether page protect access is checked.
-    pub is_page_protect_active: T,
+    /// The nonce used for this proof.
+    pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
 }
 
 /// Converts the public values to an array of elements.
@@ -140,6 +151,66 @@ impl<F: Copy> RecursionPublicValues<F> {
             let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
             *pv = *self;
             ret
+        }
+    }
+
+    pub fn range(&self) -> ShardRange
+    where
+        F: PrimeField32,
+    {
+        let initial_timestamp = timestamp_from_limbs(&self.initial_timestamp);
+        let last_timestamp = timestamp_from_limbs(&self.last_timestamp);
+        let previous_init_addr = self
+            .previous_init_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let last_init_addr = self
+            .last_init_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let previous_finalize_addr = self
+            .previous_finalize_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let last_finalize_addr = self
+            .last_finalize_addr
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let previous_init_page_idx = self
+            .previous_init_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let last_init_page_idx = self
+            .last_init_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let previous_finalize_page_idx = self
+            .previous_finalize_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+        let last_finalize_page_idx = self
+            .last_finalize_page_idx
+            .iter()
+            .rev()
+            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
+
+        let prev_deferred_proof = self.prev_deferred_proof.as_canonical_u64();
+        let deferred_proof = self.deferred_proof.as_canonical_u64();
+
+        ShardRange {
+            timestamp_range: (initial_timestamp, last_timestamp),
+            initialized_address_range: (previous_init_addr, last_init_addr),
+            finalized_address_range: (previous_finalize_addr, last_finalize_addr),
+            initialized_page_index_range: (previous_init_page_idx, last_init_page_idx),
+            finalized_page_index_range: (previous_finalize_page_idx, last_finalize_page_idx),
+            deferred_proof_range: (prev_deferred_proof, deferred_proof),
         }
     }
 }

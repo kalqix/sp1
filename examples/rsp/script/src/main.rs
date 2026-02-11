@@ -1,22 +1,20 @@
 // use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 use powdr_autoprecompiles::PgoConfig;
-use sp1_build::Elf;
 use sp1_build::include_elf;
-use sp1_core_executor::{Executor, Program, SP1Context, SP1CoreOpts};
-use sp1_core_machine::autoprecompiles::CompiledProgram;
+use sp1_build::Elf;
+use sp1_core_executor::Program;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::utils::setup_logger;
-use sp1_primitives::io::SP1PublicValues;
+use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
 use std::sync::Arc;
 
-use alloy_primitives::B256;
 use clap::{Parser, Subcommand};
-use rsp_client_executor::{CHAIN_ID_ETH_MAINNET, io::ClientExecutorInput};
+use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use sp1_sdk::ProveRequest;
 use sp1_sdk::Prover;
-use sp1_sdk::ProverClient;
 use sp1_sdk::ProvingKey;
 use std::path::PathBuf;
 
@@ -54,44 +52,33 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 
 #[tokio::main]
 async fn main() {
-    setup_logger();
+    sp1_sdk::utils::setup_logger();
     let args = Args::parse();
 
     // Load the input from the cache.
     let block = 20526624; // ~2.4M Gas
-    // let block = 21740164; // ~15M Gas
-    // let block = 21740137; // ~29M Gas
+                          // let block = 21740164; // ~15M Gas
+                          // let block = 21740137; // ~29M Gas
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, block);
     let mut stdin = SP1Stdin::default();
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
-    let opts = SP1CoreOpts::default();
     let program = Arc::new(Program::from(&ELF).unwrap());
 
     match args.command {
         Commands::Execute => {
-            let mut runtime = Executor::with_context(program.clone(), opts, SP1Context::default());
-            runtime.maybe_setup_profiler(&ELF);
+            // Create a `MockProver` because we only need to execute. Use no apcs.
+            let client = sp1_sdk::MockProver::new().await;
 
-            runtime.write_vecs(&stdin.buffer);
+            let (_, report) = client.execute(ELF, stdin.clone()).await.unwrap();
+            println!("executed program with {} cycles", report.total_instruction_count());
 
-            let now = std::time::Instant::now();
-            runtime.run_fast().unwrap();
-
-            println!("total elapsed: {:?}", now.elapsed());
-
-            println!("Full execution report:\n{:?}", runtime.report);
-            println!("Cycles: {:?}", runtime.report.total_instruction_count());
-
-            let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-            let block_hash = public_values.read::<B256>();
-            println!("success: block_hash={block_hash}");
+            println!("Report {:?}", report);
         }
         Commands::Powdr => {
             println!("[powdr] Getting execution profile...");
-            let execution_profile = execution_profile_from_program(program, opts, Some(stdin));
+            let execution_profile = execution_profile_from_program(program, stdin);
 
             println!("[powdr] Generating APCs...");
             let path = std::path::Path::new("apc_candidates");
@@ -104,8 +91,7 @@ async fn main() {
         Commands::Prove { apcs } => {
             let apcs = if apcs > 0 {
                 println!("[powdr] Getting execution profile...");
-                let execution_profile =
-                    execution_profile_from_program(program, opts, Some(stdin.clone()));
+                let execution_profile = execution_profile_from_program(program, stdin.clone());
 
                 println!("[powdr] Generating APCs...");
                 let path = std::path::Path::new("apc_candidates");
@@ -119,13 +105,17 @@ async fn main() {
                     .apcs_and_stats
                     .into_iter()
                     .map(|a| a.into_parts())
-                    .map(|(apc, _)| Arc::new(apc))
+                    .map(|(apc, _, _)| apc)
                     .collect()
             } else {
                 Vec::new()
             };
 
-            let client = ProverClient::from_env_with_apcs(apcs).await;
+            let machine = RiscvAir::machine_with_apcs(apcs);
+
+            let client = ProverClient::from_env_with_machine(machine).await;
+
+            println!("Starting setup...");
             let pk = client.setup(ELF).await.expect("setup failed");
 
             println!("Starting proving...");

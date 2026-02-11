@@ -16,7 +16,7 @@ use powdr_autoprecompiles::{
     InstructionHandler, PgoConfig,
 };
 use rand::{distributions::Distribution, rngs::StdRng, Rng, SeedableRng};
-use sp1_core_executor::{Program, SP1CoreOpts};
+use sp1_core_executor::Program;
 
 const GUEST_FIBONACCI: &str = "../../test-artifacts/programs/fibonacci";
 const GUEST_KECCAK256_SOFTWARE: &str = "../../test-artifacts/programs/keccak256-software";
@@ -26,16 +26,15 @@ const GUEST_KECCAK256_SOFTWARE_CASE_MAX_LEN: usize = 10; // Max number of bytes 
 const APC: u64 = 10;
 const APC_SKIP: u64 = 0;
 
-fn test_execution_profile(guest_path: &str, stdin: Option<SP1Stdin>) {
+fn test_execution_profile(guest_path: &str, stdin: SP1Stdin) {
     setup_logger();
 
     let elf = build_elf(guest_path);
-    let sp1_opts = SP1CoreOpts::default();
 
     let program = Arc::new(Program::from(&elf).unwrap());
     let sp1_program = Sp1Program::from(program.clone());
 
-    let execution_profile = execution_profile_from_program(program, sp1_opts, stdin);
+    let execution_profile = execution_profile_from_program(program, stdin);
 
     // Check that all executed pc are within the program's range
     let pc_min = execution_profile.keys().min().unwrap();
@@ -76,12 +75,12 @@ fn keccak256_software_stdin() -> SP1Stdin {
 
 #[test]
 fn test_execution_profile_keccak256_software() {
-    test_execution_profile(GUEST_KECCAK256_SOFTWARE, Some(keccak256_software_stdin()));
+    test_execution_profile(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin());
 }
 
 #[test]
 fn test_execution_profile_fibonacci() {
-    test_execution_profile(GUEST_FIBONACCI, None);
+    test_execution_profile(GUEST_FIBONACCI, SP1Stdin::default());
 }
 
 #[test]
@@ -96,11 +95,8 @@ fn test_compile_program_keccak256_software() {
 fn test_compile_program_keccak256_software_cell_pgo() {
     setup_logger();
 
-    let execution_profile = execution_profile_from_guest(
-        GUEST_KECCAK256_SOFTWARE,
-        SP1CoreOpts::default(),
-        Some(keccak256_software_stdin()),
-    );
+    let execution_profile =
+        execution_profile_from_guest(GUEST_KECCAK256_SOFTWARE, keccak256_software_stdin());
 
     let path = std::path::Path::new("apc_candidates");
     let config = sp1_powdr_config(APC, APC_SKIP).with_apc_candidates_dir(path);
@@ -121,18 +117,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 15579,
-            constraints: 10823,
-            bus_interactions: 7673,
+            main_columns: 15075,
+            constraints: 9489,
+            bus_interactions: 7235,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 3163,
-            constraints: 542,
-            bus_interactions: 2014,
+            main_columns: 3098,
+            constraints: 491,
+            bus_interactions: 1996,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
@@ -154,7 +150,7 @@ fn test_collect_basic_blocks_keccak256_software() {
     test_collect_basic_blocks(
         GUEST_KECCAK256_SOFTWARE,
         expect![[r#"
-            1963
+            2037
         "#]],
     );
 }
@@ -166,7 +162,7 @@ fn test_collect_basic_blocks_fibonacci() {
     test_collect_basic_blocks(
         GUEST_FIBONACCI,
         expect![[r#"
-            1724
+            1858
         "#]],
     );
 }

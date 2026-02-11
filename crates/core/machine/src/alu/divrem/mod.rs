@@ -1,12 +1,12 @@
 use core::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, MaybeUninit},
 };
 use std::num::Wrapping;
 
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     get_msb, get_quotient_and_remainder, is_signed_64bit_operation, is_signed_word_operation,
@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
@@ -30,7 +30,7 @@ use crate::{
         LtOperationUnsignedInput, MulOperation, MulOperationInput, U16MSBOperation,
         U16MSBOperationInput,
     },
-    utils::{next_multiple_of_32, pad_rows_fixed},
+    utils::next_multiple_of_32,
 };
 
 /// The number of main trace columns for `DivRemChip`.
@@ -51,7 +51,7 @@ pub struct DivRemCols<T> {
     pub state: CPUState<T>,
 
     /// The adapter to read program and register information.
-    pub adapter: ALUTypeReader<T>,
+    pub adapter: RTypeReader<T>,
 
     /// The output operand.
     pub a: Word<T>,
@@ -197,8 +197,8 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "DivRem".to_string()
+    fn name(&self) -> &'static str {
+        "DivRem"
     }
 
     fn column_names(&self) -> Vec<String> {
@@ -211,17 +211,24 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
         Some(nb_rows)
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+        buffer: &mut [MaybeUninit<F>],
+    ) {
         // Generate the trace rows for each event.
-        let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
+        let padded_nb_rows = <DivRemChip as MachineAir<F>>::num_rows(self, input).unwrap();
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values = unsafe {
+            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_DIVREM_COLS)
+        };
+
         let divrem_events = input.divrem_events.clone();
-        for event_record in divrem_events.iter() {
+        for (row_idx, event_record) in divrem_events.iter().enumerate() {
             let event = event_record.0;
-            let alu_record = event_record.1;
+            let r_record = event_record.1;
 
             assert!(
                 event.opcode == Opcode::DIVU
@@ -234,13 +241,20 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                     || event.opcode == Opcode::REMUW
             );
 
-            let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
+            let row_start = row_idx * NUM_DIVREM_COLS;
+            let row = &mut values[row_start..row_start + NUM_DIVREM_COLS];
+
+            // Zero-initialize the row here.
+            unsafe {
+                core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_DIVREM_COLS);
+            }
+
+            let cols: &mut DivRemCols<F> = row.borrow_mut();
 
             {
                 let mut blu = vec![];
                 cols.state.populate(&mut blu, event.clk, event.pc);
-                cols.adapter.populate(&mut blu, alu_record);
+                cols.adapter.populate(&mut blu, r_record);
                 output.add_byte_lookup_events(blu);
             }
 
@@ -313,18 +327,18 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                     cols.c_neg = F::from_canonical_u8(get_msb(event.c));
                     cols.is_overflow =
                         F::from_bool(event.b as i64 == i64::MIN && event.c as i64 == -1);
-                    cols.abs_remainder = Word::from((remainder as i64).abs() as u64);
-                    cols.abs_c = Word::from((event.c as i64).abs() as u64);
-                    cols.max_abs_c_or_1 = Word::from(u64::max(1, (event.c as i64).abs() as u64));
+                    cols.abs_remainder = Word::from((remainder as i64).unsigned_abs());
+                    cols.abs_c = Word::from((event.c as i64).unsigned_abs());
+                    cols.max_abs_c_or_1 = Word::from(u64::max(1, (event.c as i64).unsigned_abs()));
                 } else if is_signed_word_operation(event.opcode) {
                     cols.rem_neg = F::from_canonical_u8(get_msb((remainder as i32) as i64 as u64));
                     cols.b_neg = F::from_canonical_u8(get_msb((event.b as i32) as i64 as u64));
                     cols.c_neg = F::from_canonical_u8(get_msb((event.c as i32) as i64 as u64));
                     cols.is_overflow =
                         F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
-                    cols.abs_remainder = Word::from((remainder as i64).abs() as u64);
-                    cols.abs_c = Word::from((c as i64).abs() as u64);
-                    cols.max_abs_c_or_1 = Word::from(u64::max(1, (c as i64).abs() as u64));
+                    cols.abs_remainder = Word::from((remainder as i64).unsigned_abs());
+                    cols.abs_c = Word::from((c as i64).unsigned_abs());
+                    cols.max_abs_c_or_1 = Word::from(u64::max(1, (c as i64).unsigned_abs()));
                 } else if is_unsigned_word_operation(event.opcode) {
                     cols.abs_remainder = cols.remainder_comp;
                     cols.abs_c = Word::from(event.c as u32);
@@ -506,22 +520,7 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                     output.add_u16_range_checks(&c_times_quotient_u16);
                 }
             }
-
-            rows.push(row);
         }
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_DIVREM_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        assert_eq!(rows.len(), <DivRemChip as MachineAir<F>>::num_rows(self, input).unwrap());
-
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
@@ -540,12 +539,12 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
 
             row
         };
-        debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for i in input.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
-            trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
-        }
 
-        trace
+        debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
+        for row_idx in input.divrem_events.len()..padded_nb_rows {
+            let row_start = row_idx * NUM_DIVREM_COLS;
+            values[row_start..row_start + NUM_DIVREM_COLS].copy_from_slice(&padded_row_template);
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -1231,7 +1230,7 @@ where
             );
 
             // Constrain the program and register reads.
-            let alu_reader_input = ALUTypeReaderInput::<AB, AB::Expr>::new(
+            let r_reader_input = RTypeReaderInput::<AB, AB::Expr>::new(
                 local.state.clk_high::<AB>(),
                 local.state.clk_low::<AB>(),
                 local.state.pc,
@@ -1241,7 +1240,7 @@ where
                 local.adapter,
                 local.is_real.into(),
             );
-            ALUTypeReader::<AB::F>::eval(builder, alu_reader_input);
+            <RTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, r_reader_input);
         }
     }
 }
@@ -1264,7 +1263,7 @@ where
 //     };
 //     use sp1_hypercube::{
 //         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         koala_bear_poseidon2::SP1CoreJaggedConfig,
+//         koala_bear_poseidon2::SP1InnerPcs,
 //         Chip, CpuProver, MachineProver, StarkMachine, Val,
 //     };
 
@@ -1336,7 +1335,7 @@ where
 
 //         // Run setup.
 //         let air = DivRemChip::default();
-//         let config = SP1CoreJaggedConfig::new();
+//         let config = SP1InnerPcs::new();
 //         let chip = Chip::new(air);
 //         let (pk, vk) = setup_test_machine(StarkMachine::new(
 //             config.clone(),
@@ -1349,7 +1348,7 @@ where
 //         let air = DivRemChip::default();
 //         let chip: Chip<SP1Field, DivRemChip> = Chip::new(air);
 //         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<SP1CoreJaggedConfig, DivRemChip>(vec![shard], machine, pk,
+//         run_test_machine::<SP1InnerPcs, DivRemChip>(vec![shard], machine, pk,
 // vk).unwrap();     }
 
 //     #[test]
@@ -1389,13 +1388,13 @@ where
 //                 let program = Program::new(instructions, 0, 0);
 //                 let stdin = SP1Stdin::new();
 
-//                 type P = CpuProver<SP1CoreJaggedConfig, RiscvAir<SP1Field>>;
+//                 type P = CpuProver<SP1InnerPcs, RiscvAir<SP1Field>>;
 
 //                 let malicious_trace_pv_generator = move |prover: &P,
 //                                                          record: &mut ExecutionRecord|
 //                       -> Vec<(
 //                     String,
-//                     RowMajorMatrix<Val<SP1CoreJaggedConfig>>,
+//                     RowMajorMatrix<Val<SP1InnerPcs>>,
 //                 )> {
 //                     let mut malicious_record = record.clone();
 //                     malicious_record.cpu_events[0].a = op_a;

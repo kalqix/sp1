@@ -1,0 +1,370 @@
+use derive_where::derive_where;
+use enum_map::{EnumArray, EnumMap};
+use hashbrown::HashMap;
+use itertools::Itertools;
+use powdr_autoprecompiles::execution::ApcCall;
+
+use crate::{
+    vm::memory::CompressedMemory, ApcCost, Instruction, Opcode, RiscvAirId, ShardingThreshold,
+    SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+};
+use std::{
+    collections::BTreeMap,
+    ops::{Index, IndexMut},
+    str::FromStr,
+};
+
+/// The maximum trace area from padding with next multiple of 32.
+/// The correctness of this value is checked in the test `test_maximum_padding`.
+pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
+
+/// The maximum trace area from a single cycle.
+/// The correctness of this value is checked in the test `test_maximum_cycle`.
+pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 18;
+
+pub struct ShapeChecker {
+    program_len: u64,
+    trace_area: u64,
+    max_height: u64,
+    pub(crate) syscall_sent: bool,
+    // The start of the most recent shard according to the shape checking logic.
+    shard_start_clk: u64,
+    /// The maximum trace size and table height to allow.
+    sharding_threshold: ShardingThreshold,
+    /// The heights (number) of each air id seen.
+    heights: EventCounts<RiscvAirId>,
+    /// The costs (trace area) of  of each air id seen.
+    costs: EventCosts,
+    // The number of local memory accesses during this cycle.
+    pub(crate) local_mem_counts: u64,
+    /// Whether the last read was external, ie: it was read from a deferred precompile.
+    is_last_read_external: CompressedMemory,
+}
+
+/// The number of events/instructions executed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive_where(Default)]
+pub struct EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// The number of core instructions executed.
+    pub core: EnumMap<T, u64>,
+    /// The number of APCs executed, indexed by contiguous APC id.
+    pub apc: BTreeMap<usize, u64>,
+}
+
+impl<T> EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// Compute the maximum height of all airs
+    fn max(&self) -> u64 {
+        *self.core.values().chain(self.apc.values()).max().unwrap()
+    }
+}
+
+impl<T> Index<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    type Output = u64;
+
+    fn index(&self, index: T) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl<T> IndexMut<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+impl Index<RiscvAirId> for EventCosts {
+    type Output = u64;
+
+    fn index(&self, index: RiscvAirId) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl IndexMut<RiscvAirId> for EventCosts {
+    fn index_mut(&mut self, index: RiscvAirId) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+/// The costs of the program.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct EventCosts {
+    /// The costs of the core instructions, mostly calculated as the number of columns but
+    /// different for syscall instructions.
+    pub core: EnumMap<RiscvAirId, u64>,
+    /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
+    pub apc: Vec<ApcCost>,
+}
+
+#[derive(Debug)]
+pub struct ShapeCheckerSnapshot {
+    /// The heights (number) of each core air id seen.
+    core_heights: EnumMap<RiscvAirId, u64>,
+}
+
+impl ShapeChecker {
+    pub fn new(
+        program_len: u64,
+        apc_costs: Vec<ApcCost>,
+        shard_start_clk: u64,
+        elem_threshold: ShardingThreshold,
+    ) -> Self {
+        let core_costs: HashMap<String, usize> =
+            serde_json::from_str(include_str!("../artifacts/rv64im_costs.json")).unwrap();
+        let costs = EventCosts {
+            core: core_costs
+                .into_iter()
+                .map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64))
+                .collect(),
+            apc: apc_costs,
+        };
+
+        let preprocessed_trace_area = program_len.next_multiple_of(32) * costs[RiscvAirId::Program]
+            + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
+            + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
+
+        Self {
+            program_len,
+            trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
+            max_height: 0,
+            syscall_sent: false,
+            shard_start_clk,
+            heights: EventCounts::default(),
+            sharding_threshold: elem_threshold,
+            costs,
+            // Assume that all registers will be touched in each shard.
+            local_mem_counts: 32,
+            is_last_read_external: CompressedMemory::new(),
+        }
+    }
+
+    pub fn snapshot(&self) -> ShapeCheckerSnapshot {
+        ShapeCheckerSnapshot { core_heights: self.heights.core }
+    }
+
+    #[cfg(test)]
+    pub fn count_apc_events(&self) -> u64 {
+        self.heights.apc.values().sum::<u64>()
+    }
+
+    pub fn apply_apc_calls(&mut self, calls: &[ApcCall<ShapeCheckerSnapshot>]) {
+        if calls.is_empty() {
+            return;
+        }
+        for call in calls {
+            self.apply_apc_call(call);
+        }
+        // Recompute the max height
+        self.max_height = self.heights.max();
+    }
+
+    #[inline]
+    pub fn handle_mem_event(&mut self, addr: u64, clk: u64) {
+        // Round down to the nearest 8-byte aligned address.
+        let addr = addr & !0b111;
+
+        let is_external = self.syscall_sent;
+        let is_first_read_this_shard = self.shard_start_clk > clk;
+        let is_last_read_external = self.is_last_read_external.insert(addr, is_external);
+
+        self.local_mem_counts +=
+            (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+    }
+
+    #[inline]
+    pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode) {
+        if let Some(syscall_air_id) = syscall_code.as_air_id() {
+            let rows_per_event = syscall_air_id.rows_per_event() as u64;
+
+            self.heights[syscall_air_id] += rows_per_event;
+
+            self.trace_area += rows_per_event * self.costs[syscall_air_id];
+            self.max_height = self.max_height.max(self.heights[syscall_air_id]);
+
+            // Currently, all precompiles with `rows_per_event > 1` have the respective control
+            // chip.
+            if rows_per_event > 1 {
+                self.trace_area += self.costs[syscall_air_id
+                    .control_air_id()
+                    .expect("Controls AIRs are found for each precompile with rows_per_event > 1")];
+            }
+        }
+    }
+
+    #[inline]
+    pub fn syscall_sent(&mut self) {
+        self.syscall_sent = true;
+    }
+
+    /// Set the start clock of the shard.
+    #[inline]
+    pub fn reset(&mut self, clk: u64) {
+        *self = Self::new(
+            self.program_len,
+            std::mem::take(&mut self.costs.apc),
+            clk,
+            self.sharding_threshold,
+        );
+    }
+
+    /// Check if the shard limit has been reached.
+    ///
+    /// # Returns
+    ///
+    /// Whether the shard limit has been reached.
+    #[inline]
+    pub fn check_shard_limit(&self) -> bool {
+        self.trace_area >= self.sharding_threshold.element_threshold
+            || self.max_height >= self.sharding_threshold.height_threshold
+    }
+
+    /// Increment the trace area for the given instruction.
+    ///
+    /// # Arguments
+    ///
+    /// * `instruction`: The instruction that is being handled.
+    /// * `syscall_sent`: Whether a syscall was sent during this cycle.
+    /// * `bump_clk_high`: Whether the clk's top 24 bits incremented during this cycle.
+    /// * `is_load_x0`: Whether the instruction is a load of x0, if so the riscv air id is `LoadX0`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the shard limit has been reached.
+    #[allow(clippy::fn_params_excessive_bools)]
+    pub fn handle_instruction(
+        &mut self,
+        instruction: &Instruction,
+        bump_clk_high: bool,
+        is_load_x0: bool,
+        needs_state_bump: bool,
+    ) {
+        let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
+        let syscall_sent = std::mem::take(&mut self.syscall_sent);
+
+        let riscv_air_id = if is_load_x0 {
+            RiscvAirId::LoadX0
+        } else {
+            riscv_air_id_from_opcode(instruction.opcode)
+        };
+
+        // Increment the height and trace area for the riscv air id
+        self.heights[riscv_air_id] += 1;
+        self.max_height = self.max_height.max(self.heights[riscv_air_id]);
+        self.trace_area += self.costs[riscv_air_id];
+
+        // Increment for each touched address in memory local
+        self.trace_area += touched_addresses * self.costs[RiscvAirId::MemoryLocal];
+        self.heights[RiscvAirId::MemoryLocal] += touched_addresses;
+        self.max_height = self.max_height.max(self.heights[RiscvAirId::MemoryLocal]);
+
+        // Increment for all the global interactions
+        self.trace_area +=
+            self.costs[RiscvAirId::Global] * (2 * touched_addresses + syscall_sent as u64);
+        self.heights[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
+        self.max_height = self.max_height.max(self.heights[RiscvAirId::Global]);
+
+        // Increment by if bump_clk_high is needed
+        if bump_clk_high {
+            let bump_clk_high_num_events = 32;
+            self.trace_area += bump_clk_high_num_events * self.costs[RiscvAirId::MemoryBump];
+            self.heights[RiscvAirId::MemoryBump] += bump_clk_high_num_events;
+            self.max_height = self.max_height.max(self.heights[RiscvAirId::MemoryBump]);
+        }
+
+        // Increment if this cycle induced a state bump.
+        if needs_state_bump {
+            self.trace_area += self.costs[RiscvAirId::StateBump];
+            self.heights[RiscvAirId::StateBump] += 1;
+            self.max_height = self.max_height.max(self.heights[RiscvAirId::StateBump]);
+        }
+
+        if syscall_sent {
+            // Increment if the syscall is retained
+            self.trace_area += self.costs[RiscvAirId::SyscallCore];
+            self.heights[RiscvAirId::SyscallCore] += 1;
+            self.max_height = self.max_height.max(self.heights[RiscvAirId::SyscallCore]);
+        }
+    }
+
+    pub(crate) fn apply_apc_call(&mut self, call: &ApcCall<ShapeCheckerSnapshot>) {
+        // For each core air, reduce the height by the amount it increased by during the call
+        for ((air_id, l), (from, to)) in self
+            .heights
+            .core
+            .iter_mut()
+            .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
+        {
+            let rows_to_remove = to - from;
+            // Reduce the height
+            *l -= rows_to_remove;
+            // Reduce the trace area
+            self.trace_area -= rows_to_remove * self.costs[air_id];
+        }
+
+        // Increase the height of this apc by 1
+        *self.heights.apc.entry(call.apc_id).or_default() += 1;
+        // Increate the trace area by a row whose width is the cost of the apc
+        self.trace_area += self.costs.apc[call.apc_id];
+    }
+}
+
+#[inline]
+pub fn riscv_air_id_from_opcode(opcode: Opcode) -> RiscvAirId {
+    match opcode {
+        Opcode::ADD => RiscvAirId::Add,
+        Opcode::ADDI => RiscvAirId::Addi,
+        Opcode::ADDW => RiscvAirId::Addw,
+        Opcode::SUB => RiscvAirId::Sub,
+        Opcode::SUBW => RiscvAirId::Subw,
+        Opcode::XOR | Opcode::OR | Opcode::AND => RiscvAirId::Bitwise,
+        Opcode::SLT | Opcode::SLTU => RiscvAirId::Lt,
+        Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU | Opcode::MULW => {
+            RiscvAirId::Mul
+        }
+        Opcode::DIV
+        | Opcode::DIVU
+        | Opcode::REM
+        | Opcode::REMU
+        | Opcode::DIVW
+        | Opcode::DIVUW
+        | Opcode::REMW
+        | Opcode::REMUW => RiscvAirId::DivRem,
+        Opcode::SLL | Opcode::SLLW => RiscvAirId::ShiftLeft,
+        Opcode::SRLW | Opcode::SRAW | Opcode::SRL | Opcode::SRA => RiscvAirId::ShiftRight,
+        Opcode::LB | Opcode::LBU => RiscvAirId::LoadByte,
+        Opcode::LH | Opcode::LHU => RiscvAirId::LoadHalf,
+        Opcode::LW | Opcode::LWU => RiscvAirId::LoadWord,
+        Opcode::LD => RiscvAirId::LoadDouble,
+        Opcode::SB => RiscvAirId::StoreByte,
+        Opcode::SH => RiscvAirId::StoreHalf,
+        Opcode::SW => RiscvAirId::StoreWord,
+        Opcode::SD => RiscvAirId::StoreDouble,
+        Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+            RiscvAirId::Branch
+        }
+        Opcode::AUIPC | Opcode::LUI => RiscvAirId::UType,
+        Opcode::JAL => RiscvAirId::Jal,
+        Opcode::JALR => RiscvAirId::Jalr,
+        Opcode::ECALL => RiscvAirId::SyscallInstrs,
+        _ => {
+            eprintln!("Unknown opcode: {opcode:?}");
+            unreachable!()
+        }
+    }
+}

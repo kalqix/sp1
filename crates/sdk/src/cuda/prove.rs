@@ -12,6 +12,7 @@ use sp1_cuda::CudaClientError;
 use super::CudaProver;
 use crate::{
     prover::{BaseProveRequest, ProveRequest},
+    utils::proof_mode,
     SP1ProofWithPublicValues,
 };
 
@@ -35,8 +36,11 @@ impl<'a> IntoFuture for CudaProveRequest<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         let BaseProveRequest { prover, pk, stdin, mode, mut context_builder } = self.base;
-        let context = context_builder.build();
 
-        Box::pin(prover.prove_impl(pk, stdin, context, mode))
+        let context = context_builder.build();
+        Box::pin(async move {
+            tracing::info!(mode = ?mode, "starting proof generation");
+            Ok(prover.prover.prove_with_mode(pk, stdin, context, proof_mode(mode)).await?.into())
+        })
     }
 }

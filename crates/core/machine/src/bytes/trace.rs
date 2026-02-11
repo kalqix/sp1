@@ -1,15 +1,14 @@
-use std::borrow::BorrowMut;
+use std::mem::MaybeUninit;
 
 use slop_algebra::PrimeField32;
-use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program};
 use sp1_hypercube::air::{MachineAir, PV_DIGEST_NUM_WORDS};
 use struct_reflection::StructReflectionHelper;
 
-use crate::utils::zeroed_f_vec;
+use crate::bytes::columns::BytePreprocessedCols;
 
 use super::{
-    columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
+    columns::{NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
 };
 
@@ -20,21 +19,32 @@ impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Byte".to_string()
+    fn name(&self) -> &'static str {
+        "Byte"
     }
 
     fn num_rows(&self, _: &Self::Record) -> Option<usize> {
-        Some(1 << 16)
+        Some(NUM_ROWS)
     }
 
     fn preprocessed_width(&self) -> usize {
         NUM_BYTE_PREPROCESSED_COLS
     }
 
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let trace = Self::trace();
-        Some(trace)
+    fn preprocessed_num_rows(&self, _program: &Self::Program) -> Option<usize> {
+        Some(NUM_ROWS)
+    }
+
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        _program: &Self::Program,
+        _instrs_len: usize,
+    ) -> Option<usize> {
+        Some(NUM_ROWS)
+    }
+
+    fn generate_preprocessed_trace_into(&self, _: &Self::Program, buffer: &mut [MaybeUninit<F>]) {
+        Self::trace(buffer)
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
@@ -55,13 +65,18 @@ impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
         }
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut trace =
-            RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, NUM_BYTE_MULT_COLS * NUM_ROWS) };
+        unsafe {
+            core::ptr::write_bytes(values.as_mut_ptr(), 0, NUM_BYTE_MULT_COLS * NUM_ROWS);
+        }
 
         for (lookup, mult) in input.byte_lookups.iter() {
             if lookup.opcode == ByteOpcode::Range {
@@ -70,11 +85,9 @@ impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
             let row = (((lookup.b as u16) << 8) + lookup.c as u16) as usize;
             let index = lookup.opcode as usize;
 
-            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.multiplicities[index] += F::from_canonical_usize((*mult).try_into().unwrap());
+            values[row * NUM_BYTE_MULT_COLS + index] =
+                F::from_canonical_usize((*mult).try_into().unwrap());
         }
-
-        trace
     }
 
     fn included(&self, _shard: &Self::Record) -> bool {

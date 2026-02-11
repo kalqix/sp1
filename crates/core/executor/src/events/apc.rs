@@ -28,7 +28,7 @@ pub struct ApcEvents {
     #[serde(serialize_with = "serialize_hashmap_as_vec")]
     #[serde(deserialize_with = "deserialize_hashmap_as_vec")]
     /// The apc events mapped by apc id.
-    pub events: HashMap<u64, ApcEventsForId>,
+    pub events: HashMap<usize, ApcEventsForId>,
 }
 
 impl ApcEvents {
@@ -42,7 +42,7 @@ impl ApcEvents {
 
     #[inline]
     /// Add a precompile event for a given apc id.
-    pub fn add_event(&mut self, apc_id: u64, mut event: ExecutionRecord) {
+    pub fn add_event(&mut self, apc_id: usize, mut event: ExecutionRecord) {
         let entry = self.events.entry(apc_id).or_default();
         entry.count += 1;
         entry.record.append(&mut event);
@@ -65,7 +65,7 @@ impl ApcEvents {
     /// Get all the precompile events for a given apc id.
     #[inline]
     #[must_use]
-    pub fn get_events(&self, apc_id: u64) -> Option<&ApcEventsForId> {
+    pub fn get_events(&self, apc_id: usize) -> Option<&ApcEventsForId> {
         self.events.get(&apc_id)
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "sp1-hypercube"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "The SP1 Hypercube proof system"
 readme = "../../README.md"
 version = { workspace = true }
 edition = { workspace = true }
@@ -16,6 +16,7 @@ sp1-primitives = { workspace = true }
 
 # slop
 slop-algebra = { workspace = true }
+slop-bn254 ={ workspace = true }
 slop-air = { workspace = true }
 slop-alloc = { workspace = true }
 slop-basefold = { workspace = true }
@@ -29,39 +30,40 @@ slop-challenger = { workspace = true }
 slop-matrix = { workspace = true }
 slop-koala-bear = { workspace = true }
 slop-symmetric = { workspace = true }
+slop-stacked = { workspace = true }
 slop-merkle-tree = { workspace = true }
+slop-whir = { workspace = true }
 slop-futures = { workspace = true }
-
-# p3
+slop-poseidon2 = { workspace = true }
 slop-uni-stark = { workspace = true }
 
 # misc
 futures = { workspace = true }
 serde = { workspace = true, features = ["derive", "rc"] }
-hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
+hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 itertools = { workspace = true }
 tracing = { workspace = true }
-rayon-scan = "0.1.1"
-rayon = "1.5.0"
-thiserror = "1.0"
+rayon-scan = { workspace = true }
+rayon = { workspace = true }
+thiserror = { workspace = true }
 derive-where = { workspace = true }
 struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
+thousands = { workspace = true }
 deepsize2 = { workspace = true }
 
-arrayref = "0.3.8"
-num-bigint = { version = "0.4.3", default-features = false }
-
-strum = { workspace = true }
-strum_macros = { workspace = true }
-num-traits = "0.2.19"
-num_cpus = "1.16.0"
+arrayref = { workspace = true }
+num-bigint = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
+num-traits = { workspace = true }
+num_cpus = { workspace = true }
 
 # async
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true }
-rand = "0.8.4"
+rand = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 test-proof = []

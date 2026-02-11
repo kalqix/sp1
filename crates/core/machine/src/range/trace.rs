@@ -1,18 +1,16 @@
-use std::borrow::BorrowMut;
-
-use crate::utils::zeroed_f_vec;
 use slop_algebra::PrimeField32;
-use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program};
 use sp1_hypercube::air::MachineAir;
-use struct_reflection::StructReflectionHelper;
+use std::mem::MaybeUninit;
+
+use crate::range::columns::RangePreprocessedCols;
 
 use super::{
-    columns::{
-        RangeMultCols, RangePreprocessedCols, NUM_RANGE_MULT_COLS, NUM_RANGE_PREPROCESSED_COLS,
-    },
+    columns::{NUM_RANGE_MULT_COLS, NUM_RANGE_PREPROCESSED_COLS},
     RangeChip,
 };
+
+use struct_reflection::StructReflectionHelper;
 
 pub const NUM_ROWS: usize = 1 << 17;
 
@@ -21,8 +19,8 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Range".to_string()
+    fn name(&self) -> &'static str {
+        "Range"
     }
 
     fn num_rows(&self, _: &Self::Record) -> Option<usize> {
@@ -33,9 +31,24 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
         NUM_RANGE_PREPROCESSED_COLS
     }
 
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let trace = Self::trace();
-        Some(trace)
+    fn preprocessed_num_rows(&self, _program: &Self::Program) -> Option<usize> {
+        Some(NUM_ROWS)
+    }
+
+    fn preprocessed_num_rows_with_instrs_len(
+        &self,
+        _program: &Self::Program,
+        _instrs_len: usize,
+    ) -> Option<usize> {
+        Some(NUM_ROWS)
+    }
+
+    fn generate_preprocessed_trace_into(
+        &self,
+        _program: &Self::Program,
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        Self::trace(buffer);
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
@@ -66,24 +79,26 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
         }
     }
 
-    fn generate_trace(
+    fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut trace =
-            RowMajorMatrix::new(zeroed_f_vec(NUM_RANGE_MULT_COLS * NUM_ROWS), NUM_RANGE_MULT_COLS);
+        buffer: &mut [MaybeUninit<F>],
+    ) {
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, NUM_RANGE_MULT_COLS * NUM_ROWS) };
+        unsafe {
+            core::ptr::write_bytes(values.as_mut_ptr(), 0, NUM_RANGE_MULT_COLS * NUM_ROWS);
+        }
 
         for (lookup, mult) in input.byte_lookups.iter() {
             if lookup.opcode != ByteOpcode::Range {
                 continue;
             }
             let row = (lookup.a as usize) + (1 << lookup.b);
-            let cols: &mut RangeMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.multiplicity += F::from_canonical_usize((*mult).try_into().unwrap());
+            values[row] = F::from_canonical_usize((*mult).try_into().unwrap());
         }
-
-        trace
     }
 
     fn included(&self, _shard: &Self::Record) -> bool {

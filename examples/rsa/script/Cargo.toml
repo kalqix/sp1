@@ -11,4 +11,3 @@ tokio = { workspace = true }
 
 [build-dependencies]
 sp1-build = { path = "../../../crates/build" }
-
