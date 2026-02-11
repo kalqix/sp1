@@ -16,7 +16,8 @@ pub fn execute_for_frequency_map<'a>(
     let opts = SP1CoreOpts::default();
     let proof_nonce = SP1Context::default().proof_nonce;
 
-    let mut minimal_executor = MinimalExecutor::simple(program.clone());
+    let mut minimal_executor =
+        MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold);
 
     for buf in input {
         minimal_executor.with_input(buf);
@@ -139,5 +140,21 @@ impl<'a> FrequencyMapVM<'a> {
         );
 
         Ok(res)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{iter::empty, sync::Arc};
+    use test_artifacts::FIBONACCI_ELF;
+
+    use crate::{execute_for_frequency_map, Program};
+
+    #[test]
+    fn fibonacci_frequency_map() {
+        let frequency_map =
+            execute_for_frequency_map(&Arc::new(Program::from(&FIBONACCI_ELF).unwrap()), empty())
+                .unwrap();
+        assert!(!frequency_map.is_empty());
     }
 }
