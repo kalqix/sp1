@@ -135,8 +135,8 @@ mod tests {
         stdin
     }
 
-    /// Test core proving for a given guests
-    /// The same input is used for apc training and for proving
+    /// Test proving for a given guest
+    /// The same input is used for apc pgo and for proving
     async fn test_e2e(elf: Elf, stdin: SP1Stdin, apc_count: u64, mode: SP1ProofMode) -> Result<()> {
         utils::setup_logger();
 

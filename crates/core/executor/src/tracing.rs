@@ -136,9 +136,7 @@ impl TracingVM<'_> {
             }
         }
 
-        if self.core.needs_bump_clk_high() || self.core.needs_state_bump(&instruction) {
-            self.core.apc_candidates.abort_in_progress();
-        }
+        self.core.check_bump(&instruction);
 
         let next_pc = self.core.next_pc();
         let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {

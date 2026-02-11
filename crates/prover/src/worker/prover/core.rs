@@ -244,7 +244,6 @@ where
         let (program, mut record, deferred_record) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
             let opts = self.opts.clone();
-            // TODO: is this expensive?
             let machine = self.machine().clone();
             move || {
                 let _guard = span.enter();

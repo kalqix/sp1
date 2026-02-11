@@ -16,8 +16,7 @@ pub fn execute_for_frequency_map<'a>(
     let opts = SP1CoreOpts::default();
     let proof_nonce = SP1Context::default().proof_nonce;
 
-    let mut minimal_executor =
-        MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold);
+    let mut minimal_executor = MinimalExecutor::simple(program.clone());
 
     for buf in input {
         minimal_executor.with_input(buf);

@@ -830,6 +830,13 @@ impl<S> CoreVM<'_, S> {
 
         bump1 || bump2
     }
+
+    /// If any bump is required, abort all candidates in progress
+    pub fn check_bump(&mut self, instruction: &Instruction) {
+        if self.needs_bump_clk_high() || self.needs_state_bump(instruction) {
+            self.apc_candidates.abort_in_progress();
+        }
+    }
 }
 
 impl<'a, S> CoreVM<'a, S> {
