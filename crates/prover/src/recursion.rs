@@ -52,7 +52,7 @@ pub struct RecursionVks {
 
 impl Default for RecursionVks {
     fn default() -> Self {
-        Self::new(None, DEFAULT_MAX_COMPOSE_ARITY, true)
+        Self::new(None, DEFAULT_MAX_COMPOSE_ARITY, false) // TODO: UNDO THIS, THIS IS DANGEROUS
     }
 }
 

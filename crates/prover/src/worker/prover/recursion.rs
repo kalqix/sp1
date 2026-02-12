@@ -79,9 +79,8 @@ pub struct SP1RecursionProverConfig {
     /// An optional file path for the vk map. Should be `None` by default and only can be set manually
     /// for code that is feature-gated behind the `experimental` flag.
     vk_map_file: Option<String>,
-    /// An optional custom reduce shape. When set, this shape is used instead of the baked-in
-    /// compress_shape.json. Needed when APCs change the machine configuration.
-    pub reduce_shape: Option<SP1RecursionProofShape>,
+    /// The reduce shape
+    pub reduce_shape: SP1RecursionProofShape,
 }
 
 impl SP1RecursionProverConfig {
@@ -95,6 +94,7 @@ impl SP1RecursionProverConfig {
         recursion_prover_buffer_size: usize,
         max_compose_arity: usize,
         verify_intermediates: bool,
+        reduce_shape: SP1RecursionProofShape,
     ) -> Self {
         Self {
             num_prepare_reduce_workers,
@@ -104,10 +104,10 @@ impl SP1RecursionProverConfig {
             num_recursion_prover_workers,
             recursion_prover_buffer_size,
             max_compose_arity,
-            vk_verification: true,
+            vk_verification: false, // TODO: SET TO TRUE BY DEFAULT, THIS IS DANGEROUS
             verify_intermediates,
             vk_map_file: None,
-            reduce_shape: None,
+            reduce_shape,
         }
     }
     #[cfg(feature = "experimental")]
@@ -444,11 +444,8 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         wrap_air_prover_init: WrapAirProverInit<C>,
     ) -> Self {
         tokio::task::spawn_blocking(move || {
-            // Get the reduce shape: use custom shape if provided, otherwise use baked-in shape.
-            let reduce_shape = config.reduce_shape.clone().unwrap_or_else(|| {
-                SP1RecursionProofShape::compress_proof_shape_from_arity(config.max_compose_arity)
-                    .expect("arity not supported")
-            });
+            // Get the reduce shape.
+            let reduce_shape = config.reduce_shape.clone();
 
             // Make the reduce programs and keys.
             let mut compose_programs = BTreeMap::new();

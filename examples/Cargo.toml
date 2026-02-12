@@ -70,7 +70,6 @@ sp1-build = { path = "../crates/build" }
 sp1-core-executor = { path = "../crates/core/executor" }
 sp1-core-machine = { path = "../crates/core/machine" }
 sp1-prover = { path = "../crates/prover" }
-sp1-prover-types = { path = "../crates/prover-types" }
 sp1-primitives = { path = "../crates/primitives" }
 sp1-sdk = { path = "../crates/sdk" }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", features = ["lib"] }

@@ -6382,8 +6382,6 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives 6.0.0-rc.1",
- "sp1-prover",
- "sp1-prover-types",
  "sp1-sdk",
  "tokio",
  "tracing",
@@ -7804,6 +7802,7 @@ dependencies = [
  "static_assertions",
  "sysinfo",
  "tempfile",
+ "test-artifacts",
  "thiserror 1.0.69",
  "tokio",
  "tonic",
@@ -8478,6 +8477,13 @@ dependencies = [
  "tendermint-light-client-verifier",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "test-artifacts"
+version = "6.0.0-rc.1"
+dependencies = [
+ "sp1-build",
 ]
 
 [[package]]
