@@ -86,12 +86,15 @@ mod tests {
     use anyhow::Result;
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
-    use sp1_core_executor::Program;
+    use sp1_core_executor::{Program, SP1Context};
     use sp1_core_machine::autoprecompiles::{
         execution_profile_from_program, sp1_powdr_config, CompiledProgram,
     };
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::{io::SP1PublicValues, Elf};
+    use sp1_prover::shapes::compute_compress_shape;
+    use sp1_prover::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+    use sp1_prover_types::network_base_types::ProofMode;
     use sp1_verifier::SP1ProofMode;
     use test_artifacts::{FIBONACCI_ELF, KECCAK256_ELF};
 
@@ -159,18 +162,44 @@ mod tests {
             vec![]
         };
 
+        let has_apcs = !apcs.is_empty();
         let machine = RiscvAir::machine_with_apcs(apcs);
-        let client = ProverClient::builder_with_machine(machine).cpu().build().await;
-        let pk = client.setup(elf).await?;
-        let mut proof = client.prove(&pk, stdin).mode(mode).await?;
-        client.verify(&proof, &pk.vk, None)?;
 
-        // Test invalid public values.
-        let mut fake_public_values = proof.public_values.to_vec();
-        fake_public_values[0] += 1;
-        proof.public_values = SP1PublicValues::from(&fake_public_values);
-        if client.verify(&proof, &pk.vk, None).is_ok() {
-            panic!("verified proof with invalid public values")
+        if has_apcs {
+            // APCs change the machine, requiring VK bypass and (for compress+)
+            // dynamic compress shape computation.
+            let needs_compress = !matches!(mode, SP1ProofMode::Core);
+            let mut builder = cpu_worker_builder(machine).without_vk_verification();
+            if needs_compress {
+                let compress_shape = compute_compress_shape(builder.machine().clone(), &elf).await;
+                builder = builder.with_compress_shape(compress_shape);
+            }
+            let node = SP1LocalNodeBuilder::from_worker_client_builder(builder).build().await?;
+
+            let vk = node.setup(&elf).await?;
+
+            let proof_mode = match mode {
+                SP1ProofMode::Core => ProofMode::Core,
+                SP1ProofMode::Compressed => ProofMode::Compressed,
+                _ => panic!("Unsupported mode for APC test: {mode:?}"),
+            };
+
+            let proof =
+                node.prove_with_mode(&elf, stdin, SP1Context::default(), proof_mode).await?;
+            node.verify(&vk, &proof.proof)?;
+        } else {
+            let client = ProverClient::builder_with_machine(machine).cpu().build().await;
+            let pk = client.setup(elf).await?;
+            let mut proof = client.prove(&pk, stdin).mode(mode).await?;
+            client.verify(&proof, &pk.vk, None)?;
+
+            // Test invalid public values.
+            let mut fake_public_values = proof.public_values.to_vec();
+            fake_public_values[0] += 1;
+            proof.public_values = SP1PublicValues::from(&fake_public_values);
+            if client.verify(&proof, &pk.vk, None).is_ok() {
+                panic!("verified proof with invalid public values")
+            }
         }
 
         Ok(())
@@ -425,7 +454,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "todo"]
     async fn test_apc_compressed_fibonacci() {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Compressed).await.unwrap();
     }

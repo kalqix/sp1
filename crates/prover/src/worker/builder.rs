@@ -9,6 +9,7 @@ use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};
 
 use crate::{
     components::SP1ProverComponents,
+    shapes::SP1RecursionProofShape,
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{
         LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig,
@@ -167,6 +168,15 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[must_use]
     pub fn core_opts(&self) -> &SP1CoreOpts {
         &self.config.controller_config.opts
+    }
+
+    /// Set a custom compress shape. Use this when running with APCs that require
+    /// a different shape than the baked-in compress_shape.json.
+    #[must_use]
+    pub fn with_compress_shape(self, shape: SP1RecursionProofShape) -> Self {
+        self.with_config(|config| {
+            config.prover_config.recursion_prover_config.reduce_shape = Some(shape);
+        })
     }
 
     /// Mutate the worker config.

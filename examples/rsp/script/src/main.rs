@@ -1,22 +1,22 @@
-// use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 use powdr_autoprecompiles::PgoConfig;
 use sp1_build::include_elf;
 use sp1_build::Elf;
-use sp1_core_executor::Program;
+use sp1_core_executor::{Program, SP1Context};
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::sp1_powdr_config;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_sdk::prelude::*;
-use sp1_sdk::ProverClient;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_prover::shapes::compute_compress_shape;
+use sp1_prover::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+use sp1_prover_types::network_base_types::ProofMode;
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
-use sp1_sdk::ProveRequest;
 use sp1_sdk::Prover;
-use sp1_sdk::ProvingKey;
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("rsp-program");
@@ -39,6 +39,9 @@ enum Commands {
         /// Number of APCs to enable (0 = disabled)
         #[arg(long, default_value_t = 0)]
         apcs: usize,
+        /// Proof mode: "core" or "compress"
+        #[arg(long, default_value = "core")]
+        mode: String,
     },
 }
 
@@ -88,18 +91,30 @@ async fn main() {
 
             println!("[powdr] Done!");
         }
-        Commands::Prove { apcs } => {
-            let apcs = if apcs > 0 {
+        Commands::Prove { apcs, mode } => {
+            let total_start = Instant::now();
+
+            let mode = match mode.as_str() {
+                "core" => ProofMode::Core,
+                "compress" => ProofMode::Compressed,
+                _ => panic!("Unknown mode: {mode}. Use 'core' or 'compress'."),
+            };
+
+            // Generate APCs if requested
+            let apc_list = if apcs > 0 {
                 println!("[powdr] Getting execution profile...");
+                let stage_start = Instant::now();
                 let execution_profile = execution_profile_from_program(program, stdin.clone());
 
-                println!("[powdr] Generating APCs...");
+                println!("[powdr] Generating {} APCs...", apcs);
                 let path = std::path::Path::new("apc_candidates");
                 let config = sp1_powdr_config(apcs as u64, 0).with_apc_candidates_dir(path);
                 let pgo_config = PgoConfig::Cell(execution_profile, None);
                 let compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
-
-                println!("[powdr] Done!");
+                println!(
+                    "[powdr] Done! ({:.2}s)",
+                    stage_start.elapsed().as_secs_f64()
+                );
 
                 compiled_program
                     .apcs_and_stats
@@ -111,19 +126,70 @@ async fn main() {
                 Vec::new()
             };
 
-            let machine = RiscvAir::machine_with_apcs(apcs);
+            // Create machine with APCs
+            let machine = RiscvAir::machine_with_apcs(apc_list.clone());
 
-            let client = ProverClient::from_env_with_machine(machine).await;
+            // Build prover
+            println!("Building prover...");
+            let stage_start = Instant::now();
+            let needs_compress = mode != ProofMode::Core;
+            let mut builder = if !apc_list.is_empty() {
+                cpu_worker_builder(machine).without_vk_verification()
+            } else {
+                cpu_worker_builder(machine)
+            };
+            if needs_compress && !apc_list.is_empty() {
+                println!("Computing compress shape for APCs...");
+                let shape_start = Instant::now();
+                let compress_shape =
+                    compute_compress_shape(builder.machine().clone(), &ELF).await;
+                println!(
+                    "Compress shape computed ({:.2}s): {:?}",
+                    shape_start.elapsed().as_secs_f64(),
+                    compress_shape
+                );
+                builder = builder.with_compress_shape(compress_shape);
+            }
+            let node = SP1LocalNodeBuilder::from_worker_client_builder(builder)
+                .build()
+                .await
+                .expect("failed to build prover");
+            println!(
+                "Prover built ({:.2}s)",
+                stage_start.elapsed().as_secs_f64()
+            );
 
-            println!("Starting setup...");
-            let pk = client.setup(ELF).await.expect("setup failed");
+            // Setup
+            println!("Setting up...");
+            let stage_start = Instant::now();
+            let vk = node.setup(&ELF).await.expect("setup failed");
+            println!("Setup done ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
-            println!("Starting proving...");
-            let proof = client.prove(&pk, stdin).core().await.expect("proving failed");
-            println!("Done proving!");
+            // Prove
+            println!("Starting proving (mode={mode:?})...");
+            let stage_start = Instant::now();
+            let proof = node
+                .prove_with_mode(&ELF, stdin, SP1Context::default(), mode)
+                .await
+                .expect("proving failed");
+            println!(
+                "Proving done! ({:.2}s)",
+                stage_start.elapsed().as_secs_f64()
+            );
 
-            // Verify proof.
-            client.verify(&proof, pk.verifying_key(), None).expect("verification failed");
+            // Verify
+            println!("Verifying proof...");
+            let stage_start = Instant::now();
+            node.verify(&vk, &proof.proof).expect("verification failed");
+            println!(
+                "Verification done! ({:.2}s)",
+                stage_start.elapsed().as_secs_f64()
+            );
+
+            println!(
+                "\n=== TOTAL ===\nTotal time: {:.2}s",
+                total_start.elapsed().as_secs_f64()
+            );
         }
     }
 }
