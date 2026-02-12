@@ -188,7 +188,7 @@ impl SP1RecursionProofShape {
                 tracing::info!(
                     "Reduce shape retrieved from cache, because the machine has no apcs."
                 );
-                // returned the cached shape
+                // return the cached shape
                 Self::compress_proof_shape_from_arity(max_arity).unwrap()
             }
             true => {

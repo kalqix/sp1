@@ -104,7 +104,7 @@ impl SP1RecursionProverConfig {
             num_recursion_prover_workers,
             recursion_prover_buffer_size,
             max_compose_arity,
-            vk_verification: false, // TODO: SET TO TRUE BY DEFAULT, THIS IS DANGEROUS
+            vk_verification: true,
             verify_intermediates,
             vk_map_file: None,
             reduce_shape,
