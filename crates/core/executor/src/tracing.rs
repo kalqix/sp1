@@ -1347,4 +1347,83 @@ mod tests {
             "Expected APC to be rejected when a state bump occurs"
         );
     }
+
+    /// Build a program that runs a tight loop to cross the `clk_high` epoch boundary (clk >= 2^24),
+    /// then executes post-loop instructions. Post-loop starts at index 5.
+    ///
+    /// Layout:
+    ///   0: LUI x10, <upper>           ; load loop counter (~2.1M)
+    ///   1: ADDI x10, x10, <lower>     ; add lower bits
+    ///   2: ADDI x11, x0, 42           ; touch x11 BEFORE the epoch boundary
+    ///   3: ADDI x10, x10, -1          ; decrement counter (loop body)
+    ///   4: BNE x10, x0, -4            ; branch back to index 3 if x10 != 0
+    ///   5: ADDI x12, x11, 1           ; post-loop: read x11 (stale, last touched in epoch 0)
+    ///   6: ADDI x13, x12, 1           ; post-loop: another instruction
+    ///   7: ADDI x14, x13, 1           ; post-loop: another instruction
+    ///   8..11: halt
+    fn build_epoch_crossing_program() -> Program {
+        // We need ~2,097,152 cycles to cross the epoch boundary (2^24 / CLK_INC=8).
+        // Use 2,100,000 to be safe.
+        let loop_count: u64 = 2_100_000;
+        let upper = loop_count & !0xFFF; // upper bits for LUI
+        let lower = (loop_count & 0xFFF) as i32; // lower 12 bits for ADDI
+
+        let mut instructions = vec![
+            // Index 0: LUI x10, upper
+            Instruction::new(Opcode::LUI, 10, upper, 0, true, true),
+            // Index 1: ADDI x10, x10, lower
+            Instruction::new(Opcode::ADDI, 10, 10, lower as u64, false, true),
+            // Index 2: ADDI x11, x0, 42 — touch x11 before the epoch boundary
+            Instruction::new(Opcode::ADDI, 11, 0, 42, false, true),
+            // Index 3: ADDI x10, x10, -1 — loop body (decrement)
+            Instruction::new(Opcode::ADDI, 10, 10, (-1i64) as u64, false, true),
+            // Index 4: BNE x10, x0, -4 — branch back to index 3
+            Instruction::new(Opcode::BNE, 10, 0, (-4i64) as u64, false, true),
+            // Index 5: ADDI x12, x11, 1 — post-loop: reads x11 (stale from epoch 0)
+            Instruction::new(Opcode::ADDI, 12, 11, 1, false, true),
+            // Index 6: ADDI x13, x12, 1
+            Instruction::new(Opcode::ADDI, 13, 12, 1, false, true),
+            // Index 7: ADDI x14, x13, 1
+            Instruction::new(Opcode::ADDI, 14, 13, 1, false, true),
+        ];
+
+        add_halt(&mut instructions);
+
+        let pc_base = 0u64;
+        let program = Program::new(instructions, pc_base, pc_base);
+        program
+    }
+
+    #[test]
+    fn test_apc_memory_bump_error() {
+        // Test that an APC is aborted when it accesses a register whose previous timestamp
+        // is in a different clk_high epoch (memory bump), even though the APC's own
+        // instructions don't cross an epoch boundary.
+        //
+        // Setup: x11 is touched at index 2 (epoch 0, clk ~ 24). After ~2.1M loop iterations
+        // the loop exits in epoch 1. Post-loop index 5 reads x11, whose prev_timestamp is
+        // still in epoch 0 → triggers pending_memory_bump → APC aborted.
+        let program_without_apcs = build_epoch_crossing_program();
+
+        // APC covers only post-loop instructions (indices 5-7), all within epoch 1.
+        // No clk_high boundary is crossed, but index 5 reads x11 which was last accessed
+        // in epoch 0, triggering a memory bump event.
+        let apc = vec![Apc::new(&(5, 8), 1, OptimisticConstraints::from_constraints(vec![]))];
+        let program = program_without_apcs.with_apcs(apc);
+
+        let (record, registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 10_000_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        // Verify the program computed correctly (x11=42, x12=43, x13=44, x14=45)
+        assert_eq!(registers[11].value, 42);
+        assert_eq!(registers[12].value, 43);
+        assert_eq!(registers[13].value, 44);
+        assert_eq!(registers[14].value, 45);
+        // The APC covering indices 5-7 should be rejected because index 5 reads x11
+        // whose prev_timestamp is in epoch 0 while the current clk is in epoch 1.
+        assert!(
+            record.apc_events.is_empty(),
+            "Expected APC to be rejected due to memory bump (stale register access across epoch)"
+        );
+    }
 }

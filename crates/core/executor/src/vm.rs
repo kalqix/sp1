@@ -60,6 +60,10 @@ pub struct CoreVM<'a, S> {
     pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
     /// The candidate tracker
     pub apc_candidates: ApcCandidates<CoreExecutionState, Apc, S>,
+    /// Whether a memory bump (timestamp epoch change) was detected during the current
+    /// instruction's register/memory accesses. Set by `rr`/`rw`/`mr`/`mw`, consumed
+    /// by `check_bump` to abort in-progress APC candidates.
+    pub pending_memory_bump: bool,
 }
 
 /// The execution state which is passed to the candidate checker
@@ -152,6 +156,7 @@ impl<'a, S> CoreVM<'a, S> {
             public_value_digest: [0; PV_DIGEST_NUM_WORDS],
             proof_nonce,
             apc_candidates,
+            pending_memory_bump: false,
         }
     }
 
@@ -633,9 +638,14 @@ impl<S> CoreVM<'_, S> {
             }
         };
 
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+        if (timestamp >> 24) != (record.clk >> 24) {
+            self.pending_memory_bump = true;
+        }
+
         MemoryReadRecord {
             value: record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             prev_timestamp: record.clk,
             prev_page_prot_record: None,
         }
@@ -651,18 +661,28 @@ impl<S> CoreVM<'_, S> {
     #[inline]
     pub(crate) fn mr_slice(&mut self, _addr: u64, len: usize) -> Vec<MemoryReadRecord> {
         let current_clk = self.clk();
+        let current_epoch = current_clk >> 24;
         let mem_reads = self.mem_reads();
 
+        let mut has_bump = false;
         let records: Vec<MemoryReadRecord> = mem_reads
             .take(len)
-            .map(|value| MemoryReadRecord {
-                value: value.value,
-                timestamp: current_clk,
-                prev_timestamp: value.clk,
-                prev_page_prot_record: None,
+            .map(|value| {
+                if current_epoch != (value.clk >> 24) {
+                    has_bump = true;
+                }
+                MemoryReadRecord {
+                    value: value.value,
+                    timestamp: current_clk,
+                    prev_timestamp: value.clk,
+                    prev_page_prot_record: None,
+                }
             })
             .collect();
 
+        if has_bump {
+            self.pending_memory_bump = true;
+        }
         records
     }
 
@@ -680,6 +700,10 @@ impl<S> CoreVM<'_, S> {
                     _ => unreachable!("Precompile memory write out of bounds"),
                 };
 
+                if (new.clk >> 24) != (old.clk >> 24) {
+                    self.pending_memory_bump = true;
+                }
+
                 MemoryWriteRecord {
                     prev_timestamp: old.clk,
                     prev_value: old.value,
@@ -695,10 +719,15 @@ impl<S> CoreVM<'_, S> {
 
     #[inline]
     fn mw(&mut self, read_record: MemoryReadRecord, value: u64) -> MemoryWriteRecord {
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+        if (timestamp >> 24) != (read_record.prev_timestamp >> 24) {
+            self.pending_memory_bump = true;
+        }
+
         MemoryWriteRecord {
             prev_timestamp: read_record.prev_timestamp,
             prev_value: read_record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             value,
             prev_page_prot_record: None,
         }
@@ -710,6 +739,10 @@ impl<S> CoreVM<'_, S> {
         let prev_record = self.registers[register as usize];
         let new_record =
             MemoryRecord { timestamp: self.timestamp(position), value: prev_record.value };
+
+        if (new_record.timestamp >> 24) != (prev_record.timestamp >> 24) {
+            self.pending_memory_bump = true;
+        }
 
         self.registers[register as usize] = new_record;
 
@@ -728,6 +761,10 @@ impl<S> CoreVM<'_, S> {
 
         let prev_record = self.registers[register];
         let new_record = MemoryRecord { timestamp: self.clk(), value: prev_record.value };
+
+        if (new_record.timestamp >> 24) != (prev_record.timestamp >> 24) {
+            self.pending_memory_bump = true;
+        }
 
         self.registers[register] = new_record;
 
@@ -779,6 +816,10 @@ impl<S> CoreVM<'_, S> {
 
         let prev_record = self.registers[register as usize];
         let new_record = MemoryRecord { timestamp: self.timestamp(MemoryAccessPosition::A), value };
+
+        if (new_record.timestamp >> 24) != (prev_record.timestamp >> 24) {
+            self.pending_memory_bump = true;
+        }
 
         self.registers[register as usize] = new_record;
 
@@ -833,9 +874,13 @@ impl<S> CoreVM<'_, S> {
 
     /// If any bump is required, abort all candidates in progress
     pub fn check_bump(&mut self, instruction: &Instruction) {
-        if self.needs_bump_clk_high() || self.needs_state_bump(instruction) {
+        if self.needs_bump_clk_high()
+            || self.needs_state_bump(instruction)
+            || self.pending_memory_bump
+        {
             self.apc_candidates.abort_in_progress();
         }
+        self.pending_memory_bump = false;
     }
 }
 
