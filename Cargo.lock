@@ -2075,12 +2075,6 @@ checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "convert_case"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9"
@@ -2441,19 +2435,6 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6edb4b64a43d977b8e99788fe3a04d483834fba1215a7e02caa415b626497f7f"
-dependencies = [
- "convert_case 0.4.0",
- "proc-macro2",
- "quote",
- "rustc_version 0.4.1",
- "syn 2.0.114",
-]
-
-[[package]]
-name = "derive_more"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
@@ -2487,7 +2468,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
- "convert_case 0.10.0",
+ "convert_case",
  "proc-macro2",
  "quote",
  "rustc_version 0.4.1",
@@ -5253,12 +5234,12 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
  "deepsize2",
  "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
+ "itertools 0.14.0",
  "log",
  "metrics",
  "num-traits",
@@ -5267,7 +5248,6 @@ dependencies = [
  "powdr-number",
  "rayon",
  "serde",
- "serde_cbor",
  "serde_json",
  "strum",
  "tracing",
@@ -5277,14 +5257,14 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
  "auto_enums",
  "bitvec",
  "crepe",
  "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
+ "itertools 0.14.0",
  "log",
  "num-traits",
  "powdr-number",
@@ -5294,10 +5274,9 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
  "num-traits",
  "powdr-number",
  "schemars 0.8.22",
@@ -5307,18 +5286,18 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
  "ark-bn254 0.4.0",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "csv",
- "derive_more 0.99.20",
+ "derive_more 2.1.1",
  "ibig",
  "num-bigint 0.4.6",
  "num-traits",
@@ -5335,11 +5314,11 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
  "gimli 0.31.1",
  "goblin",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "powdr-isa-utils",
  "powdr-riscv-types",
@@ -5352,7 +5331,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -5360,7 +5339,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=28ab2ce#28ab2ce0dbf0631b4258e7b751738e3d30553fbb"
 
 [[package]]
 name = "powerfmt"
