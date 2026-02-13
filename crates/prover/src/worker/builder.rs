@@ -33,9 +33,9 @@ pub struct SP1WorkerBuilder<
 }
 
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
-    #[allow(clippy::new_without_default)]
     pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
-        let config = SP1WorkerConfig::default();
+        // Note: the config is uniquely determined by the machine. We still cache it here.
+        let config = SP1WorkerConfig::new(machine.clone());
 
         Self {
             machine,

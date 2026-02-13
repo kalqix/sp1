@@ -1,4 +1,3 @@
-// use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 use powdr_autoprecompiles::PgoConfig;
 use sp1_build::include_elf;
 use sp1_build::Elf;
@@ -8,15 +7,14 @@ use sp1_core_machine::autoprecompiles::sp1_powdr_config;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_sdk::prelude::*;
-use sp1_sdk::ProverClient;
+use sp1_sdk::{ProverClient, SP1ProofMode};
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
-use sp1_sdk::ProveRequest;
 use sp1_sdk::Prover;
-use sp1_sdk::ProvingKey;
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("rsp-program");
@@ -39,6 +37,9 @@ enum Commands {
         /// Number of APCs to enable (0 = disabled)
         #[arg(long, default_value_t = 0)]
         apcs: usize,
+        /// Proof mode: "core" or "compress"
+        #[arg(long, default_value = "core")]
+        mode: String,
     },
 }
 
@@ -88,18 +89,30 @@ async fn main() {
 
             println!("[powdr] Done!");
         }
-        Commands::Prove { apcs } => {
+        Commands::Prove { apcs, mode } => {
+            let total_start = Instant::now();
+
+            let mode = match mode.as_str() {
+                "core" => SP1ProofMode::Core,
+                "compress" => SP1ProofMode::Compressed,
+                _ => panic!("Unknown mode: {mode}. Use 'core' or 'compress'."),
+            };
+
+            // Generate APCs if requested
             let apcs = if apcs > 0 {
                 println!("[powdr] Getting execution profile...");
+                let stage_start = Instant::now();
                 let execution_profile = execution_profile_from_program(program, stdin.clone());
 
-                println!("[powdr] Generating APCs...");
+                println!("[powdr] Generating {} APCs...", apcs);
                 let path = std::path::Path::new("apc_candidates");
                 let config = sp1_powdr_config(apcs as u64, 0).with_apc_candidates_dir(path);
                 let pgo_config = PgoConfig::Cell(execution_profile, None);
                 let compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
-
-                println!("[powdr] Done!");
+                println!(
+                    "[powdr] Done! ({:.2}s)",
+                    stage_start.elapsed().as_secs_f64()
+                );
 
                 compiled_program
                     .apcs_and_stats
@@ -115,15 +128,36 @@ async fn main() {
 
             let client = ProverClient::from_env_with_machine(machine).await;
 
-            println!("Starting setup...");
+            // Setup
+            println!("Setting up...");
+            let stage_start = Instant::now();
             let pk = client.setup(ELF).await.expect("setup failed");
+            println!("Setup done ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
-            println!("Starting proving...");
-            let proof = client.prove(&pk, stdin).core().await.expect("proving failed");
-            println!("Done proving!");
+            // Prove
+            println!("Starting proving (mode={mode:?})...");
+            let stage_start = Instant::now();
+            let proof = client.prove(&pk, stdin).mode(mode).await.expect("proving failed");
 
+            println!(
+                "Proving done! ({:.2}s)",
+                stage_start.elapsed().as_secs_f64()
+            );
+
+            // Verify
+            println!("Verifying proof...");
+            let stage_start = Instant::now();
             // Verify proof.
             client.verify(&proof, pk.verifying_key(), None).expect("verification failed");
+            println!(
+                "Verification done! ({:.2}s)",
+                stage_start.elapsed().as_secs_f64()
+            );
+
+            println!(
+                "\n=== TOTAL ===\nTotal time: {:.2}s",
+                total_start.elapsed().as_secs_f64()
+            );
         }
     }
 }

@@ -38,7 +38,7 @@ use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
 
 use crate::{
     shapes::{create_all_input_shapes, SP1RecursionProofShape},
-    worker::{TaskError, DEFAULT_MAX_COMPOSE_ARITY},
+    worker::TaskError,
     CompressAir, RecursionSC,
 };
 
@@ -48,12 +48,6 @@ pub struct RecursionVks {
     map: BTreeMap<<SP1GlobalContext as IopCtx>::Digest, usize>,
     tree: MerkleTree<SP1GlobalContext>,
     vk_verification: bool,
-}
-
-impl Default for RecursionVks {
-    fn default() -> Self {
-        Self::new(None, DEFAULT_MAX_COMPOSE_ARITY, true)
-    }
 }
 
 impl RecursionVks {

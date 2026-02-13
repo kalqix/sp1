@@ -1389,8 +1389,7 @@ mod tests {
 
         add_halt(&mut instructions);
 
-        let pc_base = 0u64;
-        Program::new(instructions, pc_base, pc_base)
+        Program::new(instructions, 0u64, 0u64)
     }
 
     #[test]
