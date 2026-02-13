@@ -81,7 +81,7 @@ jobs:
             --exclude sp1-gpu-tracing
             --exclude sp1-gpu-utils
             --exclude sp1-gpu-zerocheck
-            --features native-gnark,experimental,profiling,slow-tests
+            --features native-gnark,experimental,profiling
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
@@ -144,7 +144,7 @@ jobs:
             --exclude sp1-gpu-tracing
             --exclude sp1-gpu-utils
             --exclude sp1-gpu-zerocheck
-            --features native-gnark,experimental,profiling,slow-tests
+            --features native-gnark,experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
