@@ -10,7 +10,7 @@ use sp1_core_machine::io::SP1Stdin;
 pub enum Request {
     /// Tell the server to create a new proving key.
     ///
-    /// The `apcs` field contains CBOR-serialized `CompiledProgram`.
+    /// The `apcs` field contains CBOR-serialized APCs.
     /// If empty, no APCs are used.
     Setup { elf: Vec<u8>, apcs: Vec<u8> },
 

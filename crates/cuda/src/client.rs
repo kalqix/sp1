@@ -36,7 +36,7 @@ pub(crate) struct CudaClient {
 impl CudaClient {
     /// Setup a new proving key.
     ///
-    /// The `apcs` parameter should be CBOR-serialized `CompiledProgram`, or empty if no APCs.
+    /// The `apcs` parameter should be CBOR-serialized APCs, or empty if no APCs.
     pub(crate) async fn setup(
         &self,
         elf: Elf,

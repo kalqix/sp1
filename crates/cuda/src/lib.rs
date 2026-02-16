@@ -40,7 +40,7 @@ impl CudaProver {
 
     /// Setup a new proving key.
     ///
-    /// The `apcs` parameter should be CBOR-serialized `CompiledProgram`, or empty if no APCs.
+    /// The `apcs` parameter should be CBOR-serialized APCs, or empty if no APCs.
     pub async fn setup(&self, elf: Elf, apcs: Vec<u8>) -> Result<CudaProvingKey, CudaClientError> {
         self.client.setup(elf, apcs).await
     }
