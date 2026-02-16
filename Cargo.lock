@@ -7833,6 +7833,7 @@ version = "6.0.0-rc.1"
 dependencies = [
  "bincode",
  "clap",
+ "serde_cbor",
  "sha2",
  "sp1-core-executor",
  "sp1-core-machine",
@@ -8380,6 +8381,7 @@ dependencies = [
  "rstest 0.26.1",
  "rustls 0.23.36",
  "serde",
+ "serde_cbor",
  "sha2",
  "slop-algebra",
  "slop-alloc",

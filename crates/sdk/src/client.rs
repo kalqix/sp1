@@ -52,6 +52,19 @@ impl ProverClient {
         EnvProver::new(machine).await
     }
 
+    /// Same as `from_env_with_machine` but with serialized APCs for CUDA proving.
+    ///
+    /// The `serialized_apcs` parameter should be CBOR-serialized APCs.
+    /// This is required when using CUDA with APCs to ensure the GPU server uses the
+    /// same machine configuration.
+    #[must_use]
+    pub async fn from_env_with_machine_and_apcs(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        serialized_apcs: Option<Vec<u8>>,
+    ) -> EnvProver {
+        EnvProver::new_with_apcs(machine, serialized_apcs).await
+    }
+
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
     pub fn builder() -> ProverClientBuilder {

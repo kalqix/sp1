@@ -35,8 +35,14 @@ pub(crate) struct CudaClient {
 
 impl CudaClient {
     /// Setup a new proving key.
-    pub(crate) async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
-        let request = Request::Setup { elf: elf.as_ref().into() };
+    ///
+    /// The `apcs` parameter should be CBOR-serialized `CompiledProgram`, or empty if no APCs.
+    pub(crate) async fn setup(
+        &self,
+        elf: Elf,
+        apcs: Vec<u8>,
+    ) -> Result<CudaProvingKey, CudaClientError> {
+        let request = Request::Setup { elf: elf.as_ref().into(), apcs };
         let response = self.send_and_recv(request).await?.into_result()?;
         match response {
             Response::Setup { id, vk } => Ok(CudaProvingKey::new(id, elf, vk, self.clone())),

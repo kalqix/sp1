@@ -26,6 +26,8 @@ use sp1_prover::{
 pub struct CudaProver {
     pub(crate) node: SP1LightNode,
     pub(crate) prover: CudaProverImpl,
+    /// Optional serialized APCs (CBOR-encoded APCs) for GPU proving.
+    pub(crate) serialized_apcs: Option<Vec<u8>>,
 }
 
 impl Prover for CudaProver {
@@ -38,7 +40,9 @@ impl Prover for CudaProver {
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {
-        self.prover.setup(elf)
+        let prover = self.prover.clone();
+        let apcs = self.serialized_apcs.clone().unwrap_or_default();
+        async move { prover.setup(elf, apcs).await }
     }
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {

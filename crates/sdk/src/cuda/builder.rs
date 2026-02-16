@@ -13,12 +13,13 @@ use sp1_prover::worker::SP1LightNode;
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-#[derive(Debug)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    /// Optional serialized APCs (CBOR-encoded APCs) for GPU proving.
+    serialized_apcs: Option<Vec<u8>>,
 }
 
 impl Default for CudaProverBuilder {
@@ -31,7 +32,17 @@ impl CudaProverBuilder {
     /// Creates a new builder from a machine.
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
-        Self { machine, cuda_device_id: None, core_opts: None }
+        Self { machine, cuda_device_id: None, core_opts: None, serialized_apcs: None }
+    }
+
+    /// Sets the serialized APCs (CBOR-encoded APCs) for GPU proving.
+    ///
+    /// When set, the CUDA prover will use these APCs when setting up the proving key,
+    /// ensuring the GPU server uses the same machine configuration as the client.
+    #[must_use]
+    pub fn with_serialized_apcs(mut self, apcs: Vec<u8>) -> Self {
+        self.serialized_apcs = Some(apcs);
+        self
     }
 
     /// Sets the CUDA device id.
@@ -110,6 +121,10 @@ impl CudaProverBuilder {
             None => CudaProverImpl::new().await,
         };
 
-        CudaProver { node, prover: cuda_prover.expect("Failed to create the CUDA prover impl") }
+        CudaProver {
+            node,
+            prover: cuda_prover.expect("Failed to create the CUDA prover impl"),
+            serialized_apcs: self.serialized_apcs,
+        }
     }
 }

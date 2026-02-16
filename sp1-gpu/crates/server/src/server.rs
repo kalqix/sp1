@@ -1,4 +1,5 @@
 use sp1_core_executor::SP1Context;
+use sp1_core_machine::autoprecompiles::Sp1Apc;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::{
     api::{Request, Response},
@@ -6,14 +7,13 @@ use sp1_cuda::{
 };
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_prover::cuda_worker_builder;
-use sp1_hypercube::Machine;
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::{SP1LocalNode, SP1LocalNodeBuilder};
 use sp1_prover::SP1VerifyingKey;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use std::io;
-use std::sync::Arc;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
@@ -34,12 +34,13 @@ pub struct Server {
 /// The context for a single connection to the server.
 struct ConnectionCtx {
     pk_cache: HashMap<[u8; 32], CachedProgram>,
-    prover: Arc<SP1LocalNode>,
+    prover: Option<Arc<SP1LocalNode>>,
+    task_scope: TaskScope,
 }
 
 impl Server {
     /// Run the server, indefinitely.
-    pub async fn run(self, task_scope: TaskScope, machine: Machine<SP1Field, RiscvAir<SP1Field>>) {
+    pub async fn run(self, task_scope: TaskScope) {
         eprintln!(
             "Running sp1-gpu-server {} with device {}",
             sp1_primitives::SP1_VERSION,
@@ -54,15 +55,6 @@ impl Server {
 
         let listener = UnixListener::bind(&socket_path).expect("Failed to bind to socket addr");
 
-        let prover = Arc::new(
-            SP1LocalNodeBuilder::from_worker_client_builder(
-                cuda_worker_builder(task_scope.clone(), machine).await,
-            )
-            .build()
-            .await
-            .unwrap(),
-        );
-
         tracing::info!("Server listening @ {}", socket_path.display());
         loop {
             tokio::select! {
@@ -70,12 +62,12 @@ impl Server {
                     if let Ok((stream, _)) = res {
                         tracing::info!("Connection accepted");
 
-                        let prover = prover.clone();
+                        let task_scope = task_scope.clone();
 
                         tokio::spawn(async move {
                             let mut stream = stream;
 
-                            if let Err(e) = Self::handle_connection(prover, &mut stream).await {
+                            if let Err(e) = Self::handle_connection(task_scope, &mut stream).await {
                                 if e.kind() == io::ErrorKind::UnexpectedEof
                                     || e.kind() == io::ErrorKind::BrokenPipe
                                 {
@@ -103,10 +95,10 @@ impl Server {
     }
 
     async fn handle_connection(
-        prover: Arc<SP1LocalNode>,
+        task_scope: TaskScope,
         stream: &mut UnixStream,
     ) -> Result<(), io::Error> {
-        let mut ctx = ConnectionCtx { pk_cache: Default::default(), prover };
+        let mut ctx = ConnectionCtx { pk_cache: Default::default(), prover: None, task_scope };
 
         loop {
             let mut len = [0_u8; 4];
@@ -133,13 +125,48 @@ impl Server {
 
     async fn handle_request(ctx: &mut ConnectionCtx, request: Request) -> Response {
         match request {
-            Request::Setup { elf } => {
-                tracing::info!("Running setup");
+            Request::Setup { elf, apcs } => {
                 let elf_hash = sha256(&elf);
                 if let Some(pk) = ctx.pk_cache.get(&elf_hash) {
                     return Response::Setup { id: elf_hash, vk: pk.vk.clone() };
                 }
-                let vk = match ctx.prover.setup(&elf).await {
+
+                // Create the prover on the first Setup call.
+                if ctx.prover.is_none() {
+                    // Deserialize APCs if present, otherwise use empty list.
+                    let apc_list = if apcs.is_empty() {
+                        tracing::info!("Running setup (no APCs)");
+                        vec![]
+                    } else {
+                        let list: Vec<Arc<Sp1Apc<SP1Field>>> = match serde_cbor::from_slice(&apcs) {
+                            Ok(l) => l,
+                            Err(e) => {
+                                return Response::InternalError(format!(
+                                    "Failed to deserialize APCs: {e}"
+                                ))
+                            }
+                        };
+                        tracing::info!("Running setup with {} APCs", list.len());
+                        list
+                    };
+
+                    let machine = RiscvAir::machine_with_apcs(apc_list);
+                    let prover = match SP1LocalNodeBuilder::from_worker_client_builder(
+                        cuda_worker_builder(ctx.task_scope.clone(), machine).await,
+                    )
+                    .build()
+                    .await
+                    {
+                        Ok(p) => Arc::new(p),
+                        Err(e) => {
+                            return Response::InternalError(format!("Failed to create prover: {e}"))
+                        }
+                    };
+                    ctx.prover = Some(prover);
+                }
+
+                tracing::info!("Running setup");
+                let vk = match ctx.prover.as_ref().unwrap().setup(&elf).await {
                     Ok(vk) => vk,
                     Err(e) => return Response::InternalError(e.to_string()),
                 };
@@ -160,7 +187,13 @@ impl Server {
                     );
                 };
                 let context = SP1Context::builder().proof_nonce(proof_nonce).build();
-                match ctx.prover.prove_with_mode(&cached.elf, stdin, context, mode).await {
+                match ctx
+                    .prover
+                    .as_ref()
+                    .unwrap()
+                    .prove_with_mode(&cached.elf, stdin, context, mode)
+                    .await
+                {
                     Ok(proof) => Response::Proof { proof },
                     Err(e) => Response::ProverError(e.to_string()),
                 }

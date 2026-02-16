@@ -38,8 +38,11 @@ impl CudaProver {
         Ok(Self { client: CudaClient::connect(cuda_id).await? })
     }
 
-    pub async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
-        self.client.setup(elf).await
+    /// Setup a new proving key.
+    ///
+    /// The `apcs` parameter should be CBOR-serialized `CompiledProgram`, or empty if no APCs.
+    pub async fn setup(&self, elf: Elf, apcs: Vec<u8>) -> Result<CudaProvingKey, CudaClientError> {
+        self.client.setup(elf, apcs).await
     }
 
     pub async fn prove_with_mode(

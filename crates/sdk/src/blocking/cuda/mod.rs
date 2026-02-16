@@ -32,7 +32,7 @@ impl Prover for CudaProver {
     }
 
     fn setup(&self, elf: Elf) -> Result<Self::ProvingKey, Self::Error> {
-        crate::blocking::block_on(self.prover.setup(elf))
+        crate::blocking::block_on(self.prover.setup(elf, vec![]))
     }
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {

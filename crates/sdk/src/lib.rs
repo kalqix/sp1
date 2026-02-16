@@ -82,14 +82,14 @@ mod tests {
 
     use std::sync::Arc;
 
-    use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
+    use crate::{
+        utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin,
+    };
     use anyhow::Result;
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
     use sp1_core_executor::Program;
-    use sp1_core_machine::autoprecompiles::{
-        execution_profile_from_program, sp1_powdr_config, CompiledProgram,
-    };
+    use sp1_core_machine::autoprecompiles::{execution_profile_from_program, sp1_powdr_config};
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::{io::SP1PublicValues, Elf};
     use sp1_verifier::SP1ProofMode;
@@ -140,36 +140,44 @@ mod tests {
     async fn test_e2e(elf: Elf, stdin: SP1Stdin, apc_count: u64, mode: SP1ProofMode) -> Result<()> {
         utils::setup_logger();
 
-        let apcs = if apc_count > 0 {
+        let is_cuda = std::env::var("SP1_PROVER").as_deref() == Ok("cuda");
+
+        let (apcs, serialized_apcs) = if apc_count > 0 {
             let program = Arc::new(Program::from(&elf).unwrap());
 
             let execution_profile = execution_profile_from_program(program, stdin.clone());
 
             let config = sp1_powdr_config(apc_count, 0);
             let pgo_config = PgoConfig::Instruction(execution_profile);
-            let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+            let compiled_program =
+                sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
 
-            compiled_program
+            let apcs: Vec<_> = compiled_program
                 .apcs_and_stats
                 .into_iter()
                 .map(ApcWithStats::into_parts)
                 .map(|(apc, _, _)| apc)
-                .collect()
+                .collect();
+
+            // Only serialize APCs for CUDA — stats/evaluation_result not needed by server
+            let serialized = if is_cuda { Some(serde_cbor::to_vec(&apcs).unwrap()) } else { None };
+
+            (apcs, serialized)
         } else {
-            vec![]
+            (vec![], None)
         };
 
         let machine = RiscvAir::machine_with_apcs(apcs);
-        let client = ProverClient::builder_with_machine(machine).cpu().build().await;
+        let client = ProverClient::from_env_with_machine_and_apcs(machine, serialized_apcs).await;
         let pk = client.setup(elf).await?;
         let mut proof = client.prove(&pk, stdin).mode(mode).await?;
-        client.verify(&proof, &pk.vk, None)?;
+        client.verify(&proof, pk.verifying_key(), None)?;
 
         // Test invalid public values.
         let mut fake_public_values = proof.public_values.to_vec();
         fake_public_values[0] += 1;
         proof.public_values = SP1PublicValues::from(&fake_public_values);
-        if client.verify(&proof, &pk.vk, None).is_ok() {
+        if client.verify(&proof, pk.verifying_key(), None).is_ok() {
             panic!("verified proof with invalid public values")
         }
 
