@@ -11,8 +11,9 @@ use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
 use crate::{
+    recursion::RecursionVks,
     verify::{SP1Verifier, VerifierRecursionVks},
-    worker::{node::SP1NodeCore, AirProverWorker},
+    worker::{config::DEFAULT_MAX_COMPOSE_ARITY, node::SP1NodeCore, AirProverWorker},
     CpuSP1ProverComponents, SP1ProverComponents,
 };
 
@@ -61,10 +62,18 @@ impl SP1LightNode {
             let has_apcs =
                 machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
 
-            let mut recursion_vks = VerifierRecursionVks::default();
-            if has_apcs {
-                recursion_vks.vk_verification = false;
-            }
+            let recursion_vks = if has_apcs {
+                // Compute the dummy recursion VKs matching what the prover produces with
+                // without_vk_verification(). This is cheap (no circuit compilation).
+                let dummy = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false);
+                VerifierRecursionVks {
+                    root: dummy.root(),
+                    vk_verification: false,
+                    num_keys: dummy.num_keys(),
+                }
+            } else {
+                VerifierRecursionVks::default()
+            };
             let verifier = SP1Verifier::new(recursion_vks, machine);
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);

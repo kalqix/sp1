@@ -92,10 +92,20 @@ pub async fn cuda_worker_builder(
             .await,
     );
 
-    SP1WorkerBuilder::new(machine)
+    let has_apcs = machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
+
+    let builder = SP1WorkerBuilder::new(machine)
         .with_core_opts(opts)
         .with_core_air_prover(core_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_prover, prover_permits.clone())
         .with_shrink_air_prover(shrink_prover, prover_permits.clone())
-        .with_wrap_air_prover(ReadyWrapProverBuilder::new(wrap_prover), prover_permits)
+        .with_wrap_air_prover(ReadyWrapProverBuilder::new(wrap_prover), prover_permits);
+
+    #[cfg(feature = "experimental")]
+    if has_apcs {
+        return builder.without_vk_verification();
+    }
+    let _ = has_apcs;
+
+    builder
 }

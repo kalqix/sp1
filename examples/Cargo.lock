@@ -7972,6 +7972,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "powdr-autoprecompiles",
  "serde",
+ "serde_cbor",
  "sha2 0.10.8",
  "slop-algebra",
  "slop-alloc",

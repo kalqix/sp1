@@ -48,20 +48,7 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
-        Self::from_env_with_opts_and_apcs(None, machine, None).await
-    }
-
-    /// Creates a new [`EnvProver`] from the environment with serialized APCs.
-    ///
-    /// This method will read from the `SP1_PROVER` environment variable to determine which prover
-    /// to use. If the variable is not set, it will default to the CPU prover.
-    ///
-    /// The `serialized_apcs` parameter should be CBOR-serialized APCs for CUDA proving.
-    pub async fn new_with_apcs(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-        serialized_apcs: Option<Vec<u8>>,
-    ) -> Self {
-        Self::from_env_with_opts_and_apcs(None, machine, serialized_apcs).await
+        Self::from_env_with_opts(None, machine).await
     }
 
     /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
@@ -74,20 +61,6 @@ impl EnvProver {
         core_opts: Option<SP1CoreOpts>,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
-        Self::from_env_with_opts_and_apcs(core_opts, machine, None).await
-    }
-
-    /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`] and APCs.
-    ///
-    /// This method will read from the `SP1_PROVER` environment variable to determine which prover
-    /// to use. If the variable is not set, it will default to the CPU prover.
-    ///
-    /// The `serialized_apcs` parameter should be CBOR-serialized APCs for CUDA proving.
-    pub async fn from_env_with_opts_and_apcs(
-        core_opts: Option<SP1CoreOpts>,
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-        serialized_apcs: Option<Vec<u8>>,
-    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
@@ -97,9 +70,6 @@ impl EnvProver {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine).await),
             "cuda" => {
                 let mut builder = CudaProverBuilder::new_with_machine(machine);
-                if let Some(apcs) = serialized_apcs {
-                    builder = builder.with_serialized_apcs(apcs);
-                }
                 if let Some(opts) = core_opts {
                     builder = builder.core_opts(opts);
                 }

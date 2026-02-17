@@ -214,12 +214,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
         let trace_width = self.width();
 
-        // Zero-initialize the entire buffer.
-        // Note: unlike most chips, we zero ALL rows (not just padding) because event rows are
-        // sparsely filled — only columns referenced by substitution mappings are written.
-        // Unmapped columns in event rows must be zero.
+        // Zero only padding rows (event rows are fully written by the substitution loop).
+        let padding_start = events.count * trace_width;
         unsafe {
-            core::ptr::write_bytes(buffer.as_mut_ptr(), 0, buffer.len());
+            core::ptr::write_bytes(
+                buffer[padding_start..].as_mut_ptr(),
+                0,
+                buffer.len() - padding_start,
+            );
         }
 
         // Reinterpret buffer as initialized slice for filling.

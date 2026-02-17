@@ -13,7 +13,7 @@ use sp1_primitives::{
 use sp1_verifier::compressed::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT};
 use static_assertions::const_assert;
 
-pub const CORE_LOG_STACKING_HEIGHT: u32 = 21;
+pub const CORE_LOG_STACKING_HEIGHT: u32 = 22;
 pub const CORE_MAX_LOG_ROW_COUNT: usize = 22;
 
 const_assert!(HEIGHT_THRESHOLD <= (1 << CORE_MAX_LOG_ROW_COUNT));

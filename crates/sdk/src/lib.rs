@@ -140,9 +140,7 @@ mod tests {
     async fn test_e2e(elf: Elf, stdin: SP1Stdin, apc_count: u64, mode: SP1ProofMode) -> Result<()> {
         utils::setup_logger();
 
-        let is_cuda = std::env::var("SP1_PROVER").as_deref() == Ok("cuda");
-
-        let (apcs, serialized_apcs) = if apc_count > 0 {
+        let apcs = if apc_count > 0 {
             let program = Arc::new(Program::from(&elf).unwrap());
 
             let execution_profile = execution_profile_from_program(program, stdin.clone());
@@ -152,23 +150,18 @@ mod tests {
             let compiled_program =
                 sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
 
-            let apcs: Vec<_> = compiled_program
+            compiled_program
                 .apcs_and_stats
                 .into_iter()
                 .map(ApcWithStats::into_parts)
                 .map(|(apc, _, _)| apc)
-                .collect();
-
-            // Only serialize APCs for CUDA — stats/evaluation_result not needed by server
-            let serialized = if is_cuda { Some(serde_cbor::to_vec(&apcs).unwrap()) } else { None };
-
-            (apcs, serialized)
+                .collect()
         } else {
-            (vec![], None)
+            vec![]
         };
 
         let machine = RiscvAir::machine_with_apcs(apcs);
-        let client = ProverClient::from_env_with_machine_and_apcs(machine, serialized_apcs).await;
+        let client = ProverClient::from_env_with_machine(machine).await;
         let pk = client.setup(elf).await?;
         let mut proof = client.prove(&pk, stdin).mode(mode).await?;
         client.verify(&proof, pk.verifying_key(), None)?;
