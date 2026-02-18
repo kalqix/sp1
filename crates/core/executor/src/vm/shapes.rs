@@ -139,6 +139,18 @@ impl ShapeChecker {
             + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
+        if !costs.apc.is_empty() {
+            let worst_case_apc_padding: u64 =
+                costs.apc.iter().map(|width| 31 * width).sum();
+            tracing::info!(
+                "ShapeChecker: {} APCs, widths={:?}, worst_case_padding={}, MAXIMUM_PADDING_AREA={}",
+                costs.apc.len(),
+                costs.apc,
+                worst_case_apc_padding,
+                MAXIMUM_PADDING_AREA,
+            );
+        }
+
         Self {
             program_len,
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
