@@ -14,7 +14,6 @@ use crate::{
 
 use prove::CudaProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::{CudaClientError, CudaProver as CudaProverImpl, CudaProvingKey};
 use sp1_primitives::Elf;
 use sp1_prover::{
@@ -29,28 +28,6 @@ pub struct CudaProver {
     pub(crate) prover: CudaProverImpl,
 }
 
-impl CudaProver {
-    /// Extract and serialize APCs from the node's machine.
-    fn serialized_apcs(&self) -> Vec<u8> {
-        let apcs: Vec<_> = self
-            .node
-            .inner()
-            .machine()
-            .chips()
-            .iter()
-            .filter_map(|chip| match chip.air.as_ref() {
-                RiscvAir::Apc(apc_chip) => Some(apc_chip.apc().clone()),
-                _ => None,
-            })
-            .collect();
-        if apcs.is_empty() {
-            vec![]
-        } else {
-            serde_cbor::to_vec(&apcs).unwrap()
-        }
-    }
-}
-
 impl Prover for CudaProver {
     type ProvingKey = CudaProvingKey;
     type Error = CudaClientError;
@@ -61,9 +38,8 @@ impl Prover for CudaProver {
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {
-        let prover = self.prover.clone();
-        let apcs = self.serialized_apcs();
-        async move { prover.setup(elf, apcs).await }
+        let machine = self.node.inner().machine().clone();
+        async move { self.prover.setup(elf, machine).await }
     }
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {

@@ -16,7 +16,9 @@ pub use error::CudaClientError;
 pub use pk::CudaProvingKey;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::ProofFromNetwork;
 use sp1_prover_types::network_base_types::ProofMode;
 
@@ -39,10 +41,12 @@ impl CudaProver {
     }
 
     /// Setup a new proving key.
-    ///
-    /// The `apcs` parameter should be CBOR-serialized APCs, or empty if no APCs.
-    pub async fn setup(&self, elf: Elf, apcs: Vec<u8>) -> Result<CudaProvingKey, CudaClientError> {
-        self.client.setup(elf, apcs).await
+    pub async fn setup(
+        &self,
+        elf: Elf,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Result<CudaProvingKey, CudaClientError> {
+        self.client.setup(elf, machine).await
     }
 
     pub async fn prove_with_mode(

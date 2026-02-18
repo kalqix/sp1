@@ -89,7 +89,9 @@ mod tests {
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
     use sp1_core_executor::Program;
-    use sp1_core_machine::autoprecompiles::{execution_profile_from_program, sp1_powdr_config};
+    use sp1_core_machine::autoprecompiles::{
+        execution_profile_from_program, sp1_powdr_config, CompiledProgram,
+    };
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::{io::SP1PublicValues, Elf};
     use sp1_verifier::SP1ProofMode;
@@ -147,8 +149,7 @@ mod tests {
 
             let config = sp1_powdr_config(apc_count, 0);
             let pgo_config = PgoConfig::Instruction(execution_profile);
-            let compiled_program =
-                sp1_core_machine::autoprecompiles::CompiledProgram::new(&elf, config, pgo_config);
+            let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
 
             compiled_program
                 .apcs_and_stats

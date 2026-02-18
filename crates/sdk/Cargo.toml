@@ -84,7 +84,6 @@ powdr-autoprecompiles.workspace = true
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 derive-where.workspace = true
-serde_cbor = "0.11.2"
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
