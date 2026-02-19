@@ -58,9 +58,8 @@ pub async fn cuda_worker_builder(
     // Get the core options.
     let (opts, recompute_first_layer) = local_gpu_opts();
 
-    let num_elts = ((opts.sharding_threshold.element_threshold as usize
-        + (1 << CORE_LOG_STACKING_HEIGHT)) as f64
-        * 1.05) as usize;
+    let num_elts =
+        opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
 
     let core_verifier = SP1CudaProverComponents::core_verifier(machine.clone());
     let core_prover = Arc::new(

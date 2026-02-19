@@ -4,7 +4,7 @@
 
 ```bash
 cd sp1-gpu
-cargo build --release -p sp1-gpu-server
+cargo build --release -p sp1-gpu-server --features experimental
 cp target/release/sp1-gpu-server ~/.sp1/bin/sp1-gpu-server
 ```
 

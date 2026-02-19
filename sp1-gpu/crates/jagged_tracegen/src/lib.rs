@@ -163,7 +163,6 @@ async fn generate_jagged_traces(
     let mut trace_offsets = BTreeMap::new();
 
     // First, get the offsets for each trace.
-    let buffer_capacity = dense_data.len();
     for (name, trace) in traces.iter() {
         match trace {
             Trace::Real(trace) => {
@@ -171,16 +170,6 @@ async fn generate_jagged_traces(
                 let trace_num_rows = trace.num_non_zero_entries();
                 let trace_num_cols = trace.num_polynomials();
                 let trace_size = trace_buf.len();
-
-                tracing::info!(
-                    "  chip={:<30} rows={:<10} cols={:<6} cells={:<12} cumulative={}{}",
-                    name,
-                    trace_num_rows,
-                    trace_num_cols,
-                    trace_size,
-                    offset + trace_size,
-                    if offset + trace_size > buffer_capacity { " *** OVERFLOW ***" } else { "" },
-                );
 
                 let dense_range = offset..offset + trace_size;
                 let col_index_range = offset >> 1..((offset + trace_size) >> 1);
@@ -227,17 +216,6 @@ async fn generate_jagged_traces(
             }
         }
     }
-
-    tracing::info!(
-        "Trace layout summary: total_offset={}, buffer_capacity={}, overflow={}",
-        offset,
-        buffer_capacity,
-        if offset > buffer_capacity {
-            format!("+{}", offset - buffer_capacity)
-        } else {
-            format!("-{} (headroom)", buffer_capacity - offset)
-        },
-    );
     offset = initial_offset;
     cols_so_far = initial_cols;
 
