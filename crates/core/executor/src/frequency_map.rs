@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution_profile::ExecutionProfile;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::MinimalTrace;
 
@@ -12,7 +13,7 @@ use crate::{
 pub fn execute_for_frequency_map<'a>(
     program: &Arc<Program>,
     input: impl Iterator<Item = &'a [u8]>,
-) -> Result<HashMap<u64, u32>, ExecutionError> {
+) -> Result<ExecutionProfile, ExecutionError> {
     let opts = SP1CoreOpts::default();
     let proof_nonce = SP1Context::default().proof_nonce;
 
@@ -31,7 +32,9 @@ pub fn execute_for_frequency_map<'a>(
             match vm.execute_instruction(&mut pc_counts)? {
                 CycleResult::Done(false) => {}
                 CycleResult::TraceEnd => break,
-                CycleResult::Done(true) => return Ok(pc_counts),
+                CycleResult::Done(true) => {
+                    return Ok(ExecutionProfile { pc_count: pc_counts.into_iter().collect() })
+                }
                 CycleResult::ShardBoundary => {
                     unreachable!("Shard boundaries are not expected in pure execution")
                 }
@@ -39,7 +42,7 @@ pub fn execute_for_frequency_map<'a>(
         }
     }
 
-    Ok(pc_counts)
+    Ok(ExecutionProfile { pc_count: pc_counts.into_iter().collect() })
 }
 
 struct FrequencyMapVM<'a> {
@@ -155,6 +158,6 @@ mod tests {
         let frequency_map =
             execute_for_frequency_map(&Arc::new(Program::from(&FIBONACCI_ELF).unwrap()), empty())
                 .unwrap();
-        assert!(!frequency_map.is_empty());
+        assert!(!frequency_map.pc_count.is_empty());
     }
 }
