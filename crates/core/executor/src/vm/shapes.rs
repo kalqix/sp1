@@ -139,9 +139,14 @@ impl ShapeChecker {
             + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
+        let worst_case_apc_padding: u64 = costs.apc.iter().map(|width| 31 * width).sum();
+
         Self {
             program_len,
-            trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
+            trace_area: preprocessed_trace_area
+                + MAXIMUM_PADDING_AREA
+                + MAXIMUM_CYCLE_AREA
+                + worst_case_apc_padding,
             max_height: 0,
             syscall_sent: false,
             shard_start_clk,
@@ -303,7 +308,7 @@ impl ShapeChecker {
     }
 
     pub(crate) fn apply_apc_call(&mut self, call: &ApcCall<ShapeCheckerSnapshot>) {
-        // For each core air, reduce the height by the amount it increased by during the call
+        // For each core air, reduce the height by the amount it increased by during the call.
         for ((air_id, l), (from, to)) in self
             .heights
             .core
@@ -311,6 +316,16 @@ impl ShapeChecker {
             .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
         {
             let rows_to_remove = to - from;
+
+            // MemoryLocal: one row per unique address touched in a shard.
+            // Global: two rows per MemoryLocal event (receive initial, send final value).
+            // Both still produce real trace rows for APC-handled instructions because
+            // extract_records moves memory events to the APC sub-record, and
+            // get_local_mem_events() chains them back into the main event stream.
+            if matches!(air_id, RiscvAirId::Global | RiscvAirId::MemoryLocal) {
+                continue;
+            }
+
             // Reduce the height
             *l -= rows_to_remove;
             // Reduce the trace area
@@ -319,7 +334,7 @@ impl ShapeChecker {
 
         // Increase the height of this apc by 1
         *self.heights.apc.entry(call.apc_id).or_default() += 1;
-        // Increate the trace area by a row whose width is the cost of the apc
+        // Increase the trace area by a row whose width is the cost of the apc
         self.trace_area += self.costs.apc[call.apc_id];
     }
 }
