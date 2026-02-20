@@ -225,7 +225,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         }
 
         // Reinterpret buffer as initialized slice for filling.
-        // Safety: we just initialized all elements above.
+        // Safety: padding rows are zeroed above; event rows are fully written by
+        // substitutions (covering all main_columns) + the manual is_valid assignment.
         let trace_values = unsafe {
             std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast::<F>(), buffer.len())
         };

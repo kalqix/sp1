@@ -316,9 +316,6 @@ impl ShapeChecker {
             .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
         {
             let rows_to_remove = to - from;
-            if rows_to_remove == 0 {
-                continue;
-            }
 
             // MemoryLocal: one row per unique address touched in a shard.
             // Global: two rows per MemoryLocal event (receive initial, send final value).
