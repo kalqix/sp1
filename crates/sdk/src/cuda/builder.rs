@@ -13,7 +13,6 @@ use sp1_prover::worker::SP1LightNode;
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-#[derive(Debug)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.

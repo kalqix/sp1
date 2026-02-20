@@ -12,7 +12,7 @@ use powdr_autoprecompiles::{
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
-use slop_matrix::{dense::RowMajorMatrix, Matrix};
+use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
     ParallelSliceMut,
@@ -105,7 +105,12 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         Some(nb_rows)
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace_into(
+        &self,
+        input: &Self::Record,
+        _output: &mut Self::Record,
+        buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
         // Get all events for the given APC ID
         let events = input.get_apc_events(self.id).expect("APC events not found");
 
@@ -207,13 +212,30 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             dummy_trace_index_to_apc_index_by_instruction.len()
         );
 
-        // Allocate final trace values
         let trace_width = self.width();
-        let mut trace_values = zeroed_f_vec(events.count * trace_width);
 
-        // Fill in the trace values in parallel for each row (apc event)
-        trace_values.par_chunks_mut(trace_width).zip_eq(dummy_values_by_event.par_iter()).for_each(
-            |(trace_row, dummy_values_by_instruction)| {
+        // Zero only padding rows (event rows are fully written by the substitution loop).
+        let padding_start = events.count * trace_width;
+        unsafe {
+            core::ptr::write_bytes(
+                buffer[padding_start..].as_mut_ptr(),
+                0,
+                buffer.len() - padding_start,
+            );
+        }
+
+        // Reinterpret buffer as initialized slice for filling.
+        // Safety: padding rows are zeroed above; event rows are fully written by
+        // substitutions (covering all main_columns) + the manual is_valid assignment.
+        let trace_values = unsafe {
+            std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast::<F>(), buffer.len())
+        };
+
+        // Fill in the trace values in parallel for each event row
+        trace_values[..events.count * trace_width]
+            .par_chunks_mut(trace_width)
+            .zip_eq(dummy_values_by_event.par_iter())
+            .for_each(|(trace_row, dummy_values_by_instruction)| {
                 for (instruction_index, dummy_slice) in
                     dummy_values_by_instruction.iter().enumerate()
                 {
@@ -230,22 +252,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 trace_row[is_valid_index] = F::one();
 
                 tracing::trace!("Final row: {trace_row:?}");
-            },
-        );
-
-        // Pad the trace using a similar logic to `pad_rows_fixed`
-        let padded_len =
-            next_multiple_of_32(events.count, input.fixed_log2_rows::<F, _>(self)) * trace_width;
-        trace_values.resize(padded_len, F::zero());
-
-        // Assert number of elements is correct
-        assert_eq!(
-            trace_values.len(),
-            <ApcChip<F> as MachineAir<F>>::num_rows(self, input).unwrap() * trace_width
-        );
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(trace_values, self.width())
+            });
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -457,15 +464,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().optimistic_constraints.clone(),
         );
         program.add_apc(apc)
-    }
-
-    fn generate_trace_into(
-        &self,
-        _input: &Self::Record,
-        _output: &mut Self::Record,
-        _buffer: &mut [std::mem::MaybeUninit<F>],
-    ) {
-        todo!("implement this instead of `generate_trace` and use the default implementation for `generate_trace`")
     }
 }
 

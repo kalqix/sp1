@@ -82,7 +82,9 @@ mod tests {
 
     use std::sync::Arc;
 
-    use crate::{utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, SP1Stdin};
+    use crate::{
+        utils, CpuProver, MockProver, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin,
+    };
     use anyhow::Result;
     use powdr_autoprecompiles::adapter::ApcWithStats;
     use powdr_autoprecompiles::PgoConfig;
@@ -160,16 +162,16 @@ mod tests {
         };
 
         let machine = RiscvAir::machine_with_apcs(apcs);
-        let client = ProverClient::builder_with_machine(machine).cpu().build().await;
+        let client = ProverClient::from_env_with_machine(machine).await;
         let pk = client.setup(elf).await?;
         let mut proof = client.prove(&pk, stdin).mode(mode).await?;
-        client.verify(&proof, &pk.vk, None)?;
+        client.verify(&proof, pk.verifying_key(), None)?;
 
         // Test invalid public values.
         let mut fake_public_values = proof.public_values.to_vec();
         fake_public_values[0] += 1;
         proof.public_values = SP1PublicValues::from(&fake_public_values);
-        if client.verify(&proof, &pk.vk, None).is_ok() {
+        if client.verify(&proof, pk.verifying_key(), None).is_ok() {
             panic!("verified proof with invalid public values")
         }
 

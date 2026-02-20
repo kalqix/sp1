@@ -68,7 +68,13 @@ impl EnvProver {
 
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine).await),
-            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build().await),
+            "cuda" => {
+                let mut builder = CudaProverBuilder::new_with_machine(machine);
+                if let Some(opts) = core_opts {
+                    builder = builder.core_opts(opts);
+                }
+                Self::Cuda(builder.build().await)
+            }
             "mock" => Self::Mock(MockProver::new_with_machine(machine).await),
             #[cfg(feature = "network")]
             "network" => {

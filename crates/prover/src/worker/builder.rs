@@ -35,7 +35,19 @@ pub struct SP1WorkerBuilder<
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         // Note: the config is uniquely determined by the machine. We still cache it here.
-        let config = SP1WorkerConfig::new(machine.clone());
+        #[allow(unused_mut)]
+        let mut config = SP1WorkerConfig::new(machine.clone());
+
+        // Automatically disable VK verification when the machine has APCs.
+        #[cfg(feature = "experimental")]
+        {
+            let has_apcs =
+                machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
+            if has_apcs {
+                config.prover_config.recursion_prover_config =
+                    config.prover_config.recursion_prover_config.without_vk_verification();
+            }
+        }
 
         Self {
             machine,
@@ -334,22 +346,12 @@ pub fn cpu_worker_builder(
 
     let wrap_prover = CpuWrapProverBuilder;
 
-    let has_apcs = machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
-
-    let builder = SP1WorkerBuilder::new(machine)
+    SP1WorkerBuilder::new(machine)
         .with_artifact_client(artifact_client)
         .with_worker_client(worker_client)
         .with_core_opts(opts)
         .with_core_air_prover(core_air_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_air_prover, prover_permits.clone())
         .with_shrink_air_prover(shrink_prover, prover_permits.clone())
-        .with_wrap_air_prover(wrap_prover, prover_permits);
-
-    #[cfg(feature = "experimental")]
-    if has_apcs {
-        return builder.without_vk_verification();
-    }
-    let _ = has_apcs;
-
-    builder
+        .with_wrap_air_prover(wrap_prover, prover_permits)
 }

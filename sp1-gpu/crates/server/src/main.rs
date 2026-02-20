@@ -1,4 +1,3 @@
-use sp1_core_machine::riscv::RiscvAir;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -24,7 +23,6 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let args = Args::parse();
-    let machine = RiscvAir::machine();
 
     if args.version {
         println!("{}", sp1_primitives::SP1_VERSION);
@@ -38,7 +36,7 @@ async fn main() {
 
     let server = Server { cuda_device_id };
 
-    if let Err(e) = run_in_place(|scope| server.run(scope, machine)).await.await {
+    if let Err(e) = run_in_place(|scope| server.run(scope)).await.await {
         eprintln!("Error running server: {e}");
     }
 }

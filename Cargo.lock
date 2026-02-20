@@ -7412,6 +7412,7 @@ dependencies = [
  "serde_json",
  "sp1-core-executor",
  "sp1-core-machine",
+ "sp1-hypercube",
  "sp1-primitives",
  "sp1-prover",
  "sp1-prover-types",
