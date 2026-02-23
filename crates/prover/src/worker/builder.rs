@@ -41,12 +41,8 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
         // Automatically disable VK verification when the machine has APCs.
         #[cfg(feature = "experimental")]
         {
-            let has_apcs =
-                machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
-            if has_apcs {
-                config.prover_config.recursion_prover_config =
-                    config.prover_config.recursion_prover_config.without_vk_verification();
-            }
+            config.prover_config.recursion_prover_config =
+                config.prover_config.recursion_prover_config.without_vk_verification();
         }
 
         Self {
