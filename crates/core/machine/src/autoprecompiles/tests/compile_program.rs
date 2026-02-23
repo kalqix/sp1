@@ -37,8 +37,8 @@ fn test_execution_profile(guest_path: &str, stdin: SP1Stdin) {
     let execution_profile = execution_profile_from_program(program, stdin);
 
     // Check that all executed pc are within the program's range
-    let pc_min = execution_profile.keys().min().unwrap();
-    let pc_max = execution_profile.keys().max().unwrap();
+    let pc_min = execution_profile.pc_count.keys().min().unwrap();
+    let pc_max = execution_profile.pc_count.keys().max().unwrap();
     assert!(*pc_min >= sp1_program.base_pc());
     assert!(
         *pc_max
@@ -183,17 +183,17 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
     // Check the validity of each basic block
     basic_blocks.iter().enumerate().fold(None::<Sp1Instruction>, |prior, (idx, bb)| {
         // Every block must be non-empty
-        assert!(!bb.statements.is_empty(), "Basic block must not be empty");
+        assert!(!bb.instructions.is_empty(), "Basic block must not be empty");
 
         // A basic block must:
         // start with a not allowed instruction (in which case it's alone in its own block)
         // OR start with a target instruction
         // OR the last instruction of the prior block is branching/not allowed instruction
         // OR is the first block
-        let first = &bb.statements[0];
+        let first = &bb.instructions[0];
         if !instruction_handler.is_allowed(first) {
             assert!(
-                bb.statements.len() == 1,
+                bb.instructions.len() == 1,
                 "Block with not allowed instruction must be in its own block"
             );
         } else if idx != 0 {
@@ -207,6 +207,6 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
         }
 
         // Update the last instruction of the prior block for the next iteration
-        Some(bb.statements.last().unwrap().clone())
+        Some(bb.instructions.last().unwrap().clone())
     });
 }

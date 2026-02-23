@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
 use powdr_autoprecompiles::bus_map::BusType;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Sp1SpecificBuses {
     Byte,
     UntrustedInstruction,

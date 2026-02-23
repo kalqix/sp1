@@ -18,6 +18,7 @@ use powdr_autoprecompiles::{
     adapter::{AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
+    execution_profile::ExecutionProfile,
     pgo::{CellPgo, InstructionPgo, NonePgo},
     DegreeBound, PgoConfig, PowdrConfig,
 };
@@ -27,10 +28,7 @@ use sp1_core_executor::{execute_for_frequency_map, Program};
 #[cfg(test)]
 use sp1_core_executor::{Apc, ApcRange};
 use sp1_primitives::SP1Field;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     autoprecompiles::{
@@ -95,7 +93,7 @@ pub fn compile_guest(
     CompiledProgram::new(&elf, config, pgo_config)
 }
 
-pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> HashMap<u64, u32> {
+pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> ExecutionProfile {
     let elf = build_elf(guest_path);
 
     let program = Arc::new(Program::from(&elf).unwrap());
@@ -103,11 +101,8 @@ pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> HashMa
     execution_profile_from_program(program, stdin)
 }
 
-pub fn execution_profile_from_program(program: Arc<Program>, stdin: SP1Stdin) -> HashMap<u64, u32> {
-    execute_for_frequency_map(&program, stdin.buffer.iter().map(|v| v.as_slice()))
-        .unwrap()
-        .into_iter()
-        .collect()
+pub fn execution_profile_from_program(program: Arc<Program>, stdin: SP1Stdin) -> ExecutionProfile {
+    execute_for_frequency_map(&program, stdin.buffer.iter().map(|v| v.as_slice())).unwrap()
 }
 
 pub fn powdr_default_build_args() -> BuildArgs {
@@ -170,7 +165,10 @@ pub fn create_apcs(
     apc_ranges
         .into_iter()
         .map(|range| {
-            use powdr_autoprecompiles::blocks::{BasicBlock, PcStep};
+            use powdr_autoprecompiles::{
+                blocks::{BasicBlock, PcStep},
+                export::ExportOptions,
+            };
             use sp1_core_executor::Apc;
 
             let instructions = program.instructions
@@ -184,15 +182,15 @@ pub fn create_apcs(
             let start_pc = (range.start().unwrap() as u64) * pc_step + program.pc_base;
 
             // Create a dummy basic block with the original instructions
-            let block = BasicBlock { start_pc, statements: instructions };
+            let block = BasicBlock { start_pc, instructions };
 
             // Build the APC from the block
             let empirical_constraints = EmpiricalConstraints::default();
             let apc = powdr_autoprecompiles::build::<Sp1ApcAdapter>(
-                block,
+                block.into(),
                 sp1_vm_config(&Sp1InstructionHandler::<SP1Field>::new()),
                 DEFAULT_DEGREE_BOUND,
-                None,
+                ExportOptions::default(),
                 &empirical_constraints,
             )
             .expect("Failed to build APC");
