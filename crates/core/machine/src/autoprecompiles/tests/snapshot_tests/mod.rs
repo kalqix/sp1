@@ -1,6 +1,9 @@
 use powdr_autoprecompiles::{
-    blocks::BasicBlock, build, empirical_constraints::EmpiricalConstraints,
+    blocks::{BasicBlock, SuperBlock},
+    build,
+    empirical_constraints::EmpiricalConstraints,
     evaluation::evaluate_apc,
+    export::ExportOptions,
 };
 use pretty_assertions::assert_eq;
 use sp1_core_executor::Instruction;
@@ -19,17 +22,18 @@ mod single_instructions;
 fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_name: &str) {
     let instruction_handler = Sp1InstructionHandler::<SP1Field>::new();
     let vm_config = sp1_vm_config(&instruction_handler);
-    let block = BasicBlock {
+    let block: SuperBlock<_> = BasicBlock {
         start_pc: 0,
-        statements: basic_block.iter().cloned().map(Into::into).collect(),
-    };
+        instructions: basic_block.iter().cloned().map(Into::into).collect(),
+    }
+    .into();
 
     let empirical_constraints = EmpiricalConstraints::default();
     let apc = build::<Sp1ApcAdapter>(
         block.clone(),
         vm_config,
         DEFAULT_DEGREE_BOUND,
-        None,
+        ExportOptions::default(),
         &empirical_constraints,
     )
     .unwrap();

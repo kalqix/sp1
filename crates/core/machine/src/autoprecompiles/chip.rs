@@ -144,8 +144,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let original_instruction_air_ids = self
             .apc()
             .block
-            .statements
-            .iter()
+            .instructions()
             .map(|instr| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
                     .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
@@ -208,7 +207,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .collect();
 
         assert_eq!(
-            self.apc().block.statements.len(),
+            self.apc().block.instructions().count(),
             dummy_trace_index_to_apc_index_by_instruction.len()
         );
 
@@ -299,8 +298,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let original_instruction_air_ids = self
             .apc()
             .block
-            .statements
-            .iter()
+            .instructions()
             .map(|instr| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
                     .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
@@ -363,7 +361,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .collect();
 
         assert_eq!(
-            self.apc().block.statements.len(),
+            self.apc().block.instructions().count(),
             dummy_trace_index_to_apc_index_by_instruction.len()
         );
 
@@ -455,8 +453,9 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {
         let range = ApcRange::new(
-            ((self.apc().start_pc() - program.pc_base) / Sp1Instruction::pc_step() as u64) as usize,
-            self.apc().block.statements.len(),
+            ((self.apc().block.try_as_basic_block().unwrap().start_pc - program.pc_base)
+                / Sp1Instruction::pc_step() as u64) as usize,
+            self.apc().block.instructions().count(),
         );
         let apc = sp1_core_executor::Apc::new(
             range,

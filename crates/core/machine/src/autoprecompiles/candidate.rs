@@ -38,7 +38,7 @@ impl<A: Adapter> KnapsackItem for Sp1Candidate<A> {
     }
 
     fn tie_breaker(&self) -> usize {
-        self.apc_with_stats.apc().block.start_pc.try_into().unwrap()
+        self.apc_with_stats.apc().block.try_as_basic_block().unwrap().start_pc as usize
     }
 }
 
@@ -47,8 +47,9 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         apc_with_stats: AdapterApcWithStats<Sp1ApcAdapter>,
         pgo_program_pc_count: &HashMap<u64, u32>,
     ) -> Self {
-        let execution_frequency =
-            *pgo_program_pc_count.get(&apc_with_stats.apc().block.start_pc).unwrap_or(&0) as usize;
+        let execution_frequency = *pgo_program_pc_count
+            .get(&apc_with_stats.apc().block.try_as_basic_block().unwrap().start_pc)
+            .unwrap_or(&0) as usize;
 
         Sp1Candidate { apc_with_stats, execution_frequency }
     }
@@ -57,19 +58,21 @@ impl Candidate<Sp1ApcAdapter> for Sp1Candidate<Sp1ApcAdapter> {
         ApcCandidateJsonExport {
             execution_frequency: self.execution_frequency,
             original_block: BasicBlock {
-                start_pc: self.apc_with_stats.apc().block.start_pc,
-                statements: self
+                start_pc: self.apc_with_stats.apc().block.try_as_basic_block().unwrap().start_pc,
+                instructions: self
                     .apc_with_stats
                     .apc()
                     .block
-                    .statements
-                    .iter()
+                    .instructions()
                     .map(|instr| instr.to_string())
                     .collect(),
             },
             stats: self.apc_with_stats.evaluation_result(),
             apc_candidate_file: apc_candidates_dir_path
-                .join(format!("apc_{}.cbor", self.apc_with_stats.apc().start_pc()))
+                .join(format!(
+                    "apc_{}.cbor",
+                    self.apc_with_stats.apc().block.try_as_basic_block().unwrap().start_pc
+                ))
                 .display()
                 .to_string(),
             width_before: self.apc_with_stats.stats().before.main_columns,

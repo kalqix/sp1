@@ -40,7 +40,7 @@ impl Adapter for Sp1ApcAdapter {
 
     fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
         // Skip blocks with more than 1000 instructions
-        block.statements.len() > 1000
+        block.instructions.len() > 1000
     }
 
     fn apc_stats(
@@ -49,8 +49,7 @@ impl Adapter for Sp1ApcAdapter {
     ) -> Self::ApcStats {
         let stats_before = apc
             .block
-            .statements
-            .iter()
+            .instructions()
             .map(|s| *instruction_handler.get_instruction_air_stats(s).unwrap())
             .sum();
         let stats_after = AirStats::new(apc.machine());
