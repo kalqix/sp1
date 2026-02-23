@@ -38,8 +38,8 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
         #[allow(unused_mut)]
         let mut config = SP1WorkerConfig::new(machine.clone());
 
-        // Automatically disable VK verification when the machine has APCs.
-        #[cfg(feature = "experimental")]
+        // Disable VK verification.
+        // TODO: Change this once vk verification is implemented for the modified vk.
         {
             config.prover_config.recursion_prover_config =
                 config.prover_config.recursion_prover_config.without_vk_verification();
