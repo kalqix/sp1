@@ -288,7 +288,6 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     }
 
     /// Turn off vk verification for recursion proofs.
-    #[cfg(feature = "experimental")]
     pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
             machine,
