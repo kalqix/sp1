@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     async fn test_e2e_groth16_fibonacci() {
         test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Groth16).await.unwrap();
     }
@@ -433,7 +433,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "fails with \"invalid merkle proof: VcsError\""]
+    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     async fn test_apc_groth16_fibonacci() {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Groth16).await.unwrap();
     }

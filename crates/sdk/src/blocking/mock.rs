@@ -212,7 +212,7 @@ mod tests {
 
     /// Test that mock Groth16 proof verification fails with wrong vkey.
     #[test]
-    #[ignore]
+    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     fn test_mock_groth16_proof_wrong_vkey_fails() {
         setup_logger();
         let prover = MockProver::new();
@@ -257,7 +257,7 @@ mod tests {
 
     /// Test that mock Groth16 proof verification fails with tampered public values.
     #[test]
-    #[ignore]
+    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     fn test_mock_groth16_proof_tampered_public_values_fails() {
         setup_logger();
         let prover = MockProver::new();
