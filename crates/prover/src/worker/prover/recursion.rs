@@ -110,7 +110,7 @@ impl SP1RecursionProverConfig {
             reduce_shape,
         }
     }
-
+    #[cfg(feature = "experimental")]
     /// Turn off vk verification for recursion proofs.
     pub fn without_vk_verification(self) -> Self {
         Self { vk_verification: false, ..self }

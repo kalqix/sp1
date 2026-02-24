@@ -40,6 +40,7 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
 
         // Disable VK verification.
         // TODO: Change this once vk verification is implemented for the modified vk.
+        #[cfg(feature = "experimental")]
         {
             config.prover_config.recursion_prover_config =
                 config.prover_config.recursion_prover_config.without_vk_verification();
@@ -288,6 +289,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     }
 
     /// Turn off vk verification for recursion proofs.
+    #[cfg(feature = "experimental")]
     pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
             machine,
