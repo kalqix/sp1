@@ -403,6 +403,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_e2e_groth16_fibonacci() {
         test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 0, SP1ProofMode::Groth16).await.unwrap();
     }

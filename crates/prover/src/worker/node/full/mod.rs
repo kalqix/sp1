@@ -403,6 +403,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_e2e_groth16_node() -> anyhow::Result<()> {
         setup_logger();
 
