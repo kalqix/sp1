@@ -66,6 +66,8 @@ rand = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
+default = ["experimental"]
+experimental = []
 test-proof = []
 
 [lints]

@@ -10,9 +10,10 @@ use sp1_core_executor::SP1RecursionProof;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
-    air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS}, HashableKey, Machine, MachineVerifier, MachineVerifierConfigError,
-    MachineVerifierError, MachineVerifyingKey, SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner,
-    SP1PcsProofOuter, SP1VerifyingKey, SP1WrapProof, PROOF_MAX_NUM_PVS,
+    air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    HashableKey, Machine, MachineVerifier, MachineVerifierConfigError, MachineVerifierError,
+    MachineVerifyingKey, SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner, SP1PcsProofOuter,
+    SP1VerifyingKey, SP1WrapProof, PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
