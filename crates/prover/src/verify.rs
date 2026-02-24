@@ -516,7 +516,7 @@ impl SP1Verifier {
             ));
         }
 
-        #[cfg(feature = "experimental")]
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if public_values.vk_root != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -580,7 +580,7 @@ impl SP1Verifier {
             ));
         }
 
-        #[cfg(feature = "experimental")]
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if public_values.vk_root != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -640,7 +640,7 @@ impl SP1Verifier {
             ));
         }
 
-        #[cfg(feature = "experimental")]
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if *public_values.vk_root() != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -664,11 +664,13 @@ impl SP1Verifier {
         let exit_code = BigUint::from_str(&proof.public_inputs[2])?;
         let vk_root = BigUint::from_str(&proof.public_inputs[3])?;
         let proof_nonce = BigUint::from_str(&proof.public_inputs[4])?;
-        let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
 
-        #[cfg(feature = "experimental")]
-        if vk_root != expected_vk_root.as_canonical_biguint() {
-            return Err(anyhow!("vk_root mismatch"));
+        #[cfg(not(feature = "experimental"))]
+        {
+            let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
+            if vk_root != expected_vk_root.as_canonical_biguint() {
+                return Err(anyhow!("vk_root mismatch"));
+            }
         }
 
         if vk.hash_bn254().as_canonical_biguint() != vkey_hash {
@@ -737,11 +739,13 @@ impl SP1Verifier {
         let exit_code = BigUint::from_str(&proof.public_inputs[2])?;
         let vk_root = BigUint::from_str(&proof.public_inputs[3])?;
         let proof_nonce = BigUint::from_str(&proof.public_inputs[4])?;
-        let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
 
-        #[cfg(feature = "experimental")]
-        if vk_root != expected_vk_root.as_canonical_biguint() {
-            return Err(anyhow!("vk_root mismatch"));
+        #[cfg(not(feature = "experimental"))]
+        {
+            let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
+            if vk_root != expected_vk_root.as_canonical_biguint() {
+                return Err(anyhow!("vk_root mismatch"));
+            }
         }
 
         if vk.hash_bn254().as_canonical_biguint() != vkey_hash {
