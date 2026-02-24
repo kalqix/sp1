@@ -115,10 +115,9 @@ impl GasEstimatingVM<'_> {
 
         let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
 
-        assert!(
-            calls.is_empty(),
-            "Apc call application is not implemented for the `GasEstimatingVM`"
-        );
+        if !calls.is_empty() {
+            tracing::error!("Apc call application is not implemented for the `GasEstimatingVM`. Execution report will NOT take apcs into account");
+        }
 
         Ok(res)
     }
