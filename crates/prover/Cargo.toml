@@ -104,6 +104,7 @@ name = "build_plonk_bn254"
 path = "scripts/build_plonk_bn254.rs"
 
 [features]
+default = ["experimental"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
