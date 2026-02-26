@@ -99,6 +99,7 @@ mod tests {
     use slop_jagged::{JaggedPcsVerifier, JaggedProver};
     use slop_merkle_tree::Poseidon2KoalaBear16Prover;
     use slop_stacked::StackedPcsProver;
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_gpu_basefold::FriCudaProver;
     use sp1_gpu_cudart::{run_in_place, PinnedBuffer};
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
@@ -117,7 +118,9 @@ mod tests {
     #[tokio::test]
     async fn test_commit_matches() {
         let machine = RiscvAir::machine();
-        let (record, program) = tracegen_setup::setup(machine.clone()).await;
+        let (record, program) =
+            tracegen_setup::setup(machine.clone(), &test_artifacts::FIBONACCI_ELF, SP1Stdin::new())
+                .await;
 
         type JC = SP1InnerPcs;
         type Prover = JaggedProver<

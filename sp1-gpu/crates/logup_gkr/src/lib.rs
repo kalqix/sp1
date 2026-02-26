@@ -301,6 +301,8 @@ mod tests {
     use slop_futures::queue::WorkerQueue;
     use slop_multilinear::Mle;
     use slop_sumcheck::partially_verify_sumcheck_proof;
+    use sp1_core_machine::io::SP1Stdin;
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, PinnedBuffer};
     use sp1_gpu_jagged_tracegen::{
         full_tracegen,
@@ -309,7 +311,6 @@ mod tests {
     };
     use sp1_gpu_utils::TestGC;
     use sp1_hypercube::SP1SC;
-    use sp1_sdk::RiscvAir;
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -552,7 +553,11 @@ mod tests {
     fn test_logup_gkr_e2e() {
         let machine = RiscvAir::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (record, program) = rt.block_on(tracegen_setup::setup(machine.clone()));
+        let (record, program) = rt.block_on(tracegen_setup::setup(
+            machine.clone(),
+            &test_artifacts::FIBONACCI_ELF,
+            SP1Stdin::new(),
+        ));
 
         run_sync_in_place(|scope| {
             // *********** Generate traces using the host tracegen. ***********

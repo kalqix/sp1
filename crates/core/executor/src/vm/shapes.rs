@@ -22,10 +22,17 @@ pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
 /// The correctness of this value is checked in the test `test_maximum_cycle`.
 pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 18;
 
+/// The maximum trace area from the `syscall_halt` function.
+pub const HALT_AREA: u64 = 1 << 18;
+
+/// The maximum height from the `syscall_halt` function.
+pub const HALT_HEIGHT: u64 = 1 << 10;
+
 pub struct ShapeChecker {
     program_len: u64,
     trace_area: u64,
     max_height: u64,
+    is_commit_on: bool,
     pub(crate) syscall_sent: bool,
     // The start of the most recent shard according to the shape checking logic.
     shard_start_clk: u64,
@@ -140,6 +147,11 @@ impl ShapeChecker {
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
         let worst_case_apc_padding: u64 = costs.apc.iter().map(|width| 31 * width).sum();
+        let ShardingThreshold { element_threshold, height_threshold } = elem_threshold;
+        assert!(
+            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
+            "invalid sharding threshold"
+        );
 
         Self {
             program_len,
@@ -148,10 +160,14 @@ impl ShapeChecker {
                 + MAXIMUM_CYCLE_AREA
                 + worst_case_apc_padding,
             max_height: 0,
+            is_commit_on: false,
             syscall_sent: false,
             shard_start_clk,
             heights: EventCounts::default(),
-            sharding_threshold: elem_threshold,
+            sharding_threshold: ShardingThreshold {
+                element_threshold: element_threshold - HALT_AREA,
+                height_threshold: height_threshold - HALT_HEIGHT,
+            },
             costs,
             // Assume that all registers will be touched in each shard.
             local_mem_counts: 32,
@@ -190,6 +206,11 @@ impl ShapeChecker {
 
         self.local_mem_counts +=
             (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+    }
+
+    #[inline]
+    pub fn handle_commit(&mut self) {
+        self.is_commit_on = true;
     }
 
     #[inline]
@@ -235,8 +256,9 @@ impl ShapeChecker {
     /// Whether the shard limit has been reached.
     #[inline]
     pub fn check_shard_limit(&self) -> bool {
-        self.trace_area >= self.sharding_threshold.element_threshold
-            || self.max_height >= self.sharding_threshold.height_threshold
+        !self.is_commit_on
+            && (self.trace_area >= self.sharding_threshold.element_threshold
+                || self.max_height >= self.sharding_threshold.height_threshold)
     }
 
     /// Increment the trace area for the given instruction.

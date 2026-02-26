@@ -4,6 +4,7 @@
 
 use crate::blocking::{
     cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
+    light::builder::LightProverBuilder, mock::builder::MockProverBuilder,
 };
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
@@ -102,5 +103,19 @@ impl ProverClientBuilder {
     #[allow(clippy::unused_self)]
     pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder::new(self.machine.clone())
+    }
+
+    /// Builds a [`MockProver`] for testing without real proving or verification.
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn mock(&self) -> MockProverBuilder {
+        MockProverBuilder::new()
+    }
+
+    /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn light(&self) -> LightProverBuilder {
+        LightProverBuilder::new()
     }
 }
