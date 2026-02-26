@@ -109,13 +109,13 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn mock(&self) -> MockProverBuilder {
-        MockProverBuilder::new()
+        MockProverBuilder::new(self.machine.clone())
     }
 
     /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn light(&self) -> LightProverBuilder {
-        LightProverBuilder::new()
+        LightProverBuilder::new(self.machine.clone())
     }
 }
