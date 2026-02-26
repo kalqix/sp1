@@ -59,10 +59,9 @@ impl SP1LightNode {
             let permits = ProverSemaphore::new(1);
 
             // Get a new verifier for the light node.
-            let has_apcs =
-                machine.chips().iter().any(|chip| matches!(chip.air.as_ref(), RiscvAir::Apc(_)));
-
-            let recursion_vks = if has_apcs {
+            // TODO: Change this once vk verification is implemented for the modified vk.
+            #[cfg(feature = "experimental")]
+            let recursion_vks = {
                 // Compute the dummy recursion VKs matching what the prover produces with
                 // without_vk_verification(). This is cheap (no circuit compilation).
                 let dummy = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false);
@@ -71,9 +70,11 @@ impl SP1LightNode {
                     vk_verification: false,
                     num_keys: dummy.num_keys(),
                 }
-            } else {
-                VerifierRecursionVks::default()
             };
+
+            #[cfg(not(feature = "experimental"))]
+            let recursion_vks = VerifierRecursionVks::default();
+
             let verifier = SP1Verifier::new(recursion_vks, machine);
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);

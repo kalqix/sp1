@@ -57,9 +57,9 @@ async fn main() {
     let args = Args::parse();
 
     // Load the input from the cache.
-    let block = 20526624; // ~2.4M Gas
-                          // let block = 21740164; // ~15M Gas
-                          // let block = 21740137; // ~29M Gas
+    // let block = 20526624; // ~2.4M Gas
+    // let block = 21740164; // ~15M Gas
+    let block = 21740137; // ~29M Gas
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, block);
     let mut stdin = SP1Stdin::default();
     let buffer = bincode::serialize(&client_input).unwrap();
