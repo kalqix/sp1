@@ -147,11 +147,6 @@ impl ShapeChecker {
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
         let worst_case_apc_padding: u64 = costs.apc.iter().map(|width| 31 * width).sum();
-        let ShardingThreshold { element_threshold, height_threshold } = elem_threshold;
-        assert!(
-            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
-            "invalid sharding threshold"
-        );
 
         Self {
             program_len,
@@ -164,10 +159,7 @@ impl ShapeChecker {
             syscall_sent: false,
             shard_start_clk,
             heights: EventCounts::default(),
-            sharding_threshold: ShardingThreshold {
-                element_threshold: element_threshold - HALT_AREA,
-                height_threshold: height_threshold - HALT_HEIGHT,
-            },
+            sharding_threshold: elem_threshold,
             costs,
             // Assume that all registers will be touched in each shard.
             local_mem_counts: 32,

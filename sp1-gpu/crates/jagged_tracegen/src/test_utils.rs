@@ -15,10 +15,19 @@ pub mod tracegen_setup {
     /// Execute the given ELF with the provided stdin and return the machine, first record, and
     /// program for use in tracegen tests.
     pub async fn setup(
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> (Machine<Felt, RiscvAir<Felt>>, ExecutionRecord, Arc<Program>) {
+        let machine = RiscvAir::<Felt>::machine();
+        setup_with_machine(machine, elf, stdin).await
+    }
+
+    /// Like [`setup`], but with a custom machine (e.g. with APCs configured).
+    pub async fn setup_with_machine(
         machine: Machine<Felt, RiscvAir<Felt>>,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> (ExecutionRecord, Arc<Program>) {
+    ) -> (Machine<Felt, RiscvAir<Felt>>, ExecutionRecord, Arc<Program>) {
         let program =
             Arc::new(Program::from(elf).expect("Failed to load ELF - file may be corrupted"));
 
@@ -28,12 +37,12 @@ pub mod tracegen_setup {
             stdin,
             sp1_core_opts,
             [0; PROOF_NONCE_NUM_WORDS],
-            machine,
+            machine.clone(),
         )
         .expect("failed to generate records");
 
         let record = records[0].clone();
 
-        (record, program)
+        (machine, record, program)
     }
 }

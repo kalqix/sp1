@@ -551,13 +551,9 @@ mod tests {
     #[test]
     #[serial]
     fn test_logup_gkr_e2e() {
-        let machine = RiscvAir::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (record, program) = rt.block_on(tracegen_setup::setup(
-            machine.clone(),
-            &test_artifacts::FIBONACCI_ELF,
-            SP1Stdin::new(),
-        ));
+        let (machine, record, program) =
+            rt.block_on(tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()));
 
         run_sync_in_place(|scope| {
             // *********** Generate traces using the host tracegen. ***********

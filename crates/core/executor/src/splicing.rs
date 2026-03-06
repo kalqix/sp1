@@ -9,11 +9,11 @@ use crate::{
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
-        shapes::{ShapeChecker, ShapeCheckerSnapshot},
+        shapes::{ShapeChecker, ShapeCheckerSnapshot, HALT_AREA, HALT_HEIGHT},
         syscall::SyscallRuntime,
         CoreVM,
     },
-    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, SyscallCode,
+    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold, SyscallCode,
 };
 
 use super::program::Apc;
@@ -178,7 +178,11 @@ impl<'a> SplicingVM<'a> {
     ) -> Self {
         let program_len = program.instructions.len() as u64;
         let apc_costs = program.apcs.apc_by_index.iter().map(Apc::cost).collect();
-        let sharding_threshold = opts.sharding_threshold;
+        let ShardingThreshold { element_threshold, height_threshold } = opts.sharding_threshold;
+        assert!(
+            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
+            "invalid sharding threshold"
+        );
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),
             touched_addresses,
@@ -186,7 +190,10 @@ impl<'a> SplicingVM<'a> {
                 program_len,
                 apc_costs,
                 trace.clk_start(),
-                sharding_threshold,
+                ShardingThreshold {
+                    element_threshold: element_threshold - HALT_AREA,
+                    height_threshold: height_threshold - HALT_HEIGHT,
+                },
             ),
         }
     }
@@ -524,9 +531,13 @@ mod tests {
         let proof_nonce = SP1Context::default().proof_nonce;
         let mut opts = SP1CoreOpts::default();
 
-        // Force the trace to end early so the APC is interrupted mid-execution. The whole block would require 100 rows in the ADDI table but we segment at 90.
-        opts.sharding_threshold =
-            crate::ShardingThreshold { element_threshold: 10000000, height_threshold: 90 };
+        // Force the trace to end early so the APC is interrupted mid-execution. The whole block
+        // would require 100 rows in the ADDI table but we segment at an effective height of 90
+        // (after reserving HALT_HEIGHT for the halt area).
+        opts.sharding_threshold = crate::ShardingThreshold {
+            element_threshold: 10000000,
+            height_threshold: HALT_HEIGHT + 90,
+        };
 
         let mut touched_addresses = CompressedMemory::new();
         let mut vm = SplicingVM::new(&chunk, program, &mut touched_addresses, proof_nonce, opts);

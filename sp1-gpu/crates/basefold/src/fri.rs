@@ -524,19 +524,14 @@ mod tests {
     use sp1_gpu_utils::{Ext, Felt, TestGC};
     use sp1_primitives::fri_params::core_fri_config;
     use sp1_primitives::SP1GlobalContext;
-    use sp1_sdk::RiscvAir;
 
     use super::*;
 
     #[test]
     fn test_basefold() {
-        let machine = RiscvAir::machine();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (record, program) = rt.block_on(tracegen_setup::setup(
-            machine.clone(),
-            &test_artifacts::FIBONACCI_ELF,
-            SP1Stdin::new(),
-        ));
+        let (machine, record, program) =
+            rt.block_on(tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()));
 
         run_sync_in_place(|scope| {
             let verifier = BasefoldVerifier::<SP1GlobalContext>::new(core_fri_config(), 2);

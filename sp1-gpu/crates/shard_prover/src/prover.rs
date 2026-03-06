@@ -801,10 +801,8 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_prove_trusted_evaluations() {
-        let machine = RiscvAir::machine();
-        let (record, program) =
-            tracegen_setup::setup(machine.clone(), &test_artifacts::FIBONACCI_ELF, SP1Stdin::new())
-                .await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
         run_in_place(|scope| async move {
             // *********** Generate traces using the host tracegen. ***********
             let capacity = CORE_MAX_TRACE_SIZE as usize;

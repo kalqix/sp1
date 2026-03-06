@@ -1038,7 +1038,6 @@ mod tests {
     use sp1_gpu_utils::{Ext, Felt};
     use sp1_gpu_zerocheck::primitives::{evaluate_jagged_mle_chunked, evaluate_traces};
     use sp1_hypercube::prover::{DefaultTraceGenerator, ProverSemaphore, TraceGenerator};
-    use sp1_sdk::RiscvAir;
 
     use crate::test_utils::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT};
     use crate::{
@@ -1055,10 +1054,8 @@ mod tests {
     #[serial]
     async fn test_jagged_tracegen() {
         init_tracer();
-        let machine = RiscvAir::machine();
-        let (record, program) =
-            tracegen_setup::setup(machine.clone(), &test_artifacts::FIBONACCI_ELF, SP1Stdin::new())
-                .await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
 
         let mut rng = StdRng::seed_from_u64(4);
         run_in_place(|scope| async move {
