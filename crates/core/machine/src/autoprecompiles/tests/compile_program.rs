@@ -4,16 +4,17 @@ use crate::{
     autoprecompiles::{
         adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_guest,
         execution_profile_from_program, instruction::Sp1Instruction,
-        instruction_handler::Sp1InstructionHandler, program::Sp1Program, sp1_powdr_config,
+        program::Sp1Program, sp1_powdr_config,
     },
     io::SP1Stdin,
     utils::setup_logger,
 };
 use expect_test::{expect, Expect};
 use powdr_autoprecompiles::{
+    adapter::Adapter,
     blocks::{collect_basic_blocks, PcStep, Program as PowdrProgram},
     evaluation::AirStats,
-    InstructionHandler, PgoConfig,
+    PgoConfig,
 };
 use rand::{distributions::Distribution, rngs::StdRng, Rng, SeedableRng};
 use sp1_core_executor::Program;
@@ -172,11 +173,9 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
 
     let sp1_program = Sp1Program::from(Arc::new(Program::from(&elf).unwrap()));
     let jumpdest_set = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(&elf).jumpdests;
-    let instruction_handler = Sp1InstructionHandler::<sp1_primitives::SP1Field>::new();
 
     // Check total number of basic blocks produced
-    let basic_blocks =
-        collect_basic_blocks::<Sp1ApcAdapter>(&sp1_program, &jumpdest_set, &instruction_handler);
+    let basic_blocks = collect_basic_blocks::<Sp1ApcAdapter>(&sp1_program, &jumpdest_set);
     let basic_blocks_length = basic_blocks.len();
     expected_bb_len.assert_debug_eq(&basic_blocks_length);
 
@@ -191,7 +190,7 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
         // OR the last instruction of the prior block is branching/not allowed instruction
         // OR is the first block
         let first = &bb.instructions[0];
-        if !instruction_handler.is_allowed(first) {
+        if !Sp1ApcAdapter::is_allowed(first) {
             assert!(
                 bb.instructions.len() == 1,
                 "Block with not allowed instruction must be in its own block"
@@ -199,9 +198,9 @@ fn test_collect_basic_blocks(guest_path: &str, expected_bb_len: Expect) {
         } else if idx != 0 {
             let prev = prior.as_ref().expect("Prior should be set after the first iteration");
             assert!(
-                instruction_handler.is_branching(prev)
+                Sp1ApcAdapter::is_branching(prev)
                     || jumpdest_set.contains(&bb.start_pc)
-                    || !instruction_handler.is_allowed(prev),
+                    || !Sp1ApcAdapter::is_allowed(prev),
                 "Block must start at a jumpdest or after a branching instruction"
             );
         }

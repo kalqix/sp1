@@ -44,7 +44,7 @@ fn assert_machine_output(basic_block: Vec<Instruction>, module_name: &str, test_
         .map(|(i, inst)| format!("  {i:>3}: {inst:?}"))
         .collect::<Vec<_>>()
         .join("\n");
-    let apc_with_stats = evaluate_apc::<Sp1ApcAdapter>(block, &instruction_handler, apc);
+    let apc_with_stats = evaluate_apc::<Sp1ApcAdapter>(&instruction_handler, apc);
     let actual = format!(
         "Instructions:\n{basic_block_str}\n\n{}\n\n{}",
         apc_with_stats.evaluation_result(),
