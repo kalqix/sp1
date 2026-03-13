@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::{
     autoprecompiles::{
         adapter::Sp1ApcAdapter, build_elf, compile_guest, execution_profile_from_guest,
-        execution_profile_from_program, instruction::Sp1Instruction,
-        program::Sp1Program, sp1_powdr_config,
+        execution_profile_from_program, instruction::Sp1Instruction, program::Sp1Program,
+        sp1_powdr_config,
     },
     io::SP1Stdin,
     utils::setup_logger,
@@ -118,18 +118,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 15075,
-            constraints: 9489,
-            bus_interactions: 7235,
+            main_columns: 1546,
+            constraints: 1118,
+            bus_interactions: 784,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 3098,
-            constraints: 491,
-            bus_interactions: 1996,
+            main_columns: 481,
+            constraints: 244,
+            bus_interactions: 344,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
@@ -151,7 +151,7 @@ fn test_collect_basic_blocks_keccak256_software() {
     test_collect_basic_blocks(
         GUEST_KECCAK256_SOFTWARE,
         expect![[r#"
-            2037
+            1887
         "#]],
     );
 }
@@ -163,7 +163,7 @@ fn test_collect_basic_blocks_fibonacci() {
     test_collect_basic_blocks(
         GUEST_FIBONACCI,
         expect![[r#"
-            1858
+            1724
         "#]],
     );
 }

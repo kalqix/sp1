@@ -96,7 +96,7 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
         };
         let addr = MemoryAddress::new([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
-        let timestamp_limbs = vec![clk_low.clone(), clk_high.clone()];
+        let timestamp_limbs = vec![clk_high.clone(), clk_low.clone()];
         Ok(Some(Sp1MemoryBusInteraction { addr, data, op, timestamp_limbs }))
     }
 
