@@ -56,7 +56,9 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
 pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
-    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
+    let mut config = PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND);
+    config.apc_max_instructions = 1000;
+    config
 }
 
 pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<SP1Field>) -> VmConfig<'a> {

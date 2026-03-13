@@ -37,11 +37,6 @@ impl Adapter for Sp1ApcAdapter {
         Self::PowdrField::from_bytes_le(&e.as_canonical_u32().to_le_bytes())
     }
 
-    // fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
-    //     // Skip blocks with more than 1000 instructions
-    //     block.instructions.len() > 1000
-    // }
-
     fn apc_stats(
         apc: Arc<AdapterApc<Self>>,
         instruction_handler: &Self::InstructionHandler,
