@@ -4897,21 +4897,21 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
  "deepsize2",
  "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
+ "itertools 0.14.0",
  "log",
  "metrics",
  "num-traits",
  "powdr-constraint-solver",
  "powdr-expression",
  "powdr-number",
+ "priority-queue",
  "rayon",
  "serde",
- "serde_cbor",
  "serde_json",
  "strum 0.27.2",
  "tracing",
@@ -4921,14 +4921,14 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
  "auto_enums",
  "bitvec",
  "crepe",
  "derivative",
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
+ "itertools 0.14.0",
  "log",
  "num-traits",
  "powdr-number",
@@ -4938,10 +4938,9 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
- "derive_more 0.99.20",
- "itertools 0.13.0",
+ "derive_more 2.1.1",
  "num-traits",
  "powdr-number",
  "schemars 0.8.22",
@@ -4951,18 +4950,18 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "csv",
- "derive_more 0.99.20",
+ "derive_more 2.1.1",
  "ibig",
  "num-bigint 0.4.6",
  "num-traits",
@@ -4979,11 +4978,11 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
  "gimli 0.31.1",
  "goblin",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "powdr-isa-utils",
  "powdr-riscv-types",
@@ -4996,7 +4995,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -5004,7 +5003,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=ac7e7c7#ac7e7c78c43e8086ccb7d8bcc4ddf3c94a440a8d"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=23c5b9d#23c5b9d0efbc4906a2604480f79bf4f008f17bdc"
 
 [[package]]
 name = "powerfmt"
@@ -5049,6 +5048,17 @@ dependencies = [
  "fixed-hash",
  "impl-codec",
  "uint",
+]
+
+[[package]]
+name = "priority-queue"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93980406f12d9f8140ed5abe7155acb10bb1e69ea55c88960b9c2f117445ef96"
+dependencies = [
+ "equivalent",
+ "indexmap 2.13.0",
+ "serde",
 ]
 
 [[package]]

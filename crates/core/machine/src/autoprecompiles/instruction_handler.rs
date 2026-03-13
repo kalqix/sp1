@@ -244,25 +244,6 @@ impl<F: PrimeField32> InstructionHandler for Sp1InstructionHandler<F> {
             .unwrap()
     }
 
-    fn is_allowed(&self, instruction: &Self::Instruction) -> bool {
-        !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
-    }
-
-    fn is_branching(&self, instruction: &Self::Instruction) -> bool {
-        // We define the branch opcodes manually
-        matches!(
-            instruction.0.opcode,
-            Opcode::BEQ
-                | Opcode::BNE
-                | Opcode::BLT
-                | Opcode::BGE
-                | Opcode::BLTU
-                | Opcode::BGEU
-                | Opcode::JAL
-                | Opcode::JALR
-        )
-    }
-
     fn degree_bound(&self) -> DegreeBound {
         DEFAULT_DEGREE_BOUND
     }

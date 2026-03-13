@@ -126,13 +126,13 @@ impl CompiledProgram {
         assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
 
         // Collect basic blocks
-        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
+        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Create pgo adapter based on the config
         let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_config {
             PgoConfig::Cell(pgo_data, max_total_apc_columns) => {
-                Box::new(CellPgo::<_, Sp1Candidate<_>>::with_pgo_data_and_max_columns(
+                Box::new(CellPgo::<_, Sp1Candidate>::with_pgo_data_and_max_columns(
                     pgo_data,
                     max_total_apc_columns,
                 ))

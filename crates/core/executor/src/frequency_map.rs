@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use hashbrown::HashMap;
+use itertools::Itertools;
 use powdr_autoprecompiles::execution_profile::ExecutionProfile;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::MinimalTrace;
@@ -24,16 +24,25 @@ pub fn execute_for_frequency_map<'a>(
         minimal_executor.with_input(buf);
     }
 
-    let mut pc_counts = HashMap::new();
+    let mut pc_list = vec![];
     while let Some(chunk) = minimal_executor.execute_chunk() {
-        let mut vm = FrequencyMapVM::new(&chunk, program.clone(), opts.clone(), proof_nonce);
+        let mut vm = PcListVm::new(&chunk, program.clone(), opts.clone(), proof_nonce);
 
         loop {
-            match vm.execute_instruction(&mut pc_counts)? {
+            match vm.execute_instruction(&mut pc_list)? {
                 CycleResult::Done(false) => {}
                 CycleResult::TraceEnd => break,
                 CycleResult::Done(true) => {
-                    return Ok(ExecutionProfile { pc_count: pc_counts.into_iter().collect() })
+                    return Ok(ExecutionProfile {
+                        pc_count: pc_list
+                            .iter()
+                            .copied()
+                            .counts()
+                            .into_iter()
+                            .map(|(pc, count)| (pc, count as u32))
+                            .collect(),
+                        pc_list,
+                    })
                 }
                 CycleResult::ShardBoundary => {
                     unreachable!("Shard boundaries are not expected in pure execution")
@@ -42,14 +51,23 @@ pub fn execute_for_frequency_map<'a>(
         }
     }
 
-    Ok(ExecutionProfile { pc_count: pc_counts.into_iter().collect() })
+    Ok(ExecutionProfile {
+        pc_count: pc_list
+            .iter()
+            .copied()
+            .counts()
+            .into_iter()
+            .map(|(pc, count)| (pc, count as u32))
+            .collect(),
+        pc_list,
+    })
 }
 
-struct FrequencyMapVM<'a> {
+struct PcListVm<'a> {
     core: CoreVM<'a, ()>,
 }
 
-impl<'a> FrequencyMapVM<'a> {
+impl<'a> PcListVm<'a> {
     fn new<T: MinimalTrace>(
         trace: &'a T,
         program: Arc<Program>,
@@ -61,10 +79,9 @@ impl<'a> FrequencyMapVM<'a> {
 
     fn execute_instruction(
         &mut self,
-        pc_counts: &mut HashMap<u64, u32>,
+        pc_list: &mut Vec<u64>,
     ) -> Result<CycleResult, ExecutionError> {
-        let pc = self.core.pc();
-        *pc_counts.entry(pc).or_insert(0) += 1;
+        pc_list.push(self.core.pc());
 
         let instruction = self.core.fetch(|| ());
         if instruction.is_none() {

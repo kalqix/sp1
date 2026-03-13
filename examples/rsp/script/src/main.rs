@@ -109,10 +109,7 @@ async fn main() {
                 let config = sp1_powdr_config(apcs as u64, 0).with_apc_candidates_dir(path);
                 let pgo_config = PgoConfig::Cell(execution_profile, None);
                 let compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
-                println!(
-                    "[powdr] Done! ({:.2}s)",
-                    stage_start.elapsed().as_secs_f64()
-                );
+                println!("[powdr] Done! ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
                 compiled_program
                     .apcs_and_stats
@@ -139,25 +136,16 @@ async fn main() {
             let stage_start = Instant::now();
             let proof = client.prove(&pk, stdin).mode(mode).await.expect("proving failed");
 
-            println!(
-                "Proving done! ({:.2}s)",
-                stage_start.elapsed().as_secs_f64()
-            );
+            println!("Proving done! ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
             // Verify
             println!("Verifying proof...");
             let stage_start = Instant::now();
             // Verify proof.
             client.verify(&proof, pk.verifying_key(), None).expect("verification failed");
-            println!(
-                "Verification done! ({:.2}s)",
-                stage_start.elapsed().as_secs_f64()
-            );
+            println!("Verification done! ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
-            println!(
-                "\n=== TOTAL ===\nTotal time: {:.2}s",
-                total_start.elapsed().as_secs_f64()
-            );
+            println!("\n=== TOTAL ===\nTotal time: {:.2}s", total_start.elapsed().as_secs_f64());
         }
     }
 }
