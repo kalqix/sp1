@@ -58,12 +58,12 @@ fn build_constraints<K, C>(
     // Linear constraint: a + b = c
     let constraint_1 = a.clone() + b.clone() - c.clone();
     ctx.assert_zero(constraint_1);
-    name_constraint!(ctx, "c1: a + b = c");
+    // name_constraint!(ctx, "c1: a + b = c");
 
     // Linear constraint: x - y = d
     let constraint_2 = x.clone() - y.clone() - d.clone();
     ctx.assert_zero(constraint_2);
-    name_constraint!(ctx, "c2: x - y = d");
+    // name_constraint!(ctx, "c2: x - y = d");
     // Multiplicative constraint: x * y = z
     let constraint_3 = x.clone() * y.clone() - z;
     ctx.assert_zero(constraint_3);

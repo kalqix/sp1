@@ -33,9 +33,19 @@ impl ConstraintDebugger {
     }
 
     /// Names the most recently added constraint.
+    ///
+    /// If the constraint already has a name (e.g. an auto-captured source location),
+    /// the new name is appended as `"existing_name — new_name"`.
     pub fn name_last(&mut self, name: impl Into<String>) {
         if let Some(last) = self.names.last_mut() {
-            *last = Some(name.into());
+            let name = name.into();
+            match last {
+                Some(existing) => {
+                    existing.push_str(" — ");
+                    existing.push_str(&name);
+                }
+                None => *last = Some(name),
+            }
         }
     }
 

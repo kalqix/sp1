@@ -199,6 +199,7 @@ slop-symmetric = { version = "6.0.2", path = "./slop/crates/symmetric" }
 slop-tensor = { version = "6.0.2", path = "./slop/crates/tensor" }
 slop-uni-stark = { version = "6.0.2", path = "./slop/crates/uni-stark" }
 slop-utils = { version = "6.0.2", path = "./slop/crates/utils" }
+slop-veil = { version = "6.0.2", path = "./slop/crates/veil" }
 slop-whir = { version = "6.0.2", path = "./slop/crates/whir" }
 
 # For testing.

@@ -493,10 +493,17 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed> Co
 {
     type Expr = ExpressionIndex<K, C>;
 
+    #[cfg_attr(sp1_debug_constraints, track_caller)]
     fn assert_zero(&mut self, expr: Self::Expr) {
-        self.assert_zero_inner(expr)
+        self.assert_zero_inner(expr);
+        #[cfg(sp1_debug_constraints)]
+        {
+            let loc = std::panic::Location::caller();
+            self.name_last_lin_constraint_inner(format!("{}:{}", loc.file(), loc.line()));
+        }
     }
 
+    #[cfg_attr(sp1_debug_constraints, track_caller)]
     fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr) {
         self.assert_a_times_b_equals_c_inner(a, b, c)
     }
