@@ -160,7 +160,7 @@ runs:
           chmod +x cmake-${CMAKE_VERSION}-linux-x86_64.sh
           sudo ./cmake-${CMAKE_VERSION}-linux-x86_64.sh --skip-license --prefix=/usr/local
           rm cmake-${CMAKE_VERSION}-linux-x86_64.sh
-        fi
+        fi 
         cmake --version
 
     - name: Set up CUDA environment
