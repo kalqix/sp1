@@ -15,6 +15,7 @@ use std::{
 pub struct Sp1MemoryBusInteraction<V> {
     addr: MemoryAddress<V>,
     data: Vec<GroupedExpression<KoalaBearField, V>>,
+    timestamp: Vec<GroupedExpression<KoalaBearField, V>>,
     op: MemoryOp,
 }
 
@@ -88,14 +89,15 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
             _ => return Err(MemoryBusInteractionConversionError),
         };
 
-        let [_clk_high, _clk_low, addr0, addr1, addr2, data0, data1, data2, data3] =
+        let [clk_high, clk_low, addr0, addr1, addr2, data0, data1, data2, data3] =
             &bus_interaction.payload[..]
         else {
             panic!()
         };
         let addr = MemoryAddress::new([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
-        Ok(Some(Sp1MemoryBusInteraction { addr, data, op }))
+        let timestamp = vec![clk_high.clone(), clk_low.clone()];
+        Ok(Some(Sp1MemoryBusInteraction { addr, data, timestamp, op }))
     }
 
     fn addr(&self) -> Self::Address {
@@ -111,10 +113,6 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
     }
 
     fn timestamp_limbs(&self) -> &[GroupedExpression<KoalaBearField, V>] {
-        // TODO: constrain the timestamp limbs as well
-        // We do not do this now because we end up with more expensive apcs due to the
-        // fact that they need to support timestamp limb overflows
-        // In practice this does not happen, as we run software in this case.
-        &[]
+        &self.timestamp
     }
 }
