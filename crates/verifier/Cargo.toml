@@ -55,6 +55,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = []
+experimental = []
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]
 

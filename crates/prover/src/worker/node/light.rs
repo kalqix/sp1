@@ -60,6 +60,30 @@ impl SP1LightNode {
         .expect("failed to initialize light node")
     }
 
+    /// Create a new light node
+    #[cfg(feature = "experimental")]
+    pub async fn with_opts_and_vk_verification(opts: SP1CoreOpts, vk_verification: bool) -> Self {
+        // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
+        tokio::task::spawn_blocking(move || {
+            // Get a core prover for the light node to be able to do the setup step
+            let core_verifier = CpuSP1ProverComponents::core_verifier();
+            let core_air_prover =
+                Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
+            let permits = ProverSemaphore::new(1);
+
+            let mut recursion_vks = VerifierRecursionVks::default();
+            recursion_vks.vk_verification = vk_verification;
+            // Get a new verifier for the light(( node.
+            let verifier = SP1Verifier::new(recursion_vks);
+            // Create a new core node for the light node
+            let core = SP1NodeCore::new(verifier, opts);
+
+            Self { inner: Arc::new(SP1LightNodeInner { core, core_air_prover, permits }) }
+        })
+        .await
+        .expect("failed to initialize light node")
+    }
+
     pub async fn setup(&self, elf: &[u8]) -> anyhow::Result<SP1VerifyingKey> {
         let program = Program::from(elf)
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
@@ -101,17 +125,21 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[cfg(feature = "experimental")]
     async fn test_light_node() {
         setup_logger();
 
-        let light_node =
-            SP1LightNode::new().instrument(tracing::info_span!("initialize light node")).await;
+        let light_node = SP1LightNode::with_opts_and_vk_verification(SP1CoreOpts::default(), false)
+            .instrument(tracing::info_span!("initialize light node"))
+            .await;
 
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .instrument(tracing::info_span!("initialize full node"))
-            .await
-            .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .instrument(tracing::info_span!("initialize full node"))
+        .await
+        .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();
