@@ -306,16 +306,16 @@ impl SP1LocalNode {
 
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-    use sp1_core_machine::utils::setup_logger;
+    #[cfg(feature = "experimental")]
+    use {
+        super::*,
+        crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder},
+        crate::CpuSP1ProverComponents,
+        serial_test::serial,
+        sp1_core_machine::utils::setup_logger,
+    };
 
-    use crate::CpuSP1ProverComponents;
-    use sp1_hypercube::HashableKey;
-
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
-
-    use super::*;
-
+    #[cfg(feature = "experimental")]
     async fn run_e2e_node_test(
         builder: SP1WorkerBuilder<CpuSP1ProverComponents>,
     ) -> anyhow::Result<()> {
@@ -384,13 +384,16 @@ mod tests {
     #[tokio::test]
     #[serial]
     #[ignore = "only run to write the vk root and num keys to a file"]
+    #[cfg(feature = "experimental")]
     async fn make_verifier_vks() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .unwrap();
 
         let recursion_vks = client.core().recursion_vks();
 

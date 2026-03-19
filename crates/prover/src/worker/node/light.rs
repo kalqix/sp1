@@ -116,13 +116,14 @@ impl SP1LightNode {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::utils::setup_logger;
-    use sp1_hypercube::HashableKey;
-    use tracing::Instrument;
-
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
-
-    use super::*;
+    #[cfg(feature = "experimental")]
+    use {
+        super::*,
+        crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder},
+        sp1_core_machine::utils::setup_logger,
+        sp1_hypercube::HashableKey,
+        tracing::Instrument,
+    };
 
     #[tokio::test]
     #[cfg(feature = "experimental")]
