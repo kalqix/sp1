@@ -71,8 +71,7 @@ impl SP1LightNode {
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            let mut recursion_vks = VerifierRecursionVks::default();
-            recursion_vks.vk_verification = vk_verification;
+            let recursion_vks = VerifierRecursionVks { vk_verification, ..Default::default() };
             // Get a new verifier for the light(( node.
             let verifier = SP1Verifier::new(recursion_vks);
             // Create a new core node for the light node
