@@ -501,7 +501,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "todo: enable this after the sync with main"]
     fn test_apc_segmentation_error() {
         // This test verifies that when segmentation occurs while an APC is in progress,
         // the APC is properly aborted and a segmentation_error is recorded.
