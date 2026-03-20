@@ -1,4 +1,6 @@
 #![allow(clippy::items_after_statements)]
+#![allow(unknown_lints)]
+#![allow(clippy::manual_checked_ops)]
 
 use sp1_jit::{
     debug::{self, DebugState},
@@ -186,6 +188,17 @@ impl SyscallContext for MinimalExecutor {
         }
     }
 
+    fn trace_value(&mut self, value: u64) {
+        if self.traces.is_some() {
+            unsafe {
+                self.traces
+                    .as_mut()
+                    .unwrap_unchecked()
+                    .extend(&[MemValue { clk: u64::MAX, value }]);
+            }
+        }
+    }
+
     fn mw_hint(&mut self, addr: u64, val: u64) {
         self.memory.insert(addr, MemValue { clk: 0, value: val });
     }
@@ -356,11 +369,6 @@ impl MinimalExecutor {
             }
         }
 
-        // Keep track of the start hint index for this chunk,
-        // we dont want to give any subsequent chunks that were already given to the previous
-        // chunks.
-        let start_hint_idx = self.hints.len();
-
         while !self.execute_instruction() {}
 
         #[cfg(feature = "profiling")]
@@ -381,17 +389,7 @@ impl MinimalExecutor {
         // chunk the remaining hints and input.
         let traces = std::mem::take(&mut self.traces);
 
-        traces.map(|trace| unsafe {
-            TraceChunkRaw::new(
-                trace.into(),
-                self.hints
-                    .iter()
-                    .skip(start_hint_idx)
-                    .map(|(_, hint)| hint.len())
-                    .chain(self.input.iter().map(|input| input.len()))
-                    .collect(),
-            )
-        })
+        traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) })
     }
 
     /// Check if the program has halted.
@@ -873,12 +871,20 @@ fn sign_extend_imm(value: u64, bits: u8) -> i64 {
     ((value as i64) << shift) >> shift
 }
 
+/// Worst-case memory operations a single instruction (precompile ecall) can emit.
+/// The chunk-stop check only runs between instructions, so a single precompile can
+/// emit this many trace entries beyond `max_trace_size` before the check fires.
+/// `sha256_extend` is the worst case at 288; we use 512 for safety margin.
+const MAX_SINGLE_INSTRUCTION_MEM_OPS: usize = 512;
+
 fn trace_capacity(size: u64) -> usize {
     let events_bytes = size as usize * std::mem::size_of::<MemValue>();
-    // Scale a bit for leeway.
+    // Scale by 10/9 for proportional leeway on large traces.
     let events_bytes = events_bytes * 10 / 9;
+    // Add fixed headroom for worst-case single-instruction overflow.
+    let worst_case_bytes = MAX_SINGLE_INSTRUCTION_MEM_OPS * std::mem::size_of::<MemValue>();
     let header_bytes = std::mem::size_of::<TraceChunkHeader>();
-    events_bytes + header_bytes
+    events_bytes + worst_case_bytes + header_bytes
 }
 
 impl DebugState for MinimalExecutor {

@@ -36,12 +36,13 @@ thiserror = "1.0"
 [dev-dependencies]
 serial_test = "3.1"
 zstd = "0.13.3"
-sp1-gpu-jagged-tracegen = { workspace = true }
+sp1-gpu-jagged-tracegen = { workspace = true, features = ["test-utils"] }
+test-artifacts = { workspace = true }
+sp1-core-machine = { workspace = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-gpu-prover = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 slop-stacked = { workspace = true }
-sp1-core-machine = { workspace = true }
 
 [lints]
 workspace = true

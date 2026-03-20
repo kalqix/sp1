@@ -34,13 +34,20 @@ impl Serialize for SerializableMachine {
                 _ => None,
             })
             .collect();
-        apcs.serialize(serializer)
+        // Serialize APCs via JSON first, then send the JSON bytes through bincode.
+        // This is necessary because powdr's `AlgebraicExpression` uses `#[serde(untagged)]`,
+        // which requires `deserialize_any` — unsupported by bincode.
+        let json_bytes =
+            serde_json::to_vec(&apcs).map_err(|e| serde::ser::Error::custom(e.to_string()))?;
+        json_bytes.serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for SerializableMachine {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let apcs: Vec<Arc<Sp1Apc<SP1Field>>> = Vec::deserialize(deserializer)?;
+        let json_bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let apcs: Vec<Arc<Sp1Apc<SP1Field>>> = serde_json::from_slice(&json_bytes)
+            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
         Ok(Self(RiscvAir::machine_with_apcs(apcs)))
     }
 }
