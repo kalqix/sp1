@@ -7,7 +7,14 @@ on:
 
 jobs:
   patch-testing-cycles:
-    runs-on: [runs-on, runner=16cpu-linux-x64, spot=false, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     permissions:
       contents: read
       packages: read
@@ -17,7 +24,7 @@ jobs:
       - name: "Checkout sources"
         uses: "actions/checkout@v6"
         with:
-          fetch-depth: 0  
+          fetch-depth: 0
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -52,4 +59,3 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
