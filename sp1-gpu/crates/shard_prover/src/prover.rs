@@ -775,6 +775,7 @@ mod tests {
     use slop_jagged::JaggedPcsVerifier;
     use slop_multilinear::MultilinearPcsChallenger;
     use slop_tensor::Tensor;
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_air::codegen_cuda_eval;
     use sp1_gpu_cudart::run_in_place;
@@ -800,8 +801,8 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_prove_trusted_evaluations() {
-        let machine = RiscvAir::machine();
-        let (record, program) = tracegen_setup::setup(machine.clone()).await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
         run_in_place(|scope| async move {
             // *********** Generate traces using the host tracegen. ***********
             let capacity = CORE_MAX_TRACE_SIZE as usize;

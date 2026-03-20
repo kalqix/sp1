@@ -738,12 +738,13 @@ pub mod tests {
 
     use sp1_gpu_air::codegen_cuda_eval;
     use sp1_primitives::SP1Field;
-    use sp1_sdk::RiscvAir;
+
     use std::collections::{BTreeMap, BTreeSet};
     use std::marker::PhantomData;
     use std::ops::Deref;
     use std::sync::Arc;
 
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_gpu_jagged_tracegen::{
         full_tracegen,
         test_utils::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT},
@@ -2019,8 +2020,8 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_zerocheck_real_traces() {
-        let machine = RiscvAir::machine();
-        let (record, program) = tracegen_setup::setup(machine.clone()).await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
 
         run_in_place(|t| async move {
             let mut rng = rand::thread_rng();

@@ -195,7 +195,7 @@ dependencies = [
  "rand 0.8.5",
  "ruint",
  "serde",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0-rc.1)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
 ]
 
 [[package]]
@@ -223,7 +223,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "sha3",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0-rc.1)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
 ]
 
 [[package]]
@@ -320,7 +320,7 @@ dependencies = [
  "quote",
  "syn 2.0.114",
  "syn-solidity",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0-rc.1)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
 ]
 
 [[package]]
@@ -1057,14 +1057,14 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.0.0-rc.1#da09303c1c1ff42e0db20b8e7d3135575d323e47"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.0.0#49db1a4c27a44ef7c18e2ef448a12128972e449d"
 dependencies = [
  "cfg-if",
  "ff 0.13.1",
  "group 0.13.0",
  "pairing 0.23.0",
  "rand_core 0.6.4",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
  "subtle",
 ]
 
@@ -1326,7 +1326,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
 ]
 
 [[package]]
@@ -1589,13 +1589,13 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.0.0-rc.1#b4cf3a45c631233b1adb54b4d2bb645e3d4f1c56"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.0.0#5854f8bab8842ff6232469b0d93ae4160e4a503d"
 dependencies = [
  "byteorder",
  "cfg-if",
  "digest 0.9.0",
  "rand_core 0.6.4",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
  "subtle-ng",
  "zeroize",
 ]
@@ -3329,7 +3329,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.0.0-rc.1#18d965b5b763fcc2e94be819efc66ab805c5ce95"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.0.0#0efe186cee5930a0d23501651c226bd81fcc2c15"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=sp1-skip-verify-on-recovery)",
@@ -3339,7 +3339,7 @@ dependencies = [
  "serdect",
  "sha2 0.10.8",
  "signature",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
 ]
 
 [[package]]
@@ -3380,7 +3380,7 @@ dependencies = [
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-prover",
  "sp1-sdk",
  "tokio",
@@ -3690,7 +3690,7 @@ dependencies = [
 name = "mprotect-program"
 version = "1.1.0"
 dependencies = [
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-zkvm",
 ]
 
@@ -4085,12 +4085,12 @@ dependencies = [
 
 [[package]]
 name = "p3-air"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2ce3af7e16cf529b5bf621afdade0ec9950fc3be21ec552257d9d5c2edb4d83"
+checksum = "d275c27bb81483d669709d7244ce333b51f9743af2474cdc09ba1509f5c290db"
 dependencies = [
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
  "serde",
 ]
 
@@ -4125,59 +4125,59 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dccb50acdb58ed96f73fcef401e01b34602abfd03145cf0cb36aa79e35ca1bb8"
+checksum = "95a083928c9055f2171e3cb0bb4767969e4955473e71ba61affe46d7a3c98a89"
 dependencies = [
  "num-bigint 0.4.6",
- "p3-field 0.3.1-succinct",
- "p3-mds 0.3.1-succinct",
- "p3-poseidon2 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-mds 0.3.2-succinct",
+ "p3-poseidon2 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
 ]
 
 [[package]]
 name = "p3-bn254-fr"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebf15b2e55afdfc5ef84bb0a2508a96a924f3d86b8b616053ee727293a02121d"
+checksum = "9abf208fbfe540d6e2a6caaa2a9a345b1c8cb23ffdcdfcc6987244525d4fc821"
 dependencies = [
  "ff 0.13.1",
  "num-bigint 0.4.6",
- "p3-field 0.3.1-succinct",
- "p3-poseidon2 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-poseidon2 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
 ]
 
 [[package]]
 name = "p3-challenger"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16b647fe6cb51bb873d09aab77cecf3afe38bd94284fc14d04d57d52f0d26666"
+checksum = "42b725b453bbb35117a1abf0ddfd900b0676063d6e4231e0fa6bb0d76018d8ad"
 dependencies = [
- "p3-field 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "serde",
  "tracing",
 ]
 
 [[package]]
 name = "p3-commit"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10a094ad823789ff19416c64f30eca6afff24d8cac231eb5f729e90ed1fb500b"
+checksum = "518695b56f450f9223bdd8994dda87916b97ebf1d1c03c956807e78522fdb333"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "serde",
 ]
 
@@ -4209,14 +4209,14 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8169aac0ed2575c6c44953a7fa162e3dd07f9a22021e36b4db9d8bd15a3373b8"
+checksum = "56a1f81101bff744b7ebba7f4497e917a2c6716d6e62736e4a56e555a2d98cb7"
 dependencies = [
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "tracing",
 ]
 
@@ -4253,59 +4253,59 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f82ed2dfd1e7d6e8759a9605c71b8a2a543069017dfdb6dafe71e7a2ccca937"
+checksum = "36459d4acb03d08097d713f336c7393990bb489ab19920d4f68658c7a5c10968"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.6",
  "num-traits",
- "p3-util 0.3.1-succinct",
+ "p3-util 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
 ]
 
 [[package]]
 name = "p3-fri"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ad549ae26b3b7c184e7699e78ce2e9b9330b34a344e1bb49cdafe999ceab053"
+checksum = "6e2529a174a04189cfe705d756fb0e33d3c8fb06b167b521ddb877c78407f12a"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.3.1-succinct",
- "p3-field 0.3.1-succinct",
+ "p3-dft 0.3.2-succinct",
+ "p3-field 0.3.2-succinct",
  "p3-interpolation",
- "p3-matrix 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "serde",
  "tracing",
 ]
 
 [[package]]
 name = "p3-interpolation"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cdd36ddd351714d67bff73d55ee221270bf36b41efd1e74cacf151b2919178c"
+checksum = "6662049877c802155cdb4863db59899469fc3565d22d9047e1bd22d6b71f28e5"
 dependencies = [
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
 ]
 
 [[package]]
 name = "p3-keccak-air"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "387b833972ad75e4318d525f76766b69a25073237377555fba917126b4b2ec9e"
+checksum = "169c96f8f0aaa9042872fdb6bbae0477fd1363b87c23877dbb2ec7fb46f8fcfa"
 dependencies = [
  "p3-air",
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "tracing",
 ]
 
@@ -4325,15 +4325,15 @@ dependencies = [
 
 [[package]]
 name = "p3-koala-bear"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60e2d5bc3601f6115afd9a55a718bdab49e98d44710438008204d2084d5d70d0"
+checksum = "eb1f52bcb6be38bdc8fa6b38b3434d4eedd511f361d4249fd798c6a5ef817b40"
 dependencies = [
  "num-bigint 0.4.6",
- "p3-field 0.3.1-succinct",
- "p3-mds 0.3.1-succinct",
- "p3-poseidon2 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-mds 0.3.2-succinct",
+ "p3-poseidon2 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
 ]
@@ -4370,14 +4370,14 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ef05490e47c906f102e08493986b1d3c6b6e2c6be9937eaab2c970ccf5385e8"
+checksum = "5583e9cd136a4095a25c41a9edfdcce2dfae58ef01639317813bdbbd5b55c583"
 dependencies = [
  "itertools 0.12.1",
- "p3-field 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
  "tracing",
@@ -4396,9 +4396,9 @@ checksum = "c3968ad1160310296eb04f91a5f4edfa38fe1d6b2b8cd6b5c64e6f9b7370979e"
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3d38c20290b92011f12a3fc040a999197e71e1663614998393a24aee4d430da"
+checksum = "e524d47a49fb4265611303339c4ef970d892817b006cc330dad18afb91e411b1"
 dependencies = [
  "rayon",
 ]
@@ -4434,32 +4434,32 @@ dependencies = [
 
 [[package]]
 name = "p3-mds"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b707ec6432a15661ce67e5fc3abb1c2653e0064030d99c8cece4a049b31ebb1a"
+checksum = "4f6cb8edcb276033d43769a3725570c340d2ed6f35c3cca4cddeee07718fa376"
 dependencies = [
  "itertools 0.12.1",
- "p3-dft 0.3.1-succinct",
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-dft 0.3.2-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "rand 0.8.5",
 ]
 
 [[package]]
 name = "p3-merkle-tree"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d3e1fef003be39b4f37116fd15403d93d1473d0e5955d7110687c5b01e394eb"
+checksum = "a5e8bc3c224fc70d22f9556393e1482b52539e11c7b82ac6933c436fd82738f4"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "serde",
  "tracing",
 ]
@@ -4532,14 +4532,14 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9c6dbf170a3fb4d7556023315a525e08c4b94b572bc307eadbf9065bddaf489"
+checksum = "5a26197df2097b98ab7038d59a01e1fe1a0f545e7e04aa9436b2454b1836654f"
 dependencies = [
  "gcd",
- "p3-field 0.3.1-succinct",
- "p3-mds 0.3.1-succinct",
- "p3-symmetric 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-mds 0.3.2-succinct",
+ "p3-symmetric 0.3.2-succinct",
  "rand 0.8.5",
  "serde",
 ]
@@ -4567,30 +4567,30 @@ dependencies = [
 
 [[package]]
 name = "p3-symmetric"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7ec3a99c3dc3d55d0e78ef7041e0d90bdfbf03451e4f0bae3f9877af99cabb3"
+checksum = "3a1d3b5202096bca57cde912fbbb9cbaedaf5ac7c42a924c7166b98709d64d21"
 dependencies = [
  "itertools 0.12.1",
- "p3-field 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
  "serde",
 ]
 
 [[package]]
 name = "p3-uni-stark"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc32ad338f5a342455c416c4bfa52ba7d979d37da91abc4857e6ed5a4349845f"
+checksum = "fef1cdb8285a7adb78df991852d3b66d3b25cf6ffc34f528505d1aee49bdb968"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.3.1-succinct",
- "p3-field 0.3.1-succinct",
- "p3-matrix 0.3.1-succinct",
- "p3-maybe-rayon 0.3.1-succinct",
- "p3-util 0.3.1-succinct",
+ "p3-dft 0.3.2-succinct",
+ "p3-field 0.3.2-succinct",
+ "p3-matrix 0.3.2-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
+ "p3-util 0.3.2-succinct",
  "serde",
  "tracing",
 ]
@@ -4614,9 +4614,9 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.3.1-succinct"
+version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712473f2a848b672eee90c3b9cd4bfcd3da042112c53a0dc6b088fc3964538ab"
+checksum = "ec5f0388aa6d935ca3a17444086120f393f0b2f0816010b5ff95998c1c4095e3"
 dependencies = [
  "serde",
 ]
@@ -6256,7 +6256,7 @@ dependencies = [
 [[package]]
 name = "rsa"
 version = "0.9.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-RSA?tag=patch-0.9.6-sp1-6.0.0-rc.1#c177409df16dd1b62a9708bae604efb64897768d"
+source = "git+https://github.com/sp1-patches/RustCrypto-RSA?tag=patch-0.9.6-sp1-6.0.0#c38b89263da6133df656fd6916e7dd3b73a644c0"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -6270,7 +6270,7 @@ dependencies = [
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
  "signature",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
  "spki 0.7.3",
  "subtle",
  "zeroize",
@@ -6391,7 +6391,7 @@ dependencies = [
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-sdk",
  "tokio",
  "tracing",
@@ -6702,7 +6702,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.1"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0-rc.1#55f233c2d73886700e98342c5f463eb4e9cf0f72"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0#5daf12595f56cb549d1516d8139cb7935d79de7a"
 dependencies = [
  "cfg-if",
  "k256",
@@ -6717,7 +6717,7 @@ dependencies = [
  "common-test-utils",
  "num-bigint 0.4.6",
  "sp1-curves",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
  "sp1-zkvm",
 ]
 
@@ -6738,7 +6738,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0-rc.1#55f233c2d73886700e98342c5f463eb4e9cf0f72"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0#5daf12595f56cb549d1516d8139cb7935d79de7a"
 dependencies = [
  "cc",
 ]
@@ -6974,7 +6974,7 @@ checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 [[package]]
 name = "sha2"
 version = "0.9.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.0.0-rc.1#1b29839dc1a48c4c9f744775969256830d1a9a45"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.0.0#1b29839dc1a48c4c9f744775969256830d1a9a45"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -6986,7 +6986,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-6.0.0-rc.1#75b15faa7ce44d25435d0a3209285455540f0b7f"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-6.0.0#75b15faa7ce44d25435d0a3209285455540f0b7f"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -7062,23 +7062,23 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slop-air"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "p3-air",
 ]
 
 [[package]]
 name = "slop-algebra"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "itertools 0.14.0",
- "p3-field 0.3.1-succinct",
+ "p3-field 0.3.2-succinct",
  "serde",
 ]
 
 [[package]]
 name = "slop-alloc"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "serde",
  "slop-algebra",
@@ -7087,10 +7087,10 @@ dependencies = [
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "lazy_static",
- "p3-baby-bear 0.3.1-succinct",
+ "p3-baby-bear 0.3.2-succinct",
  "serde",
  "slop-algebra",
  "slop-challenger",
@@ -7100,7 +7100,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -7121,7 +7121,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -7146,7 +7146,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "ff 0.13.1",
  "p3-bn254-fr",
@@ -7160,7 +7160,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -7171,7 +7171,7 @@ dependencies = [
 
 [[package]]
 name = "slop-commit"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "p3-commit",
  "serde",
@@ -7180,9 +7180,9 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-dft 0.3.1-succinct",
+ "p3-dft 0.3.2-succinct",
  "serde",
  "slop-algebra",
  "slop-alloc",
@@ -7192,14 +7192,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "crossbeam",
  "futures",
@@ -7212,7 +7212,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "futures",
@@ -7244,17 +7244,17 @@ dependencies = [
 
 [[package]]
 name = "slop-keccak-air"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "p3-keccak-air",
 ]
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "lazy_static",
- "p3-koala-bear 0.3.1-succinct",
+ "p3-koala-bear 0.3.2-succinct",
  "serde",
  "slop-algebra",
  "slop-challenger",
@@ -7264,21 +7264,21 @@ dependencies = [
 
 [[package]]
 name = "slop-matrix"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-matrix 0.3.1-succinct",
+ "p3-matrix 0.3.2-succinct",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-maybe-rayon 0.3.1-succinct",
+ "p3-maybe-rayon 0.3.2-succinct",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "ff 0.13.1",
@@ -7303,7 +7303,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "futures",
@@ -7322,21 +7322,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-poseidon2 0.3.1-succinct",
+ "p3-poseidon2 0.3.2-succinct",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "futures",
@@ -7357,7 +7357,7 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "futures",
  "itertools 0.14.0",
@@ -7373,14 +7373,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-symmetric 0.3.1-succinct",
+ "p3-symmetric 0.3.2-succinct",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "arrayvec 0.7.6",
  "derive-where",
@@ -7398,23 +7398,23 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
- "p3-util 0.3.1-succinct",
+ "p3-util 0.3.2-succinct",
  "tracing-forest",
  "tracing-subscriber",
 ]
 
 [[package]]
 name = "slop-whir"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "derive-where",
  "futures",
@@ -7481,19 +7481,19 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
  "chrono",
  "clap",
  "dirs",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
 ]
 
 [[package]]
 name = "sp1-core-executor"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -7521,11 +7521,11 @@ dependencies = [
  "sp1-curves",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "strum 0.27.2",
  "subenum",
  "thiserror 1.0.69",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0-rc.1)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
  "tracing",
  "typenum",
  "vec_map",
@@ -7533,7 +7533,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -7573,7 +7573,7 @@ dependencies = [
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "static_assertions",
  "struct-reflection",
  "strum 0.27.2",
@@ -7589,7 +7589,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "bytes",
@@ -7599,7 +7599,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-prover",
  "sp1-prover-types",
  "thiserror 1.0.69",
@@ -7609,7 +7609,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -7622,13 +7622,13 @@ dependencies = [
  "serde",
  "slop-algebra",
  "snowbridge-amcl",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7637,7 +7637,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -7673,7 +7673,7 @@ dependencies = [
  "slop-uni-stark",
  "slop-whir",
  "sp1-derive",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "struct-reflection",
  "strum 0.27.2",
  "thiserror 1.0.69",
@@ -7684,7 +7684,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-jit"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "dynasmrt",
  "hashbrown 0.14.5",
@@ -7708,12 +7708,12 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
 ]
 
 [[package]]
@@ -7738,7 +7738,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "blake3",
@@ -7760,7 +7760,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7802,7 +7802,7 @@ dependencies = [
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-prover-types",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
@@ -7824,7 +7824,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover-types"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "anyhow",
  "async-scoped",
@@ -7843,7 +7843,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
@@ -7872,7 +7872,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-recursion-compiler",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
@@ -7881,7 +7881,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7892,7 +7892,7 @@ dependencies = [
  "slop-symmetric",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-recursion-executor",
  "tracing",
  "vec_map",
@@ -7900,7 +7900,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7922,7 +7922,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7936,7 +7936,7 @@ dependencies = [
  "slop-algebra",
  "slop-symmetric",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-recursion-compiler",
  "sp1-verifier",
  "tempfile",
@@ -7945,7 +7945,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "itertools 0.14.0",
  "rand 0.8.5",
@@ -7957,7 +7957,7 @@ dependencies = [
  "slop-symmetric",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-recursion-executor",
  "strum 0.27.2",
  "tracing",
@@ -7966,7 +7966,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7999,7 +7999,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-recursion-executor",
@@ -8014,7 +8014,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "bincode",
  "blake3",
@@ -8029,7 +8029,7 @@ dependencies = [
  "slop-primitives",
  "slop-symmetric",
  "sp1-hypercube",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "strum 0.27.2",
@@ -8039,7 +8039,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -8051,8 +8051,8 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.8",
  "slop-algebra",
- "sp1-lib 6.0.0-rc.1",
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
+ "sp1-primitives 6.0.2",
 ]
 
 [[package]]
@@ -8261,7 +8261,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn-succinct-rs"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0-rc.1#f0a0eeb8784cf5611efe4f1ad2b20ce5eec14395"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0#f0a0eeb8784cf5611efe4f1ad2b20ce5eec14395"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8271,7 +8271,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
 ]
 
 [[package]]
@@ -8492,7 +8492,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "6.0.0-rc.1"
+version = "6.0.2"
 dependencies = [
  "sp1-build",
 ]
@@ -8615,11 +8615,21 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
+dependencies = [
+ "cfg-if",
+ "crunchy",
+ "sp1-lib 6.0.2",
+]
+
+[[package]]
+name = "tiny-keccak"
+version = "2.0.2"
 source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0-rc.1#a6e1d98252df58107cb5441780b087ec033ac09f"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.0.0-rc.1",
+ "sp1-lib 6.0.2",
 ]
 
 [[package]]
@@ -9119,7 +9129,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 name = "untrusted-program-program"
 version = "1.1.0"
 dependencies = [
- "sp1-primitives 6.0.0-rc.1",
+ "sp1-primitives 6.0.2",
  "sp1-zkvm",
 ]
 
@@ -9974,9 +9984,9 @@ checksum = "4de98dfa5d5b7fef4ee834d0073d560c9ca7b6c46a71d058c48db7960f8cfaf7"
 [[patch.unused]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0-rc.1#5126870a6898d6d5ae6362497a161e0171fcfbea"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
 
 [[patch.unused]]
 name = "sha2"
 version = "0.10.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.6-sp1-6.0.0-rc.1#9ed1af71d5ada0de44ee07a20fd1a8a3742a620e"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.6-sp1-6.0.0#9ed1af71d5ada0de44ee07a20fd1a8a3742a620e"

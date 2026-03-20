@@ -9,11 +9,11 @@ use crate::{
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
-        shapes::{ShapeChecker, ShapeCheckerSnapshot},
+        shapes::{ShapeChecker, ShapeCheckerSnapshot, HALT_AREA, HALT_HEIGHT},
         syscall::SyscallRuntime,
         CoreVM,
     },
-    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, SyscallCode,
+    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold, SyscallCode,
 };
 
 use super::program::Apc;
@@ -30,8 +30,6 @@ pub struct SplicingVM<'a> {
     pub shape_checker: ShapeChecker,
     /// The addresses that have been touched.
     pub touched_addresses: &'a mut CompressedMemory,
-    /// The index of the hint lens the next shard will use.
-    pub hint_lens_idx: usize,
 }
 
 impl SplicingVM<'_> {
@@ -159,7 +157,6 @@ impl SplicingVM<'_> {
             self.core.pc(),
             self.core.clk(),
             total_mem_reads as usize - self.core.mem_reads.len(),
-            self.hint_lens_idx,
         ))
     }
 
@@ -181,16 +178,22 @@ impl<'a> SplicingVM<'a> {
     ) -> Self {
         let program_len = program.instructions.len() as u64;
         let apc_costs = program.apcs.apc_by_index.iter().map(Apc::cost).collect();
-        let sharding_threshold = opts.sharding_threshold;
+        let ShardingThreshold { element_threshold, height_threshold } = opts.sharding_threshold;
+        assert!(
+            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
+            "invalid sharding threshold"
+        );
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),
             touched_addresses,
-            hint_lens_idx: 0,
             shape_checker: ShapeChecker::new(
                 program_len,
                 apc_costs,
                 trace.clk_start(),
-                sharding_threshold,
+                ShardingThreshold {
+                    element_threshold: element_threshold - HALT_AREA,
+                    height_threshold: height_threshold - HALT_HEIGHT,
+                },
             ),
         }
     }
@@ -268,11 +271,11 @@ impl<'a> SplicingVM<'a> {
             }
         }
 
-        let _ = CoreVM::<ShapeCheckerSnapshot>::execute_ecall(self, instruction, code)?;
-
-        if code == SyscallCode::HINT_LEN {
-            self.hint_lens_idx += 1;
+        if code == SyscallCode::COMMIT || code == SyscallCode::COMMIT_DEFERRED_PROOFS {
+            self.shape_checker.handle_commit();
         }
+
+        let _ = CoreVM::<ShapeCheckerSnapshot>::execute_ecall(self, instruction, code)?;
 
         Ok(())
     }
@@ -346,7 +349,6 @@ pub struct SplicedMinimalTrace<T: MinimalTrace> {
     start_pc: u64,
     start_clk: u64,
     memory_reads_idx: usize,
-    hint_lens_idx: usize,
     last_clk: u64,
     // Normally unused but can be set for the cluster.
     last_mem_reads_idx: usize,
@@ -361,7 +363,6 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
         start_pc: u64,
         start_clk: u64,
         memory_reads_idx: usize,
-        hint_lens_idx: usize,
     ) -> Self {
         Self {
             inner,
@@ -369,7 +370,6 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
             start_pc,
             start_clk,
             memory_reads_idx,
-            hint_lens_idx,
             last_clk: 0,
             last_mem_reads_idx: 0,
         }
@@ -389,9 +389,8 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
         tracing::trace!("start_pc: {}", start_pc);
         tracing::trace!("start_clk: {}", start_clk);
         tracing::trace!("trace.num_mem_reads(): {}", trace.num_mem_reads());
-        tracing::trace!("trace.hint_lens(): {:?}", trace.hint_lens().len());
 
-        Self::new(trace, start_registers, start_pc, start_clk, 0, 0)
+        Self::new(trace, start_registers, start_pc, start_clk, 0)
     }
 
     /// Set the last clock of the spliced minimal trace.
@@ -432,12 +431,6 @@ impl<T: MinimalTrace> MinimalTrace for SplicedMinimalTrace<T> {
 
         reads
     }
-
-    fn hint_lens(&self) -> &[usize] {
-        let slice = self.inner.hint_lens();
-
-        &slice[self.hint_lens_idx..]
-    }
 }
 
 impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
@@ -459,9 +452,6 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
             pc_start: self.start_pc,
             clk_start: self.start_clk,
             clk_end: self.last_clk,
-            // Just copy the whole hint_lens buffer,
-            // its small enough that sending the whole buffer is fine (for now).
-            hint_lens: self.hint_lens().to_vec(),
             mem_reads,
         };
 
@@ -489,11 +479,10 @@ mod tests {
             pc_start: 2,
             clk_start: 3,
             clk_end: 4,
-            hint_lens: vec![5, 6, 7],
             mem_reads: Arc::new([MemValue { clk: 8, value: 9 }, MemValue { clk: 10, value: 11 }]),
         };
 
-        let mut trace = SplicedMinimalTrace::new(trace_chunk, [2; 32], 2, 3, 1, 1);
+        let mut trace = SplicedMinimalTrace::new(trace_chunk, [2; 32], 2, 3, 1);
         trace.set_last_mem_reads_idx(2);
         trace.set_last_clk(2);
 
@@ -505,7 +494,6 @@ mod tests {
             pc_start: 2,
             clk_start: 3,
             clk_end: 2,
-            hint_lens: vec![6, 7],
             mem_reads: Arc::new([MemValue { clk: 10, value: 11 }]),
         };
 
@@ -542,9 +530,13 @@ mod tests {
         let proof_nonce = SP1Context::default().proof_nonce;
         let mut opts = SP1CoreOpts::default();
 
-        // Force the trace to end early so the APC is interrupted mid-execution. The whole block would require 100 rows in the ADDI table but we segment at 90.
-        opts.sharding_threshold =
-            crate::ShardingThreshold { element_threshold: 10000000, height_threshold: 90 };
+        // Force the trace to end early so the APC is interrupted mid-execution. The whole block
+        // would require 100 rows in the ADDI table but we segment at an effective height of 90
+        // (after reserving HALT_HEIGHT for the halt area).
+        opts.sharding_threshold = crate::ShardingThreshold {
+            element_threshold: 10000000,
+            height_threshold: HALT_HEIGHT + 90,
+        };
 
         let mut touched_addresses = CompressedMemory::new();
         let mut vm = SplicingVM::new(&chunk, program, &mut touched_addresses, proof_nonce, opts);
