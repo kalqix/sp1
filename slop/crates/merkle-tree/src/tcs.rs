@@ -101,7 +101,15 @@ impl<GC: IopCtx> MerkleTreeTcs<GC> {
         indices: &[usize],
         opening: &Tensor<GC::F>,
         proof: &MerkleTreeTcsProof<GC::Digest>,
+        expected_log_tensor_height: usize,
+        expected_width: usize,
     ) -> Result<(), MerkleTreeTcsError> {
+        if proof.log_tensor_height != expected_log_tensor_height {
+            return Err(MerkleTreeTcsError::InconsistentCommitmentShape);
+        }
+        if proof.width != expected_width {
+            return Err(MerkleTreeTcsError::InconsistentCommitmentShape);
+        }
         let expected_path_len = proof.log_tensor_height;
         if proof.paths.dimensions.sizes().len() != 2 || opening.dimensions.sizes().len() != 2 {
             return Err(MerkleTreeTcsError::IncorrectShape);

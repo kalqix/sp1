@@ -251,18 +251,20 @@ where
         }
 
         // Verify the proof of the claimed values of the original commitments at the query indices.
-        for (commit, opening_and_proof) in
-            commitments.iter().zip_eq(proof.component_polynomials_query_openings_and_proofs.iter())
+        let expected_log_tensor_height = log_len + self.fri_config.log_blowup();
+        for ((commit, opening_and_proof), eval_claims) in commitments
+            .iter()
+            .zip_eq(proof.component_polynomials_query_openings_and_proofs.iter())
+            .zip_eq(evaluation_claims.iter())
         {
-            if opening_and_proof.proof.log_tensor_height != log_len + self.fri_config.log_blowup() {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
             self.tcs
                 .verify_tensor_openings(
                     commit,
                     &query_indices,
                     &opening_and_proof.values,
                     &opening_and_proof.proof,
+                    expected_log_tensor_height,
+                    eval_claims.num_polynomials(),
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }
@@ -371,20 +373,16 @@ where
                 *x = x.square();
             }
 
-            // The magic constant 2 here is the folding factor we use for FRI.
-            if round_idx != query_opening.proof.log_tensor_height
-                || query_opening.proof.width != GC::EF::D * 2
-            {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
-
             // Check that the opening is consistent with the commitment.
+            // The magic constant 2 here is the folding factor we use for FRI.
             self.tcs
                 .verify_tensor_openings(
                     commitment,
                     &indices,
                     &query_opening.values,
                     &query_opening.proof,
+                    round_idx,
+                    GC::EF::D * 2,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }

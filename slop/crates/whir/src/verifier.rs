@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::iter::once;
 
 use serde::{Deserialize, Serialize};
@@ -196,15 +195,12 @@ where
             ));
         }
 
-        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
-            if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
-                println!(
-                    "proof width: {}, proof log height: {}, expected area {}, area: {}",
-                    merkle_proof.proof.width,
-                    merkle_proof.proof.log_tensor_height,
-                    area,
-                    merkle_proof.proof.width << merkle_proof.proof.log_tensor_height
-                );
+        // Verify that round areas are consistent with the expected commitment shape.
+        // Each area = width * 2^starting_interleaved_log_height.
+        let initial_expected_widths: Vec<usize> =
+            round_areas.iter().map(|area| area >> config.starting_interleaved_log_height).collect();
+        for (area, expected_width) in round_areas.iter().zip(initial_expected_widths.iter()) {
+            if *expected_width << config.starting_interleaved_log_height != *area {
                 return Err(WhirProofError::IncorrectShape);
             }
         }
@@ -341,15 +337,22 @@ where
                 return Err(WhirProofError::IncorrectShape);
             }
 
-            for (merkle_commitment, merkle_proof) in
-                prev_commitment.commitment.iter().zip(merkle_proof.iter())
+            for (i, (merkle_commitment, merkle_proof)) in
+                prev_commitment.commitment.iter().zip(merkle_proof.iter()).enumerate()
             {
+                let expected_width = if round_index == 0 {
+                    initial_expected_widths[i]
+                } else {
+                    merkle_proof.proof.width
+                };
                 self.merkle_verifier
                     .verify_tensor_openings(
                         merkle_commitment,
                         &id_query_indices,
                         &merkle_proof.values,
                         &merkle_proof.proof,
+                        domain_size,
+                        expected_width,
                     )
                     .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
             }
@@ -470,6 +473,8 @@ where
                 &final_id_indices,
                 &proof.final_merkle_opening_and_proof.values,
                 &proof.final_merkle_opening_and_proof.proof,
+                domain_size,
+                proof.final_merkle_opening_and_proof.proof.width,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
 

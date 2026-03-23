@@ -205,9 +205,6 @@ where
             if initial_opening_values.dimensions.sizes()[0] != query_indices.len() {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
-            if opening_and_proof.proof.log_tensor_height != log_tensor_height {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
 
             verifier
                 .tcs
@@ -216,6 +213,8 @@ where
                     &query_indices,
                     &opening_and_proof.values,
                     &opening_and_proof.proof,
+                    log_tensor_height,
+                    opening_and_proof.values.dimensions.sizes()[1],
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }
@@ -335,14 +334,8 @@ where
                 *x = x.square();
             }
 
-            // The magic constant 2 here is the folding factor we use for FRI.
-            if round_idx != query_opening.proof.log_tensor_height
-                || query_opening.proof.width != GC::EF::D * 2
-            {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
-
             // Check that the opening is consistent with the commitment.
+            // The magic constant 2 here is the folding factor we use for FRI.
             verifier
                 .tcs
                 .verify_tensor_openings(
@@ -350,6 +343,8 @@ where
                     &indices,
                     &query_opening.values,
                     &query_opening.proof,
+                    round_idx,
+                    GC::EF::D * 2,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }

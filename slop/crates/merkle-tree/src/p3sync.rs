@@ -259,7 +259,15 @@ mod tests {
         let openings = prover.compute_openings_at_indices(tensors, &indices);
 
         let tcs = MerkleTreeTcs::<BabyBearDegree4Duplex>::default();
-        tcs.verify_tensor_openings(&commitment, &indices, &openings, &proof).unwrap();
+        tcs.verify_tensor_openings(
+            &commitment,
+            &indices,
+            &openings,
+            &proof,
+            proof.log_tensor_height,
+            proof.width,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -285,6 +293,14 @@ mod tests {
 
         let tcs = MerkleTreeTcs::<KoalaBearDegree4Duplex>::default();
 
-        tcs.verify_tensor_openings(&commitment, &indices, &openings, &proof).unwrap();
+        tcs.verify_tensor_openings(
+            &commitment,
+            &indices,
+            &openings,
+            &proof,
+            proof.log_tensor_height,
+            proof.width,
+        )
+        .unwrap();
     }
 }
