@@ -118,18 +118,18 @@ fn test_compile_program_keccak256_software_cell_pgo() {
 
     expect![[r#"
         AirStats {
-            main_columns: 1702,
-            constraints: 1218,
-            bus_interactions: 868,
+            main_columns: 2366,
+            constraints: 1642,
+            bus_interactions: 1204,
         }
     "#]]
     .assert_debug_eq(&apc_stats_before);
 
     expect![[r#"
         AirStats {
-            main_columns: 565,
-            constraints: 280,
-            bus_interactions: 397,
+            main_columns: 881,
+            constraints: 440,
+            bus_interactions: 570,
         }
     "#]]
     .assert_debug_eq(&apc_stats_after);
