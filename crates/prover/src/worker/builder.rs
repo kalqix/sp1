@@ -267,9 +267,9 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         }
     }
 
-    /// Turn off vk verification for recursion proofs.
+    /// Set vk verification for recursion proofs.
     #[cfg(feature = "experimental")]
-    pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
+    pub fn with_vk_verification(self, vk_verification: bool) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
             mut config,
             core_air_prover_and_permits,
@@ -281,7 +281,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         } = self;
 
         config.prover_config.recursion_prover_config =
-            config.prover_config.recursion_prover_config.without_vk_verification();
+            config.prover_config.recursion_prover_config.with_vk_verification(vk_verification);
 
         SP1WorkerBuilder {
             config,

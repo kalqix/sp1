@@ -306,7 +306,6 @@ impl SP1LocalNode {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "experimental")]
     use {
         super::*,
         crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder},
@@ -316,7 +315,6 @@ mod tests {
         sp1_hypercube::HashableKey,
     };
 
-    #[cfg(feature = "experimental")]
     async fn run_e2e_node_test(
         builder: SP1WorkerBuilder<CpuSP1ProverComponents>,
     ) -> anyhow::Result<()> {
@@ -368,33 +366,28 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    #[cfg(feature = "experimental")]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder().without_vk_verification()).await
+        run_e2e_node_test(cpu_worker_builder()).await
     }
 
     #[tokio::test]
-    #[cfg(feature = "experimental")]
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder().without_vk_verification()).await
+        run_e2e_node_test(cpu_worker_builder()).await
     }
 
     #[tokio::test]
     #[serial]
     #[ignore = "only run to write the vk root and num keys to a file"]
-    #[cfg(feature = "experimental")]
     async fn make_verifier_vks() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         let recursion_vks = client.core().recursion_vks();
 
@@ -406,7 +399,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    #[cfg(feature = "experimental")]
     async fn test_e2e_groth16_node() -> anyhow::Result<()> {
         setup_logger();
 
@@ -414,12 +406,10 @@ mod tests {
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Groth16;
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();
@@ -455,16 +445,13 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    #[cfg(feature = "experimental")]
     async fn test_node_deferred_compress() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

@@ -61,8 +61,8 @@ impl SP1LightNode {
     }
 
     /// Create a new light node
-    #[cfg(feature = "experimental")]
-    pub async fn with_opts_and_vk_verification(opts: SP1CoreOpts, vk_verification: bool) -> Self {
+    pub async fn with_opts_and_vk_verification(opts: SP1CoreOpts) -> Self {
+        let vk_verification = !cfg!(feature = "experimental");
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
         tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
@@ -115,7 +115,6 @@ impl SP1LightNode {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "experimental")]
     use {
         super::*,
         crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder},
@@ -125,21 +124,18 @@ mod tests {
     };
 
     #[tokio::test]
-    #[cfg(feature = "experimental")]
     async fn test_light_node() {
         setup_logger();
 
-        let light_node = SP1LightNode::with_opts_and_vk_verification(SP1CoreOpts::default(), false)
+        let light_node = SP1LightNode::with_opts_and_vk_verification(SP1CoreOpts::default())
             .instrument(tracing::info_span!("initialize light node"))
             .await;
 
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .instrument(tracing::info_span!("initialize full node"))
-        .await
-        .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .instrument(tracing::info_span!("initialize full node"))
+            .await
+            .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();

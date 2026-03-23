@@ -954,7 +954,9 @@ mod tests {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
+            cpu_worker_builder()
+                .with_vk_verification(true)
+                .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
         .build()
         .await

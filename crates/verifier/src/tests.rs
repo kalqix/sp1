@@ -33,13 +33,14 @@ async fn test_verify_core(#[case] elf: Elf) {
 }
 
 #[rstest]
+#[cfg(feature = "experimental")]
 #[case(FIBONACCI_ELF)]
 #[case(FIBONACCI_BLAKE3_ELF)]
 #[tokio::test]
 #[serial]
 async fn test_verify_compressed(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the proof.

@@ -486,19 +486,16 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "should be invoked when changing the wrap circuit"]
-    #[cfg(feature = "experimental")]
     async fn set_wrap_vk_and_wrapped_proof() {
         setup_logger();
 
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .await
-        .expect("failed to build client");
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .expect("failed to build client");
 
         tracing::info!("prove compressed");
         let stdin = sp1_core_machine::io::SP1Stdin::new();
