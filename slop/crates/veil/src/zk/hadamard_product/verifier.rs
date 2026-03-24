@@ -138,8 +138,6 @@ where
         revealed_indices,
         &revealed_data.revealed_evals,
         &revealed_data.merkle_paths,
-        revealed_data.merkle_paths.log_tensor_height,
-        expected_width,
     ) {
         return Err(ZkHadamardProductError::HashInconsistency("combined".to_string(), e));
     }

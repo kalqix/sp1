@@ -177,8 +177,6 @@ where
         &revealed_indices,
         &revealed_data.revealed_evals,
         &revealed_data.merkle_paths,
-        revealed_data.merkle_paths.log_tensor_height,
-        revealed_data.merkle_paths.width,
     ) {
         return Err(ZkDotProductError::HashInconsistency(e));
     }
@@ -242,8 +240,6 @@ where
         &revealed_indices,
         &total_proof.proximity_check_proof.revealed_evals,
         &total_proof.proximity_check_proof.merkle_paths,
-        total_proof.proximity_check_proof.merkle_paths.log_tensor_height,
-        total_proof.proximity_check_proof.merkle_paths.width,
     ) {
         return Err(ZkDotProductError::HashInconsistency(e));
     }

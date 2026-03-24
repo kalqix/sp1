@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, UnivariatePolynomial};
+use slop_algebra::{AbstractExtensionField, AbstractField, UnivariatePolynomial};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -199,11 +199,6 @@ where
         // Each area = width * 2^starting_interleaved_log_height.
         let initial_expected_widths: Vec<usize> =
             round_areas.iter().map(|area| area >> config.starting_interleaved_log_height).collect();
-        for (area, expected_width) in round_areas.iter().zip(initial_expected_widths.iter()) {
-            if *expected_width << config.starting_interleaved_log_height != *area {
-                return Err(WhirProofError::IncorrectShape);
-            }
-        }
 
         let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples)
             .map(|_| {
@@ -343,7 +338,7 @@ where
                 let expected_width = if round_index == 0 {
                     initial_expected_widths[i]
                 } else {
-                    merkle_proof.proof.width
+                    (1 << config.round_parameters[round_index - 1].folding_factor) * GC::EF::D
                 };
                 self.merkle_verifier
                     .verify_tensor_openings(
@@ -474,7 +469,7 @@ where
                 &proof.final_merkle_opening_and_proof.values,
                 &proof.final_merkle_opening_and_proof.proof,
                 domain_size,
-                proof.final_merkle_opening_and_proof.proof.width,
+                (1 << config.round_parameters[n_rounds - 1].folding_factor) * GC::EF::D,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
 

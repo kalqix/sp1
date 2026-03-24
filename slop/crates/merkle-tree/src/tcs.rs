@@ -72,7 +72,11 @@ pub enum MerkleTreeTcsError {
     RootMismatch,
     #[error("proof has incorrect shape")]
     IncorrectShape,
-    #[error("incorrect width or height")]
+    #[error("incorrect width: expected {0}, found {1}")]
+    InconsistentCommitmentWidth(usize, usize),
+    #[error("incorrect log-height: expected {0}, found {1}")]
+    InconsistentCommitmentHeight(usize, usize),
+    #[error("tensor shape committed to does not match proof shape")]
     InconsistentCommitmentShape,
     #[error("base field overflow")]
     BaseFieldOverflow,
@@ -105,10 +109,16 @@ impl<GC: IopCtx> MerkleTreeTcs<GC> {
         expected_width: usize,
     ) -> Result<(), MerkleTreeTcsError> {
         if proof.log_tensor_height != expected_log_tensor_height {
-            return Err(MerkleTreeTcsError::InconsistentCommitmentShape);
+            return Err(MerkleTreeTcsError::InconsistentCommitmentHeight(
+                expected_log_tensor_height,
+                proof.log_tensor_height,
+            ));
         }
         if proof.width != expected_width {
-            return Err(MerkleTreeTcsError::InconsistentCommitmentShape);
+            return Err(MerkleTreeTcsError::InconsistentCommitmentWidth(
+                expected_width,
+                proof.width,
+            ));
         }
         let expected_path_len = proof.log_tensor_height;
         if proof.paths.dimensions.sizes().len() != 2 || opening.dimensions.sizes().len() != 2 {
