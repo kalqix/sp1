@@ -309,9 +309,12 @@ impl SP1LocalNode {
 mod tests {
     use {
         super::*,
-        crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder},
-        crate::CpuSP1ProverComponents,
+        crate::{
+            worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder},
+            CpuSP1ProverComponents,
+        },
         serial_test::serial,
+        slop_challenger::IopCtx,
         sp1_core_machine::utils::setup_logger,
         sp1_hypercube::HashableKey,
     };
@@ -393,6 +396,31 @@ mod tests {
         .unwrap();
 
         let recursion_vks = client.core().recursion_vks();
+
+        let mut file = std::fs::File::create("../verifier/vk-artifacts/verifier_vks.bin")?;
+
+        bincode::serialize_into(&mut file, &recursion_vks)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    #[cfg(feature = "experimental")]
+    #[ignore = "only run to write the vk root and num keys to a file"]
+    async fn make_experimental_verifier_vks() -> anyhow::Result<()> {
+        use sp1_core_machine::riscv::RiscvAir;
+        use sp1_primitives::SP1GlobalContext;
+        use sp1_verifier::VerifierRecursionVks;
+
+        use crate::shapes::create_all_input_shapes;
+
+        setup_logger();
+
+        let root: <SP1GlobalContext as IopCtx>::Digest = Default::default();
+        let vk_verification = false;
+        let num_keys = create_all_input_shapes(RiscvAir::machine().shape(), DEFAULT_ARITY).len();
+
+        let recursion_vks = VerifierRecursionVks { root, vk_verification, num_keys };
 
         let mut file = std::fs::File::create("../verifier/vk-artifacts/verifier_vks.bin")?;
 
