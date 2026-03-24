@@ -4,21 +4,18 @@ mod sumcheck_poly;
 mod sumcheck_sum_as_poly;
 
 pub use eval_sumcheck_prover::*;
-use slop_alloc::{Buffer, CanCopyFrom, CpuBackend};
 pub use sumcheck_eval::*;
 pub use sumcheck_poly::*;
 pub use sumcheck_sum_as_poly::*;
 
 use slop_algebra::{ExtensionField, Field};
-use slop_multilinear::{Point, PointBackend};
+use slop_multilinear::Point;
 
 use crate::JaggedLittlePolynomialProverParams;
 
 pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
     'static + Send + Sync + Clone
 {
-    type A: PointBackend<EF> + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, Self::A>>;
-
     fn prove_jagged_evaluation(
         &self,
         params: &JaggedLittlePolynomialProverParams,
@@ -26,7 +23,6 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
         z_col: &Point<EF>,
         z_trace: &Point<EF>,
         challenger: &mut Challenger,
-        backend: Self::A,
     ) -> JaggedSumcheckEvalProof<EF>;
 }
 
@@ -41,6 +37,7 @@ mod tests {
     use itertools::Itertools;
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
+    use slop_alloc::Buffer;
     use slop_baby_bear::{
         baby_bear_poseidon2::{my_bb_16_perm, Perm},
         BabyBear,

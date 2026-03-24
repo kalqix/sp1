@@ -418,6 +418,7 @@ mod tests {
 
         let root: <SP1GlobalContext as IopCtx>::Digest = Default::default();
         let vk_verification = false;
+
         let num_keys = create_all_input_shapes(RiscvAir::machine().shape(), DEFAULT_ARITY).len();
 
         let recursion_vks = VerifierRecursionVks { root, vk_verification, num_keys };

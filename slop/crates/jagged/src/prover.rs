@@ -275,7 +275,6 @@ impl<GC: IopCtx, Proof, C: MultilinearPcsProver<GC, Proof>> JaggedProver<GC, Pro
                 &z_col,
                 &final_eval_point,
                 challenger,
-                backend,
             )
         };
         let (row_counts, column_counts): (Rounds<_>, Rounds<_>) = prover_data

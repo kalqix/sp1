@@ -563,7 +563,7 @@ jobs:
           setup_gpu: true
 
       - name: Install SP1 toolchain from repo
-        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchaino
+        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
       - name: Set SP1_CIRCUIT_MODE
         run: |

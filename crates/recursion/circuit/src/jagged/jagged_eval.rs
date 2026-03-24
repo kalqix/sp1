@@ -181,7 +181,6 @@ mod tests {
 
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
-    use slop_alloc::CpuBackend;
     use slop_challenger::DuplexChallenger;
     use slop_jagged::{
         JaggedEvalProver, JaggedEvalSumcheckProver, JaggedLittlePolynomialProverParams,
@@ -276,14 +275,8 @@ mod tests {
         let default_perm = inner_perm();
         let mut challenger =
             DuplexChallenger::<SP1Field, SP1Perm, 16, 8>::new(default_perm.clone());
-        let jagged_eval_proof = prover.prove_jagged_evaluation(
-            prover_params,
-            z_row,
-            z_col,
-            z_trace,
-            &mut challenger,
-            CpuBackend,
-        );
+        let jagged_eval_proof =
+            prover.prove_jagged_evaluation(prover_params, z_row, z_col, z_trace, &mut challenger);
 
         let mut builder = AsmBuilder::default();
         builder.cycle_tracker_v2_enter("sumcheck-jagged-eval");

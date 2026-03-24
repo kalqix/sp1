@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Buffer, CpuBackend};
+use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::{partially_verify_sumcheck_proof, PartialSumcheckProof, SumcheckError};
@@ -157,8 +157,6 @@ where
     EF: ExtensionField<F>,
     Challenger: FieldChallenger<F> + Send + Sync,
 {
-    type A = CpuBackend;
-
     fn prove_jagged_evaluation(
         &self,
         params: &JaggedLittlePolynomialProverParams,
@@ -166,7 +164,6 @@ where
         z_col: &Point<EF>,
         z_trace: &Point<EF>,
         challenger: &mut Challenger,
-        _backend: Self::A,
     ) -> JaggedSumcheckEvalProof<EF> {
         // Create sumcheck proof for the jagged eval.
         let jagged_eval_sc_poly =
