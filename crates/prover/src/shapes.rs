@@ -991,7 +991,7 @@ mod tests {
         let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
         let allowed_vk_height =
-            log2_ceil_usize(create_all_input_shapes(&machine.shape(), DEFAULT_ARITY).len());
+            log2_ceil_usize(create_all_input_shapes(machine.shape(), DEFAULT_ARITY).len());
         let vk_verification = client.inner().vk_verification();
 
         let verifier = CpuSP1ProverComponents::compress_verifier();
