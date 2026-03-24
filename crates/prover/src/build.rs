@@ -334,7 +334,7 @@ pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.
 /// In development mode, artifacts are built locally from the current circuit definition.
 /// In release mode, pre-built artifacts are downloaded from S3.
 ///
-/// Defaults to development mode. Set `SP1_CIRCUIT_MODE=release` to download from S3.
+/// Defaults to release mode. Set `SP1_CIRCUIT_MODE=dev` to rebuild locally.
 pub(crate) fn use_development_mode() -> bool {
     std::env::var("SP1_CIRCUIT_MODE").unwrap_or("release".to_string()) != "release"
 }
