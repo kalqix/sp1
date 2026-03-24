@@ -7,12 +7,11 @@ use crate::autoprecompiles::{
 };
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc},
-    blocks::BasicBlock,
     evaluation::{AirStats, EvaluationResult},
 };
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
-use sp1_core_executor::CoreExecutionState;
+use sp1_core_executor::{CoreExecutionState, Opcode};
 use sp1_primitives::SP1Field;
 use std::hash::Hash;
 pub struct Sp1ApcAdapter;
@@ -38,11 +37,6 @@ impl Adapter for Sp1ApcAdapter {
         Self::PowdrField::from_bytes_le(&e.as_canonical_u32().to_le_bytes())
     }
 
-    fn should_skip_block(block: &BasicBlock<Self::Instruction>) -> bool {
-        // Skip blocks with more than 1000 instructions
-        block.instructions.len() > 1000
-    }
-
     fn apc_stats(
         apc: Arc<AdapterApc<Self>>,
         instruction_handler: &Self::InstructionHandler,
@@ -55,5 +49,24 @@ impl Adapter for Sp1ApcAdapter {
         let stats_after = AirStats::new(apc.machine());
 
         EvaluationResult { before: stats_before, after: stats_after }
+    }
+
+    fn is_allowed(instruction: &Self::Instruction) -> bool {
+        !matches!(instruction.0.opcode, Opcode::EBREAK | Opcode::ECALL | Opcode::UNIMP)
+    }
+
+    fn is_branching(instruction: &Self::Instruction) -> bool {
+        // We define the branch opcodes manually
+        matches!(
+            instruction.0.opcode,
+            Opcode::BEQ
+                | Opcode::BNE
+                | Opcode::BLT
+                | Opcode::BGE
+                | Opcode::BLTU
+                | Opcode::BGEU
+                | Opcode::JAL
+                | Opcode::JALR
+        )
     }
 }

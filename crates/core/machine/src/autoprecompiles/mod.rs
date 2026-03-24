@@ -56,7 +56,9 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
 pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
 pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
-    PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND)
+    let mut config = PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND);
+    config.apc_max_instructions = 1000;
+    config
 }
 
 pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<SP1Field>) -> VmConfig<'a> {
@@ -126,13 +128,13 @@ impl CompiledProgram {
         assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
 
         // Collect basic blocks
-        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests, &airs);
+        let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
         // Create pgo adapter based on the config
         let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_config {
             PgoConfig::Cell(pgo_data, max_total_apc_columns) => {
-                Box::new(CellPgo::<_, Sp1Candidate<_>>::with_pgo_data_and_max_columns(
+                Box::new(CellPgo::<_, Sp1Candidate>::with_pgo_data_and_max_columns(
                     pgo_data,
                     max_total_apc_columns,
                 ))

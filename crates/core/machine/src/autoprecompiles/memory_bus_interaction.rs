@@ -5,7 +5,7 @@ use powdr_autoprecompiles::memory_optimizer::{
 use powdr_constraint_solver::{
     constraint_system::BusInteraction, grouped_expression::GroupedExpression,
 };
-use powdr_number::{FieldElement, KoalaBearField};
+use powdr_number::KoalaBearField;
 use std::{
     fmt::Display,
     hash::Hash,
@@ -15,6 +15,7 @@ use std::{
 pub struct Sp1MemoryBusInteraction<V> {
     addr: MemoryAddress<V>,
     data: Vec<GroupedExpression<KoalaBearField, V>>,
+    timestamp: Vec<GroupedExpression<KoalaBearField, V>>,
     op: MemoryOp,
 }
 
@@ -88,14 +89,15 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
             _ => return Err(MemoryBusInteractionConversionError),
         };
 
-        let [_clk_high, _clk_low, addr0, addr1, addr2, data0, data1, data2, data3] =
+        let [clk_high, clk_low, addr0, addr1, addr2, data0, data1, data2, data3] =
             &bus_interaction.payload[..]
         else {
             panic!()
         };
         let addr = MemoryAddress::new([addr0.clone(), addr1.clone(), addr2.clone()]);
         let data = vec![data0.clone(), data1.clone(), data2.clone(), data3.clone()];
-        Ok(Some(Sp1MemoryBusInteraction { addr, data, op }))
+        let timestamp = vec![clk_high.clone(), clk_low.clone()];
+        Ok(Some(Sp1MemoryBusInteraction { addr, data, timestamp, op }))
     }
 
     fn addr(&self) -> Self::Address {
@@ -110,15 +112,7 @@ impl<V: Ord + Clone + Eq + Display + Hash> MemoryBusInteraction<KoalaBearField, 
         self.op
     }
 
-    fn register_address(&self) -> Option<usize> {
-        if matches!(self.addr.address_space, ArtificialAddressSpace::Register) {
-            // Can't use assert_eq!, because V is not guaranteed to implement Debug :(
-            assert!(self.addr.addr[1] == GroupedExpression::from_number(0.into()));
-            assert!(self.addr.addr[2] == GroupedExpression::from_number(0.into()));
-            let addr = &self.addr.addr[0];
-            Some(addr.try_to_number().unwrap().to_arbitrary_integer().try_into().unwrap())
-        } else {
-            None
-        }
+    fn timestamp_limbs(&self) -> &[GroupedExpression<KoalaBearField, V>] {
+        &self.timestamp
     }
 }
