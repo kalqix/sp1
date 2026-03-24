@@ -102,15 +102,15 @@ impl SP1RecursionProverConfig {
             num_recursion_prover_workers,
             recursion_prover_buffer_size,
             max_compose_arity,
-            vk_verification: !cfg!(feature = "experimental"),
+            vk_verification: true,
             verify_intermediates,
             vk_map_file: None,
         }
     }
     #[cfg(feature = "experimental")]
     /// Set vk verification for recursion proofs.
-    pub fn with_vk_verification(self, vk_verification: bool) -> Self {
-        Self { vk_verification, ..self }
+    pub fn without_vk_verification(self) -> Self {
+        Self { vk_verification: false, ..self }
     }
 
     #[cfg(feature = "experimental")]

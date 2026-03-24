@@ -903,10 +903,12 @@ mod tests {
         // Clean up any existing file from previous runs
         let _ = std::fs::remove_file(&vk_map_path);
 
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
 
@@ -954,9 +956,7 @@ mod tests {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder()
-                .with_vk_verification(true)
-                .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
+            cpu_worker_builder().with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
         .build()
         .await
@@ -990,7 +990,8 @@ mod tests {
 
         let machine = RiscvAir::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
-        let allowed_vk_height = client.inner().allowed_vk_height();
+        let allowed_vk_height =
+            log2_ceil_usize(create_all_input_shapes(&machine.shape(), DEFAULT_ARITY).len());
         let vk_verification = client.inner().vk_verification();
 
         let verifier = CpuSP1ProverComponents::compress_verifier();
