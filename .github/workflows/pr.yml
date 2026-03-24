@@ -82,7 +82,42 @@ jobs:
             --exclude sp1-gpu-tracing
             --exclude sp1-gpu-utils
             --exclude sp1-gpu-zerocheck
+            --exclude sp1-prover
             --features native-gnark,experimental
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+
+  test-x86-prover:
+    name: Prover Integration Tests (x86-64)
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+      - name: Run prover tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release -p sp1-prover --features native-gnark,experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
