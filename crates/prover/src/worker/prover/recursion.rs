@@ -71,9 +71,8 @@ pub struct SP1RecursionProverConfig {
     pub recursion_prover_buffer_size: usize,
     /// The maximum compose arity.
     pub max_compose_arity: usize,
-    /// Whether to verify the recursion vks. Defaults to true in non-experimental mode, false in
-    /// experimental mode. Can be explicitly set via `with_vk_verification` behind the
-    /// `experimental` feature flag.
+    /// Whether to verify the recursion vks. Should be true by default and only can be set to false
+    /// manually for code that is feature-gated behind the `experimental` flag.
     vk_verification: bool,
     /// Whether or not to verify the proof result at the end.
     pub verify_intermediates: bool,
@@ -108,7 +107,7 @@ impl SP1RecursionProverConfig {
         }
     }
     #[cfg(feature = "experimental")]
-    /// Set vk verification for recursion proofs.
+    /// Turn off vk verification for recursion proofs.
     pub fn without_vk_verification(self) -> Self {
         Self { vk_verification: false, ..self }
     }

@@ -336,7 +336,7 @@ pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.
 ///
 /// Defaults to development mode. Set `SP1_CIRCUIT_MODE=release` to download from S3.
 pub(crate) fn use_development_mode() -> bool {
-    std::env::var("SP1_CIRCUIT_MODE").unwrap_or("dev".to_string()) != "release"
+    std::env::var("SP1_CIRCUIT_MODE").unwrap_or("release".to_string()) != "release"
 }
 
 /// The directory where the groth16 circuit artifacts will be stored.
