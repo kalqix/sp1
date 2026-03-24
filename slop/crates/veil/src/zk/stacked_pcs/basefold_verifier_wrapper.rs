@@ -205,9 +205,6 @@ where
             if initial_opening_values.dimensions.sizes()[0] != query_indices.len() {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
-            if opening_and_proof.proof.log_tensor_height != log_tensor_height {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
 
             verifier
                 .tcs
@@ -216,6 +213,8 @@ where
                     &query_indices,
                     &opening_and_proof.values,
                     &opening_and_proof.proof,
+                    log_tensor_height,
+                    initial_opening_values.sizes()[1],
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }
@@ -350,6 +349,8 @@ where
                     &indices,
                     &query_opening.values,
                     &query_opening.proof,
+                    round_idx,
+                    GC::EF::D * 2,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }
