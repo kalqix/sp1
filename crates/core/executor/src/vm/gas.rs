@@ -345,6 +345,8 @@ pub fn get_complexity_mapping() -> EnumMap<RiscvAirId, u64> {
     // Septic curve operations
     mapping[RiscvAirId::SepticAddAssign] = 918;
     mapping[RiscvAirId::SepticDoubleAssign] = 904;
+    // Approximation: ~217 doublings + ~108 additions per 217-bit scalar.
+    mapping[RiscvAirId::SepticScalarMulAssign] = 295240;
 
     // RISC-V instruction costs
     mapping[RiscvAirId::DivRem] = 347;

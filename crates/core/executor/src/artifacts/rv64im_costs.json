@@ -66,5 +66,6 @@
   "ShaCompress": 206,
   "LoadDouble": 39,
   "SepticAddAssign": 1599,
-  "SepticDoubleAssign": 1591
+  "SepticDoubleAssign": 1591,
+  "SepticScalarMulAssign": 519792
 }

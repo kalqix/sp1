@@ -228,6 +228,9 @@ pub(crate) fn sp1_ecall_handler<'a, RT: SyscallRuntime<'a>>(
         SyscallCode::POSEIDON2 => poseidon2::poseidon2(rt, code, args1, args2),
         SyscallCode::SEPTIC_ADD => precompiles::septic::septic_add(rt, code, args1, args2),
         SyscallCode::SEPTIC_DOUBLE => precompiles::septic::septic_double(rt, code, args1, args2),
+        SyscallCode::SEPTIC_SCALAR_MUL => {
+            precompiles::septic::septic_scalar_mul(rt, code, args1, args2)
+        }
         SyscallCode::VERIFY_SP1_PROOF
         | SyscallCode::MPROTECT
         | SyscallCode::ENTER_UNCONSTRAINED

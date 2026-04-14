@@ -186,6 +186,12 @@ extern "C" {
 
     /// Executes a septic curve doubling on the given point.
     pub fn syscall_septic_double(p: *mut [u64; 7]);
+
+    /// Executes a septic curve scalar multiplication on the given point and scalar.
+    /// The result is written back to `p`. The scalar is a 256-bit little-endian
+    /// integer (the upper bits should be zero for valid scalars on the 217-bit
+    /// group order).
+    pub fn syscall_septic_scalar_mul(p: *mut [u64; 7], scalar: *const [u64; 4]);
 }
 
 #[repr(C)]

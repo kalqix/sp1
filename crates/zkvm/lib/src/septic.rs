@@ -5,7 +5,7 @@
 //! field elements `[x0..x6, y0..y6]`, packed into 7 u64 words (two u32s per u64,
 //! little-endian) for 8-byte alignment.
 
-use crate::{syscall_septic_add, syscall_septic_double};
+use crate::{syscall_septic_add, syscall_septic_double, syscall_septic_scalar_mul};
 
 /// A septic curve point.
 ///
@@ -91,6 +91,26 @@ impl SepticPoint {
                 }
                 temp = temp.double();
             }
+        }
+        result
+    }
+
+    /// Scalar multiplication via the `SEPTIC_SCALAR_MUL` precompile (single syscall).
+    ///
+    /// `scalar` is 8 little-endian u32 limbs, packed into 4 u64 words for the
+    /// syscall. Compared to [`Self::scalar_mul`] this performs the entire
+    /// double-and-add loop inside the executor, avoiding ~325 individual syscalls.
+    pub fn scalar_mul_single(&self, scalar: &[u32; 8]) -> SepticPoint {
+        let mut result = *self;
+        let mut scalar_packed = [0u64; 4];
+        for i in 0..4 {
+            scalar_packed[i] = (scalar[2 * i] as u64) | ((scalar[2 * i + 1] as u64) << 32);
+        }
+        unsafe {
+            syscall_septic_scalar_mul(
+                &mut result.data as *mut [u64; 7],
+                &scalar_packed as *const [u64; 4],
+            );
         }
         result
     }

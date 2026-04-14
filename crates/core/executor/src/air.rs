@@ -221,6 +221,8 @@ pub enum RiscvAirId {
     SepticAddAssign = 73,
     /// The septic curve double assign chip.
     SepticDoubleAssign = 74,
+    /// The septic curve scalar mul assign chip.
+    SepticScalarMulAssign = 75,
 }
 
 impl RiscvAirId {
@@ -319,6 +321,7 @@ impl RiscvAirId {
                 | RiscvAirId::Poseidon2
                 | RiscvAirId::SepticAddAssign
                 | RiscvAirId::SepticDoubleAssign
+                | RiscvAirId::SepticScalarMulAssign
         )
     }
 

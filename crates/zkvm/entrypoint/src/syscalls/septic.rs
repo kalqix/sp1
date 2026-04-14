@@ -54,3 +54,31 @@ pub extern "C" fn syscall_septic_double(p: *mut [u64; 7]) {
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
+
+/// Scalar multiplication on the septic curve. The result is stored in-place
+/// (`p = scalar * p`).
+///
+/// `scalar` is interpreted as a 256-bit little-endian integer packed as 4 u64
+/// words (8 u32 words). The septic curve group order is 217 bits, so the top
+/// bits should be zero.
+///
+/// ### Safety
+///
+/// The caller must ensure that `p` and `scalar` are valid pointers aligned to
+/// 8 bytes.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_septic_scalar_mul(p: *mut [u64; 7], scalar: *const [u64; 4]) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::SEPTIC_SCALAR_MUL,
+            in("a0") p,
+            in("a1") scalar
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}

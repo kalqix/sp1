@@ -7,7 +7,7 @@ use super::{
         fptower::{fp2_addsub_syscall, fp2_mul_syscall, fp_op_syscall},
         keccak::keccak_permute,
         poseidon2::poseidon2,
-        septic::{septic_add, septic_double},
+        septic::{septic_add, septic_double, septic_scalar_mul},
         sha256::{sha256_compress, sha256_extend},
         uint256::uint256_mul,
         uint256_ops::uint256_ops,
@@ -155,6 +155,7 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> u64 {
         SyscallCode::POSEIDON2 => unsafe { poseidon2(ctx, arg1, arg2) },
         SyscallCode::SEPTIC_ADD => unsafe { septic_add(ctx, arg1, arg2) },
         SyscallCode::SEPTIC_DOUBLE => unsafe { septic_double(ctx, arg1, arg2) },
+        SyscallCode::SEPTIC_SCALAR_MUL => unsafe { septic_scalar_mul(ctx, arg1, arg2) },
         SyscallCode::HALT => {
             ctx.set_exit_code(arg1 as u32);
             None
