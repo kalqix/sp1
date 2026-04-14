@@ -217,6 +217,10 @@ pub enum RiscvAirId {
     PageProtGlobalFinalize = 71,
     /// The poseidon2 chip.
     Poseidon2 = 72,
+    /// The septic curve add assign chip.
+    SepticAddAssign = 73,
+    /// The septic curve double assign chip.
+    SepticDoubleAssign = 74,
 }
 
 impl RiscvAirId {
@@ -313,6 +317,8 @@ impl RiscvAirId {
                 | RiscvAirId::Bn254Fp2MulAssign
                 | RiscvAirId::Bls12381Decompress
                 | RiscvAirId::Poseidon2
+                | RiscvAirId::SepticAddAssign
+                | RiscvAirId::SepticDoubleAssign
         )
     }
 

@@ -15,6 +15,7 @@ pub mod mprotect;
 pub mod poseidon2;
 pub mod secp256k1;
 pub mod secp256r1;
+pub mod septic;
 pub mod unconstrained;
 pub mod utils;
 
@@ -179,6 +180,12 @@ extern "C" {
 
     /// Executes the Poseidon2 permutation on the given state buffer in-place.
     pub fn syscall_poseidon2(inout: &mut crate::poseidon2::Poseidon2State);
+
+    /// Executes a septic curve addition on the given points.
+    pub fn syscall_septic_add(p: *mut [u64; 7], q: *const [u64; 7]);
+
+    /// Executes a septic curve doubling on the given point.
+    pub fn syscall_septic_double(p: *mut [u64; 7]);
 }
 
 #[repr(C)]

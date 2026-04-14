@@ -342,6 +342,10 @@ pub fn get_complexity_mapping() -> EnumMap<RiscvAirId, u64> {
     mapping[RiscvAirId::Mprotect] = 11;
     mapping[RiscvAirId::Poseidon2] = 497;
 
+    // Septic curve operations
+    mapping[RiscvAirId::SepticAddAssign] = 918;
+    mapping[RiscvAirId::SepticDoubleAssign] = 904;
+
     // RISC-V instruction costs
     mapping[RiscvAirId::DivRem] = 347;
     mapping[RiscvAirId::Add] = 15;
