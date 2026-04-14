@@ -188,6 +188,7 @@ pub enum RiscvAirId {
     /// The poseidon2 chip.
     Poseidon2 = 60,
     /// The ALU x0 chip (all ALU ops with rd = x0).
+    #[subenum(CoreAirId)]
     AluX0 = 61,
     /// The septic curve add assign chip.
     SepticAddAssign = 62,
