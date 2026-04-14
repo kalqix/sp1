@@ -5,7 +5,9 @@
 //! field elements `[x0..x6, y0..y6]`, packed into 7 u64 words (two u32s per u64,
 //! little-endian) for 8-byte alignment.
 
-use crate::{syscall_septic_add, syscall_septic_double, syscall_septic_scalar_mul};
+use crate::{
+    syscall_septic_add, syscall_septic_double, syscall_septic_scalar_mul, syscall_septic_verify,
+};
 
 /// A septic curve point.
 ///
@@ -114,4 +116,32 @@ impl SepticPoint {
         }
         result
     }
+}
+
+/// Schnorr verification helper: compute `s * G + e * A` via the `SEPTIC_VERIFY`
+/// precompile (single syscall), where `G` is the hardcoded septic curve
+/// generator. Uses Shamir's trick inside the executor, so it costs ~381 EC
+/// operations vs. ~651 for two independent `scalar_mul_single` calls.
+///
+/// The caller compares the returned point against `R` to complete the Schnorr
+/// verification equation.
+pub fn schnorr_compute(a: &SepticPoint, s: &[u32; 8], e: &[u32; 8]) -> SepticPoint {
+    let mut buf = [0u64; 15];
+
+    buf[0..7].copy_from_slice(&a.data);
+
+    for i in 0..4 {
+        buf[7 + i] = (s[2 * i] as u64) | ((s[2 * i + 1] as u64) << 32);
+    }
+    for i in 0..4 {
+        buf[11 + i] = (e[2 * i] as u64) | ((e[2 * i + 1] as u64) << 32);
+    }
+
+    unsafe {
+        syscall_septic_verify(&mut buf as *mut [u64; 15]);
+    }
+
+    let mut result_data = [0u64; 7];
+    result_data.copy_from_slice(&buf[0..7]);
+    SepticPoint { data: result_data }
 }

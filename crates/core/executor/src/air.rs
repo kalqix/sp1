@@ -223,6 +223,8 @@ pub enum RiscvAirId {
     SepticDoubleAssign = 74,
     /// The septic curve scalar mul assign chip.
     SepticScalarMulAssign = 75,
+    /// The septic curve Schnorr verify chip (Shamir's trick).
+    SepticVerify = 76,
 }
 
 impl RiscvAirId {
@@ -322,6 +324,7 @@ impl RiscvAirId {
                 | RiscvAirId::SepticAddAssign
                 | RiscvAirId::SepticDoubleAssign
                 | RiscvAirId::SepticScalarMulAssign
+                | RiscvAirId::SepticVerify
         )
     }
 

@@ -67,5 +67,6 @@
   "LoadDouble": 39,
   "SepticAddAssign": 1599,
   "SepticDoubleAssign": 1591,
-  "SepticScalarMulAssign": 519792
+  "SepticScalarMulAssign": 519792,
+  "SepticVerify": 609219
 }

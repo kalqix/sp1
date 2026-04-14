@@ -231,6 +231,7 @@ pub(crate) fn sp1_ecall_handler<'a, RT: SyscallRuntime<'a>>(
         SyscallCode::SEPTIC_SCALAR_MUL => {
             precompiles::septic::septic_scalar_mul(rt, code, args1, args2)
         }
+        SyscallCode::SEPTIC_VERIFY => precompiles::septic::septic_verify(rt, code, args1, args2),
         SyscallCode::VERIFY_SP1_PROOF
         | SyscallCode::MPROTECT
         | SyscallCode::ENTER_UNCONSTRAINED

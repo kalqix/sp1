@@ -82,3 +82,30 @@ pub extern "C" fn syscall_septic_scalar_mul(p: *mut [u64; 7], scalar: *const [u6
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
+
+/// Schnorr verification helper: computes `s*G + e*A` using Shamir's trick in
+/// a single syscall, where `G` is the hardcoded septic curve generator.
+///
+/// `buf` is laid out as 15 contiguous u64 words: `[A(7), s(4), e(4)]` —
+/// the pubkey point followed by the two little-endian 256-bit scalars. The
+/// result point (`s*G + e*A`) overwrites the first 7 u64 words (the `A` slot).
+///
+/// ### Safety
+///
+/// The caller must ensure that `buf` is a valid pointer aligned to 8 bytes.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_septic_verify(buf: *mut [u64; 15]) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::SEPTIC_VERIFY,
+            in("a0") buf,
+            in("a1") 0
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}

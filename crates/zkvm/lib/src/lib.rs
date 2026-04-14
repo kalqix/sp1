@@ -192,6 +192,11 @@ extern "C" {
     /// integer (the upper bits should be zero for valid scalars on the 217-bit
     /// group order).
     pub fn syscall_septic_scalar_mul(p: *mut [u64; 7], scalar: *const [u64; 4]);
+
+    /// Computes `s*G + e*A` on the septic curve using Shamir's trick, where `G`
+    /// is the standard hardcoded generator. The 15-u64 buffer is laid out as
+    /// `[A(7), s(4), e(4)]`; the result overwrites the first 7 u64 words.
+    pub fn syscall_septic_verify(buf: *mut [u64; 15]);
 }
 
 #[repr(C)]

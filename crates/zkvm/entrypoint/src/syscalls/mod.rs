@@ -195,3 +195,7 @@ pub const SEPTIC_DOUBLE: u32 = 0x00_00_01_35;
 /// Executes the `SEPTIC_SCALAR_MUL` precompile.
 #[allow(clippy::mistyped_literal_suffixes)]
 pub const SEPTIC_SCALAR_MUL: u32 = 0x00_00_01_36;
+
+/// Executes the `SEPTIC_VERIFY` precompile (Shamir's trick: `s*G + e*A`).
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SEPTIC_VERIFY: u32 = 0x00_00_01_37;

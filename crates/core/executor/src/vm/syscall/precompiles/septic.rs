@@ -65,3 +65,23 @@ pub(crate) fn septic_scalar_mul<'a, RT: SyscallRuntime<'a>>(
 
     None
 }
+
+pub(crate) fn septic_verify<'a, RT: SyscallRuntime<'a>>(
+    rt: &mut RT,
+    _syscall_code: SyscallCode,
+    arg1: u64,
+    _arg2: u64,
+) -> Option<u64> {
+    let buf_ptr = arg1;
+    assert!(buf_ptr.is_multiple_of(8), "buf_ptr must be 8-byte aligned");
+
+    let _a = rt.mr_slice_unsafe(SEPTIC_POINT_U64_WORDS);
+    let scalars_ptr = buf_ptr + (SEPTIC_POINT_U64_WORDS as u64) * 8;
+    let _scalars = rt.mr_slice(scalars_ptr, 2 * SEPTIC_SCALAR_U64_WORDS);
+
+    rt.increment_clk();
+
+    let _w = rt.mw_slice(buf_ptr, SEPTIC_POINT_U64_WORDS);
+
+    None
+}

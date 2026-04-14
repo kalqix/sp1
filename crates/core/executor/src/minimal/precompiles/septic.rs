@@ -1,5 +1,9 @@
 use slop_algebra::{AbstractField, PrimeField32};
-use sp1_hypercube::{septic_curve::SepticCurve, septic_extension::SepticExtension};
+use sp1_hypercube::{
+    septic_curve::SepticCurve,
+    septic_digest::{CURVE_CUMULATIVE_SUM_START_X, CURVE_CUMULATIVE_SUM_START_Y},
+    septic_extension::SepticExtension,
+};
 use sp1_jit::SyscallContext;
 use sp1_primitives::SP1Field;
 
@@ -8,6 +12,130 @@ const SEPTIC_POINT_U64_WORDS: usize = 7;
 
 /// Number of u64 words used to hold a 256-bit scalar (8 u32 words = 4 u64 words).
 const SEPTIC_SCALAR_U64_WORDS: usize = 4;
+
+/// Scalar bit length (256 bits = 4 u64 words).
+const SEPTIC_SCALAR_BITS: usize = SEPTIC_SCALAR_U64_WORDS * 64;
+
+/// The standard generator point for the septic curve, matching
+/// `CURVE_CUMULATIVE_SUM_START` from `sp1_hypercube::septic_digest`.
+fn septic_generator() -> SepticCurve<SP1Field> {
+    let mut x = [SP1Field::zero(); 7];
+    let mut y = [SP1Field::zero(); 7];
+    for i in 0..7 {
+        x[i] = SP1Field::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i]);
+        y[i] = SP1Field::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i]);
+    }
+    SepticCurve { x: SepticExtension(x), y: SepticExtension(y) }
+}
+
+/// Shamir's trick: compute `s*G + e*A` with shared doublings (MSB-first).
+///
+/// Runs ~381 EC operations instead of ~651 for two independent scalar mults: one
+/// precomputed `G+A`, then at each bit position a shared double plus (at most)
+/// a conditional add. Returns `(result, set)` where `set = false` indicates
+/// both scalars were zero and the caller should emit the zero sentinel point.
+fn shamirs_trick(
+    g: SepticCurve<SP1Field>,
+    a: SepticCurve<SP1Field>,
+    s: &[u64; SEPTIC_SCALAR_U64_WORDS],
+    e: &[u64; SEPTIC_SCALAR_U64_WORDS],
+) -> (SepticCurve<SP1Field>, bool) {
+    let g_plus_a = g.add_incomplete(a);
+
+    let mut highest: Option<usize> = None;
+    for pos in 0..SEPTIC_SCALAR_BITS {
+        let word = pos / 64;
+        let bit = pos % 64;
+        if ((s[word] | e[word]) >> bit) & 1 == 1 {
+            highest = Some(pos);
+        }
+    }
+
+    let Some(highest) = highest else {
+        return (
+            SepticCurve {
+                x: SepticExtension([SP1Field::zero(); 7]),
+                y: SepticExtension([SP1Field::zero(); 7]),
+            },
+            false,
+        );
+    };
+
+    let mut result = g;
+    let mut result_set = false;
+
+    for pos in (0..=highest).rev() {
+        if result_set {
+            result = result.double();
+        }
+
+        let word = pos / 64;
+        let bit = pos % 64;
+        let s_bit = (s[word] >> bit) & 1 == 1;
+        let e_bit = (e[word] >> bit) & 1 == 1;
+
+        let to_add = match (s_bit, e_bit) {
+            (true, true) => Some(g_plus_a),
+            (true, false) => Some(g),
+            (false, true) => Some(a),
+            (false, false) => None,
+        };
+
+        if let Some(p) = to_add {
+            if result_set {
+                result = result.add_incomplete(p);
+            } else {
+                result = p;
+                result_set = true;
+            }
+        }
+    }
+
+    (result, result_set)
+}
+
+/// Execute a septic curve Schnorr-style verify syscall.
+///
+/// Reads a 15-u64 buffer laid out as `[A(7), s(4), e(4)]`, computes
+/// `s*G + e*A` via Shamir's trick in one syscall (`G` is the hardcoded
+/// generator above), then writes the 7-u64 result back over the `A` slot.
+///
+/// `s = 0 && e = 0` writes the all-zero sentinel point, matching the guest
+/// API's handling of identity.
+pub(crate) unsafe fn septic_verify(
+    ctx: &mut impl SyscallContext,
+    arg1: u64,
+    _arg2: u64,
+) -> Option<u64> {
+    let buf_ptr = arg1;
+    if !buf_ptr.is_multiple_of(8) {
+        panic!();
+    }
+
+    let a_point = u64_words_to_septic_point(ctx.mr_slice_unsafe(buf_ptr, SEPTIC_POINT_U64_WORDS));
+    let scalars_ptr = buf_ptr + (SEPTIC_POINT_U64_WORDS as u64) * 8;
+    let scalar_words: Vec<u64> =
+        ctx.mr_slice(scalars_ptr, 2 * SEPTIC_SCALAR_U64_WORDS).into_iter().copied().collect();
+
+    let mut s = [0u64; SEPTIC_SCALAR_U64_WORDS];
+    let mut e = [0u64; SEPTIC_SCALAR_U64_WORDS];
+    s.copy_from_slice(&scalar_words[..SEPTIC_SCALAR_U64_WORDS]);
+    e.copy_from_slice(&scalar_words[SEPTIC_SCALAR_U64_WORDS..]);
+
+    let g_point = septic_generator();
+    let (result, result_set) = shamirs_trick(g_point, a_point, &s, &e);
+
+    let result_words = if result_set {
+        septic_point_to_u64_words(&result)
+    } else {
+        [0u64; SEPTIC_POINT_U64_WORDS]
+    };
+
+    ctx.bump_memory_clk();
+    ctx.mw_slice(buf_ptr, &result_words);
+
+    None
+}
 
 fn u64_words_to_septic_point<'a>(
     words: impl IntoIterator<Item = &'a u64>,
